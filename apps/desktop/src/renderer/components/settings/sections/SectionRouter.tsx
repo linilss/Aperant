@@ -191,6 +191,7 @@ export function SectionRouter({
               updateEnvConfig={updateEnvConfig}
               azureDevOpsConnectionStatus={azureDevOpsConnectionStatus}
               isCheckingAzureDevOps={isCheckingAzureDevOps}
+              projectId={project.id}
               projectPath={project.path}
               settings={settings}
               setSettings={setSettings}

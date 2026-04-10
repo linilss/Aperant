@@ -22,7 +22,10 @@ interface AzureDevOpsIntegrationProps {
   updateEnvConfig: (updates: Partial<ProjectEnvConfig>) => void;
   azureDevOpsConnectionStatus: AzureDevOpsSyncStatus | null;
   isCheckingAzureDevOps: boolean;
+  /** Filesystem path — used for detectMainBranch (git local detection) */
   projectPath?: string;
+  /** Project UUID — used for IPC calls that look up the project in the store */
+  projectId?: string;
   settings?: ProjectSettings;
   setSettings?: React.Dispatch<React.SetStateAction<ProjectSettings>>;
 }
@@ -38,6 +41,7 @@ export function AzureDevOpsIntegration({
   azureDevOpsConnectionStatus,
   isCheckingAzureDevOps,
   projectPath,
+  projectId,
   settings,
   setSettings
 }: AzureDevOpsIntegrationProps) {
@@ -61,13 +65,14 @@ export function AzureDevOpsIntegration({
 
   // Auto-detect Azure DevOps repo and pre-fill org URL / project when integration is enabled
   useEffect(() => {
-    if (!envConfig?.azureDevOpsEnabled || !projectPath) return;
+    if (!envConfig?.azureDevOpsEnabled || !projectId) return;
 
     const detectAndFetchBranches = async () => {
       // Try to auto-detect repo details if fields are not yet populated
       if (!envConfig.azureDevOpsOrgUrl || !envConfig.azureDevOpsProject) {
         try {
-          const result = await window.electronAPI.detectAzureDevOpsRepo(projectPath);
+          // detectAzureDevOpsRepo handler looks up project by ID then reads git remote
+          const result = await window.electronAPI.detectAzureDevOpsRepo(projectId);
           if (result.success && result.data) {
             if (!envConfig.azureDevOpsOrgUrl && result.data.orgUrl) {
               updateEnvConfig({ azureDevOpsOrgUrl: result.data.orgUrl });
@@ -81,29 +86,27 @@ export function AzureDevOpsIntegration({
         }
       }
 
-      // Fetch branches via Azure DevOps API (requires projectId, uses projectPath as fallback)
       await fetchBranches();
     };
 
     detectAndFetchBranches();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [envConfig?.azureDevOpsEnabled, projectPath]);
+  }, [envConfig?.azureDevOpsEnabled, projectId]);
 
   const fetchBranches = async () => {
-    if (!projectPath) return;
+    if (!projectId) return;
 
     setIsLoadingBranches(true);
     setBranchesError(null);
 
     try {
-      // Use projectPath as the projectId for branch fetching — matches how GitLab does it
-      const result = await window.electronAPI.getAzureDevOpsBranches(projectPath);
+      const result = await window.electronAPI.getAzureDevOpsBranches(projectId);
 
       if (result.success && result.data) {
         setBranches(result.data);
 
-        // Auto-detect default branch if none is set
-        if (!settings?.mainBranch && !envConfig?.defaultBranch && result.data.length > 0) {
+        // Auto-detect default branch if none is set (uses local git, needs filesystem path)
+        if (!settings?.mainBranch && !envConfig?.defaultBranch && result.data.length > 0 && projectPath) {
           const detectResult = await window.electronAPI.detectMainBranch(projectPath);
           if (detectResult.success && detectResult.data) {
             handleBranchChange(detectResult.data);

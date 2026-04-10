@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import {
   RefreshCw,
   Download,
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
@@ -44,6 +46,30 @@ export function GeneralSettings({
   handleInitialize
 }: GeneralSettingsProps) {
   const { t } = useTranslation(['settings']);
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [clearSuccess, setClearSuccess] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleClearData = async () => {
+    setIsClearing(true);
+    setClearError(null);
+    setClearSuccess(false);
+    try {
+      const result = await window.electronAPI.clearProjectData(project.id);
+      if (result.success) {
+        setClearSuccess(true);
+        setShowClearConfirm(false);
+        setTimeout(() => setClearSuccess(false), 3000);
+      } else {
+        setClearError(result.error ?? 'Failed to clear project data');
+      }
+    } catch (err) {
+      setClearError(err instanceof Error ? err.message : 'Failed to clear project data');
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   return (
     <>
@@ -214,6 +240,81 @@ export function GeneralSettings({
                   }
                 />
               </div>
+            </div>
+          </section>
+
+          <Separator />
+
+          {/* Danger Zone */}
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold text-destructive">Danger Zone</h3>
+            <div className="rounded-lg border border-destructive/30 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Clear Project Data</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Delete all tasks, specs, and cached integration data for this project. Your code and settings are not affected.
+                  </p>
+                </div>
+                {!showClearConfirm && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Clear Data
+                  </Button>
+                )}
+              </div>
+
+              {showClearConfirm && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 space-y-3">
+                  <p className="text-xs text-destructive font-medium">
+                    This will permanently delete all tasks and specs in <code className="bg-muted px-1 rounded">{project.autoBuildPath}</code>. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleClearData}
+                      disabled={isClearing}
+                    >
+                      {isClearing ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          Clearing...
+                        </>
+                      ) : (
+                        'Yes, clear all data'
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowClearConfirm(false)}
+                      disabled={isClearing}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {clearSuccess && (
+                <div className="flex items-center gap-2 text-xs text-success">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Project data cleared successfully.
+                </div>
+              )}
+
+              {clearError && (
+                <div className="flex items-center gap-2 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {clearError}
+                </div>
+              )}
             </div>
           </section>
         </>

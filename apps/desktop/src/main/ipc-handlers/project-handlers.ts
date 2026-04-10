@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
-import { existsSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
 import { execFileSync } from 'child_process';
+import path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type {
   Project,
@@ -416,6 +417,41 @@ export function registerProjectHandlers(
             updateAvailable: false // No updates for .auto-claude - it's just data
           }
         };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }
+  );
+
+  // Clear all project data (specs, tasks, github cache) from the .auto-claude directory.
+  // The .auto-claude directory itself and .env config are preserved.
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_CLEAR_DATA,
+    async (_, projectId: string): Promise<IPCResult<void>> => {
+      try {
+        const project = projectStore.getProject(projectId);
+        if (!project) {
+          return { success: false, error: 'Project not found' };
+        }
+        if (!project.autoBuildPath) {
+          return { success: false, error: 'Project is not initialized' };
+        }
+
+        const autoBuildDir = path.join(project.path, project.autoBuildPath);
+
+        // Sub-directories that hold task/integration data — delete and recreate empty
+        const dataDirs = ['specs', 'github', 'gitlab'];
+        for (const dir of dataDirs) {
+          const dirPath = path.join(autoBuildDir, dir);
+          if (existsSync(dirPath)) {
+            rmSync(dirPath, { recursive: true, force: true });
+          }
+        }
+
+        return { success: true };
       } catch (error) {
         return {
           success: false,

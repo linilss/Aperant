@@ -33,6 +33,8 @@ export const projectMock = {
     data: { success: true, version: '1.0.0', wasUpdate: false }
   }),
 
+  clearProjectData: async () => ({ success: true }),
+
   checkProjectVersion: async () => ({
     success: true,
     data: {

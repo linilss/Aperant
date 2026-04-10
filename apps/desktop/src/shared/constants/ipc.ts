@@ -11,6 +11,7 @@ export const IPC_CHANNELS = {
   PROJECT_UPDATE_SETTINGS: 'project:updateSettings',
   PROJECT_INITIALIZE: 'project:initialize',
   PROJECT_CHECK_VERSION: 'project:checkVersion',
+  PROJECT_CLEAR_DATA: 'project:clearData',
 
   // Tab state operations (persisted in main process)
   TAB_STATE_GET: 'tabState:get',
