@@ -18,6 +18,7 @@ import { createChangelogAPI, ChangelogAPI } from './modules/changelog-api';
 import { createLinearAPI, LinearAPI } from './modules/linear-api';
 import { createGitHubAPI, GitHubAPI } from './modules/github-api';
 import { createGitLabAPI, GitLabAPI } from './modules/gitlab-api';
+import { createAzureDevOpsAPI, AzureDevOpsAPI } from './modules/azure-devops-api';
 import { createShellAPI, ShellAPI } from './modules/shell-api';
 
 /**
@@ -32,6 +33,7 @@ export interface AgentAPI extends
   LinearAPI,
   GitHubAPI,
   GitLabAPI,
+  AzureDevOpsAPI,
   ShellAPI {}
 
 /**
@@ -47,6 +49,7 @@ export const createAgentAPI = (): AgentAPI => {
   const linearAPI = createLinearAPI();
   const githubAPI = createGitHubAPI();
   const gitlabAPI = createGitLabAPI();
+  const azureDevOpsAPI = createAzureDevOpsAPI();
   const shellAPI = createShellAPI();
 
   return {
@@ -70,6 +73,9 @@ export const createAgentAPI = (): AgentAPI => {
 
     // GitLab Integration API
     ...gitlabAPI,
+
+    // Azure DevOps Integration API
+    ...azureDevOpsAPI,
 
     // Shell Operations API
     ...shellAPI

@@ -12,5 +12,6 @@ export * from './changelog-api';
 export * from './linear-api';
 export * from './github-api';
 export * from './gitlab-api';
+export * from './azure-devops-api';
 export * from './shell-api';
 export * from './debug-api';

@@ -609,5 +609,27 @@ export const IPC_CHANNELS = {
   // Queue routing events (main -> renderer)
   QUEUE_PROFILE_SWAPPED: 'queue:profileSwapped',      // Task switched to different profile
   QUEUE_SESSION_CAPTURED: 'queue:sessionCaptured',    // Session ID captured from running task
-  QUEUE_BLOCKED_NO_PROFILES: 'queue:blockedNoProfiles' // All profiles unavailable
+  QUEUE_BLOCKED_NO_PROFILES: 'queue:blockedNoProfiles', // All profiles unavailable
+
+  // Azure DevOps integration
+  AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection',
+  AZURE_DEVOPS_GET_PROJECTS: 'azureDevOps:getProjects',
+  AZURE_DEVOPS_DETECT_REPO: 'azureDevOps:detectRepo',
+  AZURE_DEVOPS_GET_BRANCHES: 'azureDevOps:getBranches',
+
+  // Azure DevOps Work Items (issues equivalent)
+  AZURE_DEVOPS_GET_WORK_ITEMS: 'azureDevOps:getWorkItems',
+  AZURE_DEVOPS_GET_WORK_ITEM: 'azureDevOps:getWorkItem',
+  AZURE_DEVOPS_GET_WORK_ITEM_COMMENTS: 'azureDevOps:getWorkItemComments',
+  AZURE_DEVOPS_INVESTIGATE_WORK_ITEM: 'azureDevOps:investigateWorkItem',
+  AZURE_DEVOPS_IMPORT_WORK_ITEMS: 'azureDevOps:importWorkItems',
+
+  // Azure DevOps Pull Requests
+  AZURE_DEVOPS_GET_PULL_REQUESTS: 'azureDevOps:getPullRequests',
+  AZURE_DEVOPS_GET_PULL_REQUEST: 'azureDevOps:getPullRequest',
+
+  // Azure DevOps events (main -> renderer)
+  AZURE_DEVOPS_INVESTIGATION_PROGRESS: 'azureDevOps:investigationProgress',
+  AZURE_DEVOPS_INVESTIGATION_COMPLETE: 'azureDevOps:investigationComplete',
+  AZURE_DEVOPS_INVESTIGATION_ERROR: 'azureDevOps:investigationError'
 } as const;

@@ -17,6 +17,14 @@ const GITLAB_ENV_KEYS = {
   AUTO_SYNC: 'GITLAB_AUTO_SYNC'
 } as const;
 
+// Azure DevOps environment variable keys
+const AZURE_DEVOPS_ENV_KEYS = {
+  ENABLED: 'AZURE_DEVOPS_ENABLED',
+  TOKEN: 'AZURE_DEVOPS_TOKEN',
+  ORG_URL: 'AZURE_DEVOPS_ORG_URL',
+  PROJECT: 'AZURE_DEVOPS_PROJECT'
+} as const;
+
 /**
  * Helper to generate .env line (DRY)
  */
@@ -88,6 +96,19 @@ export function registerEnvHandlers(
     }
     if (config.gitlabAutoSync !== undefined) {
       existingVars[GITLAB_ENV_KEYS.AUTO_SYNC] = config.gitlabAutoSync ? 'true' : 'false';
+    }
+    // Azure DevOps Integration
+    if (config.azureDevOpsEnabled !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] = config.azureDevOpsEnabled ? 'true' : 'false';
+    }
+    if (config.azureDevOpsToken !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.TOKEN] = config.azureDevOpsToken;
+    }
+    if (config.azureDevOpsOrgUrl !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.ORG_URL] = config.azureDevOpsOrgUrl;
+    }
+    if (config.azureDevOpsProject !== undefined) {
+      existingVars[AZURE_DEVOPS_ENV_KEYS.PROJECT] = config.azureDevOpsProject;
     }
     // Git/Worktree Settings
     if (config.defaultBranch !== undefined) {
@@ -214,6 +235,14 @@ ${envLine(existingVars, GITLAB_ENV_KEYS.PROJECT, 'group/project')}
 ${envLine(existingVars, GITLAB_ENV_KEYS.AUTO_SYNC, 'false')}
 
 # =============================================================================
+# AZURE DEVOPS INTEGRATION (OPTIONAL)
+# =============================================================================
+${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] !== undefined ? `${AZURE_DEVOPS_ENV_KEYS.ENABLED}=${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED]}` : `# ${AZURE_DEVOPS_ENV_KEYS.ENABLED}=true`}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.TOKEN)}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.ORG_URL, 'https://dev.azure.com/myorg')}
+${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PROJECT, 'MyProject')}
+
+# =============================================================================
 # GIT/WORKTREE SETTINGS (OPTIONAL)
 # =============================================================================
 # Default base branch for worktree creation
@@ -324,6 +353,7 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         linearEnabled: false,
         githubEnabled: false,
         gitlabEnabled: false,
+        azureDevOpsEnabled: false,
         memoryEnabled: false,
         enableFancyUi: true,
         openaiKeyIsGlobal: false
@@ -384,6 +414,19 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
       if (vars[GITLAB_ENV_KEYS.AUTO_SYNC]?.toLowerCase() === 'true') {
         config.gitlabAutoSync = true;
+      }
+
+      // Azure DevOps config
+      if (vars[AZURE_DEVOPS_ENV_KEYS.TOKEN]) {
+        config.azureDevOpsToken = vars[AZURE_DEVOPS_ENV_KEYS.TOKEN];
+        // Enable by default if token exists and AZURE_DEVOPS_ENABLED is not explicitly false
+        config.azureDevOpsEnabled = vars[AZURE_DEVOPS_ENV_KEYS.ENABLED]?.toLowerCase() !== 'false';
+      }
+      if (vars[AZURE_DEVOPS_ENV_KEYS.ORG_URL]) {
+        config.azureDevOpsOrgUrl = vars[AZURE_DEVOPS_ENV_KEYS.ORG_URL];
+      }
+      if (vars[AZURE_DEVOPS_ENV_KEYS.PROJECT]) {
+        config.azureDevOpsProject = vars[AZURE_DEVOPS_ENV_KEYS.PROJECT];
       }
 
       // Git/Worktree config

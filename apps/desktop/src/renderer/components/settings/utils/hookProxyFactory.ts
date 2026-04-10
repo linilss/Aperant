@@ -42,6 +42,8 @@ export function createHookProxy(
     get setShowGitLabToken() { return hookRef.current.setShowGitLabToken; },
     get gitLabConnectionStatus() { return hookRef.current.gitLabConnectionStatus; },
     get isCheckingGitLab() { return hookRef.current.isCheckingGitLab; },
+    get azureDevOpsConnectionStatus() { return hookRef.current.azureDevOpsConnectionStatus; },
+    get isCheckingAzureDevOps() { return hookRef.current.isCheckingAzureDevOps; },
     get showLinearImportModal() { return hookRef.current.showLinearImportModal; },
     get setShowLinearImportModal() { return hookRef.current.setShowLinearImportModal; },
     get linearConnectionStatus() { return hookRef.current.linearConnectionStatus; },

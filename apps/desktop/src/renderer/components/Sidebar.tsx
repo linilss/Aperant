@@ -22,7 +22,8 @@ import {
   Heart,
   Wrench,
   PanelLeft,
-  PanelLeftClose
+  PanelLeftClose,
+  CheckSquare
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
@@ -60,7 +61,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools';
+export type SidebarView = 'kanban' | 'terminals' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -101,6 +102,12 @@ const gitlabNavItems: NavItem[] = [
   { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R' }
 ];
 
+// Azure DevOps nav items shown when Azure DevOps is enabled
+const azureDevOpsNavItems: NavItem[] = [
+  { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V' },
+  { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X' }
+];
+
 export function Sidebar({
   onSettingsClick,
   onNewTaskClick,
@@ -128,14 +135,15 @@ export function Sidebar({
     saveSettings({ sidebarCollapsed: !isCollapsed });
   };
 
-  // Subscribe to project-env-store for reactive GitHub/GitLab tab visibility
+  // Subscribe to project-env-store for reactive GitHub/GitLab/Azure DevOps tab visibility
   const githubEnabled = useProjectEnvStore((state) => state.envConfig?.githubEnabled ?? false);
   const gitlabEnabled = useProjectEnvStore((state) => state.envConfig?.gitlabEnabled ?? false);
+  const azureDevOpsEnabled = useProjectEnvStore((state) => state.envConfig?.azureDevOpsEnabled ?? false);
 
   // Track the last loaded project ID to avoid redundant loads
   const lastLoadedProjectIdRef = useRef<string | null>(null);
 
-  // Compute visible nav items based on GitHub/GitLab enabled state from store
+  // Compute visible nav items based on GitHub/GitLab/Azure DevOps enabled state from store
   const visibleNavItems = useMemo(() => {
     const items = [...baseNavItems];
 
@@ -147,8 +155,12 @@ export function Sidebar({
       items.push(...gitlabNavItems);
     }
 
+    if (azureDevOpsEnabled) {
+      items.push(...azureDevOpsNavItems);
+    }
+
     return items;
-  }, [githubEnabled, gitlabEnabled]);
+  }, [githubEnabled, gitlabEnabled, azureDevOpsEnabled]);
 
   // Load envConfig when project changes to ensure store is populated
   useEffect(() => {

@@ -15,6 +15,8 @@
     "githubPRs": "PRs GitHub",
     "gitlabIssues": "Issues GitLab",
     "gitlabMRs": "MRs GitLab",
+    "azureDevOpsWorkItems": "Éléments de travail Azure",
+    "azureDevOpsPRs": "PRs Azure",
     "worktrees": "Worktrees",
     "agentTools": "Aperçu MCP"
   },

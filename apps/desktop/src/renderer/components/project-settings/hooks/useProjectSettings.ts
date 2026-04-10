@@ -61,6 +61,10 @@ export interface UseProjectSettingsReturn {
   gitLabConnectionStatus: GitLabSyncStatus | null;
   isCheckingGitLab: boolean;
 
+  // Azure DevOps state
+  azureDevOpsConnectionStatus: { connected: boolean; orgUrl?: string; projectName?: string; workItemCount?: number; lastSyncedAt?: string; error?: string } | null;
+  isCheckingAzureDevOps: boolean;
+
   // Linear state
   showLinearImportModal: boolean;
   setShowLinearImportModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -118,6 +122,10 @@ export function useProjectSettings(
   const [showGitLabToken, setShowGitLabToken] = useState(false);
   const [gitLabConnectionStatus, setGitLabConnectionStatus] = useState<GitLabSyncStatus | null>(null);
   const [isCheckingGitLab, setIsCheckingGitLab] = useState(false);
+
+  // Azure DevOps state
+  const [azureDevOpsConnectionStatus, setAzureDevOpsConnectionStatus] = useState<{ connected: boolean; orgUrl?: string; projectName?: string; workItemCount?: number; lastSyncedAt?: string; error?: string } | null>(null);
+  const [isCheckingAzureDevOps, setIsCheckingAzureDevOps] = useState(false);
 
   // Linear import state
   const [showLinearImportModal, setShowLinearImportModal] = useState(false);
@@ -249,6 +257,32 @@ export function useProjectSettings(
     }
   }, [envConfig?.gitlabEnabled, envConfig?.gitlabToken, envConfig?.gitlabProject, project.id]);
 
+  // Check Azure DevOps connection when credentials change
+  useEffect(() => {
+    const checkAzureConnection = async () => {
+      if (!envConfig?.azureDevOpsEnabled || !envConfig.azureDevOpsToken || !envConfig.azureDevOpsOrgUrl || !envConfig.azureDevOpsProject) {
+        setAzureDevOpsConnectionStatus(null);
+        return;
+      }
+
+      setIsCheckingAzureDevOps(true);
+      try {
+        const status = await window.electronAPI.checkAzureDevOpsConnection(project.id);
+        if (status.success && status.data) {
+          setAzureDevOpsConnectionStatus(status.data);
+        }
+      } catch {
+        setAzureDevOpsConnectionStatus({ connected: false, error: 'Failed to check connection' });
+      } finally {
+        setIsCheckingAzureDevOps(false);
+      }
+    };
+
+    if (envConfig?.azureDevOpsEnabled && envConfig.azureDevOpsToken && envConfig.azureDevOpsOrgUrl && envConfig.azureDevOpsProject) {
+      checkAzureConnection();
+    }
+  }, [envConfig?.azureDevOpsEnabled, envConfig?.azureDevOpsToken, envConfig?.azureDevOpsOrgUrl, envConfig?.azureDevOpsProject, project.id]);
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
@@ -375,6 +409,8 @@ export function useProjectSettings(
     setShowGitLabToken,
     gitLabConnectionStatus,
     isCheckingGitLab,
+    azureDevOpsConnectionStatus,
+    isCheckingAzureDevOps,
     showLinearImportModal,
     setShowLinearImportModal,
     linearConnectionStatus,
