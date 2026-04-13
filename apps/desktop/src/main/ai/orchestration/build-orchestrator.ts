@@ -677,7 +677,13 @@ export class BuildOrchestrator extends EventEmitter {
   private async isFirstRun(): Promise<boolean> {
     const planPath = join(this.config.specDir, 'implementation_plan.json');
     try {
-      await readFile(planPath, 'utf-8');
+      const raw = await readFile(planPath, 'utf-8');
+      // Treat an empty or phase-less plan as first run so the planner regenerates it.
+      // This handles the case where a previous run crashed before writing a valid plan.
+      const plan = safeParseJson<ImplementationPlan>(raw);
+      if (!plan || !plan.phases || plan.phases.length === 0) {
+        return true;
+      }
       return false;
     } catch {
       return true;

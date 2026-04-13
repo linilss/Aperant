@@ -48,6 +48,7 @@ import { AzureDevOpsPRs } from './components/AzureDevOpsPRs';
 import { Changelog } from './components/Changelog';
 import { Worktrees } from './components/Worktrees';
 import { AgentTools } from './components/AgentTools';
+import { ClaudeAgentsView } from './components/ClaudeAgentsView';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RateLimitModal } from './components/RateLimitModal';
 import { SDKRateLimitModal } from './components/SDKRateLimitModal';
@@ -311,30 +312,7 @@ export function App() {
     }
   };
 
-  // Sync i18n language with settings
-  const { t, i18n } = useTranslation('dialogs');
-  useEffect(() => {
-    if (settings.language && settings.language !== i18n.language) {
-      i18n.changeLanguage(settings.language);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only run when settings.language changes, not on every i18n object change
-  }, [settings.language, i18n.language, i18n.changeLanguage]);
-
-  // Sync spell check language with i18n language
-  useEffect(() => {
-    const syncSpellCheck = async () => {
-      try {
-        const result = await window.electronAPI.setSpellCheckLanguages(i18n.language);
-        if (!result.success) {
-          console.warn('[App] Failed to set spell check language:', result.error);
-        }
-      } catch (error) {
-        console.warn('[App] Error syncing spell check language:', error);
-      }
-    };
-
-    syncSpellCheck();
-  }, [i18n.language]);
+  const { t } = useTranslation('dialogs');
 
   // Listen for open-app-settings events (e.g., from project settings)
   useEffect(() => {
@@ -972,6 +950,7 @@ export function App() {
                   <Worktrees projectId={activeProjectId || selectedProjectId!} />
                 )}
                 {activeView === 'agent-tools' && <AgentTools />}
+                {activeView === 'agents' && <ClaudeAgentsView />}
               </>
             ) : (
               <WelcomeScreen

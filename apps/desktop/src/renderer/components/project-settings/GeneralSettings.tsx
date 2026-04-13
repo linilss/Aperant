@@ -60,7 +60,7 @@ export function GeneralSettings({
       if (result.success) {
         setClearSuccess(true);
         setShowClearConfirm(false);
-        setTimeout(() => setClearSuccess(false), 3000);
+        setTimeout(() => window.location.reload(), 1500);
       } else {
         setClearError(result.error ?? 'Failed to clear project data');
       }
@@ -253,7 +253,7 @@ export function GeneralSettings({
                 <div>
                   <p className="text-sm font-medium text-foreground">Clear Project Data</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Delete all tasks, specs, and cached integration data for this project. Your code and settings are not affected.
+                    Delete all tasks, specs, roadmap, ideation, and cached integration data for this project. Your code and settings are not affected.
                   </p>
                 </div>
                 {!showClearConfirm && (

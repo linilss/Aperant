@@ -40,6 +40,7 @@ export interface RoadmapHeaderProps {
   onAddFeature: () => void;
   onRefresh: () => void;
   onViewCompetitorAnalysis?: () => void;
+  onRefineFeature: () => void;
 }
 
 export interface RoadmapEmptyStateProps {

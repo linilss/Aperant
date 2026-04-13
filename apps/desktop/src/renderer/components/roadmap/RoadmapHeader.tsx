@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Target, Users, BarChart3, RefreshCw, Plus, TrendingUp } from 'lucide-react';
+import { Target, Users, BarChart3, RefreshCw, Plus, TrendingUp, Sparkles } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -7,7 +7,7 @@ import { getFeatureStats } from '../../stores/roadmap-store';
 import { ROADMAP_PRIORITY_COLORS } from '../../../shared/constants';
 import type { RoadmapHeaderProps } from './types';
 
-export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRefresh, onViewCompetitorAnalysis }: RoadmapHeaderProps) {
+export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRefresh, onViewCompetitorAnalysis, onRefineFeature }: RoadmapHeaderProps) {
   const { t } = useTranslation('common');
   const stats = getFeatureStats(roadmap);
 
@@ -46,6 +46,15 @@ export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRef
           <p className="text-sm text-muted-foreground max-w-xl">{roadmap.vision}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={onRefineFeature}>
+                <Sparkles className="h-4 w-4 mr-1" />
+                Refine
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>AI-guided feature refinement (grill → PRD → plan)</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="sm" onClick={onAddFeature}>

@@ -9,6 +9,9 @@
  * and whether it's enabled by default.
  */
 
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import type { McpServerConfig, McpServerId } from './types';
 
 // =============================================================================
@@ -102,8 +105,17 @@ const PUPPETEER_SERVER: McpServerConfig = {
 /**
  * Auto-Claude MCP server - custom build management tools.
  * Used by planner, coder, and QA agents for build progress tracking.
+ *
+ * Returns null when the server script doesn't exist (dev mode, or not yet built).
+ * In that case the equivalent TypeScript tools registered directly in buildToolRegistry()
+ * are used instead — the agent still has full access to all auto-claude tools.
  */
-function createAutoClaudeServer(specDir: string): McpServerConfig {
+function createAutoClaudeServer(specDir: string): McpServerConfig | null {
+  // In dev mode this file isn't built yet; tools are provided via build-registry.ts instead.
+  const serverScript = join(__dirname, 'auto-claude-mcp-server.js');
+  if (!existsSync(serverScript)) {
+    return null;
+  }
   return {
     id: 'auto-claude',
     name: 'Aperant',
@@ -112,7 +124,7 @@ function createAutoClaudeServer(specDir: string): McpServerConfig {
     transport: {
       type: 'stdio',
       command: 'node',
-      args: ['auto-claude-mcp-server.js'],
+      args: [serverScript],
       env: { SPEC_DIR: specDir },
     },
   };

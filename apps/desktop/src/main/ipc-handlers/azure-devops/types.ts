@@ -145,3 +145,109 @@ export interface AzureDevOpsSyncStatus {
   lastSyncedAt?: string;
   error?: string;
 }
+
+// ADO API types for PR iterations/diffs
+export interface ADOAPIIteration {
+  id: number;
+  description?: string;
+  sourceRefCommit?: { commitId: string };
+  targetRefCommit?: { commitId: string };
+  updatedDate?: string;
+}
+
+export interface ADOAPIIterationChange {
+  item: { path: string; gitObjectType?: string };
+  changeType: string; // 'add' | 'edit' | 'delete' | 'rename'
+  originalPath?: string;
+}
+
+export interface ADOAPICommit {
+  commitId: string;
+  comment: string;
+  author: { name: string; email: string; date: string };
+}
+
+export interface ADOAPIThread {
+  id: number;
+  publishedDate?: string;
+  lastUpdatedDate?: string;
+  comments: Array<{
+    id: number;
+    content: string;
+    commentType: number;
+    author: { displayName: string };
+    publishedDate: string;
+  }>;
+  status?: string;
+  threadContext?: {
+    filePath?: string;
+    rightFileStart?: { line: number; offset: number };
+    rightFileEnd?: { line: number; offset: number };
+  };
+}
+
+export interface ADOAPICurrentUser {
+  authenticatedUser: { id: string; providerDisplayName: string };
+}
+
+// Normalized review types for renderer
+export interface AzureDevOpsPRReviewFinding {
+  id: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  category: 'security' | 'quality' | 'logic' | 'style' | 'performance';
+  title: string;
+  description: string;
+  file: string;
+  line: number;
+  suggestedFix?: string;
+  fixable: boolean;
+}
+
+export interface AzureDevOpsPRReviewResult {
+  pullRequestId: number;
+  repositoryName: string;
+  success: boolean;
+  findings: AzureDevOpsPRReviewFinding[];
+  summary: string;
+  overallStatus: 'approve' | 'request_changes' | 'comment';
+  verdict: string;
+  verdictReasoning: string;
+  reviewedAt: string;
+  reviewedCommitSha?: string;
+  isFollowupReview?: boolean;
+  previousReviewId?: number;
+  resolvedFindings?: string[];
+  unresolvedFindings?: string[];
+  newFindingsSinceLastReview?: string[];
+  hasPostedFindings?: boolean;
+  postedFindingIds?: string[];
+}
+
+export interface AzureDevOpsPRReviewProgress {
+  phase: 'fetching' | 'analyzing' | 'generating' | 'complete';
+  pullRequestId: number;
+  progress: number;
+  message: string;
+}
+
+export interface AzureDevOpsPRLogsEntry {
+  timestamp: string;
+  type: 'text' | 'tool_start' | 'tool_end' | 'error';
+  content: string;
+  phase: string;
+}
+
+export interface AzureDevOpsPRLogs {
+  phases: {
+    fetching: { status: 'pending' | 'active' | 'completed' | 'failed'; entries: AzureDevOpsPRLogsEntry[] };
+    analyzing: { status: 'pending' | 'active' | 'completed' | 'failed'; entries: AzureDevOpsPRLogsEntry[] };
+    generating: { status: 'pending' | 'active' | 'completed' | 'failed'; entries: AzureDevOpsPRLogsEntry[] };
+  };
+}
+
+export interface AzureDevOpsPRNewCommitsCheck {
+  hasNewCommits: boolean;
+  commitCount: number;
+  latestCommitSha?: string;
+  latestCommitMessage?: string;
+}

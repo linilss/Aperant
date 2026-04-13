@@ -20,6 +20,15 @@ export {
   type AzureDevOpsSyncStatus
 } from './sync-status-store';
 
+// PR Review Store
+export {
+  useADOPRReviewStore,
+  type ADOPRReviewResult,
+  type ADOPRReviewFinding,
+  type ADOPRReviewProgress,
+  type ADOPRNewCommitsCheck,
+} from './pr-review-store';
+
 // Pull Request type (defined here for co-location with the store layer)
 export interface AzureDevOpsPullRequest {
   pullRequestId: number;

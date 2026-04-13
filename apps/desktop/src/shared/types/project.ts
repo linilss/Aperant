@@ -2,6 +2,19 @@
  * Project-related types
  */
 
+export interface ClaudeAgent {
+  filename: string;
+  path: string;
+  name: string;
+  description?: string;
+  content: string;
+}
+
+export interface ClaudeAgentsResult {
+  global: ClaudeAgent[];
+  project: ClaudeAgent[];
+}
+
 export interface Project {
   id: string;
   name: string;

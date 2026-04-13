@@ -115,6 +115,7 @@ export const AUTO_BUILD_PATHS = {
   IDEATION_FILE: 'ideation.json',
   IDEATION_CONTEXT: 'ideation_context.json',
   PROJECT_INDEX: '.auto-claude/project_index.json',
+  DOCUMENTATION_FILE: '.auto-claude/project_documentation.json',
   MEMORY_STATE: '.memory_state.json'
 } as const;
 

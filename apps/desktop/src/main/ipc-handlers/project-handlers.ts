@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron';
-import { existsSync, rmSync } from 'fs';
+import { ipcMain, shell } from 'electron';
+import { existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
@@ -443,11 +443,11 @@ export function registerProjectHandlers(
         const autoBuildDir = path.join(project.path, project.autoBuildPath);
 
         // Sub-directories that hold task/integration data — delete and recreate empty
-        const dataDirs = ['specs', 'github', 'gitlab'];
+        const dataDirs = ['specs', 'github', 'gitlab', 'azure-devops', 'roadmap', 'ideation'];
         for (const dir of dataDirs) {
           const dirPath = path.join(autoBuildDir, dir);
           if (existsSync(dirPath)) {
-            rmSync(dirPath, { recursive: true, force: true });
+            await shell.trashItem(dirPath);
           }
         }
 

@@ -7,6 +7,24 @@ import type {
   ContextSearchResult
 } from '../../shared/types';
 
+export interface ProjectDocumentation {
+  generatedAt: string;
+  projectName: string;
+  overview: string;
+  architecture: string;
+  modules: Array<{
+    name: string;
+    path: string;
+    description: string;
+    responsibilities: string[];
+    keyFiles: string[];
+  }>;
+  apiSurface: string;
+  dataModels: string;
+  developerGuide: string;
+  techStack: string;
+}
+
 interface ContextState {
   // Project Index
   projectIndex: ProjectIndex | null;
@@ -28,6 +46,12 @@ interface ContextState {
   searchLoading: boolean;
   searchQuery: string;
 
+  // Documentation
+  documentation: ProjectDocumentation | null;
+  documentationLoading: boolean;
+  documentationError: string | null;
+  documentationStreamChunk: string;
+
   // Actions
   setProjectIndex: (index: ProjectIndex | null) => void;
   setIndexLoading: (loading: boolean) => void;
@@ -41,6 +65,11 @@ interface ContextState {
   setSearchResults: (results: ContextSearchResult[]) => void;
   setSearchLoading: (loading: boolean) => void;
   setSearchQuery: (query: string) => void;
+  setDocumentation: (doc: ProjectDocumentation | null) => void;
+  setDocumentationLoading: (loading: boolean) => void;
+  setDocumentationError: (error: string | null) => void;
+  appendDocumentationChunk: (chunk: string) => void;
+  clearDocumentationChunk: () => void;
   clearAll: () => void;
 }
 
@@ -65,6 +94,12 @@ export const useContextStore = create<ContextState>((set) => ({
   searchLoading: false,
   searchQuery: '',
 
+  // Documentation
+  documentation: null,
+  documentationLoading: false,
+  documentationError: null,
+  documentationStreamChunk: '',
+
   // Actions
   setProjectIndex: (index) => set({ projectIndex: index }),
   setIndexLoading: (loading) => set({ indexLoading: loading }),
@@ -78,6 +113,12 @@ export const useContextStore = create<ContextState>((set) => ({
   setSearchResults: (results) => set({ searchResults: results }),
   setSearchLoading: (loading) => set({ searchLoading: loading }),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  setDocumentation: (doc) => set({ documentation: doc }),
+  setDocumentationLoading: (loading) => set({ documentationLoading: loading }),
+  setDocumentationError: (error) => set({ documentationError: error }),
+  appendDocumentationChunk: (chunk) =>
+    set((state) => ({ documentationStreamChunk: state.documentationStreamChunk + chunk })),
+  clearDocumentationChunk: () => set({ documentationStreamChunk: '' }),
   clearAll: () =>
     set({
       projectIndex: null,
@@ -91,7 +132,11 @@ export const useContextStore = create<ContextState>((set) => ({
       memoriesLoading: false,
       searchResults: [],
       searchLoading: false,
-      searchQuery: ''
+      searchQuery: '',
+      documentation: null,
+      documentationLoading: false,
+      documentationError: null,
+      documentationStreamChunk: ''
     })
 }));
 

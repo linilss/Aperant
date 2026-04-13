@@ -212,6 +212,16 @@ export const IPC_CHANNELS = {
   ROADMAP_PROGRESS_LOAD: 'roadmap:progressLoad',
   ROADMAP_PROGRESS_CLEAR: 'roadmap:progressClear',
 
+  // Feature Refine session (conversational AI: grill-me → PRD → plan)
+  ROADMAP_REFINE_START: 'roadmap:refine:start',
+  ROADMAP_REFINE_SEND: 'roadmap:refine:send',
+  ROADMAP_REFINE_STOP: 'roadmap:refine:stop',
+  // Feature Refine events (main -> renderer)
+  ROADMAP_REFINE_CHUNK: 'roadmap:refine:chunk',
+  ROADMAP_REFINE_TOOL_USE: 'roadmap:refine:toolUse',
+  ROADMAP_REFINE_COMPLETE: 'roadmap:refine:complete',
+  ROADMAP_REFINE_ERROR: 'roadmap:refine:error',
+
   // Context operations
   CONTEXT_GET: 'context:get',
   CONTEXT_REFRESH_INDEX: 'context:refreshIndex',
@@ -222,6 +232,16 @@ export const IPC_CHANNELS = {
   CONTEXT_MEMORY_PIN: 'context:memory:pin',
   CONTEXT_MEMORY_DEPRECATE: 'context:memory:deprecate',
   CONTEXT_MEMORY_DELETE: 'context:memory:delete',
+
+  // Project Documentation (AI deep research)
+  CONTEXT_GET_DOCUMENTATION: 'context:getDocumentation',
+  CONTEXT_GENERATE_DOCUMENTATION: 'context:generateDocumentation',
+  CONTEXT_DOCUMENTATION_STOP: 'context:documentationStop',
+  // Documentation events (main → renderer)
+  CONTEXT_DOCUMENTATION_CHUNK: 'context:documentationChunk',
+  CONTEXT_DOCUMENTATION_TOOL_USE: 'context:documentationToolUse',
+  CONTEXT_DOCUMENTATION_COMPLETE: 'context:documentationComplete',
+  CONTEXT_DOCUMENTATION_ERROR: 'context:documentationError',
 
   // Environment configuration
   ENV_GET: 'env:get',
@@ -533,6 +553,8 @@ export const IPC_CHANNELS = {
   // File explorer operations
   FILE_EXPLORER_LIST: 'fileExplorer:list',
   FILE_EXPLORER_READ: 'fileExplorer:read',
+  CLAUDE_AGENTS_LIST: 'claudeAgents:list',
+  CLAUDE_AGENT_SAVE: 'claudeAgents:save',
 
   // Git operations
   GIT_GET_BRANCHES: 'git:getBranches',
@@ -632,5 +654,24 @@ export const IPC_CHANNELS = {
   // Azure DevOps events (main -> renderer)
   AZURE_DEVOPS_INVESTIGATION_PROGRESS: 'azureDevOps:investigationProgress',
   AZURE_DEVOPS_INVESTIGATION_COMPLETE: 'azureDevOps:investigationComplete',
-  AZURE_DEVOPS_INVESTIGATION_ERROR: 'azureDevOps:investigationError'
+  AZURE_DEVOPS_INVESTIGATION_ERROR: 'azureDevOps:investigationError',
+
+  // Azure DevOps PR Review (AI-powered)
+  AZURE_DEVOPS_PR_REVIEW: 'azure-devops:pr:review',
+  AZURE_DEVOPS_PR_REVIEW_PROGRESS: 'azure-devops:pr:reviewProgress',
+  AZURE_DEVOPS_PR_REVIEW_COMPLETE: 'azure-devops:pr:reviewComplete',
+  AZURE_DEVOPS_PR_REVIEW_ERROR: 'azure-devops:pr:reviewError',
+  AZURE_DEVOPS_PR_GET_REVIEW: 'azure-devops:pr:getReview',
+  AZURE_DEVOPS_PR_GET_REVIEWS_BATCH: 'azure-devops:pr:getReviewsBatch',
+  AZURE_DEVOPS_PR_POST_REVIEW: 'azure-devops:pr:postReview',
+  AZURE_DEVOPS_PR_DELETE_REVIEW: 'azure-devops:pr:deleteReview',
+  AZURE_DEVOPS_PR_GET_DIFF: 'azure-devops:pr:getDiff',
+  AZURE_DEVOPS_PR_GET_LOGS: 'azure-devops:pr:getLogs',
+  AZURE_DEVOPS_PR_LOGS_UPDATED: 'azure-devops:pr:logsUpdated',
+  AZURE_DEVOPS_PR_REVIEW_CANCEL: 'azure-devops:pr:reviewCancel',
+  AZURE_DEVOPS_PR_CHECK_NEW_COMMITS: 'azure-devops:pr:checkNewCommits',
+  AZURE_DEVOPS_PR_FOLLOWUP_REVIEW: 'azure-devops:pr:followupReview',
+  AZURE_DEVOPS_PR_APPROVE: 'azure-devops:pr:approve',
+  AZURE_DEVOPS_PR_MERGE: 'azure-devops:pr:merge',
+  AZURE_DEVOPS_PR_CHECK_MERGE_READINESS: 'azure-devops:pr:checkMergeReadiness',
 } as const;

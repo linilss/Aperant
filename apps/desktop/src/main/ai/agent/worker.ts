@@ -14,6 +14,9 @@
 import { parentPort, workerData } from 'worker_threads';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { spawn } from 'node:child_process';
+
+import { findExecutable } from '../../platform';
 
 import { runAgentSession } from '../session/runner';
 import { runContinuableSession } from '../session/continuation';
@@ -231,6 +234,191 @@ async function assemblePrompt(
     projectDir: session.projectDir,
     projectInstructions: cachedProjectInstructions,
   });
+}
+
+// =============================================================================
+// CLI-based Session Runner
+// =============================================================================
+
+/**
+ * Run an agent session via the `claude` CLI subprocess instead of the Vercel AI SDK.
+ *
+ * This avoids direct calls to api.anthropic.com (which share the OAuth subscription
+ * quota with the Claude Code CLI session and trigger 429 rate limits). The CLI manages
+ * its own backoff and rate limiting internally, matching the behaviour of Agent Terminals.
+ *
+ * The combined system+kickoff prompt is piped to stdin. The CLI writes output files
+ * (implementation_plan.json, code changes) directly via its Write/Edit tools.
+ * Stream-json events are forwarded to the main thread as stream-event messages.
+ */
+async function runSessionViaCLI(
+  agentType: AgentType,
+  systemPrompt: string,
+  kickoffMessage: string,
+  projectDir: string,
+  modelId: string,
+  abortSignal: AbortSignal,
+): Promise<SessionResult> {
+  const startTime = Date.now();
+
+  const claudePath = await findExecutable('claude');
+  if (!claudePath) {
+    return {
+      outcome: 'error',
+      stepsExecuted: 0,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      messages: [],
+      durationMs: Date.now() - startTime,
+      toolCallCount: 0,
+      error: { code: 'error', message: 'claude CLI not found — install Claude Code', retryable: false },
+    };
+  }
+
+  const args = [
+    '--print',
+    '--verbose',
+    '--output-format', 'stream-json',
+    '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep,WebFetch',
+    '--model', modelId,
+  ];
+
+  postLog(`[CLI] Spawning claude for ${agentType}: ${claudePath} ${args.join(' ')}`);
+
+  const combinedPrompt = `${systemPrompt}\n\n${kickoffMessage}`;
+
+  const child = spawn(claudePath, args, {
+    cwd: projectDir,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env,
+  });
+
+  child.stdin.write(combinedPrompt, 'utf-8');
+  child.stdin.end();
+
+  let responseText = '';
+  let stdoutBuffer = '';
+  let toolCallCount = 0;
+
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdoutBuffer += chunk.toString('utf-8');
+    const lines = stdoutBuffer.split('\n');
+    stdoutBuffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      try {
+        const event = JSON.parse(trimmed) as Record<string, unknown>;
+
+        if (event.type === 'assistant') {
+          const message = event.message as Record<string, unknown> | undefined;
+          const content = (message?.content ?? []) as Array<Record<string, unknown>>;
+          for (const block of content) {
+            if (block.type === 'text') {
+              const text = String(block.text ?? '');
+              if (text) {
+                responseText += text;
+                postMessage({
+                  type: 'stream-event',
+                  taskId: config.taskId,
+                  data: { type: 'text-delta', text } as StreamEvent,
+                  projectId: config.projectId,
+                });
+              }
+            } else if (block.type === 'tool_use') {
+              toolCallCount++;
+              postMessage({
+                type: 'stream-event',
+                taskId: config.taskId,
+                data: {
+                  type: 'tool-call',
+                  toolName: String(block.name ?? 'unknown'),
+                  toolCallId: String(block.id ?? ''),
+                  args: (block.input ?? {}) as Record<string, unknown>,
+                } as StreamEvent,
+                projectId: config.projectId,
+              });
+            }
+          }
+        } else if (event.type === 'result') {
+          if (!responseText && event.result) {
+            responseText = String(event.result);
+          }
+        }
+      } catch {
+        // ignore JSON parse errors for non-JSON lines
+      }
+    }
+  });
+
+  child.stderr.on('data', (chunk: Buffer) => {
+    postLog(`[CLI stderr] ${chunk.toString('utf-8').trim()}`);
+  });
+
+  const abortHandler = () => {
+    postLog('[CLI] Aborting session via SIGTERM');
+    child.kill('SIGTERM');
+  };
+  abortSignal.addEventListener('abort', abortHandler);
+
+  try {
+    const exitCode = await new Promise<number | null>((resolve, reject) => {
+      child.on('close', (code) => {
+        abortSignal.removeEventListener('abort', abortHandler);
+        resolve(code);
+      });
+      child.on('error', (err) => {
+        abortSignal.removeEventListener('abort', abortHandler);
+        reject(err);
+      });
+    });
+
+    if (abortSignal.aborted) {
+      return {
+        outcome: 'cancelled',
+        stepsExecuted: 0,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        messages: [],
+        durationMs: Date.now() - startTime,
+        toolCallCount,
+      };
+    }
+
+    if (exitCode !== 0) {
+      return {
+        outcome: 'error',
+        stepsExecuted: 0,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        messages: [],
+        durationMs: Date.now() - startTime,
+        toolCallCount,
+        error: { code: 'error', message: `claude CLI exited with code ${exitCode}`, retryable: true },
+      };
+    }
+
+    postLog(`[CLI] ${agentType} session complete (toolCalls=${toolCallCount})`);
+    return {
+      outcome: 'completed',
+      stepsExecuted: 1,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      messages: [],
+      durationMs: Date.now() - startTime,
+      toolCallCount,
+    };
+  } catch (error) {
+    abortSignal.removeEventListener('abort', abortHandler);
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      outcome: 'error',
+      stepsExecuted: 0,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      messages: [],
+      durationMs: Date.now() - startTime,
+      toolCallCount,
+      error: { code: 'error', message: msg, retryable: false },
+    };
+  }
 }
 
 // =============================================================================
@@ -579,23 +767,15 @@ async function runBuildOrchestrator(
     },
 
     runSession: async (runConfig) => {
-      postLog(`Running ${runConfig.agentType} session (phase=${runConfig.phase}, session=${runConfig.sessionNumber})`);
-      // Build a kickoff message for the agent so it has a task to act on
+      postLog(`Running ${runConfig.agentType} session via CLI (phase=${runConfig.phase}, session=${runConfig.sessionNumber})`);
       const kickoffMessage = buildKickoffMessage(runConfig.agentType, runConfig.specDir, runConfig.projectDir);
-      return runSingleSession(
+      return runSessionViaCLI(
         runConfig.agentType,
-        runConfig.phase,
         runConfig.systemPrompt,
-        runConfig.specDir,
-        runConfig.projectDir,
-        runConfig.sessionNumber,
-        runConfig.subtaskId,
-        session,
-        toolContext,
-        registry,
         kickoffMessage,
-        true, // skipPhaseLogging — orchestrator manages phase start/end
-        runConfig.outputSchema,
+        runConfig.projectDir,
+        session.modelId,
+        abortController.signal,
       );
     },
   });
@@ -755,21 +935,15 @@ async function runQALoop(
     },
 
     runSession: async (runConfig) => {
-      postLog(`Running ${runConfig.agentType} session (session=${runConfig.sessionNumber})`);
+      postLog(`Running ${runConfig.agentType} session via CLI (session=${runConfig.sessionNumber})`);
       const kickoffMessage = buildKickoffMessage(runConfig.agentType, runConfig.specDir, runConfig.projectDir);
-      return runSingleSession(
+      return runSessionViaCLI(
         runConfig.agentType,
-        runConfig.phase,
         runConfig.systemPrompt,
-        runConfig.specDir,
-        runConfig.projectDir,
-        runConfig.sessionNumber,
-        undefined,
-        session,
-        toolContext,
-        registry,
         kickoffMessage,
-        true, // skipPhaseLogging — QA loop manages phase start/end
+        runConfig.projectDir,
+        session.modelId,
+        abortController.signal,
       );
     },
   });

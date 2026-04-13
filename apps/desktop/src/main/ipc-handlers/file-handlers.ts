@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron';
-import { readdirSync } from 'fs';
+import { readdirSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { readFile } from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { IPCResult, FileNode } from '../../shared/types';
+import type { IPCResult, FileNode, ClaudeAgent, ClaudeAgentsResult } from '../../shared/types';
 
 // Maximum file size to read (1MB)
 const MAX_FILE_SIZE = 1024 * 1024;
@@ -38,6 +39,37 @@ const IGNORED_DIRS = new Set([
   'out', '.turbo', '.worktrees',
   'vendor', 'target', '.gradle', '.maven'
 ]);
+
+function parseFrontmatter(content: string): { name?: string; description?: string } {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) return {};
+  const yaml = match[1];
+  const name = yaml.match(/^name:\s*(.+)$/m)?.[1]?.trim();
+  const description = yaml.match(/^description:\s*(.+)$/m)?.[1]?.trim();
+  return { name, description };
+}
+
+function readAgentsDir(dir: string): ClaudeAgent[] {
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.md'))
+      .map((filename) => {
+        const filePath = path.join(dir, filename);
+        const content = readFileSync(filePath, 'utf-8');
+        const { name, description } = parseFrontmatter(content);
+        return {
+          filename,
+          path: filePath,
+          name: name ?? filename.replace(/\.md$/, ''),
+          description,
+          content
+        };
+      });
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Register all file-related IPC handlers
@@ -116,6 +148,43 @@ export function registerFileHandlers(): void {
           error: error instanceof Error ? error.message : 'Failed to read file'
         };
       }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CLAUDE_AGENT_SAVE,
+    async (_, filePath: string, content: string): Promise<IPCResult<void>> => {
+      try {
+        const resolved = path.resolve(filePath);
+        // Only allow writing inside a .claude/agents directory
+        const normalized = resolved.split(path.sep).join('/');
+        if (!normalized.includes('/.claude/agents/')) {
+          return { success: false, error: 'Path must be within a .claude/agents directory' };
+        }
+        mkdirSync(path.dirname(resolved), { recursive: true });
+        writeFileSync(resolved, content, 'utf-8');
+        return { success: true, data: undefined };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to save agent'
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CLAUDE_AGENTS_LIST,
+    async (_, projectPath?: string): Promise<IPCResult<ClaudeAgentsResult>> => {
+      const globalDir = path.join(os.homedir(), '.claude', 'agents');
+      const projectDir = projectPath ? path.join(projectPath, '.claude', 'agents') : null;
+      return {
+        success: true,
+        data: {
+          global: readAgentsDir(globalDir),
+          project: projectDir ? readAgentsDir(projectDir) : []
+        }
+      };
     }
   );
 }

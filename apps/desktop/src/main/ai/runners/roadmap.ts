@@ -2,34 +2,30 @@
  * Roadmap Runner
  * ==============
  *
- * AI-powered roadmap generation using Vercel AI SDK.
- * See apps/desktop/src/main/ai/runners/roadmap.ts for the TypeScript implementation.
+ * AI-powered roadmap generation via the Claude CLI subprocess.
  *
- * Multi-step process: project discovery → feature generation → roadmap synthesis.
- * Uses `createSimpleClient()` with read-only tools and streaming.
+ * Uses `claude --print --output-format stream-json` so that generation goes through
+ * the same code path as Agent Terminals (the CLI manages its own rate-limit backoff)
+ * rather than calling api.anthropic.com directly via the Vercel AI SDK.
+ *
+ * Multi-step process: project discovery → feature generation.
  */
 
-import { streamText, stepCountIs } from 'ai';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createSimpleClient } from '../client/factory';
-import type { SimpleClientResult } from '../client/types';
-import { buildToolRegistry } from '../tools/build-registry';
-import type { ToolContext } from '../tools/types';
+import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
-import type { SecurityProfile } from '../security/bash-validator';
 import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
+import { findExecutable } from '../../platform';
 
 // =============================================================================
 // Constants
 // =============================================================================
 
 const MAX_RETRIES = 3;
-
-/** Maximum agentic steps per phase */
-const MAX_STEPS_PER_PHASE = 30;
 
 // =============================================================================
 // Types
@@ -43,7 +39,7 @@ export interface RoadmapConfig {
   outputDir?: string;
   /** Model shorthand (defaults to 'sonnet') */
   modelShorthand?: ModelShorthand;
-  /** Thinking level (defaults to 'medium') */
+  /** Thinking level (unused — kept for API compatibility) */
   thinkingLevel?: ThinkingLevel;
   /** Whether to refresh existing data */
   refresh?: boolean;
@@ -89,23 +85,156 @@ export type RoadmapStreamEvent =
   | { type: 'error'; error: string };
 
 // =============================================================================
+// CLI Runner Helper
+// =============================================================================
+
+/**
+ * Spawn `claude --print --output-format stream-json` and collect the full text output.
+ *
+ * The prompt is written to the subprocess stdin. Stdout produces newline-delimited
+ * JSON events which are mapped to RoadmapStreamEvent callbacks in real time.
+ *
+ * The CLI handles rate-limit backoff internally, so callers never see 429 errors.
+ */
+async function runPhaseViaCLI(
+  prompt: string,
+  projectDir: string,
+  modelId: string,
+  abortSignal?: AbortSignal,
+  onStream?: RoadmapStreamCallback,
+): Promise<string> {
+  const claudePath = await findExecutable('claude');
+  if (!claudePath) {
+    throw new Error('claude CLI not found — make sure Claude Code is installed');
+  }
+
+  const args = [
+    '--print',
+    '--verbose',
+    '--output-format', 'stream-json',
+    '--allowedTools', 'Read,Glob,Grep',
+    '--model', modelId,
+  ];
+
+  console.error(`[Roadmap CLI] spawning: ${claudePath} ${args.join(' ')}`);
+
+  const child = spawn(claudePath, args, {
+    cwd: projectDir,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env,
+  });
+
+  // Write the prompt to stdin, then close it so the CLI knows input is done
+  child.stdin.write(prompt, 'utf-8');
+  child.stdin.end();
+
+  let fullText = '';
+  let stdoutBuffer = '';
+  let stderrOutput = '';
+
+  // Parse stream-json events from stdout line by line
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdoutBuffer += chunk.toString('utf-8');
+    const lines = stdoutBuffer.split('\n');
+    // Keep the last (possibly incomplete) line in the buffer
+    stdoutBuffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      try {
+        const event = JSON.parse(trimmed) as Record<string, unknown>;
+
+        if (event.type === 'assistant') {
+          // Extract text and tool_use blocks from the message content array
+          const message = event.message as Record<string, unknown> | undefined;
+          const content = (message?.content ?? []) as Array<Record<string, unknown>>;
+          for (const block of content) {
+            if (block.type === 'text') {
+              const text = String(block.text ?? '');
+              fullText += text;
+              if (text) onStream?.({ type: 'text-delta', text });
+            } else if (block.type === 'tool_use') {
+              const name = String(block.name ?? 'unknown');
+              onStream?.({ type: 'tool-use', name });
+            }
+          }
+        } else if (event.type === 'result') {
+          // Use the result text as a fallback if we collected nothing from streaming
+          if (fullText.length === 0 && event.result) {
+            fullText = String(event.result);
+          }
+          if (event.subtype === 'error_during_execution') {
+            const errMsg = String(event.error ?? event.result ?? 'CLI error');
+            onStream?.({ type: 'error', error: errMsg });
+            throw new Error(errMsg);
+          }
+        }
+        // Other event types (system, tool_result, etc.) are silently ignored
+      } catch (parseErr) {
+        // Not JSON — could be ANSI progress output; ignore
+        if (!(parseErr instanceof SyntaxError)) throw parseErr;
+      }
+    }
+  });
+
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderrOutput += chunk.toString('utf-8');
+  });
+
+  // Wire up abort signal
+  const abortHandler = () => {
+    child.kill('SIGTERM');
+  };
+  abortSignal?.addEventListener('abort', abortHandler);
+
+  await new Promise<void>((resolve, reject) => {
+    child.on('close', (code) => {
+      abortSignal?.removeEventListener('abort', abortHandler);
+
+      if (abortSignal?.aborted) {
+        reject(new Error('Aborted'));
+        return;
+      }
+
+      if (code !== 0) {
+        const errDetail = stderrOutput.trim() || `exit code ${code}`;
+        console.error(`[Roadmap CLI] process exited with code ${code}: ${errDetail}`);
+        reject(new Error(`claude CLI failed: ${errDetail}`));
+        return;
+      }
+
+      resolve();
+    });
+
+    child.on('error', (err) => {
+      abortSignal?.removeEventListener('abort', abortHandler);
+      reject(err);
+    });
+  });
+
+  console.error(`[Roadmap CLI] phase complete, textChars: ${fullText.length}`);
+  return fullText;
+}
+
+// =============================================================================
 // Discovery Phase
 // =============================================================================
 
 /**
  * Run the discovery phase — analyze project and determine audience/vision.
- * Mirrors Python's `DiscoveryPhase.execute()`.
  */
 async function runDiscoveryPhase(
   projectDir: string,
   outputDir: string,
   refresh: boolean,
-  client: SimpleClientResult,
+  modelId: string,
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
 ): Promise<RoadmapPhaseResult> {
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
-  const projectIndexFile = join(outputDir, 'project_index.json');
+  const projectIndexFile = join(projectDir, '.auto-claude', 'project_index.json');
 
   if (existsSync(discoveryFile) && !refresh) {
     return { phase: 'discovery', success: true, outputs: [discoveryFile], errors: [] };
@@ -113,89 +242,65 @@ async function runDiscoveryPhase(
 
   const errors: string[] = [];
 
-  // Detect Codex models — they require instructions via providerOptions, not system
-  const discoveryModelId = typeof client.model === 'string' ? client.model : client.model.modelId;
-  const isCodexDiscovery = discoveryModelId?.includes('codex') ?? false;
-
-  // Load the full prompt file with JSON schema; fall back to inline prompt
   const loadedDiscoveryPrompt = tryLoadPrompt('roadmap_discovery');
+  console.error(`[Roadmap Discovery] prompt loaded: ${loadedDiscoveryPrompt !== null}, model: ${modelId}, projectDir: ${projectDir}, indexExists: ${existsSync(projectIndexFile)}`);
+
+  const contextBlock =
+    `\n\n**Project Directory**: ${projectDir}\n` +
+    `**Project Index File**: ${projectIndexFile}\n` +
+    `\nRead the project index file first, then explore the codebase. ` +
+    `Output your findings wrapped in <roadmap_discovery> tags as instructed above.`;
+
+  const systemPrompt = loadedDiscoveryPrompt
+    ? loadedDiscoveryPrompt + contextBlock
+    : `Analyze the project at "${projectDir}". Read "${projectIndexFile}" and key source files, then output a discovery JSON wrapped in <roadmap_discovery> tags with fields: project_name, project_type, tech_stack, target_audience, product_vision, current_state, competitive_context, constraints, created_at.`;
+
+  const userPrompt =
+    `Analyze the project at "${projectDir}". ` +
+    `Start by reading the project index at "${projectIndexFile}", then read README.md, package.json (or equivalent), and a few key source files. ` +
+    `After exploring, you MUST output your complete analysis wrapped in <roadmap_discovery> tags as a JSON object. ` +
+    `Do the exploration first, then output the <roadmap_discovery> block. Do not stop after tool calls — always finish with the JSON output.`;
+
+  const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const contextBlock = `\n\n---\n\n## CONTEXT (injected by runner)\n\n**Project Directory**: ${projectDir}\n**Project Index**: ${projectIndexFile}\n**Output Directory**: ${outputDir}\n**Output File**: ${discoveryFile}\n\nUse the paths above when reading input files and writing output.`;
-
-    const prompt = loadedDiscoveryPrompt
-      ? loadedDiscoveryPrompt + contextBlock
-      : `You are a project analyst. Analyze the project and create a discovery document.
-
-**Project Index**: ${projectIndexFile}
-**Output Directory**: ${outputDir}
-**Output File**: ${discoveryFile}
-
-IMPORTANT: This runs NON-INTERACTIVELY. Do NOT ask questions or wait for user input.
-
-Your task:
-1. Analyze the project (read README, code structure, key files)
-2. Infer target audience, vision, and constraints from your analysis
-3. IMMEDIATELY create ${discoveryFile} with your findings as valid JSON
-
-The JSON must contain at minimum: project_name, target_audience, product_vision, key_features, technical_stack, and constraints.
-
-Do NOT ask questions. Make educated inferences and create the file.`;
-
-    const discoveryUserPrompt = 'Analyze the project and create the discovery document. Use the available tools to explore the codebase, then write your findings as JSON to the output file specified in the context above.';
+    let fullText = '';
 
     try {
-      const result = streamText({
-        model: client.model,
-        system: isCodexDiscovery ? undefined : prompt,
-        prompt: discoveryUserPrompt,
-        tools: client.tools,
-        stopWhen: stepCountIs(client.maxSteps),
-        abortSignal,
-        ...(isCodexDiscovery ? {
-          providerOptions: {
-            openai: {
-              instructions: prompt,
-              store: false,
-            },
-          },
-        } : {}),
-      });
+      fullText = await runPhaseViaCLI(combinedPrompt, projectDir, modelId, abortSignal, onStream);
 
-      for await (const part of result.fullStream) {
-        switch (part.type) {
-          case 'text-delta':
-            onStream?.({ type: 'text-delta', text: part.text });
-            break;
-          case 'tool-call':
-            onStream?.({ type: 'tool-use', name: part.toolName });
-            break;
-          case 'error': {
-            const errorMsg = part.error instanceof Error ? part.error.message : String(part.error);
-            onStream?.({ type: 'error', error: errorMsg });
-            break;
-          }
-        }
-      }
+      // Write full AI response to debug file for inspection
+      try {
+        const debugPath = join(outputDir, `debug_discovery_attempt_${attempt + 1}.txt`);
+        writeFileSync(debugPath, `=== MODEL: ${modelId} ===\n=== CHARS: ${fullText.length} ===\n\n${fullText}`, 'utf-8');
+      } catch { /* ignore */ }
 
-      // Validate output
-      if (existsSync(discoveryFile)) {
-        const data = safeParseJson<Record<string, unknown>>(readFileSync(discoveryFile, 'utf-8'));
+      // Extract inline JSON from <roadmap_discovery>...</roadmap_discovery> tags
+      const match = fullText.match(/<roadmap_discovery>([\s\S]*?)<\/roadmap_discovery>/);
+      if (match) {
+        const data = safeParseJson<Record<string, unknown>>(match[1].trim());
         if (data) {
           const required = ['project_name', 'target_audience', 'product_vision'];
           const missing = required.filter((k) => !(k in data));
           if (missing.length === 0) {
+            writeFileSync(discoveryFile, JSON.stringify(data, null, 2), 'utf-8');
             return { phase: 'discovery', success: true, outputs: [discoveryFile], errors: [] };
           }
           errors.push(`Attempt ${attempt + 1}: Missing fields: ${missing.join(', ')}`);
         } else {
-          errors.push(`Attempt ${attempt + 1}: Invalid JSON in discovery file`);
+          errors.push(`Attempt ${attempt + 1}: Invalid JSON in <roadmap_discovery> block`);
         }
       } else {
-        errors.push(`Attempt ${attempt + 1}: Discovery file not created`);
+        const hasOpen = fullText.includes('<roadmap_discovery>');
+        const hasClose = fullText.includes('</roadmap_discovery>');
+        console.error(`[Roadmap Discovery] Tag check — open: ${hasOpen}, close: ${hasClose}`);
+        errors.push(`Attempt ${attempt + 1}: No <roadmap_discovery> block in AI response (open=${hasOpen}, close=${hasClose})`);
       }
     } catch (error) {
-      errors.push(`Attempt ${attempt + 1}: ${error instanceof Error ? error.message : String(error)}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[Roadmap Discovery] attempt ${attempt + 1} error: ${msg}`);
+      errors.push(`Attempt ${attempt + 1}: ${msg}`);
+      if (abortSignal?.aborted) break;
     }
   }
 
@@ -208,19 +313,18 @@ Do NOT ask questions. Make educated inferences and create the file.`;
 
 /**
  * Run the features phase — generate and prioritize roadmap features.
- * Mirrors Python's `FeaturesPhase.execute()`.
  */
 async function runFeaturesPhase(
   projectDir: string,
   outputDir: string,
   refresh: boolean,
-  client: SimpleClientResult,
+  modelId: string,
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
 ): Promise<RoadmapPhaseResult> {
   const roadmapFile = join(outputDir, 'roadmap.json');
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
-  const projectIndexFile = join(outputDir, 'project_index.json');
+  const projectIndexFile = join(projectDir, '.auto-claude', 'project_index.json');
 
   if (!existsSync(discoveryFile)) {
     return { phase: 'features', success: false, outputs: [], errors: ['Discovery file not found'] };
@@ -230,95 +334,47 @@ async function runFeaturesPhase(
     return { phase: 'features', success: true, outputs: [roadmapFile], errors: [] };
   }
 
-  // Load preserved features before agent potentially overwrites
   const preservedFeatures = loadPreservedFeatures(roadmapFile);
-
   const errors: string[] = [];
 
-  // Detect Codex models — they require instructions via providerOptions, not system
-  const featuresModelId = typeof client.model === 'string' ? client.model : client.model.modelId;
-  const isCodexFeatures = featuresModelId?.includes('codex') ?? false;
-
-  // Load the full prompt file with JSON schema; fall back to inline prompt
   const loadedFeaturesPrompt = tryLoadPrompt('roadmap_features');
 
+  let preservedSection = '';
+  if (preservedFeatures.length > 0) {
+    const preservedInfo = preservedFeatures
+      .map((f) => `  - ${(f as Record<string, string>).id ?? 'unknown'}: ${(f as Record<string, string>).title ?? 'Untitled'}`)
+      .join('\n');
+    preservedSection =
+      `\n**EXISTING FEATURES TO PRESERVE** (do NOT regenerate these — generate NEW complementary features):\n${preservedInfo}\n`;
+  }
+
+  const contextBlock =
+    `\n\n**Discovery File**: ${discoveryFile}\n` +
+    `**Project Index File**: ${projectIndexFile}\n` +
+    preservedSection +
+    `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
+
+  const systemPrompt = loadedFeaturesPrompt
+    ? loadedFeaturesPrompt + contextBlock
+    : `You are a product strategist. Read the discovery file at "${discoveryFile}" and generate a complete roadmap JSON wrapped in <roadmap_features> tags with fields: id, project_name, version, vision, target_audience (with "primary" key), phases (array), features (array, at least 8 items with id/title/description/rationale/priority/complexity/impact/phase_id/dependencies/status/acceptance_criteria/user_stories), metadata.`;
+
+  const userPrompt =
+    `Read the discovery file at "${discoveryFile}" and the project index at "${projectIndexFile}". ` +
+    `Generate a complete strategic roadmap with at least 8 prioritized features across 3-4 phases. ` +
+    `After reading those files, you MUST output the full roadmap JSON wrapped in <roadmap_features> tags. ` +
+    `Do not stop after tool calls — always finish with the JSON output.`;
+
+  const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    let preservedSection = '';
-    if (preservedFeatures.length > 0) {
-      const preservedInfo = preservedFeatures
-        .map((f) => `  - ${(f as Record<string, string>).id ?? 'unknown'}: ${(f as Record<string, string>).title ?? 'Untitled'}`)
-        .join('\n');
-      preservedSection = `\n**EXISTING FEATURES TO PRESERVE** (DO NOT regenerate these):
-The following ${preservedFeatures.length} features already exist and will be preserved.
-Generate NEW features that complement these, do not duplicate them:
-${preservedInfo}\n`;
-    }
-    const featuresContextBlock = `\n\n---\n\n## CONTEXT (injected by runner)\n\n**Discovery File**: ${discoveryFile}\n**Project Index**: ${projectIndexFile}\n**Output File**: ${roadmapFile}\n${preservedSection}\nUse the paths above when reading input files and writing output. Write the complete roadmap JSON to the Output File path.`;
-
-    const prompt = loadedFeaturesPrompt
-      ? loadedFeaturesPrompt + featuresContextBlock
-      : `You are a product strategist. Generate a roadmap with prioritized features.
-
-**Discovery File**: ${discoveryFile}
-**Project Index**: ${projectIndexFile}
-**Output File**: ${roadmapFile}
-${preservedSection}
-Based on the discovery data:
-1. Read the discovery file to understand the project
-2. Generate features that address user pain points
-3. Prioritize using MoSCoW framework
-4. Organize into phases
-5. Create milestones
-6. Map dependencies
-
-Output the complete roadmap as valid JSON to ${roadmapFile}.
-The JSON must contain: vision, target_audience (object with "primary" key), phases (array), and features (array with at least 3 items each with id, title, description, priority, complexity, impact, phase_id, status, acceptance_criteria, and user_stories).`;
-
-    const featuresUserPrompt = 'Read the discovery data and generate a complete roadmap with prioritized features. Write the roadmap JSON to the output file specified in the context above.';
+    let fullText = '';
 
     try {
-      const result = streamText({
-        model: client.model,
-        system: isCodexFeatures ? undefined : prompt,
-        prompt: featuresUserPrompt,
-        tools: client.tools,
-        stopWhen: stepCountIs(client.maxSteps),
-        abortSignal,
-        ...(isCodexFeatures ? {
-          providerOptions: {
-            openai: {
-              instructions: prompt,
-              store: false,
-            },
-          },
-        } : {}),
-      });
+      fullText = await runPhaseViaCLI(combinedPrompt, projectDir, modelId, abortSignal, onStream);
 
-      for await (const part of result.fullStream) {
-        switch (part.type) {
-          case 'text-delta':
-            onStream?.({ type: 'text-delta', text: part.text });
-            break;
-          case 'tool-call':
-            onStream?.({ type: 'tool-use', name: part.toolName });
-            break;
-          case 'error': {
-            const errorMsg = part.error instanceof Error ? part.error.message : String(part.error);
-            onStream?.({ type: 'error', error: errorMsg });
-            break;
-          }
-        }
-      }
-
-      // Validate and merge — read/write through fd to avoid TOCTOU
-      let roadmapRaw: string | null = null;
-      try {
-        roadmapRaw = readFileSync(roadmapFile, 'utf-8');
-      } catch (err: unknown) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-      }
-      if (roadmapRaw !== null) {
-        const data = safeParseJson<Record<string, unknown>>(roadmapRaw);
+      const match = fullText.match(/<roadmap_features>([\s\S]*?)<\/roadmap_features>/);
+      if (match) {
+        const data = safeParseJson<Record<string, unknown>>(match[1].trim());
         if (data) {
           const required = ['phases', 'features', 'vision', 'target_audience'];
           const missing = required.filter((k) => !(k in data));
@@ -330,25 +386,23 @@ The JSON must contain: vision, target_audience (object with "primary" key), phas
           }
 
           if (missing.length === 0 && featureCount >= 3) {
-            // Merge preserved features — atomic write via temp file + rename
             if (preservedFeatures.length > 0) {
               data.features = mergeFeatures(data.features as Record<string, unknown>[], preservedFeatures);
-              const merged = JSON.stringify(data, null, 2);
-              const tmpFile = `${roadmapFile}.tmp.${process.pid}`;
-              writeFileSync(tmpFile, merged, 'utf-8');
-              renameSync(tmpFile, roadmapFile);
             }
+            writeFileSync(roadmapFile, JSON.stringify(data, null, 2), 'utf-8');
             return { phase: 'features', success: true, outputs: [roadmapFile], errors: [] };
           }
-          errors.push(`Attempt ${attempt + 1}: Missing fields or too few features (${featureCount})`);
+          errors.push(`Attempt ${attempt + 1}: Missing fields or too few features (${featureCount}) — missing: ${missing.join(', ')}`);
         } else {
-          errors.push(`Attempt ${attempt + 1}: Invalid JSON in roadmap file`);
+          errors.push(`Attempt ${attempt + 1}: Invalid JSON in <roadmap_features> block`);
         }
       } else {
-        errors.push(`Attempt ${attempt + 1}: Roadmap file not created`);
+        errors.push(`Attempt ${attempt + 1}: No <roadmap_features> block in AI response`);
       }
     } catch (error) {
-      errors.push(`Attempt ${attempt + 1}: ${error instanceof Error ? error.message : String(error)}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      errors.push(`Attempt ${attempt + 1}: ${msg}`);
+      if (abortSignal?.aborted) break;
     }
   }
 
@@ -426,10 +480,6 @@ function mergeFeatures(
  * Multi-phase pipeline:
  * 1. Discovery — analyze project, infer audience and vision
  * 2. Features — generate and prioritize roadmap features
- *
- * @param config - Roadmap generation configuration
- * @param onStream - Optional callback for streaming events
- * @returns Roadmap generation result
  */
 export async function runRoadmapGeneration(
   config: RoadmapConfig,
@@ -438,44 +488,23 @@ export async function runRoadmapGeneration(
   const {
     projectDir,
     modelShorthand = 'sonnet',
-    thinkingLevel = 'medium',
     refresh = false,
     abortSignal,
   } = config;
 
   const outputDir = config.outputDir ?? join(projectDir, '.auto-claude', 'roadmap');
+  const modelId = resolveModelId(modelShorthand);
 
-  // Ensure output directory exists
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
   }
-
-  // Create tool context for read-only tools + Write
-  const toolContext: ToolContext = {
-    cwd: projectDir,
-    projectDir,
-    specDir: join(projectDir, '.auto-claude', 'specs'),
-    securityProfile: null as unknown as SecurityProfile,
-    abortSignal,
-  };
-
-  const registry = buildToolRegistry();
-  const tools = registry.getToolsForAgent('roadmap_discovery', toolContext);
-
-  const client = await createSimpleClient({
-    systemPrompt: '',
-    modelShorthand,
-    thinkingLevel,
-    maxSteps: MAX_STEPS_PER_PHASE,
-    tools,
-  });
 
   const phases: RoadmapPhaseResult[] = [];
 
   // Phase 1: Discovery
   onStream?.({ type: 'phase-start', phase: 'discovery' });
   const discoveryResult = await runDiscoveryPhase(
-    projectDir, outputDir, refresh, client, abortSignal, onStream,
+    projectDir, outputDir, refresh, modelId, abortSignal, onStream,
   );
   phases.push(discoveryResult);
   onStream?.({ type: 'phase-complete', phase: 'discovery', success: discoveryResult.success });
@@ -491,7 +520,7 @@ export async function runRoadmapGeneration(
   // Phase 2: Feature Generation
   onStream?.({ type: 'phase-start', phase: 'features' });
   const featuresResult = await runFeaturesPhase(
-    projectDir, outputDir, refresh, client, abortSignal, onStream,
+    projectDir, outputDir, refresh, modelId, abortSignal, onStream,
   );
   phases.push(featuresResult);
   onStream?.({ type: 'phase-complete', phase: 'features', success: featuresResult.success });
@@ -504,10 +533,9 @@ export async function runRoadmapGeneration(
     };
   }
 
-  const roadmapPath = join(outputDir, 'roadmap.json');
   return {
     success: true,
     phases,
-    roadmapPath,
+    roadmapPath: join(outputDir, 'roadmap.json'),
   };
 }

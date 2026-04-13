@@ -326,9 +326,49 @@ export class AgentQueueManager {
       completedTypes: Array.from(completedTypes)
     });
 
-    // Load and emit the complete ideation session
+    // Load and emit the complete ideation session.
+    // The CLI runner writes individual *_ideas.json files per type.
+    // Assemble them into ideation.json if it doesn't already exist.
     try {
       const ideationFilePath = path.join(outputDir, 'ideation.json');
+
+      if (!existsSync(ideationFilePath)) {
+        // Assemble from individual type files written by the CLI runner
+        const typeFileMap: Record<string, string> = {
+          code_improvements: 'code_improvements_ideas.json',
+          ui_ux_improvements: 'ui_ux_ideas.json',
+          documentation_gaps: 'documentation_gaps_ideas.json',
+          security_hardening: 'security_hardening_ideas.json',
+          performance_optimizations: 'performance_optimizations_ideas.json',
+          code_quality: 'code_quality_ideas.json',
+        };
+
+        const allIdeas: unknown[] = [];
+        for (const [ideaType, fileName] of Object.entries(typeFileMap)) {
+          const filePath = path.join(outputDir, fileName);
+          if (existsSync(filePath)) {
+            try {
+              const content = await fsPromises.readFile(filePath, 'utf-8');
+              const data = JSON.parse(content);
+              // Each file is { [type]: [...ideas] }
+              const ideas = data[ideaType] ?? data.ideas ?? [];
+              allIdeas.push(...(Array.isArray(ideas) ? ideas : []));
+            } catch { /* skip malformed files */ }
+          }
+        }
+
+        if (allIdeas.length > 0) {
+          const assembled = {
+            id: `ideation-${Date.now()}`,
+            ideas: allIdeas,
+            generated_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          await fsPromises.writeFile(ideationFilePath, JSON.stringify(assembled, null, 2), 'utf-8');
+          debugLog('[Agent Queue] Assembled ideation.json from individual type files:', { totalIdeas: allIdeas.length });
+        }
+      }
+
       if (existsSync(ideationFilePath)) {
         const content = await fsPromises.readFile(ideationFilePath, 'utf-8');
         const rawSession = JSON.parse(content);
@@ -336,7 +376,7 @@ export class AgentQueueManager {
         debugLog('[Agent Queue] Loaded ideation session:', { totalIdeas: session.ideas?.length || 0 });
         this.emitter.emit('ideation-complete', projectId, session);
       } else {
-        debugLog('[Agent Queue] ideation.json not found, individual type files used');
+        debugLog('[Agent Queue] No ideation data found after assembly attempt');
         this.emitter.emit('ideation-complete', projectId, null);
       }
     } catch (err) {

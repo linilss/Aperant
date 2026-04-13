@@ -14,6 +14,25 @@ import type {
   MemoryValidationResult
 } from '../../shared/types';
 
+/** Structured documentation generated for a project by the AI documentation runner. */
+export interface ProjectDocumentation {
+  generatedAt: string;
+  projectName: string;
+  overview: string;
+  architecture: string;
+  modules: Array<{
+    name: string;
+    path: string;
+    description: string;
+    responsibilities: string[];
+    keyFiles: string[];
+  }>;
+  apiSurface: string;
+  dataModels: string;
+  developerGuide: string;
+  techStack: string;
+}
+
 // Tab state interface (persisted in main process)
 export interface TabState {
   openProjectIds: string[];
@@ -48,6 +67,15 @@ export interface ProjectAPI {
   getMemoryStatus: (projectId: string) => Promise<IPCResult<unknown>>;
   searchMemories: (projectId: string, query: string) => Promise<IPCResult<unknown>>;
   getRecentMemories: (projectId: string, limit?: number) => Promise<IPCResult<unknown>>;
+
+  // Documentation Operations
+  getProjectDocumentation: (projectId: string) => Promise<IPCResult<ProjectDocumentation | null>>;
+  generateProjectDocumentation: (projectId: string) => void;
+  stopProjectDocumentation: (projectId: string) => void;
+  onDocumentationChunk: (cb: (projectId: string, chunk: string) => void) => () => void;
+  onDocumentationToolUse: (cb: (projectId: string, toolName: string) => void) => () => void;
+  onDocumentationComplete: (cb: (projectId: string, doc: ProjectDocumentation) => void) => () => void;
+  onDocumentationError: (cb: (projectId: string, error: string) => void) => () => void;
 
   // Memory Infrastructure operations (LadybugDB - no Docker required)
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
@@ -198,6 +226,44 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   getRecentMemories: (projectId: string, limit?: number) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_MEMORIES, projectId, limit),
+
+  // Documentation Operations
+  getProjectDocumentation: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_DOCUMENTATION, projectId),
+
+  generateProjectDocumentation: (projectId: string) =>
+    ipcRenderer.send(IPC_CHANNELS.CONTEXT_GENERATE_DOCUMENTATION, projectId),
+
+  stopProjectDocumentation: (projectId: string) =>
+    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCUMENTATION_STOP, projectId),
+
+  onDocumentationChunk: (cb: (projectId: string, chunk: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, chunk: string) =>
+      cb(projectId, chunk);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK, listener);
+  },
+
+  onDocumentationToolUse: (cb: (projectId: string, toolName: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, toolName: string) =>
+      cb(projectId, toolName);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE, listener);
+  },
+
+  onDocumentationComplete: (cb: (projectId: string, doc: ProjectDocumentation) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, doc: ProjectDocumentation) =>
+      cb(projectId, doc);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE, listener);
+  },
+
+  onDocumentationError: (cb: (projectId: string, error: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, error: string) =>
+      cb(projectId, error);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR, listener);
+  },
 
   // Memory Management
   verifyMemory: (memoryId: string): Promise<IPCResult<void>> =>

@@ -8,6 +8,7 @@ import { registerWorkItemHandlers } from './work-item-handlers';
 import { registerPullRequestHandlers } from './pull-request-handlers';
 import { registerImportHandlers } from './import-handlers';
 import { registerInvestigationHandlers } from './investigation-handlers';
+import { registerPRReviewHandlers } from './pr-review-handlers';
 import type { AgentManager } from '../../agent';
 import type { BrowserWindow } from 'electron';
 
@@ -20,4 +21,5 @@ export function registerAzureDevOpsHandlers(
   registerPullRequestHandlers();
   registerImportHandlers();
   registerInvestigationHandlers(agentManager, getMainWindow);
+  registerPRReviewHandlers();
 }

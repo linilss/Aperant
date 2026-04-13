@@ -345,5 +345,39 @@ export const integrationMock = {
   onGitLabInvestigationError: () => () => {},
 
   // OAuth device code event listener (for streaming device code during auth)
-  onGitHubAuthDeviceCode: () => () => {}
+  onGitHubAuthDeviceCode: () => () => {},
+
+  // Azure DevOps Integration Operations
+  checkAzureDevOpsConnection: async () => ({ success: true, data: { connected: false } }),
+  detectAzureDevOpsRepo: async () => ({ success: false, error: 'Not available in browser mock' }),
+  getAzureDevOpsBranches: async () => ({ success: true, data: [] }),
+  getAzureDevOpsWorkItems: async () => ({ success: true, data: [] }),
+  getAzureDevOpsWorkItem: async () => ({ success: false, error: 'Not available in browser mock' }),
+  getAzureDevOpsWorkItemComments: async () => ({ success: true, data: [] }),
+  investigateAzureDevOpsWorkItem: () => {},
+  importAzureDevOpsWorkItems: async () => ({ success: false, error: 'Not available in browser mock' }),
+  getAzureDevOpsPullRequests: async () => ({ success: true, data: [] }),
+  getAzureDevOpsPullRequest: async () => ({ success: false, error: 'Not available in browser mock' }),
+  onAzureDevOpsInvestigationProgress: () => () => {},
+  onAzureDevOpsInvestigationComplete: () => () => {},
+  onAzureDevOpsInvestigationError: () => () => {},
+
+  // Azure DevOps PR Review Operations
+  reviewAzureDevOpsPR: () => {},
+  reviewAzureDevOpsPRFollowup: () => {},
+  cancelAzureDevOpsPRReview: () => {},
+  getAzureDevOpsPRReview: async () => ({ success: true, data: null }),
+  getAzureDevOpsPRReviewsBatch: async () => ({ success: true, data: {} }),
+  postAzureDevOpsPRReview: async () => ({ success: true }),
+  deleteAzureDevOpsPRReview: async () => ({ success: true }),
+  approveAzureDevOpsPR: async () => ({ success: true }),
+  mergeAzureDevOpsPR: async () => ({ success: true }),
+  checkAzureDevOpsPRNewCommits: async () => ({ success: true, data: { hasNewCommits: false, commitCount: 0 } }),
+  checkAzureDevOpsPRMergeReadiness: async () => ({ success: true, data: { canMerge: false } }),
+  getAzureDevOpsPRDiff: async () => ({ success: true, data: '' }),
+  getAzureDevOpsPRLogs: async () => ({ success: true, data: null }),
+  onAzureDevOpsPRReviewProgress: () => () => {},
+  onAzureDevOpsPRReviewComplete: () => () => {},
+  onAzureDevOpsPRReviewError: () => () => {},
+  onAzureDevOpsPRLogsUpdated: () => () => {},
 };

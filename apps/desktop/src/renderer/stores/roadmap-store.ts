@@ -60,18 +60,23 @@ function getOrCreateGenerationActor(
   }
   if (!generationActor) {
     if (initialState) {
-      const resolvedSnapshot = roadmapGenerationMachine.resolveState({
-        value: initialState,
-        context: {
-          progress: initialContext?.progress ?? 0,
-          message: initialContext?.message,
-          error: initialContext?.error,
-          startedAt: initialContext?.startedAt,
-          completedAt: initialContext?.completedAt,
-          lastActivityAt: initialContext?.lastActivityAt
-        }
-      });
-      generationActor = createActor(roadmapGenerationMachine, { snapshot: resolvedSnapshot });
+      try {
+        const resolvedSnapshot = roadmapGenerationMachine.resolveState({
+          value: initialState,
+          context: {
+            progress: initialContext?.progress ?? 0,
+            message: initialContext?.message,
+            error: initialContext?.error,
+            startedAt: initialContext?.startedAt,
+            completedAt: initialContext?.completedAt,
+            lastActivityAt: initialContext?.lastActivityAt
+          }
+        });
+        generationActor = createActor(roadmapGenerationMachine, { snapshot: resolvedSnapshot });
+      } catch {
+        // Stale or renamed state from a previous app version — start fresh
+        generationActor = createActor(roadmapGenerationMachine);
+      }
     } else {
       generationActor = createActor(roadmapGenerationMachine);
     }

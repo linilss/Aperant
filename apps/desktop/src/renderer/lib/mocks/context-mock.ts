@@ -53,5 +53,14 @@ export const contextMock = {
 
   deleteMemory: async (_memoryId: string) => ({
     success: true
-  })
+  }),
+
+  // Documentation
+  getProjectDocumentation: async () => ({ success: true, data: null }),
+  generateProjectDocumentation: () => {},
+  stopProjectDocumentation: () => {},
+  onDocumentationChunk: () => () => {},
+  onDocumentationToolUse: () => () => {},
+  onDocumentationComplete: () => () => {},
+  onDocumentationError: () => () => {}
 };

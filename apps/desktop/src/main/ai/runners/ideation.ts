@@ -2,23 +2,20 @@
  * Ideation Runner
  * ===============
  *
- * AI-powered idea generation using Vercel AI SDK.
- * See apps/desktop/src/main/ai/runners/ideation.ts for the TypeScript implementation.
+ * AI-powered idea generation via the Claude CLI subprocess.
  *
- * Uses `createSimpleClient()` with read-only tools and streaming to generate
- * ideas of different types: code improvements, UI/UX, documentation, security,
- * performance, and code quality.
+ * Uses `claude --print --verbose --output-format stream-json` so that generation
+ * goes through the same code path as Agent Terminals, avoiding direct API calls
+ * and the associated OAuth subscription rate limit issues.
  */
 
-import { streamText, stepCountIs } from 'ai';
+import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createSimpleClient } from '../client/factory';
-import { buildToolRegistry } from '../tools/build-registry';
-import type { ToolContext } from '../tools/types';
+import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
-import type { SecurityProfile } from '../security/bash-validator';
+import { findExecutable } from '../../platform';
 
 // =============================================================================
 // Constants
@@ -72,7 +69,7 @@ export interface IdeationConfig {
   ideationType: IdeationType;
   /** Model shorthand (defaults to 'sonnet') */
   modelShorthand?: ModelShorthand;
-  /** Thinking level (defaults to 'medium') */
+  /** Thinking level (unused — kept for API compatibility) */
   thinkingLevel?: ThinkingLevel;
   /** Maximum ideas per type (defaults to 5) */
   maxIdeasPerType?: number;
@@ -106,12 +103,9 @@ export type IdeationStreamEvent =
 /**
  * Run an ideation agent for a specific ideation type.
  *
- * Loads the appropriate prompt, creates a simple client with read-only tools,
- * and streams the response. Mirrors Python's `IdeationGenerator.run_agent()`.
- *
- * @param config - Ideation configuration
- * @param onStream - Optional callback for streaming events
- * @returns Ideation result
+ * Spawns `claude --print --verbose --output-format stream-json` with the
+ * ideation prompt on stdin. The CLI writes output JSON files directly via
+ * its Write tool. Streaming events are forwarded to the callback.
  */
 export async function runIdeation(
   config: IdeationConfig,
@@ -123,7 +117,6 @@ export async function runIdeation(
     promptsDir,
     ideationType,
     modelShorthand = 'sonnet',
-    thinkingLevel = 'medium',
     maxIdeasPerType = 5,
     abortSignal,
   } = config;
@@ -133,11 +126,7 @@ export async function runIdeation(
   const promptPath = join(promptsDir, promptFile);
 
   if (!existsSync(promptPath)) {
-    return {
-      success: false,
-      text: '',
-      error: `Prompt not found: ${promptPath}`,
-    };
+    return { success: false, text: '', error: `Prompt not found: ${promptPath}` };
   }
 
   let prompt: string;
@@ -151,89 +140,111 @@ export async function runIdeation(
     };
   }
 
-  // Add context to prompt (matches Python format)
+  // Add context (matches original format)
   prompt += `\n\n---\n\n**Output Directory**: ${outputDir}\n`;
   prompt += `**Project Directory**: ${projectDir}\n`;
   prompt += `**Max Ideas**: ${maxIdeasPerType}\n`;
 
-  // Create tool context for read-only tools
-  const toolContext: ToolContext = {
+  const userPrompt = `Analyze the project at ${projectDir} and generate up to ${maxIdeasPerType} ${ideationType.replace(/_/g, ' ')} ideas. Use the available tools to explore the codebase, then write your findings as a JSON file to the output directory.`;
+  const combinedPrompt = `${prompt}\n\n${userPrompt}`;
+
+  const claudePath = await findExecutable('claude');
+  if (!claudePath) {
+    return { success: false, text: '', error: 'claude CLI not found — make sure Claude Code is installed' };
+  }
+
+  const modelId = resolveModelId(modelShorthand);
+  const args = [
+    '--print',
+    '--verbose',
+    '--output-format', 'stream-json',
+    '--allowedTools', 'Read,Glob,Grep,Write',
+    '--model', modelId,
+  ];
+
+  console.error(`[Ideation CLI] spawning: ${claudePath} ${args.join(' ')} (type: ${ideationType})`);
+
+  const child = spawn(claudePath, args, {
     cwd: projectDir,
-    projectDir,
-    specDir: join(projectDir, '.auto-claude', 'specs'),
-    securityProfile: null as unknown as SecurityProfile,
-    abortSignal,
-  };
-
-  // Bind read-only tools + Write for output
-  const registry = buildToolRegistry();
-  const tools = registry.getToolsForAgent('ideation', toolContext);
-
-  // Create simple client
-  const client = await createSimpleClient({
-    systemPrompt: '',
-    modelShorthand,
-    thinkingLevel,
-    maxSteps: 30,
-    tools,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env,
   });
 
+  child.stdin.write(combinedPrompt, 'utf-8');
+  child.stdin.end();
+
   let responseText = '';
+  let stdoutBuffer = '';
+  let stderrOutput = '';
 
-  // Detect Codex models — they require instructions via providerOptions, not system
-  const modelId = typeof client.model === 'string' ? client.model : client.model.modelId;
-  const isCodex = modelId?.includes('codex') ?? false;
-  const userPrompt = `Analyze the project at ${projectDir} and generate up to ${maxIdeasPerType} ${ideationType.replace(/_/g, ' ')} ideas. Use the available tools to explore the codebase, then write your findings as a JSON file to the output directory.`;
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdoutBuffer += chunk.toString('utf-8');
+    const lines = stdoutBuffer.split('\n');
+    stdoutBuffer = lines.pop() ?? '';
 
-  try {
-    const result = streamText({
-      model: client.model,
-      system: isCodex ? undefined : prompt,
-      prompt: userPrompt,
-      tools: client.tools,
-      stopWhen: stepCountIs(client.maxSteps),
-      abortSignal,
-      ...(isCodex ? {
-        providerOptions: {
-          openai: {
-            instructions: prompt,
-            store: false,
-          },
-        },
-      } : {}),
-    });
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
 
-    for await (const part of result.fullStream) {
-      switch (part.type) {
-        case 'text-delta': {
-          responseText += part.text;
-          onStream?.({ type: 'text-delta', text: part.text });
-          break;
+      try {
+        const event = JSON.parse(trimmed) as Record<string, unknown>;
+
+        if (event.type === 'assistant') {
+          const message = event.message as Record<string, unknown> | undefined;
+          const content = (message?.content ?? []) as Array<Record<string, unknown>>;
+          for (const block of content) {
+            if (block.type === 'text') {
+              const text = String(block.text ?? '');
+              responseText += text;
+              if (text) onStream?.({ type: 'text-delta', text });
+            } else if (block.type === 'tool_use') {
+              onStream?.({ type: 'tool-use', name: String(block.name ?? 'unknown') });
+            }
+          }
+        } else if (event.type === 'result') {
+          if (responseText.length === 0 && event.result) {
+            responseText = String(event.result);
+          }
+          if (event.subtype === 'error_during_execution') {
+            const errMsg = String(event.error ?? event.result ?? 'CLI error');
+            onStream?.({ type: 'error', error: errMsg });
+          }
         }
-        case 'tool-call': {
-          onStream?.({ type: 'tool-use', name: part.toolName });
-          break;
-        }
-        case 'error': {
-          const errorMsg =
-            part.error instanceof Error ? part.error.message : String(part.error);
-          onStream?.({ type: 'error', error: errorMsg });
-          break;
-        }
+      } catch (parseErr) {
+        if (!(parseErr instanceof SyntaxError)) throw parseErr;
       }
     }
+  });
 
-    return {
-      success: true,
-      text: responseText,
-    };
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderrOutput += chunk.toString('utf-8');
+  });
+
+  const abortHandler = () => child.kill('SIGTERM');
+  abortSignal?.addEventListener('abort', abortHandler);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      child.on('close', (code) => {
+        abortSignal?.removeEventListener('abort', abortHandler);
+        if (abortSignal?.aborted) { reject(new Error('Aborted')); return; }
+        if (code !== 0) {
+          reject(new Error(`claude CLI failed: ${stderrOutput.trim() || `exit code ${code}`}`));
+          return;
+        }
+        resolve();
+      });
+      child.on('error', (err) => {
+        abortSignal?.removeEventListener('abort', abortHandler);
+        reject(err);
+      });
+    });
+
+    console.error(`[Ideation CLI] complete, textChars: ${responseText.length}`);
+    return { success: true, text: responseText };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     onStream?.({ type: 'error', error: errorMsg });
-    return {
-      success: false,
-      text: responseText,
-      error: errorMsg,
-    };
+    return { success: false, text: responseText, error: errorMsg };
   }
 }

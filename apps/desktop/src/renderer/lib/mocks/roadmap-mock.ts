@@ -37,5 +37,14 @@ export const roadmapMock = {
   // Roadmap Event Listeners
   onRoadmapProgress: () => () => {},
   onRoadmapComplete: () => () => {},
-  onRoadmapError: () => () => {}
+  onRoadmapError: () => () => {},
+
+  // Feature Refine session stubs
+  roadmapRefineStart: () => {},
+  roadmapRefineSend: () => {},
+  roadmapRefineStop: () => {},
+  onRoadmapRefineChunk: () => () => {},
+  onRoadmapRefineToolUse: () => () => {},
+  onRoadmapRefineComplete: () => () => {},
+  onRoadmapRefineError: () => () => {},
 };

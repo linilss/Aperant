@@ -10,6 +10,16 @@ import type {
 } from '../../../shared/types';
 import { createIpcListener, invokeIpc, sendIpc, IpcListenerCleanup } from './ipc-utils';
 
+/** Result produced by the AI feature refinement session (grill → PRD → plan). */
+export interface FeatureRefineResult {
+  title: string;
+  description: string;
+  prd: string;
+  plan: string;
+  acceptanceCriteria: string[];
+  userStories: string[];
+}
+
 /**
  * Roadmap API operations
  */
@@ -51,6 +61,23 @@ export interface RoadmapAPI {
   ) => IpcListenerCleanup;
   onRoadmapStopped: (
     callback: (projectId: string) => void
+  ) => IpcListenerCleanup;
+
+  // Feature Refine session
+  roadmapRefineStart: (projectId: string, initialDescription: string) => void;
+  roadmapRefineSend: (projectId: string, message: string) => void;
+  roadmapRefineStop: (projectId: string) => void;
+  onRoadmapRefineChunk: (
+    callback: (projectId: string, chunk: string) => void
+  ) => IpcListenerCleanup;
+  onRoadmapRefineToolUse: (
+    callback: (projectId: string, toolName: string) => void
+  ) => IpcListenerCleanup;
+  onRoadmapRefineComplete: (
+    callback: (projectId: string, result: FeatureRefineResult | null) => void
+  ) => IpcListenerCleanup;
+  onRoadmapRefineError: (
+    callback: (projectId: string, error: string) => void
   ) => IpcListenerCleanup;
 }
 
@@ -123,5 +150,35 @@ export const createRoadmapAPI = (): RoadmapAPI => ({
   onRoadmapStopped: (
     callback: (projectId: string) => void
   ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.ROADMAP_STOPPED, callback)
+    createIpcListener(IPC_CHANNELS.ROADMAP_STOPPED, callback),
+
+  // Feature Refine session
+  roadmapRefineStart: (projectId: string, initialDescription: string): void =>
+    sendIpc(IPC_CHANNELS.ROADMAP_REFINE_START, projectId, initialDescription),
+
+  roadmapRefineSend: (projectId: string, message: string): void =>
+    sendIpc(IPC_CHANNELS.ROADMAP_REFINE_SEND, projectId, message),
+
+  roadmapRefineStop: (projectId: string): void =>
+    sendIpc(IPC_CHANNELS.ROADMAP_REFINE_STOP, projectId),
+
+  onRoadmapRefineChunk: (
+    callback: (projectId: string, chunk: string) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_REFINE_CHUNK, callback),
+
+  onRoadmapRefineToolUse: (
+    callback: (projectId: string, toolName: string) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_REFINE_TOOL_USE, callback),
+
+  onRoadmapRefineComplete: (
+    callback: (projectId: string, result: FeatureRefineResult | null) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_REFINE_COMPLETE, callback),
+
+  onRoadmapRefineError: (
+    callback: (projectId: string, error: string) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_REFINE_ERROR, callback),
 });

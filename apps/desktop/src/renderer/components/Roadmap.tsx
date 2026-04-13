@@ -10,6 +10,7 @@ import { RoadmapHeader } from './roadmap/RoadmapHeader';
 import { RoadmapEmptyState } from './roadmap/RoadmapEmptyState';
 import { RoadmapTabs } from './roadmap/RoadmapTabs';
 import { FeatureDetailPanel } from './roadmap/FeatureDetailPanel';
+import { RefineFeaturePanel } from './roadmap/RefineFeaturePanel';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -22,11 +23,18 @@ import {
 } from './ui/alert-dialog';
 import { useRoadmapData, useFeatureActions, useRoadmapGeneration, useRoadmapSave, useFeatureDelete } from './roadmap/hooks';
 import { getCompetitorInsightsForFeature } from './roadmap/utils';
+import { useFeatureRefineStore } from '../stores/feature-refine-store';
+import { useRoadmapStore } from '../stores/roadmap-store';
+import type { FeatureRefineResult } from '../stores/feature-refine-store';
 import type { RoadmapFeature } from '../../shared/types';
 import type { RoadmapProps } from './roadmap/types';
 
 export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
   const { t } = useTranslation('common');
+
+  // Feature Refine session store
+  const { isOpen: isRefineOpen, open: openRefine, close: closeRefine } = useFeatureRefineStore();
+  const { addFeature: addFeatureToStore } = useRoadmapStore();
 
   // State management
   const [selectedFeature, setSelectedFeature] = useState<RoadmapFeature | null>(null);
@@ -71,6 +79,27 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
 
   const handleArchiveFeature = (featureId: string) => {
     setPendingArchiveFeatureId(featureId);
+  };
+
+  const handleAddToRoadmap = async (result: FeatureRefineResult) => {
+    if (!roadmap) return;
+    // Add feature to the first phase if available, otherwise use empty string
+    const firstPhaseId = roadmap.phases[0]?.id ?? '';
+    addFeatureToStore({
+      title: result.title,
+      description: result.description,
+      rationale: result.prd,
+      priority: 'should',
+      complexity: 'medium',
+      impact: 'medium',
+      phaseId: firstPhaseId,
+      dependencies: [],
+      status: 'planned',
+      acceptanceCriteria: result.acceptanceCriteria,
+      userStories: result.userStories,
+    });
+    await saveRoadmap();
+    closeRefine();
   };
 
   const confirmArchiveFeature = async () => {
@@ -135,6 +164,7 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
         onAddFeature={() => setShowAddFeatureDialog(true)}
         onRefresh={handleRefresh}
         onViewCompetitorAnalysis={() => setShowCompetitorViewer(true)}
+        onRefineFeature={() => openRefine(projectId)}
       />
 
       {/* Content */}
@@ -150,6 +180,15 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
           onArchive={handleArchiveFeature}
         />
       </div>
+
+      {/* Refine Feature Panel */}
+      {isRefineOpen && (
+        <RefineFeaturePanel
+          projectId={projectId}
+          onAddToRoadmap={handleAddToRoadmap}
+          onClose={closeRefine}
+        />
+      )}
 
       {/* Feature Detail Panel */}
       {selectedFeature && (

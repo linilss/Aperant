@@ -15,6 +15,18 @@ import { buildMemoryStatus } from './memory-status-handlers';
 import { getMemoryService } from './memory-service-factory';
 import { runProjectIndexer } from '../../ai/project/project-indexer';
 import type { Memory } from '../../ai/memory/types';
+import { runProjectDocumentation } from '../../ai/runners/project-documentation';
+import type { ProjectDocumentation } from '../../ai/runners/project-documentation';
+import { safeSendToRenderer } from '../utils';
+import { getActiveProviderFeatureSettings } from '../feature-settings-helper';
+import type { ThinkingLevel } from '../../../shared/types/settings';
+
+// ============================================================
+// MODULE-LEVEL STATE
+// ============================================================
+
+/** Active documentation generation abort controllers keyed by projectId */
+const documentationAbortControllers = new Map<string, AbortController>();
 
 // ============================================================
 // HELPERS
@@ -87,7 +99,7 @@ async function loadRecentMemories(projectId: string): Promise<RendererMemory[]> 
  * Register project context handlers
  */
 export function registerProjectContextHandlers(
-  _getMainWindow: () => BrowserWindow | null
+  getMainWindow: () => BrowserWindow | null
 ): void {
   // Get full project context
   ipcMain.handle(
@@ -151,4 +163,144 @@ export function registerProjectContextHandlers(
       }
     }
   );
+
+  // ============================================================
+  // Project Documentation Handlers
+  // ============================================================
+
+  // Get cached documentation (returns null if not yet generated)
+  ipcMain.handle(
+    IPC_CHANNELS.CONTEXT_GET_DOCUMENTATION,
+    async (_, projectId: string): Promise<IPCResult<ProjectDocumentation | null>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+
+      const docPath = path.join(project.path, AUTO_BUILD_PATHS.DOCUMENTATION_FILE);
+      if (!existsSync(docPath)) {
+        return { success: true, data: null };
+      }
+
+      try {
+        const content = readFileSync(docPath, 'utf-8');
+        const data = JSON.parse(content) as ProjectDocumentation;
+        return { success: true, data };
+      } catch {
+        return { success: true, data: null };
+      }
+    }
+  );
+
+  // Start documentation generation (fire-and-forget; streams events to renderer)
+  ipcMain.on(
+    IPC_CHANNELS.CONTEXT_GENERATE_DOCUMENTATION,
+    (_, projectId: string) => {
+      const project = projectStore.getProject(projectId);
+      if (!project) {
+        safeSendToRenderer(
+          getMainWindow,
+          IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR,
+          projectId,
+          'Project not found'
+        );
+        return;
+      }
+
+      startDocumentationGeneration(projectId, project.path, getMainWindow);
+    }
+  );
+
+  // Stop in-progress documentation generation
+  ipcMain.on(
+    IPC_CHANNELS.CONTEXT_DOCUMENTATION_STOP,
+    (_, projectId: string) => {
+      const controller = documentationAbortControllers.get(projectId);
+      if (controller) {
+        controller.abort();
+        documentationAbortControllers.delete(projectId);
+      }
+    }
+  );
+}
+
+// ============================================================
+// DOCUMENTATION GENERATION HELPER
+// ============================================================
+
+/**
+ * Start an async documentation generation run for a project.
+ * Streams events back to the renderer via IPC. Fire-and-forget — does not await.
+ */
+function startDocumentationGeneration(
+  projectId: string,
+  projectPath: string,
+  getMainWindow: () => BrowserWindow | null
+): void {
+  // Abort any in-progress run for the same project
+  const existing = documentationAbortControllers.get(projectId);
+  if (existing) {
+    existing.abort();
+  }
+
+  const controller = new AbortController();
+  documentationAbortControllers.set(projectId, controller);
+
+  const { model, thinkingLevel } = getActiveProviderFeatureSettings('insights');
+
+  runProjectDocumentation(
+    {
+      projectDir: projectPath,
+      modelShorthand: model as Parameters<typeof runProjectDocumentation>[0]['modelShorthand'],
+      thinkingLevel: thinkingLevel as ThinkingLevel,
+      abortSignal: controller.signal,
+    },
+    (event) => {
+      switch (event.type) {
+        case 'text-delta':
+          safeSendToRenderer(
+            getMainWindow,
+            IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK,
+            projectId,
+            event.delta
+          );
+          break;
+        case 'tool-use':
+          safeSendToRenderer(
+            getMainWindow,
+            IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE,
+            projectId,
+            event.toolName
+          );
+          break;
+        case 'complete':
+          safeSendToRenderer(
+            getMainWindow,
+            IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE,
+            projectId,
+            event.documentation
+          );
+          documentationAbortControllers.delete(projectId);
+          break;
+        case 'error':
+          safeSendToRenderer(
+            getMainWindow,
+            IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR,
+            projectId,
+            event.error
+          );
+          documentationAbortControllers.delete(projectId);
+          break;
+      }
+    }
+  ).catch((err) => {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    safeSendToRenderer(
+      getMainWindow,
+      IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR,
+      projectId,
+      errorMsg
+    );
+    documentationAbortControllers.delete(projectId);
+  });
 }
