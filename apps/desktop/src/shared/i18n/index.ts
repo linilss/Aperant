@@ -13,6 +13,7 @@ import enGitlab from './locales/en/gitlab.json';
 import enTaskReview from './locales/en/taskReview.json';
 import enTerminal from './locales/en/terminal.json';
 import enErrors from './locales/en/errors.json';
+import enTests from './locales/en/tests.json';
 
 export const defaultNS = 'common';
 
@@ -28,7 +29,8 @@ export const resources = {
     gitlab: enGitlab,
     taskReview: enTaskReview,
     terminal: enTerminal,
-    errors: enErrors
+    errors: enErrors,
+    tests: enTests
   }
 } as const;
 
@@ -39,7 +41,7 @@ i18n
     lng: 'en',
     fallbackLng: 'en',
     defaultNS,
-    ns: ['common', 'navigation', 'settings', 'tasks', 'welcome', 'onboarding', 'dialogs', 'gitlab', 'taskReview', 'terminal', 'errors'],
+    ns: ['common', 'navigation', 'settings', 'tasks', 'welcome', 'onboarding', 'dialogs', 'gitlab', 'taskReview', 'terminal', 'errors', 'tests'],
     interpolation: {
       escapeValue: false // React already escapes values
     },

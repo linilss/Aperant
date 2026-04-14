@@ -49,6 +49,7 @@ import { Changelog } from './components/Changelog';
 import { Worktrees } from './components/Worktrees';
 import { AgentTools } from './components/AgentTools';
 import { ClaudeAgentsView } from './components/ClaudeAgentsView';
+import { Tests } from './components/tests/Tests';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RateLimitModal } from './components/RateLimitModal';
 import { SDKRateLimitModal } from './components/SDKRateLimitModal';
@@ -951,6 +952,9 @@ export function App() {
                 )}
                 {activeView === 'agent-tools' && <AgentTools />}
                 {activeView === 'agents' && <ClaudeAgentsView />}
+                {activeView === 'tests' && (activeProjectId || selectedProjectId) && (
+                  <Tests projectId={activeProjectId || selectedProjectId!} />
+                )}
               </>
             ) : (
               <WelcomeScreen

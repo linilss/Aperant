@@ -674,4 +674,18 @@ export const IPC_CHANNELS = {
   AZURE_DEVOPS_PR_APPROVE: 'azure-devops:pr:approve',
   AZURE_DEVOPS_PR_MERGE: 'azure-devops:pr:merge',
   AZURE_DEVOPS_PR_CHECK_MERGE_READINESS: 'azure-devops:pr:checkMergeReadiness',
+
+  // Tests
+  TESTS_LOAD_SOLUTION: 'tests:loadSolution',
+  TESTS_DISCOVER: 'tests:discover',
+  TESTS_RUN: 'tests:run',
+  TESTS_RUN_CATEGORY: 'tests:runCategory',
+  TESTS_RUN_SINGLE: 'tests:runSingle',
+  TESTS_STOP: 'tests:stop',
+  TESTS_GET_CONFIG: 'tests:getConfig',
+  TESTS_RUN_STATUS: 'tests:runStatus',
+  TESTS_RESULT: 'tests:result',
+  TESTS_COMPLETE: 'tests:complete',
+  TESTS_ERROR: 'tests:error',
+  TESTS_STOPPED: 'tests:stopped',
 } as const;

@@ -1,0 +1,37 @@
+{
+  "title": "Tests",
+  "discoverProjects": "Discover Projects",
+  "runAll": "Run All",
+  "stop": "Stop",
+  "categories": {
+    "all": "All",
+    "unit": "Unit",
+    "integration": "Integration",
+    "e2e": "End-to-End",
+    "interface": "Interface"
+  },
+  "status": {
+    "passed": "Passed",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "running": "Running",
+    "notRun": "Not Run"
+  },
+  "results": {
+    "duration": "Duration",
+    "errorMessage": "Error",
+    "noResults": "No test results yet. Run tests to see results.",
+    "passed": "{{count}} passed",
+    "failed": "{{count}} failed",
+    "skipped": "{{count}} skipped"
+  },
+  "empty": {
+    "title": "No Test Projects Found",
+    "description": "Click \"Discover Projects\" to scan for test projects in your codebase.",
+    "hint": "Supports .NET (xUnit, NUnit, MSTest) and Node.js test runners."
+  },
+  "errors": {
+    "discoveryFailed": "Failed to discover test projects",
+    "runFailed": "Test run failed"
+  }
+}

@@ -36,6 +36,7 @@ import { registerScreenshotHandlers } from './screenshot-handlers';
 import { registerTerminalWorktreeIpcHandlers } from './terminal';
 import { registerCodexAuthHandlers } from './codex-auth-handlers';
 import { registerFeatureRefineHandlers } from './feature-refine-handlers';
+import { registerTestsHandlers } from './tests-handlers';
 import { notificationService } from '../notification-service';
 import { setAgentManagerRef } from './utils';
 
@@ -135,6 +136,9 @@ export function setupIpcHandlers(
   // Feature refinement conversational AI handlers
   registerFeatureRefineHandlers(getMainWindow);
 
+  // Tests handlers (discover, run, config)
+  registerTestsHandlers(getMainWindow);
+
   console.warn('[IPC] All handler modules registered successfully');
 }
 
@@ -166,4 +170,5 @@ export {
   registerScreenshotHandlers,
   registerCodexAuthHandlers,
   registerFeatureRefineHandlers,
+  registerTestsHandlers,
 };

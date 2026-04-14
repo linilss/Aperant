@@ -19,7 +19,8 @@
     "azureDevOpsWorkItems": "Azure Work Items",
     "azureDevOpsPRs": "Azure PRs",
     "worktrees": "Worktrees",
-    "agentTools": "MCP Overview"
+    "agentTools": "MCP Overview",
+    "tests": "Tests"
   },
   "actions": {
     "settings": "Settings",
