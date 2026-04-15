@@ -220,8 +220,28 @@ function pushBranch(
   worktreePath: string,
   gitPath: string,
   branchName: string,
+  specId: string,
 ): string | undefined {
   try {
+    // Auto-commit any work the agent left unstaged (e.g. if the coder exited before git commit)
+    const statusOutput = execFileSync(gitPath, ['status', '--porcelain'], {
+      cwd: worktreePath,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    }).trim();
+    if (statusOutput) {
+      execFileSync(gitPath, ['add', '.'], {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      });
+      execFileSync(gitPath, ['commit', '-m', `auto-claude: save uncommitted work for ${specId}`], {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      });
+    }
+
     execFileSync(
       gitPath,
       ['push', '--set-upstream', 'origin', branchName],
@@ -296,8 +316,8 @@ export async function createPR(config: CreatePRConfig): Promise<CreatePRResult> 
     thinkingLevel = 'low',
   } = config;
 
-  // Step 1: Push the branch to origin
-  const pushError = pushBranch(worktreePath, gitPath, branchName);
+  // Step 1: Push the branch to origin (auto-commits uncommitted work first)
+  const pushError = pushBranch(worktreePath, gitPath, branchName, specId);
   if (pushError) {
     // If it looks like the branch is already up-to-date, don't bail
     const isUpToDate = pushError.includes('Everything up-to-date') ||

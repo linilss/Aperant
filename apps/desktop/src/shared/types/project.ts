@@ -15,6 +15,19 @@ export interface ClaudeAgentsResult {
   project: ClaudeAgent[];
 }
 
+export interface ClaudeSkill {
+  filename: string;
+  path: string;
+  name: string;
+  description?: string;
+  content: string;
+}
+
+export interface ClaudeSkillsResult {
+  global: ClaudeSkill[];
+  project: ClaudeSkill[];
+}
+
 export interface Project {
   id: string;
   name: string;

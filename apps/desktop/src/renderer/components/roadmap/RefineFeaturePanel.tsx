@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
-import { X, Send, Loader2, Sparkles, User, Bot, WrenchIcon, Plus } from 'lucide-react';
+import { X, Send, Loader2, Sparkles, User, Bot, WrenchIcon, Plus, CheckCheck } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '../ui/button';
@@ -61,6 +61,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
     status,
     error,
     result,
+    featureContext,
     addUserMessage,
     appendChunk,
     finalizeAssistantMessage,
@@ -68,6 +69,16 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
     setComplete,
     setError,
   } = useFeatureRefineStore();
+
+  // Auto-start the session immediately on mount (AI sends the first question)
+  useEffect(() => {
+    window.electronAPI.roadmapRefineStart(
+      projectId,
+      undefined,
+      featureContext ?? undefined,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Register IPC listeners on mount, clean up on unmount
   useEffect(() => {
@@ -123,17 +134,38 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
   };
 
   const isProcessing = status === 'thinking' || status === 'streaming';
+  const canFinish = !isProcessing && messages.length >= 2 && status !== 'complete';
+
+  // Auto-apply and close when refining an existing feature and featureData arrives
+  useEffect(() => {
+    if (featureContext && status === 'complete' && result) {
+      onAddToRoadmap(result);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, result]);
+
+  const handleFinish = () => {
+    const finishMessage = 'Please synthesize the refined feature details now and output the feature_data block.';
+    addUserMessage(finishMessage);
+    window.electronAPI.roadmapRefineSend(projectId, finishMessage);
+  };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border shadow-xl flex flex-col z-50">
+    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border shadow-xl flex flex-col z-[60]">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border electron-no-drag">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-sm">Refine Feature</span>
-          {/* TODO: i18n — add key 'roadmap.refineFeatureTitle' */}
+        <div className="flex items-center gap-2 min-w-0">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <div className="min-w-0">
+            <span className="font-semibold text-sm">
+              {featureContext ? 'Refine Feature' : 'New Feature'}
+            </span>
+            {featureContext && (
+              <p className="text-xs text-muted-foreground truncate">{featureContext.title}</p>
+            )}
+          </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7 shrink-0">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -141,15 +173,16 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
       {/* Messages */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="px-4 py-3 space-y-4">
-          {/* Welcome message when empty */}
-          {messages.length === 0 && !streamingContent && (
+          {/* Welcome / loading state when session is auto-starting */}
+          {messages.length === 0 && !streamingContent && status !== 'thinking' && (
             <div className="flex gap-3">
               <div className="shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
                 <Bot className="h-4 w-4 text-primary" />
               </div>
               <div className="flex-1 bg-muted/50 rounded-lg px-3 py-2 text-sm text-muted-foreground">
-                {/* TODO: i18n — add key 'roadmap.refineWelcome' */}
-                Describe a feature you want to add to the roadmap. I'll grill you on the details, then generate a PRD and implementation plan.
+                {featureContext
+                  ? `I'll refine "${featureContext.title}" with you. Starting session…`
+                  : 'Describe a feature you want to add to the roadmap. I\'ll grill you on the details, then generate a PRD and implementation plan.'}
               </div>
             </div>
           )}
@@ -239,49 +272,60 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
         </div>
       </ScrollArea>
 
-      {/* Add to Roadmap button — shown when complete */}
-      {status === 'complete' && result && (
+      {/* Save button — shown when complete and creating a new feature (existing features auto-apply) */}
+      {status === 'complete' && result && !featureContext && (
         <div className="shrink-0 px-4 py-2 border-t border-border">
           <Button
             className="w-full gap-2"
             onClick={() => onAddToRoadmap(result)}
           >
             <Plus className="h-4 w-4" />
-            {/* TODO: i18n — add key 'roadmap.addToRoadmap' */}
             Add to Roadmap
           </Button>
         </div>
       )}
 
       {/* Footer input */}
-      <div className="shrink-0 px-4 py-3 border-t border-border flex gap-2 items-end">
-        <Textarea
-          ref={textareaRef}
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            isProcessing
-              ? 'AI is thinking...'
-              : 'Describe a feature or answer the AI...'
-            // TODO: i18n — add keys 'roadmap.refineInputPlaceholderThinking' and 'roadmap.refineInputPlaceholder'
-          }
-          disabled={isProcessing}
-          rows={2}
-          className="flex-1 resize-none min-h-0 text-sm"
-        />
-        <Button
-          size="icon"
-          onClick={handleSend}
-          disabled={!inputText.trim() || isProcessing}
-          className="shrink-0 h-9 w-9"
-        >
-          {isProcessing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
+      <div className="shrink-0 px-4 py-3 border-t border-border space-y-2">
+        {/* Finish button — shown mid-conversation when not processing */}
+        {canFinish && (
+          <Button
+            variant="outline"
+            className="w-full gap-2 text-sm"
+            onClick={handleFinish}
+          >
+            <CheckCheck className="h-4 w-4" />
+            Finish &amp; Apply
+          </Button>
+        )}
+        <div className="flex gap-2 items-end">
+          <Textarea
+            ref={textareaRef}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isProcessing
+                ? 'AI is thinking...'
+                : 'Answer the question or describe changes...'
+            }
+            disabled={isProcessing}
+            rows={2}
+            className="flex-1 resize-none min-h-0 text-sm"
+          />
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={!inputText.trim() || isProcessing}
+            className="shrink-0 h-9 w-9"
+          >
+            {isProcessing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

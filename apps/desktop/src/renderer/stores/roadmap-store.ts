@@ -190,6 +190,7 @@ interface RoadmapState {
   reorderFeatures: (phaseId: string, featureIds: string[]) => void;
   updateFeaturePhase: (featureId: string, newPhaseId: string) => void;
   addFeature: (feature: Omit<RoadmapFeature, 'id'>) => string;
+  updateFeature: (featureId: string, updates: Partial<Omit<RoadmapFeature, 'id'>>) => void;
   addCompetitor: (input: ManualCompetitorInput) => string;
 }
 
@@ -604,6 +605,22 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
     });
 
     return newId;
+  },
+
+  // Update fields of an existing feature
+  updateFeature: (featureId, updates) => {
+    set((state) => {
+      if (!state.roadmap) return state;
+      return {
+        roadmap: {
+          ...state.roadmap,
+          features: state.roadmap.features.map((f) =>
+            f.id === featureId ? { ...f, ...updates } : f,
+          ),
+          updatedAt: new Date(),
+        },
+      };
+    });
   },
 
   // Add a manual competitor to the competitor analysis

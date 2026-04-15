@@ -11,6 +11,8 @@ import { projectStore } from '../../project-store';
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
 import { createPR } from '../../ai/runners/github/pr-creator';
+import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
+import { detectAzureDevOpsFromRemote } from '../azure-devops/utils';
 import type { ModelShorthand } from '../../ai/config/types';
 import { findTaskAndProject } from './shared';
 import { updateRoadmapFeatureOutcome } from '../../utils/roadmap-utils';
@@ -3047,18 +3049,32 @@ export function registerWorktreeHandlers(
 
         debug('Creating PR via TypeScript runner:', { branchName, baseBranch, prTitle });
 
-        // Run the TypeScript PR creator
-        const result = await createPR({
-          projectDir: project.path,
-          worktreePath,
-          specId: task.specId,
-          branchName,
-          baseBranch,
-          title: prTitle,
-          draft: options?.draft,
-          ghPath,
-          gitPath,
-        });
+        // Detect git remote provider and route to the correct PR creator
+        const adoInfo = detectAzureDevOpsFromRemote(project.path);
+        debug('Remote provider detected:', adoInfo ? 'Azure DevOps' : 'GitHub');
+
+        const result = adoInfo
+          ? await createAzureDevOpsPR({
+              project,
+              worktreePath,
+              branchName,
+              baseBranch,
+              title: prTitle,
+              draft: options?.draft,
+              gitPath,
+              adoInfo,
+            })
+          : await createPR({
+              projectDir: project.path,
+              worktreePath,
+              specId: task.specId,
+              branchName,
+              baseBranch,
+              title: prTitle,
+              draft: options?.draft,
+              ghPath,
+              gitPath,
+            });
 
         debug('PR creation result:', result);
 
@@ -3105,6 +3121,82 @@ export function registerWorktreeHandlers(
           success: false,
           error: error instanceof Error ? error.message : 'Failed to create PR'
         };
+      }
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // TASK_WORKTREE_PUSH_STATUS — check whether the worktree branch is ahead of origin
+  // ---------------------------------------------------------------------------
+  ipcMain.handle(
+    IPC_CHANNELS.TASK_WORKTREE_PUSH_STATUS,
+    async (_, taskId: string, projectId?: string): Promise<IPCResult<{ isPushed: boolean; branchName: string | null }>> => {
+      try {
+        const { task, project } = findTaskAndProject(taskId, projectId);
+        if (!task || !project) return { success: false, error: 'Task or project not found' };
+
+        const worktreePath = findTaskWorktree(project.path, task.specId);
+        if (!worktreePath) return { success: true, data: { isPushed: false, branchName: null } };
+
+        const gitPath = getToolPath('git');
+
+        const branchName = execFileSync(
+          gitPath,
+          ['rev-parse', '--abbrev-ref', 'HEAD'],
+          { cwd: worktreePath, encoding: 'utf-8', stdio: 'pipe' }
+        ).trim();
+
+        // Count commits ahead of remote tracking branch — 0 means fully pushed
+        let isPushed = false;
+        try {
+          const ahead = execFileSync(
+            gitPath,
+            ['rev-list', '@{u}..HEAD', '--count'],
+            { cwd: worktreePath, encoding: 'utf-8', stdio: 'pipe' }
+          ).trim();
+          isPushed = ahead === '0';
+        } catch {
+          // No upstream configured → not pushed
+          isPushed = false;
+        }
+
+        return { success: true, data: { isPushed, branchName } };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to check push status' };
+      }
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // TASK_WORKTREE_PUSH_BRANCH — push the worktree branch to origin
+  // ---------------------------------------------------------------------------
+  ipcMain.handle(
+    IPC_CHANNELS.TASK_WORKTREE_PUSH_BRANCH,
+    async (_, taskId: string, projectId?: string): Promise<IPCResult<{ branchName: string }>> => {
+      try {
+        const { task, project } = findTaskAndProject(taskId, projectId);
+        if (!task || !project) return { success: false, error: 'Task or project not found' };
+
+        const worktreePath = findTaskWorktree(project.path, task.specId);
+        if (!worktreePath) return { success: false, error: 'No worktree found for this task' };
+
+        const gitPath = getToolPath('git');
+
+        const branchName = execFileSync(
+          gitPath,
+          ['rev-parse', '--abbrev-ref', 'HEAD'],
+          { cwd: worktreePath, encoding: 'utf-8', stdio: 'pipe' }
+        ).trim();
+
+        execFileSync(
+          gitPath,
+          ['push', '--set-upstream', 'origin', branchName],
+          { cwd: worktreePath, encoding: 'utf-8', stdio: 'pipe' }
+        );
+
+        return { success: true, data: { branchName } };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to push branch' };
       }
     }
   );

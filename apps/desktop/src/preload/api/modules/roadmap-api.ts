@@ -1,6 +1,7 @@
 import { IPC_CHANNELS } from '../../../shared/constants';
 import type {
   Roadmap,
+  RoadmapFeature,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress,
@@ -64,7 +65,7 @@ export interface RoadmapAPI {
   ) => IpcListenerCleanup;
 
   // Feature Refine session
-  roadmapRefineStart: (projectId: string, initialDescription: string) => void;
+  roadmapRefineStart: (projectId: string, initialDescription?: string, featureContext?: RoadmapFeature) => void;
   roadmapRefineSend: (projectId: string, message: string) => void;
   roadmapRefineStop: (projectId: string) => void;
   onRoadmapRefineChunk: (
@@ -153,8 +154,8 @@ export const createRoadmapAPI = (): RoadmapAPI => ({
     createIpcListener(IPC_CHANNELS.ROADMAP_STOPPED, callback),
 
   // Feature Refine session
-  roadmapRefineStart: (projectId: string, initialDescription: string): void =>
-    sendIpc(IPC_CHANNELS.ROADMAP_REFINE_START, projectId, initialDescription),
+  roadmapRefineStart: (projectId: string, initialDescription?: string, featureContext?: RoadmapFeature): void =>
+    sendIpc(IPC_CHANNELS.ROADMAP_REFINE_START, projectId, initialDescription, featureContext),
 
   roadmapRefineSend: (projectId: string, message: string): void =>
     sendIpc(IPC_CHANNELS.ROADMAP_REFINE_SEND, projectId, message),

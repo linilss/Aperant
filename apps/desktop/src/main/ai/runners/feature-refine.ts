@@ -7,18 +7,16 @@
  * 2. PRD   — structured Product Requirements Document
  * 3. PLAN  — vertical slice implementation phases
  *
- * Uses `createSimpleClient()` with read-only tools (Read, Glob, Grep) and streaming.
- * Mirrors the insights runner pattern.
+ * Uses `claude --print --verbose --output-format stream-json` so that it shares
+ * the CLI's rate-limit management and doesn't collide with the OAuth quota used
+ * by the Vercel AI SDK path.
  */
 
-import { streamText, stepCountIs } from 'ai';
-import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 
-import { createSimpleClient } from '../client/factory';
-import { buildToolRegistry } from '../tools/build-registry';
-import type { ToolContext } from '../tools/types';
-import type { ModelShorthand, ThinkingLevel } from '../config/types';
-import type { SecurityProfile } from '../security/bash-validator';
+import { findExecutable } from '../../platform';
+import { resolveModelId } from '../config/phase-config';
+import type { ModelShorthand } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 
@@ -42,8 +40,8 @@ export interface FeatureRefineConfig {
   history?: FeatureRefineMessage[];
   /** Model shorthand (defaults to 'sonnet') */
   modelShorthand?: ModelShorthand;
-  /** Thinking level (defaults to 'medium') */
-  thinkingLevel?: ThinkingLevel;
+  /** Thinking level — unused with CLI path, kept for API compat */
+  thinkingLevel?: string;
   /** Abort signal for cancellation */
   abortSignal?: AbortSignal;
 }
@@ -83,7 +81,6 @@ function extractFeatureData(text: string): FeatureRefineResult | null {
   const parsed = safeParseJson<FeatureRefineResult>(match[1].trim());
   if (!parsed) return null;
 
-  // Validate required fields
   if (
     typeof parsed.title !== 'string' ||
     typeof parsed.description !== 'string' ||
@@ -99,35 +96,18 @@ function extractFeatureData(text: string): FeatureRefineResult | null {
 }
 
 // =============================================================================
-// Tool Input Extraction Helper
-// =============================================================================
-
-/**
- * Extract a brief description from tool call args for UI display.
- */
-function extractToolInput(args: Record<string, unknown>): string {
-  if (args.pattern) return `pattern: ${args.pattern}`;
-  if (args.file_path) {
-    const fp = String(args.file_path);
-    return fp.length > 50 ? `...${fp.slice(-47)}` : fp;
-  }
-  if (args.path) return String(args.path);
-  return '';
-}
-
-// =============================================================================
 // Feature Refine Runner
 // =============================================================================
 
 /**
- * Run a feature refinement chat turn with streaming.
+ * Run a feature refinement chat turn via the Claude CLI subprocess.
  *
- * The runner is stateless — it takes the full conversation history on each call
- * and streams events back via the callback. The caller is responsible for
- * accumulating and persisting history.
+ * Spawns `claude --print --verbose --output-format stream-json` with the full
+ * conversation (system prompt + history + new message) written to stdin.
+ * Streams text-delta and tool-use events back via the callback, then emits
+ * a final complete event.
  *
- * @param config   - Feature refine session configuration
- * @param onEvent  - Callback for streaming events
+ * The runner is stateless — the caller accumulates and persists history.
  */
 export async function runFeatureRefine(
   config: FeatureRefineConfig,
@@ -138,103 +118,121 @@ export async function runFeatureRefine(
     message,
     history = [],
     modelShorthand = 'sonnet',
-    thinkingLevel = 'medium',
     abortSignal,
   } = config;
 
-  // Load system prompt from prompts/feature_refine.md
+  const claudePath = await findExecutable('claude');
+  if (!claudePath) {
+    onEvent({ type: 'error', error: 'claude CLI not found — make sure Claude Code is installed' });
+    return;
+  }
+
+  // Load system prompt
   const systemPrompt =
     tryLoadPrompt('feature_refine') ??
     'You are a product strategist helping to refine a feature idea into a PRD and implementation plan.';
 
-  // Build conversation messages from history + current user message.
-  // We inline history as a formatted block (same approach as insights.ts) so
-  // that providers without native multi-turn message arrays still work.
-  let fullPrompt = message;
-  if (history.length > 0) {
-    const conversationContext = history
-      .map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-      .join('\n\n');
-    fullPrompt = `Previous conversation:\n${conversationContext}\n\nUser: ${message}`;
-  }
+  // Build the combined prompt: system + conversation history + current message
+  const historyBlock =
+    history.length > 0
+      ? history
+          .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n\n') + '\n\n'
+      : '';
 
-  // Create tool context — read-only tools only (no Write/Edit/Bash)
-  const toolContext: ToolContext = {
+  const combinedPrompt = `${systemPrompt}\n\n${historyBlock}User: ${message}`;
+
+  const modelId = resolveModelId(modelShorthand);
+  const args = [
+    '--print',
+    '--verbose',
+    '--output-format', 'stream-json',
+    '--allowedTools', 'Read,Glob,Grep',
+    '--model', modelId,
+  ];
+
+  const child = spawn(claudePath, args, {
     cwd: projectDir,
-    projectDir,
-    specDir: join(projectDir, '.auto-claude', 'specs'),
-    securityProfile: null as unknown as SecurityProfile,
-    abortSignal,
-  };
-
-  // Bind tools via registry — use 'insights' agent type which grants Read, Glob, Grep
-  const registry = buildToolRegistry();
-  const tools = registry.getToolsForAgent('insights', toolContext);
-
-  // Create simple client
-  const client = await createSimpleClient({
-    systemPrompt,
-    modelShorthand,
-    thinkingLevel,
-    maxSteps: 200,
-    tools,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env,
   });
 
-  // Detect Codex models — they require instructions via providerOptions, not system
-  const modelId = typeof client.model === 'string' ? client.model : client.model.modelId;
-  const isCodex = modelId?.includes('codex') ?? false;
+  // Wire abort signal
+  const onAbort = () => child.kill('SIGTERM');
+  abortSignal?.addEventListener('abort', onAbort, { once: true });
+
+  child.stdin.write(combinedPrompt, 'utf-8');
+  child.stdin.end();
+
+  // Drain stderr to prevent the child process from blocking on a full pipe buffer
+  child.stderr?.on('data', () => { /* intentionally empty */ });
 
   let responseText = '';
+  let stdoutBuffer = '';
 
-  try {
-    const result = streamText({
-      model: client.model,
-      system: isCodex ? undefined : client.systemPrompt,
-      prompt: fullPrompt,
-      tools: client.tools,
-      stopWhen: stepCountIs(200),
-      abortSignal,
-      ...(isCodex
-        ? {
-            providerOptions: {
-              openai: {
-                instructions: client.systemPrompt,
-                store: false,
-              },
-            },
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdoutBuffer += chunk.toString('utf-8');
+    const lines = stdoutBuffer.split('\n');
+    stdoutBuffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(trimmed) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+
+      if (event.type === 'assistant') {
+        const message = event.message as Record<string, unknown> | undefined;
+        const content = (message?.content ?? []) as Array<Record<string, unknown>>;
+        for (const block of content) {
+          if (block.type === 'text') {
+            const text = String(block.text ?? '');
+            if (text) {
+              responseText += text;
+              onEvent({ type: 'text-delta', delta: text });
+            }
+          } else if (block.type === 'tool_use') {
+            const name = String(block.name ?? 'unknown');
+            const input = block.input as Record<string, unknown> | undefined;
+            const inputSummary = input?.file_path
+              ? String(input.file_path)
+              : input?.pattern
+              ? `pattern: ${input.pattern}`
+              : '';
+            onEvent({ type: 'tool-use', toolName: name, input: inputSummary });
           }
-        : {}),
-    });
-
-    for await (const part of result.fullStream) {
-      switch (part.type) {
-        case 'text-delta': {
-          responseText += part.text;
-          onEvent({ type: 'text-delta', delta: part.text });
-          break;
         }
-        case 'tool-call': {
-          const args = 'input' in part ? (part.input as Record<string, unknown>) : {};
-          const input = extractToolInput(args);
-          onEvent({ type: 'tool-use', toolName: part.toolName, input });
-          break;
+      } else if (event.type === 'result') {
+        // Use result text as fallback if no streaming text was captured
+        if (responseText.length === 0 && event.result) {
+          responseText = String(event.result);
         }
-        case 'error': {
-          const errorMsg =
-            part.error instanceof Error ? part.error.message : String(part.error);
-          onEvent({ type: 'error', error: errorMsg });
-          return;
+        if (event.subtype === 'error_during_execution') {
+          onEvent({ type: 'error', error: String(event.error ?? event.result ?? 'CLI error') });
         }
       }
     }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    onEvent({ type: 'error', error: errorMsg });
-    return;
-  }
+  });
 
-  // Extract feature data if present (only emitted on final plan approval)
+  await new Promise<void>((resolve) => {
+    child.on('close', () => {
+      abortSignal?.removeEventListener('abort', onAbort);
+      resolve();
+    });
+    child.on('error', (err) => {
+      abortSignal?.removeEventListener('abort', onAbort);
+      onEvent({ type: 'error', error: err.message });
+      resolve();
+    });
+  });
+
+  if (abortSignal?.aborted) return;
+
   const featureData = extractFeatureData(responseText);
-
   onEvent({ type: 'complete', text: responseText, featureData });
 }

@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Trash2,
   Archive,
+  Wand2,
 } from 'lucide-react';
 import { TaskOutcomeBadge } from './TaskOutcomeBadge';
 import { Badge } from '../ui/badge';
@@ -31,6 +32,7 @@ export function FeatureDetailPanel({
   onClose,
   onConvertToSpec,
   onGoToTask,
+  onRefine,
   onDelete,
   onArchive,
   competitorInsights = [],
@@ -260,7 +262,13 @@ export function FeatureDetailPanel({
         );
 
         return (
-          <div className="shrink-0 p-4 border-t border-border">
+          <div className="shrink-0 p-4 border-t border-border space-y-2">
+            {onRefine && (
+              <Button variant="outline" className="w-full" onClick={() => onRefine(feature)}>
+                <Wand2 className="h-4 w-4 mr-2" />
+                Refine
+              </Button>
+            )}
             <Button className="w-full" onClick={() => onConvertToSpec(feature)}>
               <Zap className="h-4 w-4 mr-2" />
               {t('roadmap.convertToTask')}

@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { IPCResult, FileNode, ClaudeAgent, ClaudeAgentsResult } from '../../shared/types';
+import type { IPCResult, FileNode, ClaudeAgent, ClaudeAgentsResult, ClaudeSkill, ClaudeSkillsResult } from '../../shared/types';
 
 // Maximum file size to read (1MB)
 const MAX_FILE_SIZE = 1024 * 1024;
@@ -47,6 +47,28 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
   const name = yaml.match(/^name:\s*(.+)$/m)?.[1]?.trim();
   const description = yaml.match(/^description:\s*(.+)$/m)?.[1]?.trim();
   return { name, description };
+}
+
+function readSkillsDir(dir: string): ClaudeSkill[] {
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.md'))
+      .map((filename) => {
+        const filePath = path.join(dir, filename);
+        const content = readFileSync(filePath, 'utf-8');
+        const { name, description } = parseFrontmatter(content);
+        return {
+          filename,
+          path: filePath,
+          name: name ?? filename.replace(/\.md$/, ''),
+          description,
+          content
+        };
+      });
+  } catch {
+    return [];
+  }
 }
 
 function readAgentsDir(dir: string): ClaudeAgent[] {
@@ -185,6 +207,42 @@ export function registerFileHandlers(): void {
           project: projectDir ? readAgentsDir(projectDir) : []
         }
       };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CLAUDE_SKILLS_LIST,
+    async (_, projectPath?: string): Promise<IPCResult<ClaudeSkillsResult>> => {
+      const globalDir = path.join(os.homedir(), '.claude', 'skills');
+      const projectDir = projectPath ? path.join(projectPath, '.claude', 'skills') : null;
+      return {
+        success: true,
+        data: {
+          global: readSkillsDir(globalDir),
+          project: projectDir ? readSkillsDir(projectDir) : []
+        }
+      };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CLAUDE_SKILL_SAVE,
+    async (_, filePath: string, content: string): Promise<IPCResult<void>> => {
+      try {
+        const resolved = path.resolve(filePath);
+        const normalized = resolved.split(path.sep).join('/');
+        if (!normalized.includes('/.claude/skills/')) {
+          return { success: false, error: 'Path must be within a .claude/skills directory' };
+        }
+        mkdirSync(path.dirname(resolved), { recursive: true });
+        writeFileSync(resolved, content, 'utf-8');
+        return { success: true, data: undefined };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to save skill'
+        };
+      }
     }
   );
 }

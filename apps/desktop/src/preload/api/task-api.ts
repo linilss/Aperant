@@ -74,6 +74,8 @@ export interface TaskAPI {
   archiveTasks: (projectId: string, taskIds: string[], version?: string) => Promise<IPCResult<boolean>>;
   unarchiveTasks: (projectId: string, taskIds: string[]) => Promise<IPCResult<boolean>>;
   createWorktreePR: (taskId: string, options?: WorktreeCreatePROptions) => Promise<IPCResult<WorktreeCreatePRResult>>;
+  getWorktreePushStatus: (taskId: string, projectId?: string) => Promise<IPCResult<{ isPushed: boolean; branchName: string | null }>>;
+  pushWorktreeBranch: (taskId: string, projectId?: string) => Promise<IPCResult<{ branchName: string }>>;
 
   // Task Event Listeners
   // Note: projectId is optional for backward compatibility - events without projectId will still work
@@ -201,6 +203,12 @@ export const createTaskAPI = (): TaskAPI => ({
 
   createWorktreePR: (taskId: string, options?: WorktreeCreatePROptions): Promise<IPCResult<WorktreeCreatePRResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_CREATE_PR, taskId, options),
+
+  getWorktreePushStatus: (taskId: string, projectId?: string): Promise<IPCResult<{ isPushed: boolean; branchName: string | null }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_PUSH_STATUS, taskId, projectId),
+
+  pushWorktreeBranch: (taskId: string, projectId?: string): Promise<IPCResult<{ branchName: string }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_PUSH_BRANCH, taskId, projectId),
 
   // Task Event Listeners
   onTaskProgress: (

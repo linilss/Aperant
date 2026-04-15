@@ -1,5 +1,6 @@
 import type { BrowserWindow } from "electron";
 import path from "path";
+import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { safeParseJson } from "../utils/json-repair";
 import { IPC_CHANNELS, AUTO_BUILD_PATHS, getSpecsDir } from "../../shared/constants";
@@ -16,6 +17,7 @@ import { fileWatcher } from "../file-watcher";
 import { notificationService } from "../notification-service";
 import { persistPlanLastEventSync, getPlanPath, persistPlanPhaseSync, persistPlanStatusAndReasonSync, hasPlanWithSubtasks, syncPlanPhasesToMainSync } from "./task/plan-file-utils";
 import { findTaskWorktree } from "../worktree-paths";
+import { getToolPath } from "../cli-tool-manager";
 import { findTaskAndProject } from "./task/shared";
 import { safeSendToRenderer } from "./utils";
 import { getClaudeProfileManager } from "../claude-profile-manager";
@@ -241,6 +243,47 @@ export function registerAgenteventsHandlers(
 
     const taskTitle = task.title || task.specId;
     if (code === 0) {
+      // Push worktree branch so the agent's commits are visible on origin
+      const completedWorktreePath = findTaskWorktree(project.path, task.specId);
+      if (completedWorktreePath) {
+        try {
+          const branchName = execFileSync(
+            getToolPath('git'),
+            ['rev-parse', '--abbrev-ref', 'HEAD'],
+            { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+          ).trim();
+
+          // Auto-commit any work the agent left unstaged/uncommitted (e.g. if bash tool timed out)
+          const statusOutput = execFileSync(
+            getToolPath('git'),
+            ['status', '--porcelain'],
+            { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+          ).trim();
+          if (statusOutput) {
+            execFileSync(
+              getToolPath('git'),
+              ['add', '.'],
+              { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+            );
+            execFileSync(
+              getToolPath('git'),
+              ['commit', '-m', `auto-claude: save uncommitted work for ${task.specId}`],
+              { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+            );
+            console.warn(`[agent-events-handlers] Auto-committed uncommitted work for task ${taskId}`);
+          }
+
+          execFileSync(
+            getToolPath('git'),
+            ['push', '--set-upstream', 'origin', branchName],
+            { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+          );
+          console.warn(`[agent-events-handlers] Pushed branch ${branchName} for task ${taskId}`);
+        } catch (pushErr) {
+          console.error(`[agent-events-handlers] Failed to push branch for task ${taskId}:`, pushErr);
+          // Non-fatal — task still moves to human_review; user can push manually
+        }
+      }
       notificationService.notifyReviewNeeded(taskTitle, project.id, taskId);
     } else {
       notificationService.notifyTaskFailed(taskTitle, project.id, taskId);

@@ -30,6 +30,7 @@ import {
 } from '../ai/runners/feature-refine';
 import type { ModelShorthand } from '../ai/config/types';
 import type { ThinkingLevel } from '../../shared/types/settings';
+import type { RoadmapFeature } from '../../shared/types';
 
 // =============================================================================
 // Session State
@@ -104,7 +105,7 @@ async function sendMessage(
               getMainWindow,
               IPC_CHANNELS.ROADMAP_REFINE_TOOL_USE,
               projectId,
-              { toolName: event.toolName, input: event.input },
+              event.toolName,
             );
             break;
 
@@ -118,10 +119,7 @@ async function sendMessage(
               getMainWindow,
               IPC_CHANNELS.ROADMAP_REFINE_COMPLETE,
               projectId,
-              {
-                text: event.text,
-                featureData: event.featureData as FeatureRefineResult | null,
-              },
+              event.featureData as FeatureRefineResult | null,
             );
             break;
           }
@@ -170,7 +168,7 @@ export function registerFeatureRefineHandlers(
   // ------------------------------------------------------------------
   ipcMain.on(
     IPC_CHANNELS.ROADMAP_REFINE_START,
-    (_, projectId: string, initialDescription?: string) => {
+    (_, projectId: string, initialDescription?: string, featureContext?: RoadmapFeature) => {
       const project = projectStore.getProject(projectId);
       if (!project) {
         safeSendToRenderer(
@@ -187,10 +185,27 @@ export function registerFeatureRefineHandlers(
       existing?.abortController?.abort();
       sessions.set(projectId, { history: [], abortController: null });
 
-      // Kick off the initial AI turn
-      const greeting = initialDescription
-        ? `I'd like to refine a new feature for this project. ${initialDescription}`
-        : "I'd like to refine a new feature for this project.";
+      // Build the initial message — richer context when refining an existing feature
+      let greeting: string;
+      if (featureContext) {
+        const criteria = featureContext.acceptanceCriteria.length > 0
+          ? `\nCurrent acceptance criteria:\n${featureContext.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`
+          : '';
+        const stories = featureContext.userStories.length > 0
+          ? `\nUser stories:\n${featureContext.userStories.map((s) => `- "${s}"`).join('\n')}`
+          : '';
+        greeting = `I want to refine an existing roadmap feature called "${featureContext.title}".
+
+Current description: ${featureContext.description}
+
+Rationale: ${featureContext.rationale}${criteria}${stories}
+
+Please help me improve this feature. Ask me one focused question at a time to uncover gaps, clarify intent, and sharpen the requirements. After gathering enough information, produce an updated PRD and implementation plan.`;
+      } else if (initialDescription) {
+        greeting = `I'd like to refine a new feature for this project. ${initialDescription}`;
+      } else {
+        greeting = "I'd like to refine a new feature for this project.";
+      }
 
       void sendMessage(projectId, project.path, greeting, getMainWindow);
     },

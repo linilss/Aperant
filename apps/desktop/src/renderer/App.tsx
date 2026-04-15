@@ -49,6 +49,7 @@ import { Changelog } from './components/Changelog';
 import { Worktrees } from './components/Worktrees';
 import { AgentTools } from './components/AgentTools';
 import { ClaudeAgentsView } from './components/ClaudeAgentsView';
+import { ClaudeSkillsView } from './components/ClaudeSkillsView';
 import { Tests } from './components/tests/Tests';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RateLimitModal } from './components/RateLimitModal';
@@ -952,6 +953,7 @@ export function App() {
                 )}
                 {activeView === 'agent-tools' && <AgentTools />}
                 {activeView === 'agents' && <ClaudeAgentsView />}
+                {activeView === 'skills' && <ClaudeSkillsView />}
                 {activeView === 'tests' && (activeProjectId || selectedProjectId) && (
                   <Tests projectId={activeProjectId || selectedProjectId!} />
                 )}

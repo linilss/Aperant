@@ -29,6 +29,7 @@ export interface FeatureDetailPanelProps {
   onClose: () => void;
   onConvertToSpec: (feature: RoadmapFeature) => void;
   onGoToTask: (specId: string) => void;
+  onRefine?: (feature: RoadmapFeature) => void;
   onDelete?: (featureId: string) => void;
   onArchive?: (featureId: string) => void;
   competitorInsights?: CompetitorPainPoint[];

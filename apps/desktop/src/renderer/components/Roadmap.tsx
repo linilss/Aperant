@@ -33,8 +33,8 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
   const { t } = useTranslation('common');
 
   // Feature Refine session store
-  const { isOpen: isRefineOpen, open: openRefine, close: closeRefine } = useFeatureRefineStore();
-  const { addFeature: addFeatureToStore } = useRoadmapStore();
+  const { isOpen: isRefineOpen, open: openRefine, close: closeRefine, featureContext } = useFeatureRefineStore();
+  const { addFeature: addFeatureToStore, updateFeature: updateFeatureInStore } = useRoadmapStore();
 
   // State management
   const [selectedFeature, setSelectedFeature] = useState<RoadmapFeature | null>(null);
@@ -83,23 +83,55 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
 
   const handleAddToRoadmap = async (result: FeatureRefineResult) => {
     if (!roadmap) return;
-    // Add feature to the first phase if available, otherwise use empty string
-    const firstPhaseId = roadmap.phases[0]?.id ?? '';
-    addFeatureToStore({
-      title: result.title,
-      description: result.description,
-      rationale: result.prd,
-      priority: 'should',
-      complexity: 'medium',
-      impact: 'medium',
-      phaseId: firstPhaseId,
-      dependencies: [],
-      status: 'planned',
-      acceptanceCriteria: result.acceptanceCriteria,
-      userStories: result.userStories,
-    });
+
+    if (featureContext) {
+      // Refining an existing feature — update it in-place
+      updateFeatureInStore(featureContext.id, {
+        title: result.title,
+        description: result.description,
+        rationale: result.prd,
+        acceptanceCriteria: result.acceptanceCriteria,
+        userStories: result.userStories,
+      });
+      // Keep the panel's selected feature in sync
+      if (selectedFeature?.id === featureContext.id) {
+        setSelectedFeature((prev) =>
+          prev
+            ? {
+                ...prev,
+                title: result.title,
+                description: result.description,
+                rationale: result.prd,
+                acceptanceCriteria: result.acceptanceCriteria,
+                userStories: result.userStories,
+              }
+            : prev,
+        );
+      }
+    } else {
+      // Creating a new feature
+      const firstPhaseId = roadmap.phases[0]?.id ?? '';
+      addFeatureToStore({
+        title: result.title,
+        description: result.description,
+        rationale: result.prd,
+        priority: 'should',
+        complexity: 'medium',
+        impact: 'medium',
+        phaseId: firstPhaseId,
+        dependencies: [],
+        status: 'planned',
+        acceptanceCriteria: result.acceptanceCriteria,
+        userStories: result.userStories,
+      });
+    }
+
     await saveRoadmap();
     closeRefine();
+  };
+
+  const handleRefineExistingFeature = (feature: RoadmapFeature) => {
+    openRefine(projectId, undefined, feature);
   };
 
   const confirmArchiveFeature = async () => {
@@ -197,6 +229,7 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
           onClose={() => setSelectedFeature(null)}
           onConvertToSpec={handleConvertToSpec}
           onGoToTask={handleGoToTask}
+          onRefine={handleRefineExistingFeature}
           onDelete={deleteFeature}
           onArchive={handleArchiveFeature}
           competitorInsights={getCompetitorInsightsForFeature(selectedFeature, competitorAnalysis)}

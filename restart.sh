@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+clear
+
 cd "$(dirname "$0")"
 
 echo "Killing existing Aperant instances..."

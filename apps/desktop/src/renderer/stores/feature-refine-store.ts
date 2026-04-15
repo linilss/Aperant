@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { RoadmapFeature } from '../../shared/types';
 
 export interface FeatureRefineMessage {
   id: string;
@@ -19,6 +20,8 @@ export interface FeatureRefineResult {
 interface FeatureRefineState {
   isOpen: boolean;
   projectId: string | null;
+  /** Existing feature being refined (null when creating a new feature) */
+  featureContext: RoadmapFeature | null;
   messages: FeatureRefineMessage[];
   streamingContent: string;
   currentTool: string | null;
@@ -27,7 +30,7 @@ interface FeatureRefineState {
   result: FeatureRefineResult | null;
 
   // Actions
-  open: (projectId: string, initialDescription?: string) => void;
+  open: (projectId: string, initialDescription?: string, featureContext?: RoadmapFeature) => void;
   close: () => void;
   addUserMessage: (content: string) => void;
   appendChunk: (chunk: string) => void;
@@ -41,6 +44,7 @@ interface FeatureRefineState {
 const initialState = {
   isOpen: false,
   projectId: null,
+  featureContext: null,
   messages: [],
   streamingContent: '',
   currentTool: null,
@@ -52,11 +56,12 @@ const initialState = {
 export const useFeatureRefineStore = create<FeatureRefineState>((set, get) => ({
   ...initialState,
 
-  open: (projectId, initialDescription) => {
+  open: (projectId, initialDescription, featureContext) => {
     set({
       ...initialState,
       isOpen: true,
       projectId,
+      featureContext: featureContext ?? null,
     });
 
     if (initialDescription) {

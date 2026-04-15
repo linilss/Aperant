@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import type { TestProject, TestResult, TestRunStatus, TestStatus } from '../../../shared/types/tests';
@@ -43,11 +44,18 @@ async function runDotnetProject(
   const projectFile = testProject.path;
   const projectDir = path.dirname(projectFile);
 
+  // Write TRX results to a temp directory inside Aperant's own space
+  // so the file never appears as an unversioned file in the user's project.
+  const trxDir = path.join(os.tmpdir(), 'aperant-test-results', testProject.id);
+  await fs.mkdir(trxDir, { recursive: true });
+
   const args: string[] = [
     'test',
     projectFile,
     `--logger`,
     `trx;LogFileName=${TRX_LOG_FILE}`,
+    `--results-directory`,
+    trxDir,
   ];
 
   if (options.category) {
@@ -102,7 +110,7 @@ async function runDotnetProject(
   });
 
   // Parse the TRX file produced by dotnet test
-  const trxPath = path.join(projectDir, 'TestResults', TRX_LOG_FILE);
+  const trxPath = path.join(trxDir, TRX_LOG_FILE);
   let trxContent: string;
   try {
     trxContent = await fs.readFile(trxPath, 'utf-8');

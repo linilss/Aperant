@@ -45,6 +45,8 @@ export const IPC_CHANNELS = {
   TASK_WORKTREE_DISCARD: 'task:worktreeDiscard',
   TASK_WORKTREE_DISCARD_ORPHAN: 'task:worktreeDiscardOrphan',  // Delete orphaned worktree by spec name (no task association)
   TASK_WORKTREE_CREATE_PR: 'task:worktreeCreatePR',
+  TASK_WORKTREE_PUSH_BRANCH: 'task:worktreePushBranch',
+  TASK_WORKTREE_PUSH_STATUS: 'task:worktreePushStatus',
   TASK_WORKTREE_OPEN_IN_IDE: 'task:worktreeOpenInIDE',
   TASK_WORKTREE_OPEN_IN_TERMINAL: 'task:worktreeOpenInTerminal',
   TASK_WORKTREE_DETECT_TOOLS: 'task:worktreeDetectTools',  // Detect installed IDEs/terminals
@@ -555,6 +557,8 @@ export const IPC_CHANNELS = {
   FILE_EXPLORER_READ: 'fileExplorer:read',
   CLAUDE_AGENTS_LIST: 'claudeAgents:list',
   CLAUDE_AGENT_SAVE: 'claudeAgents:save',
+  CLAUDE_SKILLS_LIST: 'claudeSkills:list',
+  CLAUDE_SKILL_SAVE: 'claudeSkills:save',
 
   // Git operations
   GIT_GET_BRANCHES: 'git:getBranches',

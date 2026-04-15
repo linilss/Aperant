@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, MoreVertical } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, MoreVertical, Upload, Check } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -137,6 +137,8 @@ export const TaskCard = memo(function TaskCard({
   const { toast } = useToast();
   const [isStuck, setIsStuck] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [isPushed, setIsPushed] = useState<boolean | null>(null);
+  const [isPushing, setIsPushing] = useState(false);
   const stuckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const isRunning = task.status === 'in_progress';
@@ -269,6 +271,37 @@ export const TaskCard = memo(function TaskCard({
     e.stopPropagation();
     if (task.metadata?.prUrl && window.electronAPI?.openExternal) {
       window.electronAPI.openExternal(task.metadata.prUrl);
+    }
+  };
+
+  // Check push status whenever task enters human_review
+  useEffect(() => {
+    if (task.status !== 'human_review') {
+      setIsPushed(null);
+      return;
+    }
+    window.electronAPI.getWorktreePushStatus(task.id, task.projectId).then((result) => {
+      if (result.success && result.data) {
+        setIsPushed(result.data.isPushed);
+      }
+    }).catch(() => setIsPushed(null));
+  }, [task.id, task.projectId, task.status]);
+
+  const handlePushBranch = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsPushing(true);
+    try {
+      const result = await window.electronAPI.pushWorktreeBranch(task.id, task.projectId);
+      if (result.success) {
+        setIsPushed(true);
+        toast({ title: `Branch pushed` });
+      } else {
+        toast({ title: 'Push failed', description: result.error, variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Push failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setIsPushing(false);
     }
   };
 
@@ -558,6 +591,31 @@ export const TaskCard = memo(function TaskCard({
                 <Play className="mr-1.5 h-3 w-3" />
                 {t('actions.resume')}
               </Button>
+            ) : task.status === 'human_review' ? (
+              <div className="flex items-center gap-1.5">
+                {isPushed === true ? (
+                  <span className="flex items-center gap-1 text-xs text-green-500 font-medium">
+                    <Check className="h-3 w-3" />
+                    Pushed
+                  </span>
+                ) : isPushed === false ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={handlePushBranch}
+                    disabled={isPushing}
+                    title="Push branch to origin"
+                  >
+                    {isPushing ? (
+                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1.5 h-3 w-3" />
+                    )}
+                    {isPushing ? 'Pushing…' : 'Push'}
+                  </Button>
+                ) : null}
+              </div>
             ) : task.status === 'done' && task.metadata?.prUrl ? (
               <div className="flex gap-1">
                 {task.metadata?.prUrl && (

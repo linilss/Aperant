@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { IPCResult, FileNode, ClaudeAgentsResult } from '../../shared/types';
+import type { IPCResult, FileNode, ClaudeAgentsResult, ClaudeSkillsResult } from '../../shared/types';
 
 export interface FileAPI {
   // File Explorer Operations
@@ -8,6 +8,8 @@ export interface FileAPI {
   readFile: (filePath: string) => Promise<IPCResult<string>>;
   listClaudeAgents: (projectPath?: string) => Promise<IPCResult<ClaudeAgentsResult>>;
   saveClaudeAgent: (filePath: string, content: string) => Promise<IPCResult<void>>;
+  listClaudeSkills: (projectPath?: string) => Promise<IPCResult<ClaudeSkillsResult>>;
+  saveClaudeSkill: (filePath: string, content: string) => Promise<IPCResult<void>>;
 }
 
 export const createFileAPI = (): FileAPI => ({
@@ -19,5 +21,9 @@ export const createFileAPI = (): FileAPI => ({
   listClaudeAgents: (projectPath?: string): Promise<IPCResult<ClaudeAgentsResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_AGENTS_LIST, projectPath),
   saveClaudeAgent: (filePath: string, content: string): Promise<IPCResult<void>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_AGENT_SAVE, filePath, content)
+    ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_AGENT_SAVE, filePath, content),
+  listClaudeSkills: (projectPath?: string): Promise<IPCResult<ClaudeSkillsResult>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_SKILLS_LIST, projectPath),
+  saveClaudeSkill: (filePath: string, content: string): Promise<IPCResult<void>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_SKILL_SAVE, filePath, content),
 });
