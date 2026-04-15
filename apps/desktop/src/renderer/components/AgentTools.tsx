@@ -287,16 +287,16 @@ const MCP_SERVERS: Record<string, { name: string; description: string; icon: Rea
     ],
   },
   'auto-claude': {
-    name: 'Aperant Tools',
+    name: 'malvy Tools',
     description: 'Build progress tracking, session context, discoveries & gotchas recording',
     icon: ListChecks,
     tools: [
-      'mcp__auto-claude__update_subtask_status',
-      'mcp__auto-claude__get_build_progress',
-      'mcp__auto-claude__record_discovery',
-      'mcp__auto-claude__record_gotcha',
-      'mcp__auto-claude__get_session_context',
-      'mcp__auto-claude__update_qa_status',
+      'mcp__malvy__update_subtask_status',
+      'mcp__malvy__get_build_progress',
+      'mcp__malvy__record_discovery',
+      'mcp__malvy__record_gotcha',
+      'mcp__malvy__get_session_context',
+      'mcp__malvy__update_qa_status',
     ],
   },
   linear: {

@@ -112,13 +112,13 @@ const PUPPETEER_SERVER: McpServerConfig = {
  */
 function createAutoClaudeServer(specDir: string): McpServerConfig | null {
   // In dev mode this file isn't built yet; tools are provided via build-registry.ts instead.
-  const serverScript = join(__dirname, 'auto-claude-mcp-server.js');
+  const serverScript = join(__dirname, 'malvy-mcp-server.js');
   if (!existsSync(serverScript)) {
     return null;
   }
   return {
-    id: 'auto-claude',
-    name: 'Aperant',
+    id: 'malvy',
+    name: 'malvy',
     description: 'Build management tools (progress tracking, session context)',
     enabledByDefault: true,
     transport: {
@@ -187,7 +187,7 @@ export function getMcpServerConfig(
     case 'puppeteer':
       return PUPPETEER_SERVER;
 
-    case 'auto-claude': {
+    case 'malvy': {
       const specDir = options.specDir ?? '';
       return createAutoClaudeServer(specDir);
     }

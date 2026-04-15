@@ -10,11 +10,11 @@ export const app = {
     const os = require('os');
     const path = require('path');
     const paths: Record<string, string> = {
-      userData: path.join(os.homedir(), '.aperant-test-data'),
+      userData: path.join(os.homedir(), '.malvy-test-data'),
       home: os.homedir(),
       temp: os.tmpdir()
     };
-    return paths[name] || path.join(os.homedir(), '.aperant-test');
+    return paths[name] || path.join(os.homedir(), '.malvy-test');
   }),
   getAppPath: vi.fn(() => '/tmp/test-app'),
   getVersion: vi.fn(() => '0.1.0'),

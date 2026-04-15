@@ -36,7 +36,7 @@
     "help": "Help & Feedback"
   },
   "messages": {
-    "initializeToCreateTasks": "Initialize Aperant to create tasks"
+    "initializeToCreateTasks": "Initialize malvy to create tasks"
   },
   "updateBanner": {
     "title": "Update Available",

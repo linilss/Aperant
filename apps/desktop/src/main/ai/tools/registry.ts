@@ -45,12 +45,12 @@ export {
 export const BASE_READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 export const BASE_WRITE_TOOLS = ['Write', 'Edit', 'Bash'] as const;
 export const WEB_TOOLS = ['WebFetch', 'WebSearch'] as const;
-export const TOOL_UPDATE_SUBTASK_STATUS = 'mcp__auto-claude__update_subtask_status';
-export const TOOL_GET_BUILD_PROGRESS = 'mcp__auto-claude__get_build_progress';
-export const TOOL_RECORD_DISCOVERY = 'mcp__auto-claude__record_discovery';
-export const TOOL_RECORD_GOTCHA = 'mcp__auto-claude__record_gotcha';
-export const TOOL_GET_SESSION_CONTEXT = 'mcp__auto-claude__get_session_context';
-export const TOOL_UPDATE_QA_STATUS = 'mcp__auto-claude__update_qa_status';
+export const TOOL_UPDATE_SUBTASK_STATUS = 'mcp__malvy__update_subtask_status';
+export const TOOL_GET_BUILD_PROGRESS = 'mcp__malvy__get_build_progress';
+export const TOOL_RECORD_DISCOVERY = 'mcp__malvy__record_discovery';
+export const TOOL_RECORD_GOTCHA = 'mcp__malvy__record_gotcha';
+export const TOOL_GET_SESSION_CONTEXT = 'mcp__malvy__get_session_context';
+export const TOOL_UPDATE_QA_STATUS = 'mcp__malvy__update_qa_status';
 
 // =============================================================================
 // MCP Config for dynamic server resolution

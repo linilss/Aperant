@@ -25,7 +25,7 @@ import {
   recordGotchaTool,
   getSessionContextTool,
   updateQaStatusTool,
-} from './auto-claude';
+} from './malvy';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const asDefined = (t: unknown): DefinedTool => t as DefinedTool;
@@ -46,11 +46,11 @@ export function buildToolRegistry(): ToolRegistry {
   registry.registerTool('SpawnSubagent', asDefined(spawnSubagentTool));
   // Auto-Claude tools: progress tracking and session context for planner/coder/QA agents.
   // These are registered directly (not via MCP server) so tasks work in dev and production.
-  registry.registerTool('mcp__auto-claude__update_subtask_status', asDefined(updateSubtaskStatusTool));
-  registry.registerTool('mcp__auto-claude__get_build_progress', asDefined(getBuildProgressTool));
-  registry.registerTool('mcp__auto-claude__record_discovery', asDefined(recordDiscoveryTool));
-  registry.registerTool('mcp__auto-claude__record_gotcha', asDefined(recordGotchaTool));
-  registry.registerTool('mcp__auto-claude__get_session_context', asDefined(getSessionContextTool));
-  registry.registerTool('mcp__auto-claude__update_qa_status', asDefined(updateQaStatusTool));
+  registry.registerTool('mcp__malvy__update_subtask_status', asDefined(updateSubtaskStatusTool));
+  registry.registerTool('mcp__malvy__get_build_progress', asDefined(getBuildProgressTool));
+  registry.registerTool('mcp__malvy__record_discovery', asDefined(recordDiscoveryTool));
+  registry.registerTool('mcp__malvy__record_gotcha', asDefined(recordGotchaTool));
+  registry.registerTool('mcp__malvy__get_session_context', asDefined(getSessionContextTool));
+  registry.registerTool('mcp__malvy__update_qa_status', asDefined(updateQaStatusTool));
   return registry;
 }

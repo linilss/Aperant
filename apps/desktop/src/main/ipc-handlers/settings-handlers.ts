@@ -204,7 +204,7 @@ async function migrateToProviderAccounts(settings: AppSettings): Promise<{ chang
 }
 
 /**
- * Auto-detect the auto-claude prompts path relative to the app location.
+ * Auto-detect the malvy prompts path relative to the app location.
  * Works across platforms (macOS, Windows, Linux) in both dev and production modes.
  * Prompts live in apps/desktop/prompts/ (dev) or extraResources/prompts (prod).
  */
@@ -264,7 +264,7 @@ const detectAutoBuildSourcePath = (): string | null => {
     }
   }
 
-  console.warn('[detectAutoBuildSourcePath] Could not auto-detect Aperant prompts path. Please configure manually in settings.');
+  console.warn('[detectAutoBuildSourcePath] Could not auto-detect malvy prompts path. Please configure manually in settings.');
   console.warn('[detectAutoBuildSourcePath] Set DEBUG=1 environment variable for detailed path checking.');
   return null;
 };

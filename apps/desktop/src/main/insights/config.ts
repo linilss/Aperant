@@ -43,7 +43,7 @@ export class InsightsConfig {
   }
 
   /**
-   * Load environment variables from auto-claude .env file
+   * Load environment variables from malvy .env file
    */
   loadAutoBuildEnv(): Record<string, string> {
     const autoBuildSource = this.getAutoBuildSourcePath();

@@ -267,7 +267,7 @@ export function registerAgenteventsHandlers(
             );
             execFileSync(
               getToolPath('git'),
-              ['commit', '-m', `auto-claude: save uncommitted work for ${task.specId}`],
+              ['commit', '-m', `malvy: save uncommitted work for ${task.specId}`],
               { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
             );
             console.warn(`[agent-events-handlers] Auto-committed uncommitted work for task ${taskId}`);

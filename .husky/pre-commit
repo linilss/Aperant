@@ -146,7 +146,7 @@ if git diff --cached --name-only | grep -q "^apps/desktop/"; then
       echo ""
       echo "⚠️  WARNING: node_modules not available in this worktree."
       echo "   TypeScript and lint checks will be skipped."
-      echo "   This is expected for auto-claude worktrees."
+      echo "   This is expected for malvy worktrees."
       echo "   Full validation will occur when PR is created/merged."
       echo ""
     else

@@ -56,13 +56,12 @@ lerna-debug.log*
 # ===========================
 # Auto Claude Generated
 # ===========================
-.auto-claude/
-.aperant/
+.malvy/
 .planning/
 .planning-archive/
 .auto-build-security.json
-.auto-claude-security.json
-.auto-claude-status
+.malvy-security.json
+.malvy-status
 .claude_settings.json
 .update-metadata.json
 

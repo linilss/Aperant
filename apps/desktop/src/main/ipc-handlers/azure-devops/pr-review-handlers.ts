@@ -3,7 +3,7 @@
  *
  * Implements AI-powered PR review using the ParallelOrchestratorReviewer engine
  * (same engine used for GitHub PRs). Context is fetched from the ADO REST API,
- * results are cached to .auto-claude/azure-devops/pr/ on disk.
+ * results are cached to .malvy/azure-devops/pr/ on disk.
  */
 
 import { ipcMain } from 'electron';
@@ -57,7 +57,7 @@ function debugLog(message: string, data?: unknown): void {
 // ─── Disk cache helpers ─────────────────────────────────────────────────────
 
 function getAdoCacheDir(projectPath: string): string {
-  return path.join(projectPath, '.auto-claude', 'azure-devops', 'pr');
+  return path.join(projectPath, '.malvy', 'azure-devops', 'pr');
 }
 
 function getReviewPath(projectPath: string, pullRequestId: number): string {
@@ -911,7 +911,7 @@ function buildSummaryComment(review: AzureDevOpsPRReviewResult): string {
     '',
     bySeverity ? `**Findings:** ${bySeverity}` : '**No findings.**',
     '',
-    `*Reviewed at ${new Date(review.reviewedAt).toLocaleString()} by Aperant AI*`,
+    `*Reviewed at ${new Date(review.reviewedAt).toLocaleString()} by malvy AI*`,
   ].join('\n');
 }
 

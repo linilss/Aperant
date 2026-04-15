@@ -7,7 +7,7 @@ You have access to the following tools: Read, Glob, Grep.
 Follow these steps in order before writing anything:
 
 ### Step 1: Project Structure
-- Read `.auto-claude/project_index.json` to get an overview of the project structure, services, and detected technologies
+- Read `.malvy/project_index.json` to get an overview of the project structure, services, and detected technologies
 - Note the project root, detected project type, and all services
 
 ### Step 2: README Files

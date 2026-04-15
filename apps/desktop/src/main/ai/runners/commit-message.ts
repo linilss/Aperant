@@ -236,7 +236,7 @@ export async function generateCommitMessage(
   } = config;
 
   // Find spec directory
-  let specDir = join(projectDir, '.auto-claude', 'specs', specName);
+  let specDir = join(projectDir, '.malvy', 'specs', specName);
   if (!existsSync(specDir)) {
     specDir = join(projectDir, 'auto-claude', 'specs', specName);
   }

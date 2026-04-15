@@ -10,7 +10,7 @@ export const infrastructureMock = {
     data: {
       memory: {
         kuzuInstalled: true,
-        databasePath: '~/.auto-claude/graphs',
+        databasePath: '~/.malvy/graphs',
         databaseExists: true,
         databases: ['auto_claude_memory']
       },

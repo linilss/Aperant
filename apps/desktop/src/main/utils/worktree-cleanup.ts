@@ -85,8 +85,8 @@ function getWorktreeBranch(worktreePath: string, specId: string, timeout: number
     return explicitBranchName;
   }
 
-  // Fall back to the naming convention: auto-claude/{spec-id}
-  return `auto-claude/${specId}`;
+  // Fall back to the naming convention: malvy/{spec-id}
+  return `malvy/${specId}`;
 }
 
 /**
@@ -163,7 +163,7 @@ async function deleteDirectoryWithRetry(
  * @example
  * ```typescript
  * const result = await cleanupWorktree({
- *   worktreePath: 'C:/projects/my-app/.auto-claude/worktrees/tasks/001-feature',
+ *   worktreePath: 'C:/projects/my-app/.malvy/worktrees/tasks/001-feature',
  *   projectPath: 'C:/projects/my-app',
  *   specId: '001-feature',
  *   logPrefix: '[TASK_DELETE]'
@@ -191,7 +191,7 @@ export async function cleanupWorktree(options: WorktreeCleanupOptions): Promise<
 
   // Security: Validate that worktreePath is within the expected worktree directories
   // This prevents path traversal attacks and accidental deletion of wrong directories
-  // Supports both task worktrees (.auto-claude/worktrees/tasks) and terminal worktrees (.auto-claude/worktrees/terminal)
+  // Supports both task worktrees (.malvy/worktrees/tasks) and terminal worktrees (.malvy/worktrees/terminal)
   const taskBase = getTaskWorktreeDir(projectPath);
   const terminalBase = getTerminalWorktreeDir(projectPath);
   const isValidPath = isPathWithinBase(worktreePath, taskBase) || isPathWithinBase(worktreePath, terminalBase);

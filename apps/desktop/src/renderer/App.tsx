@@ -354,7 +354,7 @@ export function App() {
     setInitError(null);
   }, []);
 
-  // Check if selected project needs initialization (e.g., .auto-claude folder was deleted)
+  // Check if selected project needs initialization (e.g., .malvy folder was deleted)
   useEffect(() => {
     // Don't show dialog while initialization is in progress
     if (isInitializing) return;
@@ -729,7 +729,7 @@ export function App() {
       } else {
         // Initialization failed - show error but keep dialog open
         console.warn('[InitDialog] Initialization failed, showing error');
-        const errorMessage = result?.error || 'Failed to initialize Aperant. Please try again.';
+        const errorMessage = result?.error || 'Failed to initialize malvy. Please try again.';
         setInitError(errorMessage);
         setIsInitializing(false);
       }

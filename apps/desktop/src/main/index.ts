@@ -72,7 +72,7 @@ import { ptyDaemonClient } from './terminal/pty-daemon-client';
 import type { AppSettings, AuthFailureInfo } from '../shared/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Migrate userData from old app name (auto-claude-ui → aperant)
+// Migrate userData from old app name (auto-claude-ui → malvy)
 // Must run before any code accesses app.getPath('userData')
 // ─────────────────────────────────────────────────────────────────────────────
 {
@@ -84,7 +84,7 @@ import type { AppSettings, AuthFailureInfo } from '../shared/types';
       cpSync(oldUserData, newUserData, { recursive: true, force: false, errorOnExist: false });
       // Mark as migrated so we don't repeat
       writeFileSync(join(newUserData, '.migrated'), new Date().toISOString());
-      console.warn('[main] Migrated userData from auto-claude-ui to aperant');
+      console.warn('[main] Migrated userData from auto-claude-ui to malvy');
     } catch (err) {
       console.warn('[main] userData migration failed (non-fatal):', err);
     }
@@ -400,10 +400,10 @@ function createWindow(): void {
 }
 
 // Set app name before ready (for dock tooltip on macOS in dev mode)
-app.setName('Aperant');
+app.setName('malvy');
 if (isMacOS()) {
   // Force the name to appear in dock on macOS
-  app.name = 'Aperant';
+  app.name = 'malvy';
 }
 
 // Fix Windows GPU cache permission errors (0x5 Access Denied)
@@ -416,7 +416,7 @@ if (isWindows()) {
 // Initialize the application
 app.whenReady().then(() => {
   // Set app user model id for Windows
-  electronApp.setAppUserModelId('com.aperant.app');
+  electronApp.setAppUserModelId('com.malvy.app');
 
   // Clear cache on Windows to prevent permission errors from stale cache
   if (isWindows()) {

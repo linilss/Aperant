@@ -752,7 +752,7 @@ export function GraphitiStep({ onNext, onBack, onSkip }: GraphitiStepProps) {
                         Graphiti configured successfully
                       </h3>
                       <p className="mt-1 text-sm text-success/80">
-                        Memory features are enabled. Aperant will maintain context
+                        Memory features are enabled. malvy will maintain context
                         across sessions for improved code understanding.
                       </p>
                     </div>
@@ -818,7 +818,7 @@ export function GraphitiStep({ onNext, onBack, onSkip }: GraphitiStepProps) {
                           What is Graphiti?
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Graphiti is an intelligent memory layer that helps Aperant remember
+                          Graphiti is an intelligent memory layer that helps malvy remember
                           context across sessions. It uses a knowledge graph to store discoveries,
                           patterns, and insights about your codebase.
                         </p>
@@ -902,7 +902,7 @@ export function GraphitiStep({ onNext, onBack, onSkip }: GraphitiStepProps) {
                         disabled={isSaving || isValidating}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Stored in ~/.auto-claude/graphs/
+                        Stored in ~/.malvy/graphs/
                       </p>
                     </div>
 

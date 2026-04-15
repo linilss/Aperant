@@ -225,7 +225,7 @@ export class AgentQueueManager {
     // which handles both dev (apps/desktop/prompts/) and production (resourcesPath/prompts/)
     const promptsDir = resolvePromptsDir();
 
-    const outputDir = path.join(projectPath, '.auto-claude', 'ideation');
+    const outputDir = path.join(projectPath, '.malvy', 'ideation');
 
     // Emit initial progress
     this.emitter.emit('ideation-progress', projectId, {
@@ -509,7 +509,7 @@ export class AgentQueueManager {
         this.clearRoadmapProgress(projectPath);
 
         // Load and emit the complete roadmap
-        const roadmapFilePath = path.join(projectPath, '.auto-claude', 'roadmap', 'roadmap.json');
+        const roadmapFilePath = path.join(projectPath, '.malvy', 'roadmap', 'roadmap.json');
         if (existsSync(roadmapFilePath)) {
           try {
             const content = await fsPromises.readFile(roadmapFilePath, 'utf-8');

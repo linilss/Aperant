@@ -342,11 +342,17 @@ cat context.json | jq '.files_to_reference'
 
 ### 6.3: Document Findings
 
+Check for test coverage explicitly:
+- Find the test project(s) adjacent to the modified code (e.g. `*.Tests/`, `__tests__/`)
+- Verify new or changed logic has corresponding tests
+- If tests are missing for non-trivial changes, this is a **critical blocker**
+
 ```
 CODE REVIEW:
 - Security issues: [list or "None"]
 - Pattern violations: [list or "None"]
 - Code quality: PASS/FAIL
+- Test coverage: PASS/FAIL — [describe what tests exist or what's missing]
 ```
 
 ---
@@ -480,7 +486,7 @@ cat > qa_report.md << 'EOF'
 [QA Report content]
 EOF
 
-# Note: qa_report.md and implementation_plan.json are in .auto-claude/specs/ (gitignored)
+# Note: qa_report.md and implementation_plan.json are in .malvy/specs/ (gitignored)
 # Do NOT commit them - the framework tracks QA status automatically
 # Only commit actual code changes to the project
 ```
@@ -517,7 +523,7 @@ Once fixes are complete:
 
 EOF
 
-# Note: QA_FIX_REQUEST.md and implementation_plan.json are in .auto-claude/specs/ (gitignored)
+# Note: QA_FIX_REQUEST.md and implementation_plan.json are in .malvy/specs/ (gitignored)
 # Do NOT commit them - the framework tracks QA status automatically
 # Only commit actual code fixes to the project
 ```
@@ -582,6 +588,8 @@ Issues found: [N] critical, [N] major, [N] minor
 Critical issues that block sign-off:
 1. [Issue 1]
 2. [Issue 2]
+
+**Missing tests are always a critical blocker.** If the implementation adds or modifies non-trivial logic and no corresponding tests were written, add it as critical issue #1: "No tests written for [feature/method]. Tests required before sign-off."
 
 Fix request saved to: QA_FIX_REQUEST.md
 

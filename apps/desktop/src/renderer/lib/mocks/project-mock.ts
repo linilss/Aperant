@@ -12,7 +12,7 @@ export const projectMock = {
       id: `mock-${Date.now()}`,
       name: projectPath.split('/').pop() || 'new-project',
       path: projectPath,
-      autoBuildPath: `${projectPath}/auto-claude`,
+      autoBuildPath: `${projectPath}/.malvy`,
       settings: DEFAULT_PROJECT_SETTINGS,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -135,7 +135,7 @@ export const projectMock = {
     data: {
       memory: {
         kuzuInstalled: true,
-        databasePath: '~/.auto-claude/graphs',
+        databasePath: '~/.malvy/graphs',
         databaseExists: true,
         databases: ['auto_claude_memory']
       },

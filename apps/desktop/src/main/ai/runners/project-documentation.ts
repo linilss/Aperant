@@ -129,7 +129,7 @@ export async function runProjectDocumentation(
 
   const userPrompt =
     `Analyze the project at "${projectDir}" and generate comprehensive documentation. ` +
-    `Start by reading .auto-claude/project_index.json, then explore READMEs, entry points, ` +
+    `Start by reading .malvy/project_index.json, then explore READMEs, entry points, ` +
     `schemas, config files, and core source files. ` +
     `When done, output your findings wrapped in <project_documentation> tags as a JSON object.`;
 
@@ -137,7 +137,7 @@ export async function runProjectDocumentation(
   const toolContext: ToolContext = {
     cwd: projectDir,
     projectDir,
-    specDir: join(projectDir, '.auto-claude', 'specs'),
+    specDir: join(projectDir, '.malvy', 'specs'),
     securityProfile: null as unknown as SecurityProfile,
     abortSignal,
   };

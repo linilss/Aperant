@@ -3,7 +3,7 @@
  * =======================
  *
  * Creates Azure DevOps Pull Requests via the REST API.
- * Uses the PAT token from the project's .auto-claude/.env file.
+ * Uses the PAT token from the project's .malvy/.env file.
  *
  * Steps:
  * 1. Push the worktree branch to origin via git
@@ -129,7 +129,7 @@ export async function createAzureDevOpsPR(opts: {
   // Get PAT from project env
   const config = await getAzureDevOpsConfig(project);
   if (!config) {
-    return { success: false, error: 'Azure DevOps is not configured for this project. Add AZURE_DEVOPS_TOKEN, AZURE_DEVOPS_ORG_URL, and AZURE_DEVOPS_PROJECT to .auto-claude/.env' };
+    return { success: false, error: 'Azure DevOps is not configured for this project. Add AZURE_DEVOPS_TOKEN, AZURE_DEVOPS_ORG_URL, and AZURE_DEVOPS_PROJECT to .malvy/.env' };
   }
 
   // Push branch (auto-commits any uncommitted work first)

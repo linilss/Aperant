@@ -112,10 +112,10 @@ describe('getMcpServerConfig', () => {
     });
 
     it('injects SPEC_DIR into transport env', () => {
-      const config = getMcpServerConfig('auto-claude', { specDir: '/project/.auto-claude/specs/001-feature' });
+      const config = getMcpServerConfig('auto-claude', { specDir: '/project/.malvy/specs/001-feature' });
       expect(config?.transport.type).toBe('stdio');
       if (config?.transport.type === 'stdio') {
-        expect(config.transport.env?.SPEC_DIR).toBe('/project/.auto-claude/specs/001-feature');
+        expect(config.transport.env?.SPEC_DIR).toBe('/project/.malvy/specs/001-feature');
       }
     });
 
@@ -175,7 +175,7 @@ describe('resolveMcpServers', () => {
   });
 
   it('passes specDir through to auto-claude config', () => {
-    const specDir = '/my-project/.auto-claude/specs/042-auth';
+    const specDir = '/my-project/.malvy/specs/042-auth';
     const configs = resolveMcpServers(['auto-claude'], { specDir });
     expect(configs).toHaveLength(1);
     if (configs[0].transport.type === 'stdio') {

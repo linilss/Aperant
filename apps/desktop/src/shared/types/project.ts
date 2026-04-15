@@ -247,7 +247,7 @@ export interface MemoryProviderConfig {
 
   // LadybugDB settings (embedded database - no Docker required)
   database?: string;  // Database name (default: auto_claude_memory)
-  dbPath?: string;    // Database storage path (default: ~/.auto-claude/memories)
+  dbPath?: string;    // Database storage path (default: ~/.malvy/memories)
 }
 
 export interface MemoryProviderInfo {
@@ -400,7 +400,7 @@ export interface ProjectEnvConfig {
 
 /**
  * Per-agent MCP override configuration.
- * Stored in .auto-claude/.env as AGENT_MCP_<agent>_ADD and AGENT_MCP_<agent>_REMOVE
+ * Stored in .malvy/.env as AGENT_MCP_<agent>_ADD and AGENT_MCP_<agent>_REMOVE
  */
 export interface AgentMcpOverride {
   /** MCP servers to add beyond the agent's defaults */
@@ -484,7 +484,7 @@ export interface McpTestConnectionResult {
 // Auto Claude Initialization Types
 export interface AutoBuildVersionInfo {
   isInitialized: boolean;
-  updateAvailable: boolean; // Always false - .auto-claude only contains data, no code to update
+  updateAvailable: boolean; // Always false - .malvy only contains data, no code to update
 }
 
 export interface InitializationResult {

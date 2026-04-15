@@ -12,7 +12,7 @@ You are continuing work on an autonomous development task. This is a **FRESH con
 environment at the start of each prompt in the "YOUR ENVIRONMENT" section. Pay close attention to:
 
 - **Working Directory**: This is your root - all paths are relative to here
-- **Spec Location**: Where your spec files live (usually `./auto-claude/specs/{spec-name}/`)
+- **Spec Location**: Where your spec files live (usually `./malvy/specs/{spec-name}/`)
 - **Isolation Mode**: If present, you are in an isolated worktree (see below)
 
 **RULES:**
@@ -57,9 +57,9 @@ You may see absolute paths like `/e/projects/myapp/prod/src/file.ts` in:
 ```bash
 # Verify you're still in the worktree
 pwd
-# Should show: .../.auto-claude/worktrees/tasks/{spec-name}/
+# Should show: .../.malvy/worktrees/tasks/{spec-name}/
 # Or (legacy): .../.worktrees/{spec-name}/
-# Or (PR review): .../.auto-claude/github/pr/worktrees/{pr-number}/
+# Or (PR review): .../.malvy/github/pr/worktrees/{pr-number}/
 # NOT: /path/to/main/project
 ```
 
@@ -140,7 +140,7 @@ pwd && ls -la
 find . -name "implementation_plan.json" -type f 2>/dev/null | head -5
 
 # 3. Set SPEC_DIR based on what you find (example - adjust path as needed)
-SPEC_DIR="./auto-claude/specs/YOUR-SPEC-NAME"  # Replace with actual path from step 2
+SPEC_DIR="./malvy/specs/YOUR-SPEC-NAME"  # Replace with actual path from step 2
 
 # 4. Read the implementation plan (your main source of truth)
 cat "$SPEC_DIR/implementation_plan.json"
@@ -554,6 +554,32 @@ Quality issues you miss become technical debt that's harder to debug later.
 
 Work through each section methodically:
 
+#### 0. Test Coverage (MANDATORY — do this before anything else)
+
+**You MUST write tests for every subtask that introduces or modifies logic.**
+No test = subtask is incomplete. Do not mark it done until tests exist.
+
+**What to test:**
+- [ ] New methods/functions have unit tests covering the happy path
+- [ ] Edge cases and error paths have tests
+- [ ] Any bug fix has a regression test that would have caught the bug
+- [ ] Integration points (API endpoints, service calls) have at minimum a smoke test
+
+**How to find the test project:**
+- Look for `*.Tests/` or `*Tests.csproj` directories alongside the project being changed
+- For .NET: use xUnit — match the pattern of existing test files in that test project
+- For TypeScript/JS: use the existing test framework (Jest/Vitest) — check `package.json`
+- If no test project exists yet, note it in your critique but still write tests if you can find any adjacent test infrastructure
+
+**Non-negotiable exceptions** (the only cases where skipping is acceptable):
+- Pure CSS/styling changes with no logic
+- Configuration file changes only
+- Scaffolding/boilerplate with no business logic
+
+For everything else: **write the tests.**
+
+---
+
 #### 1. Code Quality Check
 
 **Pattern Adherence:**
@@ -624,6 +650,7 @@ Document what you improved:
 
 Only YES if:
 - All critical checklist items pass
+- Tests written for all non-trivial logic (section 0 above)
 - No unresolved issues
 - High confidence in implementation
 - Ready for verification
@@ -791,7 +818,7 @@ The system **automatically scans for secrets** before every commit. If secrets a
    api_key = os.environ.get("API_KEY")
    ```
 3. **Update .env.example** - Add placeholder for the new variable
-4. **Re-stage and retry** - `git add . ':!.auto-claude' && git commit ...`
+4. **Re-stage and retry** - `git add . '!:.malvy' && git commit ...`
 
 **If it's a false positive:**
 - Add the file pattern to `.secretsignore` in the project root
@@ -803,22 +830,22 @@ The system **automatically scans for secrets** before every commit. If secrets a
 # FIRST: Make sure you're in the working directory root (check YOUR ENVIRONMENT section at top)
 pwd  # Should match your working directory
 
-# Add all files EXCEPT .auto-claude directory (spec files should never be committed)
-git add . ':!.auto-claude'
+# Add all files EXCEPT .malvy directory (spec files should never be committed)
+git add . ':!.malvy'
 
 # If git add fails with "pathspec did not match", you have a path problem:
 # 1. Run pwd to see where you are
 # 2. Run git status to see what git sees
 # 3. Adjust your paths accordingly
 
-git commit -m "auto-claude: Complete [subtask-id] - [subtask description]
+git commit -m "malvy: Complete [subtask-id] - [subtask description]
 
 - Files modified: [list]
 - Verification: [type] - passed
 - Phase progress: [X]/[Y] subtasks complete"
 ```
 
-**CRITICAL**: The `:!.auto-claude` pathspec exclusion ensures spec files are NEVER committed.
+**CRITICAL**: The `:!.malvy` pathspec exclusion ensures spec files are NEVER committed.
 These are internal tracking files that must stay local.
 
 ### DO NOT Push to Remote
@@ -851,7 +878,7 @@ Next phase (if applicable): [phase-name]
 === END SESSION N ===
 ```
 
-**Note:** The `build-progress.txt` file is in `.auto-claude/specs/` which is gitignored.
+**Note:** The `build-progress.txt` file is in `.malvy/specs/` which is gitignored.
 Do NOT try to commit it - the framework tracks progress automatically.
 
 ---
@@ -881,7 +908,7 @@ All subtasks completed!
 Workflow type: [type]
 Total phases: [N]
 Total subtasks: [N]
-Branch: auto-claude/[feature-name]
+Branch: malvy/[feature-name]
 
 Ready for human review and merge.
 ```

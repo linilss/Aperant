@@ -35,7 +35,7 @@ const MAX_RETRIES = 3;
 export interface RoadmapConfig {
   /** Project directory path */
   projectDir: string;
-  /** Output directory for roadmap files (defaults to .auto-claude/roadmap/) */
+  /** Output directory for roadmap files (defaults to .malvy/roadmap/) */
   outputDir?: string;
   /** Model shorthand (defaults to 'sonnet') */
   modelShorthand?: ModelShorthand;
@@ -234,7 +234,7 @@ async function runDiscoveryPhase(
   onStream?: RoadmapStreamCallback,
 ): Promise<RoadmapPhaseResult> {
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
-  const projectIndexFile = join(projectDir, '.auto-claude', 'project_index.json');
+  const projectIndexFile = join(projectDir, '.malvy', 'project_index.json');
 
   if (existsSync(discoveryFile) && !refresh) {
     return { phase: 'discovery', success: true, outputs: [discoveryFile], errors: [] };
@@ -324,7 +324,7 @@ async function runFeaturesPhase(
 ): Promise<RoadmapPhaseResult> {
   const roadmapFile = join(outputDir, 'roadmap.json');
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
-  const projectIndexFile = join(projectDir, '.auto-claude', 'project_index.json');
+  const projectIndexFile = join(projectDir, '.malvy', 'project_index.json');
 
   if (!existsSync(discoveryFile)) {
     return { phase: 'features', success: false, outputs: [], errors: ['Discovery file not found'] };
@@ -492,7 +492,7 @@ export async function runRoadmapGeneration(
     abortSignal,
   } = config;
 
-  const outputDir = config.outputDir ?? join(projectDir, '.auto-claude', 'roadmap');
+  const outputDir = config.outputDir ?? join(projectDir, '.malvy', 'roadmap');
   const modelId = resolveModelId(modelShorthand);
 
   if (!existsSync(outputDir)) {

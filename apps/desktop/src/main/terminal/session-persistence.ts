@@ -26,7 +26,7 @@ function getUserDataPath(): string {
   // Fallback for test environment - use home directory instead of /tmp for security
   const os = require('os');
   const path = require('path');
-  return path.join(os.homedir(), '.aperant-test-data');
+  return path.join(os.homedir(), '.malvy-test-data');
 }
 
 const SESSIONS_FILE = path.join(getUserDataPath(), 'terminal-sessions.json');

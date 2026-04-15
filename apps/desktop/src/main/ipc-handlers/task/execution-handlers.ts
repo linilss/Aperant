@@ -177,7 +177,7 @@ export function registerTaskExecutionHandlers(
         mainWindow.webContents.send(
           IPC_CHANNELS.TASK_ERROR,
           taskId,
-          'Git repository required. Please run "git init" in your project directory. Aperant uses git worktrees for isolated builds.'
+          'Git repository required. Please run "git init" in your project directory. malvy uses git worktrees for isolated builds.'
         );
         return;
       }
@@ -468,15 +468,15 @@ export function registerTaskExecutionHandlers(
           }
 
           // Step 3: Clean untracked files that came from the merge
-          // IMPORTANT: Exclude .auto-claude directory to preserve specs and worktree data
-          const cleanResult = spawnSync(getToolPath('git'), ['clean', '-fd', '-e', '.auto-claude'], {
+          // IMPORTANT: Exclude .malvy directory to preserve specs and worktree data
+          const cleanResult = spawnSync(getToolPath('git'), ['clean', '-fd', '-e', '.malvy'], {
             cwd: project.path,
             encoding: 'utf-8',
             stdio: 'pipe',
             env: getIsolatedGitEnv()
           });
           if (cleanResult.status === 0) {
-            console.log('[TASK_REVIEW] Cleaned untracked files in main (excluding .auto-claude)');
+            console.log('[TASK_REVIEW] Cleaned untracked files in main (excluding .malvy)');
           }
 
           console.log('[TASK_REVIEW] Main branch restored to pre-merge state');

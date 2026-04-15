@@ -97,13 +97,23 @@ export class ProjectStore {
     // Check if project already exists (using absolute path for comparison)
     const existing = this.data.projects.find((p) => p.path === absolutePath);
     if (existing) {
-      // Validate that .auto-claude folder still exists for existing project
+      // Validate that .malvy folder still exists for existing project
       // If manually deleted, reset autoBuildPath so UI prompts for reinitialization
       if (existing.autoBuildPath && !isInitialized(existing.path)) {
-        console.warn(`[ProjectStore] .auto-claude folder was deleted for project "${existing.name}" - resetting autoBuildPath`);
+        console.warn(`[ProjectStore] .malvy folder was deleted for project "${existing.name}" - resetting autoBuildPath`);
         existing.autoBuildPath = '';
         existing.updatedAt = new Date();
         this.save();
+      }
+      // Re-probe if autoBuildPath is blank — handles migration from .auto-claude or
+      // cases where the folder was restored after being cleared.
+      if (!existing.autoBuildPath) {
+        const found = getAutoBuildPath(existing.path);
+        if (found) {
+          existing.autoBuildPath = found;
+          existing.updatedAt = new Date();
+          this.save();
+        }
       }
       return existing;
     }
@@ -111,7 +121,7 @@ export class ProjectStore {
     // Derive name from path if not provided
     const projectName = name || path.basename(absolutePath);
 
-    // Determine auto-claude path (supports both 'auto-claude' and '.auto-claude')
+    // Determine malvy path (supports both '.malvy')
     const autoBuildPath = getAutoBuildPath(absolutePath) || '';
 
     const project: Project = {
@@ -213,18 +223,27 @@ export class ProjectStore {
   }
 
   /**
-   * Validate all projects to ensure their .auto-claude folders still exist.
+   * Validate all projects to ensure their .malvy folders still exist.
    * If a project has autoBuildPath set but the folder was deleted,
    * reset autoBuildPath to empty string so the UI prompts for reinitialization.
    *
-   * @returns Array of project IDs that were reset due to missing .auto-claude folder
+   * @returns Array of project IDs that were reset due to missing .malvy folder
    */
   validateProjects(): string[] {
     const resetProjectIds: string[] = [];
     let hasChanges = false;
 
     for (const project of this.data.projects) {
-      // Skip projects that aren't initialized (autoBuildPath is empty)
+      // If autoBuildPath is blank, try to re-probe (handles migration from .auto-claude)
+      if (!project.autoBuildPath && existsSync(project.path)) {
+        const found = getAutoBuildPath(project.path);
+        if (found) {
+          project.autoBuildPath = found;
+          project.updatedAt = new Date();
+          hasChanges = true;
+        }
+        continue;
+      }
       if (!project.autoBuildPath) {
         continue;
       }
@@ -235,9 +254,9 @@ export class ProjectStore {
         continue; // Don't reset - let user handle this case
       }
 
-      // Check if .auto-claude folder still exists
+      // Check if .malvy folder still exists
       if (!isInitialized(project.path)) {
-        console.warn(`[ProjectStore] .auto-claude folder missing for project "${project.name}" at ${project.path}`);
+        console.warn(`[ProjectStore] .malvy folder missing for project "${project.name}" at ${project.path}`);
         project.autoBuildPath = '';
         project.updatedAt = new Date();
         resetProjectIds.push(project.id);
@@ -247,7 +266,7 @@ export class ProjectStore {
 
     if (hasChanges) {
       this.save();
-      console.warn(`[ProjectStore] Reset ${resetProjectIds.length} project(s) due to missing .auto-claude folder`);
+      console.warn(`[ProjectStore] Reset ${resetProjectIds.length} project(s) due to missing .malvy folder`);
     }
 
     return resetProjectIds;

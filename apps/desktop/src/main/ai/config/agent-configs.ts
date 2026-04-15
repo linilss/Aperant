@@ -39,12 +39,12 @@ const SPEC_TOOLS = [...BASE_READ_TOOLS, 'Write', ...WEB_TOOLS] as const;
 // Auto-Claude MCP Tools (Custom build management)
 // =============================================================================
 
-const TOOL_UPDATE_SUBTASK_STATUS = 'mcp__auto-claude__update_subtask_status';
-const TOOL_GET_BUILD_PROGRESS = 'mcp__auto-claude__get_build_progress';
-const TOOL_RECORD_DISCOVERY = 'mcp__auto-claude__record_discovery';
-const TOOL_RECORD_GOTCHA = 'mcp__auto-claude__record_gotcha';
-const TOOL_GET_SESSION_CONTEXT = 'mcp__auto-claude__get_session_context';
-const TOOL_UPDATE_QA_STATUS = 'mcp__auto-claude__update_qa_status';
+const TOOL_UPDATE_SUBTASK_STATUS = 'mcp__malvy__update_subtask_status';
+const TOOL_GET_BUILD_PROGRESS = 'mcp__malvy__get_build_progress';
+const TOOL_RECORD_DISCOVERY = 'mcp__malvy__record_discovery';
+const TOOL_RECORD_GOTCHA = 'mcp__malvy__record_gotcha';
+const TOOL_GET_SESSION_CONTEXT = 'mcp__malvy__get_session_context';
+const TOOL_UPDATE_QA_STATUS = 'mcp__malvy__update_qa_status';
 
 // =============================================================================
 // External MCP Tools

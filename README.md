@@ -1,8 +1,8 @@
-# Aperant (formerly Auto Claude)
+# malvy (formerly Auto Claude)
 
 **Autonomous multi-agent coding framework that plans, builds, and validates software for you.**
 
-![Aperant Kanban Board](.github/assets/Auto-Claude-Kanban.png)
+![malvy Kanban Board](.github/assets/Auto-Claude-Kanban.png)
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green?style=flat-square)](./agpl-3.0.txt)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/KCXaPBr4Dj)
@@ -42,12 +42,12 @@
 <!-- BETA_DOWNLOADS -->
 | Platform | Download |
 |----------|----------|
-| **Windows** | [Aperant-2.8.0-beta.5-win32-x64.exe](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/Aperant-2.8.0-beta.5-win32-x64.exe) |
-| **macOS (Apple Silicon)** | [Aperant-2.8.0-beta.5-darwin-arm64.dmg](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/Aperant-2.8.0-beta.5-darwin-arm64.dmg) |
-| **macOS (Intel)** | [Aperant-2.8.0-beta.5-darwin-x64.dmg](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/Aperant-2.8.0-beta.5-darwin-x64.dmg) |
-| **Linux** | [Aperant-2.8.0-beta.5-linux-x86_64.AppImage](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/Aperant-2.8.0-beta.5-linux-x86_64.AppImage) |
-| **Linux (Debian)** | [Aperant-2.8.0-beta.5-linux-amd64.deb](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/Aperant-2.8.0-beta.5-linux-amd64.deb) |
-| **Linux (Flatpak)** | [Aperant-2.8.0-beta.5-linux-x86_64.flatpak](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/Aperant-2.8.0-beta.5-linux-x86_64.flatpak) |
+| **Windows** | [malvy-2.8.0-beta.5-win32-x64.exe](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/malvy-2.8.0-beta.5-win32-x64.exe) |
+| **macOS (Apple Silicon)** | [malvy-2.8.0-beta.5-darwin-arm64.dmg](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/malvy-2.8.0-beta.5-darwin-arm64.dmg) |
+| **macOS (Intel)** | [malvy-2.8.0-beta.5-darwin-x64.dmg](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/malvy-2.8.0-beta.5-darwin-x64.dmg) |
+| **Linux** | [malvy-2.8.0-beta.5-linux-x86_64.AppImage](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/malvy-2.8.0-beta.5-linux-x86_64.AppImage) |
+| **Linux (Debian)** | [malvy-2.8.0-beta.5-linux-amd64.deb](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/malvy-2.8.0-beta.5-linux-amd64.deb) |
+| **Linux (Flatpak)** | [malvy-2.8.0-beta.5-linux-x86_64.flatpak](https://github.com/AndyMik90/Auto-Claude/releases/download/v2.8.0-beta.5/malvy-2.8.0-beta.5-linux-x86_64.flatpak) |
 <!-- BETA_DOWNLOADS_END -->
 
 > All releases include SHA256 checksums and VirusTotal scan results for security verification.
@@ -114,7 +114,7 @@ AI-assisted feature planning with competitor analysis and audience targeting.
 ## Project Structure
 
 ```
-Aperant/
+malvy/
 ├── apps/
 │   └── desktop/     # Electron desktop application (TypeScript AI agent layer + UI)
 ├── guides/          # Additional documentation
@@ -133,7 +133,7 @@ For Linux-specific builds (Flatpak, AppImage), see [guides/linux.md](guides/linu
 
 ## Security
 
-Aperant uses a three-layer security model:
+malvy uses a three-layer security model:
 
 1. **OS Sandbox** - Bash commands run in isolation
 2. **Filesystem Restrictions** - Operations limited to project directory
@@ -185,7 +185,7 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 **AGPL-3.0** - GNU Affero General Public License v3.0
 
-Aperant is free to use. If you modify and distribute it, or run it as a service, your code must also be open source under AGPL-3.0.
+malvy is free to use. If you modify and distribute it, or run it as a service, your code must also be open source under AGPL-3.0.
 
 Commercial licensing available for closed-source use cases.
 

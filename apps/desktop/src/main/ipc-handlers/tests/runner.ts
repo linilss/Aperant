@@ -9,7 +9,7 @@ import { parseTrxFile } from './trx-parser';
 /** Module-level registry of running child processes, keyed by testProject.id */
 const runningProcesses = new Map<string, ChildProcess>();
 
-const TRX_LOG_FILE = 'aperant-results.trx';
+const TRX_LOG_FILE = 'malvy-results.trx';
 
 /**
  * Stops a running test process for the given project ID, if one exists.
@@ -44,9 +44,9 @@ async function runDotnetProject(
   const projectFile = testProject.path;
   const projectDir = path.dirname(projectFile);
 
-  // Write TRX results to a temp directory inside Aperant's own space
+  // Write TRX results to a temp directory inside malvy's own space
   // so the file never appears as an unversioned file in the user's project.
-  const trxDir = path.join(os.tmpdir(), 'aperant-test-results', testProject.id);
+  const trxDir = path.join(os.tmpdir(), 'malvy-test-results', testProject.id);
   await fs.mkdir(trxDir, { recursive: true });
 
   const args: string[] = [

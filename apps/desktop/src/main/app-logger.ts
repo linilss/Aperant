@@ -149,7 +149,7 @@ export function generateDebugReport(): string {
   const recentErrors = getRecentErrors(10);
 
   const lines = [
-    '=== Aperant Debug Report ===',
+    '=== malvy Debug Report ===',
     `Generated: ${new Date().toISOString()}`,
     '',
     '--- System Information ---',
