@@ -5,7 +5,7 @@
 import type { ThinkingLevel, PhaseModelConfig, PhaseThinkingConfig } from './settings';
 import type { ExecutionPhase as ExecutionPhaseType, CompletablePhase } from '../constants/phase-protocol';
 
-export type TaskStatus = 'backlog' | 'queue' | 'in_progress' | 'ai_review' | 'human_review' | 'done' | 'pr_created' | 'error';
+export type TaskStatus = 'backlog' | 'queue' | 'in_progress' | 'ai_review' | 'human_review' | 'pending_merge' | 'done' | 'pr_created' | 'error';
 
 // Maps task status columns to ordered task IDs for kanban board reordering
 export type TaskOrderState = Record<TaskStatus, string[]>;
@@ -435,6 +435,17 @@ export interface MergeLogEntry {
   details?: string;
 }
 
+/**
+ * Pre-merge info: what will happen when the Merge button is clicked.
+ * Shown in the confirmation dialog before merge starts.
+ */
+export interface WorktreeMergeInfo {
+  sourceBranch: string;
+  targetBranch: string;
+  commitsAhead: number;
+  hasWorktree: boolean;
+}
+
 export interface WorktreeMergeResult {
   success: boolean;
   message: string;
@@ -443,6 +454,8 @@ export interface WorktreeMergeResult {
   staged?: boolean;
   alreadyStaged?: boolean;
   projectPath?: string;
+  // Branch that was merged into — used by push/cleanup follow-up actions
+  targetBranch?: string;
   // AI-generated commit message suggestion (for stage-only mode)
   suggestedCommitMessage?: string;
   // New conflict info from smart merge

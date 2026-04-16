@@ -36,6 +36,7 @@ import { registerScreenshotHandlers } from './screenshot-handlers';
 import { registerTerminalWorktreeIpcHandlers } from './terminal';
 import { registerCodexAuthHandlers } from './codex-auth-handlers';
 import { registerFeatureRefineHandlers } from './feature-refine-handlers';
+import { registerTaskRefineHandlers } from './task-refine-handlers';
 import { registerTestsHandlers } from './tests-handlers';
 import { notificationService } from '../notification-service';
 import { setAgentManagerRef } from './utils';
@@ -136,6 +137,9 @@ export function setupIpcHandlers(
   // Feature refinement conversational AI handlers
   registerFeatureRefineHandlers(getMainWindow);
 
+  // Task refine (grill-me AI session for a specific task)
+  registerTaskRefineHandlers(getMainWindow);
+
   // Tests handlers (discover, run, config)
   registerTestsHandlers(getMainWindow);
 
@@ -170,5 +174,6 @@ export {
   registerScreenshotHandlers,
   registerCodexAuthHandlers,
   registerFeatureRefineHandlers,
+  registerTaskRefineHandlers,
   registerTestsHandlers,
 };

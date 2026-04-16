@@ -36,6 +36,7 @@ import type {
   WorktreeStatus,
   WorktreeDiff,
   WorktreeMergeResult,
+  WorktreeMergeInfo,
   WorktreeDiscardResult,
   WorktreeListResult,
   WorktreeCreatePROptions,
@@ -231,8 +232,12 @@ export interface ElectronAPILegacy {
   // Per-spec architecture: Each spec has its own worktree at .worktrees/{spec-name}/
   getWorktreeStatus: (taskId: string) => Promise<IPCResult<WorktreeStatus>>;
   getWorktreeDiff: (taskId: string) => Promise<IPCResult<WorktreeDiff>>;
+  getMergeInfo: (taskId: string) => Promise<IPCResult<WorktreeMergeInfo>>;
   mergeWorktree: (taskId: string, options?: { noCommit?: boolean }) => Promise<IPCResult<WorktreeMergeResult>>;
   mergeWorktreePreview: (taskId: string) => Promise<IPCResult<WorktreeMergeResult>>;
+  postMergePush: (taskId: string, targetBranch: string) => Promise<IPCResult<{ pushed: boolean }>>;
+  postMergeCleanup: (taskId: string) => Promise<IPCResult<{ cleaned: boolean }>>;
+  resetTask: (taskId: string) => Promise<IPCResult<{ reset: boolean }>>;
   createWorktreePR: (taskId: string, options?: WorktreeCreatePROptions) => Promise<IPCResult<WorktreeCreatePRResult>>;
   discardWorktree: (taskId: string, skipStatusChange?: boolean) => Promise<IPCResult<WorktreeDiscardResult>>;
   discardOrphanedWorktree: (projectId: string, specName: string) => Promise<IPCResult<WorktreeDiscardResult>>;

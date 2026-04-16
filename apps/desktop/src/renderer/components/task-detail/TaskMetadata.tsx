@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Users,
   GitBranch,
+  GitMerge,
   GitPullRequest,
   ListChecks,
   Clock,
@@ -299,6 +300,19 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
                 {task.metadata.prUrl}
                 <ExternalLink className="h-3 w-3" />
               </button>
+            </div>
+          )}
+
+          {/* Worktree */}
+          {task.metadata.useWorktree !== false && task.specId && (
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                <GitMerge className="h-3 w-3 text-teal-400" />
+                Worktree
+              </h3>
+              <span className="text-sm text-foreground/80 font-mono">
+                malvy/{task.specId}
+              </span>
             </div>
           )}
 

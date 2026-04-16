@@ -31,7 +31,7 @@ export interface TaskAPI {
   deleteTask: (taskId: string) => Promise<IPCResult>;
   updateTask: (
     taskId: string,
-    updates: { title?: string; description?: string }
+    updates: { title?: string; description?: string; metadata?: Partial<TaskMetadata> }
   ) => Promise<IPCResult<Task>>;
   startTask: (taskId: string, options?: TaskStartOptions) => void;
   stopTask: (taskId: string) => void;
@@ -62,8 +62,12 @@ export interface TaskAPI {
   // Workspace Management (for human review)
   getWorktreeStatus: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeStatus>>;
   getWorktreeDiff: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeDiff>>;
-  mergeWorktree: (taskId: string, options?: { noCommit?: boolean }) => Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>>;
+  getMergeInfo: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeMergeInfo>>;
+  mergeWorktree: (taskId: string, options?: { noCommit?: boolean; quickMerge?: boolean }) => Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>>;
   mergeWorktreePreview: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>>;
+  postMergePush: (taskId: string, targetBranch: string) => Promise<IPCResult<{ pushed: boolean }>>;
+  postMergeCleanup: (taskId: string) => Promise<IPCResult<{ cleaned: boolean }>>;
+  resetTask: (taskId: string) => Promise<IPCResult<{ reset: boolean }>>;
   discardWorktree: (taskId: string, skipStatusChange?: boolean) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
   discardOrphanedWorktree: (projectId: string, specName: string) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
   clearStagedState: (taskId: string) => Promise<IPCResult<{ cleared: boolean }>>;
@@ -96,6 +100,16 @@ export interface TaskAPI {
 
   // Merge Progress Events
   onMergeProgress: (callback: (taskId: string, progress: MergeProgress) => void) => () => void;
+
+  // Task Refine (grill-me AI session)
+  taskRefineStart: (taskId: string, autoMode?: boolean) => void;
+  taskRefineSend: (taskId: string, message: string) => void;
+  taskRefineStop: (taskId: string) => void;
+  onTaskRefineChunk: (callback: (taskId: string, chunk: string) => void) => () => void;
+  onTaskRefineToolUse: (callback: (taskId: string, toolName: string) => void) => () => void;
+  onTaskRefineComplete: (callback: (taskId: string, refinedDescription?: string) => void) => () => void;
+  onTaskRefineError: (callback: (taskId: string, error: string) => void) => () => void;
+  onTaskRefineApplied: (callback: (taskId: string, projectId: string) => void) => () => void;
 }
 
 export const createTaskAPI = (): TaskAPI => ({
@@ -116,7 +130,7 @@ export const createTaskAPI = (): TaskAPI => ({
 
   updateTask: (
     taskId: string,
-    updates: { title?: string; description?: string }
+    updates: { title?: string; description?: string; metadata?: Partial<TaskMetadata> }
   ): Promise<IPCResult<Task>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_UPDATE, taskId, updates),
 
@@ -168,11 +182,23 @@ export const createTaskAPI = (): TaskAPI => ({
   getWorktreeDiff: (taskId: string): Promise<IPCResult<import('../../shared/types').WorktreeDiff>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_DIFF, taskId),
 
-  mergeWorktree: (taskId: string, options?: { noCommit?: boolean }): Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>> =>
+  getMergeInfo: (taskId: string): Promise<IPCResult<import('../../shared/types').WorktreeMergeInfo>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_GET_MERGE_INFO, taskId),
+
+  mergeWorktree: (taskId: string, options?: { noCommit?: boolean; quickMerge?: boolean }): Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_MERGE, taskId, options),
 
   mergeWorktreePreview: (taskId: string): Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_MERGE_PREVIEW, taskId),
+
+  postMergePush: (taskId: string, targetBranch: string): Promise<IPCResult<{ pushed: boolean }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_POST_MERGE_PUSH, taskId, targetBranch),
+
+  postMergeCleanup: (taskId: string): Promise<IPCResult<{ cleaned: boolean }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_POST_MERGE_CLEANUP, taskId),
+
+  resetTask: (taskId: string): Promise<IPCResult<{ reset: boolean }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_RESET, taskId),
 
   discardWorktree: (taskId: string, skipStatusChange?: boolean): Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_DISCARD, taskId, skipStatusChange),
@@ -354,5 +380,61 @@ export const createTaskAPI = (): TaskAPI => ({
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.TASK_MERGE_PROGRESS, handler);
     };
-  }
+  },
+
+  // Task Refine (grill-me AI session)
+  taskRefineStart: (taskId: string, autoMode?: boolean): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_START, taskId, autoMode),
+
+  taskRefineSend: (taskId: string, message: string): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_SEND, taskId, message),
+
+  taskRefineStop: (taskId: string): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_STOP, taskId),
+
+  onTaskRefineChunk: (
+    callback: (taskId: string, chunk: string) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, chunk: string): void => {
+      callback(taskId, chunk);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_CHUNK, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_CHUNK, handler); };
+  },
+
+  onTaskRefineToolUse: (
+    callback: (taskId: string, toolName: string) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, toolName: string): void => {
+      callback(taskId, toolName);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_TOOL_USE, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_TOOL_USE, handler); };
+  },
+
+  onTaskRefineComplete: (
+    callback: (taskId: string, refinedDescription?: string) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, refinedDescription?: string): void => {
+      callback(taskId, refinedDescription);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_COMPLETE, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_COMPLETE, handler); };
+  },
+
+  onTaskRefineError: (
+    callback: (taskId: string, error: string) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, error: string): void => {
+      callback(taskId, error);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_ERROR, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_ERROR, handler); };
+  },
+
+  onTaskRefineApplied: (callback) => {
+    const handler = (_: unknown, taskId: string, projectId: string) => callback(taskId, projectId);
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);
+  },
 });

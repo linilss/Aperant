@@ -18,7 +18,7 @@
  */
 
 import path from 'path';
-import { readFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { AUTO_BUILD_PATHS, getSpecsDir } from '../../../shared/constants';
 import type { TaskStatus, Project, Task } from '../../../shared/types';
 import { projectStore } from '../../project-store';
@@ -462,6 +462,61 @@ export async function createPlanIfNotExists(
 }
 
 /**
+ * Reset ALL subtasks to pending and clear execution progress metadata.
+ * Used by the "Reset Task" action to wipe task progress so it can be re-run.
+ *
+ * @param planPath - Path to the implementation_plan.json file
+ * @param projectId - Optional project ID to invalidate cache
+ */
+export async function resetAllSubtasks(planPath: string, projectId?: string): Promise<{ success: boolean; resetCount: number }> {
+  return withPlanLock(planPath, async () => {
+    try {
+      const planContent = readFileSync(planPath, 'utf-8');
+      const plan = safeParseJson<Record<string, unknown>>(planContent);
+      if (!plan) {
+        return { success: false, resetCount: 0 };
+      }
+
+      let resetCount = 0;
+
+      if (plan.phases && Array.isArray(plan.phases)) {
+        for (const phase of plan.phases) {
+          if (phase.subtasks && Array.isArray(phase.subtasks)) {
+            for (const subtask of phase.subtasks) {
+              subtask.status = 'pending';
+              subtask.started_at = null;
+              subtask.completed_at = null;
+              resetCount++;
+            }
+          }
+          // Also reset phase-level status if present
+          if (phase.status) phase.status = 'pending';
+        }
+      }
+
+      // Clear top-level execution progress fields
+      delete plan.execution_progress;
+      delete plan.current_phase;
+      plan.updated_at = new Date().toISOString();
+
+      writeFileAtomicSync(planPath, JSON.stringify(plan, null, 2));
+
+      if (projectId) {
+        projectStore.invalidateTasksCache(projectId);
+      }
+
+      return { success: true, resetCount };
+    } catch (err) {
+      if (isFileNotFoundError(err)) {
+        return { success: true, resetCount: 0 }; // No plan yet — nothing to reset
+      }
+      console.warn(`[plan-file-utils] Could not reset all subtasks at ${planPath}:`, err);
+      return { success: false, resetCount: 0 };
+    }
+  });
+}
+
+/**
  * Reset all stuck subtasks (in_progress or failed) to pending state.
  * This enables automatic recovery when tasks are interrupted by rate limits or errors.
  * Thread-safe with withPlanLock.
@@ -530,6 +585,23 @@ export async function resetStuckSubtasks(planPath: string, projectId?: string): 
       return { success: false, resetCount: 0 };
     }
   });
+}
+
+/**
+ * Clear reset-relevant fields from task_metadata.json when resetting a task.
+ * Removes prUrl and affectedFiles so the UI doesn't show stale PR links or file lists.
+ */
+export function clearTaskMetadataForReset(metadataPath: string): void {
+  try {
+    const content = readFileSync(metadataPath, 'utf-8');
+    const metadata = safeParseJson<Record<string, unknown>>(content);
+    if (!metadata) return;
+    delete metadata.prUrl;
+    delete metadata.affectedFiles;
+    writeFileAtomicSync(metadataPath, JSON.stringify(metadata, null, 2));
+  } catch {
+    // File doesn't exist or can't be parsed — nothing to clear
+  }
 }
 
 /**
@@ -608,6 +680,39 @@ export function syncPlanPhasesToMainSync(
     console.warn(`[plan-file-utils] Could not sync phases to ${mainPlanPath}:`, err);
     return false;
   }
+}
+
+/**
+ * Write a refined description from AI auto-refine back to implementation_plan.json and spec.md.
+ * Called from the main process so it works even when the RefineTaskPanel is closed.
+ */
+export function persistRefinedDescription(
+  project: Project,
+  task: Task,
+  refinedDescription: string,
+): void {
+  const specsBaseDir = getSpecsDir(project.autoBuildPath);
+  const specDir = path.join(project.path, specsBaseDir, task.specId);
+
+  // Update implementation_plan.json
+  const planPath = path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN);
+  try {
+    const plan = JSON.parse(readFileSync(planPath, 'utf-8'));
+    plan.description = refinedDescription;
+    plan.updated_at = new Date().toISOString();
+    writeFileAtomicSync(planPath, JSON.stringify(plan, null, 2));
+  } catch { /* plan file may not exist yet */ }
+
+  // Update ## Overview section in spec.md
+  const specPath = path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE);
+  try {
+    let content = readFileSync(specPath, 'utf-8');
+    content = content.replace(
+      /(## Overview\n)([\s\S]*?)((?=\n## )|$)/,
+      `$1${refinedDescription}\n\n$3`,
+    );
+    writeFileSync(specPath, content, 'utf-8');
+  } catch { /* spec.md may not exist */ }
 }
 
 /**

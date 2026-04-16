@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2 } from 'lucide-react';
+import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2 } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
@@ -55,13 +55,14 @@ function isValidDropColumn(id: string): id is typeof TASK_STATUS_COLUMNS[number]
 
 /**
  * Get the visual column for a task status.
- * pr_created tasks are displayed in the 'done' column, so we map them accordingly.
+ * pr_created tasks are displayed in the 'pending_merge' column — PR created ≠ merged.
  * error tasks are displayed in the 'human_review' column (errors need human attention).
  * This is used to compare visual positions during drag-and-drop operations.
  */
 function getVisualColumn(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number] {
-  if (status === 'pr_created') return 'done';
+  if (status === 'pr_created') return 'pending_merge';
   if (status === 'error') return 'human_review';
+  // pending_merge is a real column — pass through as-is
   return status;
 }
 
@@ -215,6 +216,12 @@ const getEmptyStateContent = (status: TaskStatus, t: (key: string) => string): {
         icon: <Eye className="h-6 w-6 text-muted-foreground/50" />,
         message: t('kanban.emptyHumanReview'),
         subtext: t('kanban.emptyHumanReviewHint')
+      };
+    case 'pending_merge':
+      return {
+        icon: <GitMerge className="h-6 w-6 text-muted-foreground/50" />,
+        message: t('kanban.emptyPendingMerge'),
+        subtext: t('kanban.emptyPendingMergeHint')
       };
     case 'done':
       return {
@@ -739,12 +746,14 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   const tasksByStatus = useMemo(() => {
     // Note: pr_created tasks are shown in the 'done' column since they're essentially complete
     // Note: error tasks are shown in the 'human_review' column since they need human attention
+    // Note: pending_merge tasks have their own column (AI completed, awaiting worktree merge)
     const grouped: Record<typeof TASK_STATUS_COLUMNS[number], Task[]> = {
       backlog: [],
       queue: [],
       in_progress: [],
       ai_review: [],
       human_review: [],
+      pending_merge: [],
       done: []
     };
 
@@ -1322,6 +1331,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
       in_progress: [],
       ai_review: [],
       human_review: [],
+      pending_merge: [],
       done: [],
       pr_created: [],
       error: []

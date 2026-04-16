@@ -132,9 +132,12 @@ export class TaskStateManager {
         this.handleUiEvent(taskId, { type: 'USER_STOPPED', hasPlan: false }, task, project);
         return true;
       case 'human_review':
-        // Already in human_review (e.g., stage-only merge keeps task in review).
-        // Emit status directly since there's no XState transition needed.
-        this.emitStatus(taskId, 'human_review', task.reviewReason ?? 'completed', project.id);
+        // Already in human_review (errors/plan_review). Emit status directly.
+        this.emitStatus(taskId, 'human_review', task.reviewReason ?? 'errors', project.id);
+        return true;
+      case 'pending_merge':
+        // Already pending merge (AI completed, awaiting worktree merge).
+        this.emitStatus(taskId, 'pending_merge', undefined, project.id);
         return true;
       default:
         return false;
@@ -383,6 +386,12 @@ export class TaskStateManager {
         contextReviewReason = reviewReason;
         break;
       case 'pr_created':
+        stateValue = 'pr_created';
+        break;
+      case 'pending_merge':
+        // pending_merge is a UI status — XState has no matching state.
+        // Map to pr_created (which has a MARK_DONE transition to done),
+        // so the merge handler can transition correctly.
         stateValue = 'pr_created';
         break;
       case 'done':

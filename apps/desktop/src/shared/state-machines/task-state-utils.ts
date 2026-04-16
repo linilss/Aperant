@@ -82,13 +82,18 @@ export function mapStateToLegacy(
     case 'qa_fixing':
       return { status: 'ai_review' };
     case 'human_review':
-      return { status: 'human_review', reviewReason: reviewReason ?? 'completed' };
+      // Tasks completed by AI go to pending_merge (awaiting worktree merge).
+      // Tasks with actual review needs (errors, plan approval) stay in human_review.
+      if (!reviewReason || reviewReason === 'completed') {
+        return { status: 'pending_merge' };
+      }
+      return { status: 'human_review', reviewReason };
     case 'error':
       return { status: 'human_review', reviewReason: 'errors' };
     case 'creating_pr':
-      return { status: 'human_review', reviewReason: 'completed' };
     case 'pr_created':
-      return { status: 'pr_created' };
+      // PR created ≠ merged. Keep in pending_merge until the branch is actually merged.
+      return { status: 'pending_merge' };
     case 'done':
       return { status: 'done' };
     default:

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useToast } from '../../hooks/use-toast';
@@ -28,8 +29,12 @@ import {
   AlertTriangle,
   Pencil,
   X,
-  GitPullRequest
+  GitPullRequest,
+  GitMerge,
+  Sparkles,
+  GitBranch,
 } from 'lucide-react';
+import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { calculateProgress } from '../../lib/utils';
 import { stopTask, submitReview, recoverStuckTask, deleteTask, useTaskStore, startTaskOrQueue } from '../../stores/task-store';
@@ -37,6 +42,7 @@ import { useProjectStore } from '../../stores/project-store';
 import { TASK_STATUS_LABELS } from '../../../shared/constants';
 import { TaskEditDialog } from '../TaskEditDialog';
 import { useTaskDetail } from './hooks/useTaskDetail';
+import { RefineTaskPanel } from './RefineTaskPanel';
 import { TaskMetadata } from './TaskMetadata';
 import { TaskWarnings } from './TaskWarnings';
 import { TaskSubtasks } from './TaskSubtasks';
@@ -83,6 +89,9 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   const state = useTaskDetail({ task });
   const activeProject = useProjectStore(s => s.getActiveProject());
   const showFilesTab = isFilesTabEnabled();
+  const [showRefinePanel, setShowRefinePanel] = useState<false | 'interactive' | 'auto'>(false);
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [baseBranchInput, setBaseBranchInput] = useState('');
   const progressPercent = calculateProgress(task.subtasks);
   const completedSubtasks = task.subtasks.filter(s => s.status === 'completed').length;
   const totalSubtasks = task.subtasks.length;
@@ -91,30 +100,49 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   const handleStartStop = async () => {
     if (state.isRunning && !state.isStuck) {
       stopTask(task.id);
-    } else {
-      // If task is incomplete, validate and reload plan before starting
-      if (state.isIncomplete) {
-        const isValid = await state.reloadPlanForIncompleteTask();
-        if (!isValid) {
-          toast({
-            title: 'Cannot Resume Task',
-            description: 'Failed to load implementation plan. Please try again or check the task files.',
-            variant: 'destructive',
-            duration: 5000,
-          });
-          return;
-        }
+    } else if (state.isIncomplete) {
+      // Resume — validate plan and start directly without branch prompt
+      const isValid = await state.reloadPlanForIncompleteTask();
+      if (!isValid) {
+        toast({
+          title: 'Cannot Resume Task',
+          description: 'Failed to load implementation plan. Please try again or check the task files.',
+          variant: 'destructive',
+          duration: 5000,
+        });
+        return;
       }
       const result = await startTaskOrQueue(task.id);
       if (!result.success) {
-        toast({
-          title: t('tasks:wizard.errors.startFailed'),
-          description: result.error,
-          variant: 'destructive',
-        });
+        toast({ title: t('tasks:wizard.errors.startFailed'), description: result.error, variant: 'destructive' });
       } else if (result.action === 'queued') {
         toast({ title: t('tasks:queue.movedToQueue') });
       }
+    } else if (task.status === 'backlog' || task.status === 'in_progress') {
+      // Show branch confirmation modal before starting
+      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+      setShowBranchModal(true);
+    } else {
+      const result = await startTaskOrQueue(task.id);
+      if (!result.success) {
+        toast({ title: t('tasks:wizard.errors.startFailed'), description: result.error, variant: 'destructive' });
+      } else if (result.action === 'queued') {
+        toast({ title: t('tasks:queue.movedToQueue') });
+      }
+    }
+  };
+
+  const handleConfirmBranch = async () => {
+    setShowBranchModal(false);
+    // Persist baseBranch to task metadata before starting
+    await window.electronAPI.updateTask(task.id, {
+      metadata: { ...task.metadata, baseBranch: baseBranchInput || 'dev' },
+    });
+    const result = await startTaskOrQueue(task.id);
+    if (!result.success) {
+      toast({ title: t('tasks:wizard.errors.startFailed'), description: result.error, variant: 'destructive' });
+    } else if (result.action === 'queued') {
+      toast({ title: t('tasks:queue.movedToQueue') });
     }
   };
 
@@ -153,6 +181,24 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     state.setIsDeleting(false);
   };
 
+  const handleReset = async () => {
+    state.setIsResetting(true);
+    state.setResetError(null);
+    try {
+      const result = await window.electronAPI.resetTask(task.id);
+      if (result.success) {
+        state.setShowResetDialog(false);
+        onOpenChange(false);
+      } else {
+        state.setResetError(result.error || 'Failed to reset task');
+      }
+    } catch (error) {
+      state.setResetError(error instanceof Error ? error.message : 'Failed to reset task');
+    } finally {
+      state.setIsResetting(false);
+    }
+  };
+
   const handleMerge = async () => {
     state.setIsMerging(true);
     state.setWorkspaceError(null);
@@ -177,6 +223,61 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     }
   };
 
+  // Quick merge flow for pending_merge tasks (Merge button)
+  const handleQuickMergeConfirm = async () => {
+    state.setShowMergeInfoDialog(false);
+    state.setIsMerging(true);
+    state.setWorkspaceError(null);
+    try {
+      const result = await window.electronAPI.mergeWorktree(task.id, { quickMerge: true });
+      if (result.success && result.data?.success) {
+        state.setMergedTargetBranch(result.data.targetBranch ?? null);
+        state.setShowPushDialog(true);
+      } else {
+        state.setWorkspaceError(result.data?.message || result.error || 'Failed to merge');
+      }
+    } catch (error) {
+      state.setWorkspaceError(error instanceof Error ? error.message : 'Unknown error during merge');
+    } finally {
+      state.setIsMerging(false);
+    }
+  };
+
+  const handleQuickMergePush = async (push: boolean) => {
+    state.setShowPushDialog(false);
+    if (push && state.mergedTargetBranch) {
+      try {
+        await window.electronAPI.postMergePush(task.id, state.mergedTargetBranch);
+      } catch { /* non-fatal */ }
+    }
+    state.setShowCleanupDialog(true);
+  };
+
+  const handleQuickMergeCleanup = async (cleanup: boolean) => {
+    state.setShowCleanupDialog(false);
+    if (cleanup) {
+      try {
+        await window.electronAPI.postMergeCleanup(task.id);
+      } catch { /* non-fatal */ }
+    }
+    onOpenChange(false);
+  };
+
+  const handleMergeButtonClick = async () => {
+    state.setWorkspaceError(null);
+    try {
+      const info = await window.electronAPI.getMergeInfo(task.id);
+      if (info.success && info.data) {
+        state.setMergeInfo(info.data);
+        state.setShowMergeInfoDialog(true);
+      } else {
+        state.setWorkspaceError(info.error || 'Could not determine merge info');
+      }
+    } catch (error) {
+      state.setWorkspaceError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  };
+
   const handleDiscard = async () => {
     state.setIsDiscarding(true);
     state.setWorkspaceError(null);
@@ -197,8 +298,9 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
       if (result.success && result.data) {
         // Update single task in store with new status and prUrl (more efficient than reloading all tasks)
         if (result.data.success && result.data.prUrl && !result.data.alreadyExists) {
+          // PR created ≠ merged — stay in pending_merge until the branch lands
           useTaskStore.getState().updateTask(task.id, {
-            status: 'done',
+            status: 'pending_merge',
             metadata: { ...task.metadata, prUrl: result.data.prUrl }
           });
         }
@@ -234,6 +336,8 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
         return 'success';
       case 'human_review':
         return 'purple';
+      case 'pending_merge':
+        return 'success';
       case 'in_progress':
         return 'info';
       default:
@@ -301,6 +405,48 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             </>
           )}
         </Button>
+      );
+    }
+
+    if (task.status === 'pending_merge') {
+      return (
+        <div className="flex items-center gap-3">
+          {task.metadata?.prUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                if (task.metadata?.prUrl) {
+                  window.electronAPI?.openExternal(task.metadata.prUrl);
+                }
+              }}
+              className="text-sm flex items-center gap-2 text-info cursor-pointer hover:underline bg-transparent border-none p-0"
+            >
+              <GitPullRequest className="h-4 w-4" />
+              <span className="font-medium">View PR</span>
+            </button>
+          )}
+          <Button
+            variant="default"
+            onClick={handleMergeButtonClick}
+            disabled={state.isMerging}
+            className="bg-teal-600 hover:bg-teal-700 text-white"
+          >
+            {state.isMerging ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Merging...
+              </>
+            ) : (
+              <>
+                <GitMerge className="mr-2 h-4 w-4" />
+                Merge
+              </>
+            )}
+          </Button>
+          {state.workspaceError && (
+            <p className="text-xs text-destructive max-w-xs truncate">{state.workspaceError}</p>
+          )}
+        </div>
       );
     }
 
@@ -603,8 +749,60 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete Task
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-warning hover:bg-warning/10"
+                onClick={() => state.setShowResetDialog(true)}
+                disabled={state.isRunning && !state.isStuck}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset Task
+              </Button>
               <div className="flex-1" />
+              {/* Refine buttons — visible for backlog/in_progress tasks when not running */}
+              {(task.status === 'backlog' || task.status === 'in_progress') && !state.isRunning && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRefinePanel('interactive')}
+                    className="gap-1.5"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Refine
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRefinePanel('auto')}
+                    className="gap-1.5"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Auto-refine
+                  </Button>
+                </>
+              )}
               {renderPrimaryAction()}
+              {task.status === 'done' && task.metadata?.useWorktree !== false && !task.stagedInMainProject && !task.metadata?.prUrl && (
+                <Button
+                  variant="outline"
+                  onClick={handleMerge}
+                  disabled={state.isMerging}
+                >
+                  {state.isMerging ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Merging...
+                    </>
+                  ) : (
+                    <>
+                      <GitMerge className="mr-2 h-4 w-4" />
+                      Merge
+                    </>
+                  )}
+                </Button>
+              )}
               <Button variant="outline" onClick={handleClose}>
                 Close
               </Button>
@@ -686,6 +884,178 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reset Task Confirmation Dialog */}
+      <AlertDialog open={state.showResetDialog} onOpenChange={state.setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-warning" />
+              Reset task?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                <p>
+                  This will delete the branch and worktree for <strong className="text-foreground">"{task.title}"</strong> and move it back to Planning so it can be run again from scratch.
+                </p>
+                <p className="text-warning">The spec and task description are kept. Only the branch and any uncommitted work will be lost.</p>
+                {state.resetError && (
+                  <p className="text-destructive bg-destructive/10 px-3 py-2 rounded-lg text-sm">{state.resetError}</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={state.isResetting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleReset(); }}
+              disabled={state.isResetting}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+            >
+              {state.isResetting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reset Task
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Branch Selection Dialog */}
+      <AlertDialog open={showBranchModal} onOpenChange={setShowBranchModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-primary" />
+              Start Task
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                <p>Which branch should development be based on?</p>
+                <div className="space-y-1">
+                  <label htmlFor="base-branch-input" className="text-xs font-medium text-foreground">
+                    Base branch
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                    <Input
+                      id="base-branch-input"
+                      value={baseBranchInput}
+                      onChange={(e) => setBaseBranchInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmBranch(); } }}
+                      placeholder="dev"
+                      className="h-8 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmBranch(); }}
+              disabled={!baseBranchInput.trim()}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Start Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Merge Info / Confirmation Dialog */}
+      <AlertDialog open={state.showMergeInfoDialog} onOpenChange={state.setShowMergeInfoDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <GitMerge className="h-5 w-5 text-teal-500" />
+              Merge branch
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                {state.mergeInfo && (
+                  <>
+                    <div className="bg-muted rounded-lg px-3 py-2 font-mono text-xs space-y-1">
+                      <div><span className="text-muted-foreground">from</span> <span className="text-foreground">{state.mergeInfo.sourceBranch}</span></div>
+                      <div><span className="text-muted-foreground">into</span> <span className="text-foreground">{state.mergeInfo.targetBranch}</span></div>
+                      {state.mergeInfo.commitsAhead > 0 && (
+                        <div className="text-muted-foreground">{state.mergeInfo.commitsAhead} commit{state.mergeInfo.commitsAhead !== 1 ? 's' : ''} ahead</div>
+                      )}
+                    </div>
+                    <p>The branch will be fetched, updated with the latest <span className="font-mono text-foreground">{state.mergeInfo.targetBranch}</span>, then merged.</p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleQuickMergeConfirm(); }}
+              className="bg-teal-600 hover:bg-teal-700 text-white"
+            >
+              <GitMerge className="mr-2 h-4 w-4" />
+              Merge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Push Dialog */}
+      <AlertDialog open={state.showPushDialog} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Push to origin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Push <span className="font-mono">{state.mergedTargetBranch}</span> to origin/{state.mergedTargetBranch}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleQuickMergePush(false)}>Skip</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleQuickMergePush(true)}>Push</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cleanup Dialog */}
+      <AlertDialog open={state.showCleanupDialog} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete branch?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete <span className="font-mono">malvy/{task.specId}</span> locally and from remote?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleQuickMergeCleanup(false)}>Keep</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleQuickMergeCleanup(true)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Refine Panel (interactive or auto) */}
+      {showRefinePanel && (
+        <RefineTaskPanel
+          taskId={task.id}
+          taskTitle={task.title}
+          autoMode={showRefinePanel === 'auto'}
+          onClose={() => setShowRefinePanel(false)}
+        />
+      )}
     </TooltipProvider>
   );
 }

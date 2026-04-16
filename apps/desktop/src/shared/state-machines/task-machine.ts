@@ -130,6 +130,8 @@ export const taskMachine = createMachine(
           CREATE_PR: 'creating_pr',
           MARK_DONE: 'done',
           USER_RESUMED: { target: 'coding', actions: 'clearReviewReason' },
+          // Reset Task fires USER_STOPPED — send back to backlog
+          USER_STOPPED: { target: 'backlog', actions: 'clearReviewReason' },
           // Allow restarting planning from human_review (e.g., incomplete task with no subtasks)
           PLANNING_STARTED: { target: 'planning', actions: 'clearReviewReason' }
         }
@@ -137,6 +139,8 @@ export const taskMachine = createMachine(
       error: {
         on: {
           USER_RESUMED: { target: 'coding', actions: 'clearReviewReason' },
+          // Reset Task fires USER_STOPPED — send back to backlog
+          USER_STOPPED: { target: 'backlog', actions: 'clearReviewReason' },
           // Allow restarting from error back to planning (e.g., spec creation crashed)
           PLANNING_STARTED: { target: 'planning', actions: 'clearReviewReason' },
           MARK_DONE: 'done'

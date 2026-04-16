@@ -42,6 +42,21 @@ export const IPC_CHANNELS = {
   TASK_WORKTREE_DIFF: 'task:worktreeDiff',
   TASK_WORKTREE_MERGE: 'task:worktreeMerge',
   TASK_WORKTREE_MERGE_PREVIEW: 'task:worktreeMergePreview',  // Preview merge conflicts before merging
+  TASK_GET_MERGE_INFO: 'task:getMergeInfo',               // Get branch info before confirming merge
+  TASK_POST_MERGE_PUSH: 'task:postMergePush',             // Push target branch to origin after merge
+  TASK_POST_MERGE_CLEANUP: 'task:postMergeCleanup',       // Delete feature branch (local + remote) after merge
+  TASK_RESET: 'task:reset',                              // Delete branch/worktree and reset status to backlog
+
+  // Task refine (grill-me style AI session for a task)
+  TASK_REFINE_START: 'task:refine:start',
+  TASK_REFINE_SEND: 'task:refine:send',
+  TASK_REFINE_STOP: 'task:refine:stop',
+  TASK_REFINE_CHUNK: 'task:refine:chunk',
+  TASK_REFINE_TOOL_USE: 'task:refine:toolUse',
+  TASK_REFINE_COMPLETE: 'task:refine:complete',
+  TASK_REFINE_ERROR: 'task:refine:error',
+  TASK_REFINE_APPLIED: 'task:refine:applied',
+
   TASK_WORKTREE_DISCARD: 'task:worktreeDiscard',
   TASK_WORKTREE_DISCARD_ORPHAN: 'task:worktreeDiscardOrphan',  // Delete orphaned worktree by spec name (no task association)
   TASK_WORKTREE_CREATE_PR: 'task:worktreeCreatePR',

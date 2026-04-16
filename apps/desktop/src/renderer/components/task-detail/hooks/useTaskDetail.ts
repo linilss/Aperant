@@ -71,6 +71,16 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  // Reset task state
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  // Quick merge flow state
+  const [showMergeInfoDialog, setShowMergeInfoDialog] = useState(false);
+  const [mergeInfo, setMergeInfo] = useState<import('../../../../shared/types').WorktreeMergeInfo | null>(null);
+  const [showPushDialog, setShowPushDialog] = useState(false);
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [mergedTargetBranch, setMergedTargetBranch] = useState<string | null>(null);
   const [showDiffDialog, setShowDiffDialog] = useState(false);
   const [stageOnly, setStageOnly] = useState(false); // Default to full merge for proper cleanup (fixes #243)
   const [stagedSuccess, setStagedSuccess] = useState<string | null>(null);
@@ -518,6 +528,14 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
     isDiscarding,
     showDiscardDialog,
     workspaceError,
+    showResetDialog,
+    isResetting,
+    resetError,
+    showMergeInfoDialog,
+    mergeInfo,
+    showPushDialog,
+    showCleanupDialog,
+    mergedTargetBranch,
     showDiffDialog,
     stageOnly,
     stagedSuccess,
@@ -564,6 +582,14 @@ export function useTaskDetail({ task }: UseTaskDetailOptions) {
     setIsDiscarding,
     setShowDiscardDialog,
     setWorkspaceError,
+    setShowResetDialog,
+    setIsResetting,
+    setResetError,
+    setShowMergeInfoDialog,
+    setMergeInfo,
+    setShowPushDialog,
+    setShowCleanupDialog,
+    setMergedTargetBranch,
     setShowDiffDialog,
     setStageOnly,
     setStagedSuccess,

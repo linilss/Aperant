@@ -61,6 +61,7 @@
     "in_progress": "In Progress",
     "ai_review": "AI Review",
     "human_review": "Human Review",
+    "pending_merge": "Pending Merge",
     "done": "Done",
     "pr_created": "PR Created",
     "error": "Error"
@@ -76,6 +77,8 @@
     "emptyAiReviewHint": "AI will review completed tasks",
     "emptyHumanReview": "Nothing to review",
     "emptyHumanReviewHint": "Tasks await your approval here",
+    "emptyPendingMerge": "Nothing to merge",
+    "emptyPendingMergeHint": "Completed tasks waiting for worktree merge appear here",
     "emptyDone": "No completed tasks",
     "emptyDoneHint": "Approved tasks appear here",
     "emptyDefault": "No tasks",

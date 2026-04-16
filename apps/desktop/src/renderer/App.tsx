@@ -431,6 +431,14 @@ export function App() {
     }
   }, [activeProjectId, selectedProjectId, selectedProject?.path]);
 
+  // Reload tasks when auto-refine completes in the background
+  useEffect(() => {
+    const unsub = window.electronAPI.onTaskRefineApplied((_taskId, projectId) => {
+      loadTasks(projectId, { forceRefresh: true });
+    });
+    return unsub;
+  }, []);
+
   // Apply theme on load
   useEffect(() => {
     const root = document.documentElement;

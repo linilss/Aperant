@@ -16,13 +16,14 @@ export const TASK_STATUS_COLUMNS = [
   'in_progress',
   'ai_review',
   'human_review',
+  'pending_merge',
   'done'
 ] as const;
 
 export type TaskStatusColumn = typeof TASK_STATUS_COLUMNS[number];
 
 // Status label translation keys (use with t() from react-i18next)
-// Note: pr_created maps to 'done' column in Kanban view (see KanbanBoard.tsx)
+// Note: pr_created maps to 'pending_merge' column in Kanban view (PR created ≠ merged)
 // Note: error maps to 'human_review' column in Kanban view (errors need human attention)
 export const TASK_STATUS_LABELS: Record<TaskStatusColumn | 'pr_created' | 'error', string> = {
   backlog: 'columns.backlog',
@@ -30,13 +31,14 @@ export const TASK_STATUS_LABELS: Record<TaskStatusColumn | 'pr_created' | 'error
   in_progress: 'columns.in_progress',
   ai_review: 'columns.ai_review',
   human_review: 'columns.human_review',
+  pending_merge: 'columns.pending_merge',
   done: 'columns.done',
   pr_created: 'columns.pr_created',
   error: 'columns.error'
 };
 
 // Status colors for UI
-// Note: pr_created maps to 'done' column in Kanban view (see KanbanBoard.tsx)
+// Note: pr_created maps to 'pending_merge' column in Kanban view (PR created ≠ merged)
 // Note: error maps to 'human_review' column in Kanban view (errors need human attention)
 export const TASK_STATUS_COLORS: Record<TaskStatusColumn | 'pr_created' | 'error', string> = {
   backlog: 'bg-muted text-muted-foreground',
@@ -44,6 +46,7 @@ export const TASK_STATUS_COLORS: Record<TaskStatusColumn | 'pr_created' | 'error
   in_progress: 'bg-info/10 text-info',
   ai_review: 'bg-warning/10 text-warning',
   human_review: 'bg-purple-500/10 text-purple-400',
+  pending_merge: 'bg-teal-500/10 text-teal-400',
   done: 'bg-success/10 text-success',
   pr_created: 'bg-info/10 text-info',
   error: 'bg-destructive/10 text-destructive'
@@ -55,6 +58,7 @@ export const TASK_STATUS_COLORS: Record<TaskStatusColumn | 'pr_created' | 'error
 export const TASK_STATUS_PRIORITY: Record<TaskStatus, number> = {
   'done': 100,           // Highest priority - task is complete
   'pr_created': 90,
+  'pending_merge': 85,  // AI done, awaiting local worktree merge
   'human_review': 80,
   'ai_review': 70,
   'in_progress': 50,

@@ -11,6 +11,7 @@ import type { BuiltinProvider } from '../types/provider-account';
 // ============================================
 
 export const AVAILABLE_MODELS = [
+  { value: 'opus-4.7', label: 'Claude Opus 4.7' },
   { value: 'opus', label: 'Claude Opus 4.6' },
   { value: 'opus-1m', label: 'Claude Opus 4.6 (1M)' },
   { value: 'opus-4.5', label: 'Claude Opus 4.5' },
@@ -38,6 +39,7 @@ export interface ModelOption {
 
 export const ALL_AVAILABLE_MODELS: ModelOption[] = [
   // Anthropic
+  { value: 'opus-4.7', label: 'Claude Opus 4.7', provider: 'anthropic', description: 'Latest & most capable', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'opus', label: 'Claude Opus 4.6', provider: 'anthropic', description: 'Most capable', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'opus-1m', label: 'Claude Opus 4.6 (1M)', provider: 'anthropic', description: '1M context', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
   { value: 'sonnet', label: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
@@ -76,6 +78,7 @@ export const ALL_AVAILABLE_MODELS: ModelOption[] = [
 // Maps model shorthand to actual Claude model IDs
 // Values must match apps/desktop/src/main/ai/config/types.ts MODEL_ID_MAP
 export const MODEL_ID_MAP: Record<string, string> = {
+  'opus-4.7': 'claude-opus-4-7',
   opus: 'claude-opus-4-6',
   'opus-1m': 'claude-opus-4-6',
   'opus-4.5': 'claude-opus-4-5-20251101',

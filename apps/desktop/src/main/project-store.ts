@@ -1,5 +1,7 @@
 import { app } from 'electron';
-import { readFileSync, existsSync, mkdirSync, readdirSync, Dirent } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, Dirent } from 'fs';
+import { execFileSync } from 'child_process';
+import { getToolPath } from './cli-tool-manager';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import type { Project, ProjectSettings, Task, TaskStatus, TaskMetadata, ImplementationPlan, ReviewReason, PlanSubtask, KanbanPreferences, ExecutionPhase } from '../shared/types';
@@ -296,6 +298,37 @@ export class ProjectStore {
   }
 
   /**
+   * Check whether a git branch exists in the project and is NOT yet merged into HEAD.
+   * Returns true = branch exists and is unmerged; false = branch is merged or doesn't exist.
+   * This is used to retroactively move 'done' tasks back to 'pending_merge' when the
+   * worktree merge silently failed (e.g. broken git link after .auto-claude → .malvy rename).
+   */
+  private isBranchUnmerged(projectPath: string, branch: string): boolean {
+    try {
+      const git = getToolPath('git');
+      // Verify the branch exists
+      execFileSync(git, ['rev-parse', '--verify', branch], {
+        cwd: projectPath,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      // Check whether it is already an ancestor of HEAD (i.e. merged)
+      try {
+        execFileSync(git, ['merge-base', '--is-ancestor', branch, 'HEAD'], {
+          cwd: projectPath,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        return false; // Branch is an ancestor → already merged
+      } catch {
+        return true; // Branch exists but is NOT an ancestor → unmerged
+      }
+    } catch {
+      return false; // Branch doesn't exist → nothing to merge
+    }
+  }
+
+  /**
    * Get tasks for a project by scanning specs directory
    * Implements caching with 3-second TTL to prevent excessive worktree scanning
    */
@@ -390,6 +423,45 @@ export class ProjectStore {
     }
 
     const tasks = Array.from(taskMap.values());
+
+    // Retroactive migration: if a task's branch is still unmerged, move it to 'pending_merge'.
+    // Covers:
+    //   - 'done' / 'pr_created' tasks marked done before the pending_merge column existed
+    //   - 'human_review' with reviewReason 'completed' (or none) — AI completed but not yet merged
+    //     (these predate the pending_merge column; XState maps them to pending_merge at runtime
+    //      but disk never got updated)
+    for (const task of tasks) {
+      const isCompletedHumanReview =
+        task.status === 'human_review' &&
+        (!task.reviewReason || task.reviewReason === 'completed');
+      if (
+        (task.status === 'done' || task.status === 'pr_created' || isCompletedHumanReview) &&
+        task.metadata?.useWorktree !== false &&
+        !task.stagedInMainProject
+      ) {
+        const candidateBranches = [`malvy/${task.specId}`, `auto-claude/${task.specId}`];
+        for (const branch of candidateBranches) {
+          if (this.isBranchUnmerged(project.path, branch)) {
+            task.status = 'pending_merge';
+            // Persist the fix to disk so future loads skip the git check
+            try {
+              const planPath = path.join(project.path, specsBaseDir, task.specId, 'implementation_plan.json');
+              if (existsSync(planPath)) {
+                const raw = readFileSync(planPath, 'utf-8');
+                const plan = JSON.parse(raw);
+                plan.status = 'pending_merge';
+                plan.planStatus = 'pending';
+                plan.updated_at = new Date().toISOString();
+                writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf-8');
+              }
+            } catch {
+              // Non-fatal: in-memory status is already fixed; disk will catch up on next write
+            }
+            break;
+          }
+        }
+      }
+    }
 
     // Update cache
     this.tasksCache.set(projectId, { tasks, timestamp: now });
@@ -636,8 +708,9 @@ export class ProjectStore {
     const allCompleted = completedCount === subtasks.length;
 
     // Only auto-correct if all subtasks are done and status is in an incomplete coding state.
-    // Preserve ai_review (QA in progress), error (needs investigation), human_review, done, pr_created.
-    if (!allCompleted || finalStatus === 'human_review' || finalStatus === 'done' || finalStatus === 'pr_created' || finalStatus === 'ai_review' || finalStatus === 'error') {
+    // Preserve ai_review (QA in progress), error (needs investigation), human_review, done,
+    // pr_created, and pending_merge (awaiting worktree merge — retroactive migration owns this).
+    if (!allCompleted || finalStatus === 'human_review' || finalStatus === 'done' || finalStatus === 'pr_created' || finalStatus === 'ai_review' || finalStatus === 'error' || finalStatus === 'pending_merge') {
       return { status: finalStatus, reviewReason: finalReviewReason };
     }
 
@@ -706,6 +779,7 @@ export class ProjectStore {
       'human_review': 'human_review',
       'ai_review': 'ai_review',
       'pr_created': 'pr_created',
+      'pending_merge': 'pending_merge',
       'backlog': 'backlog',
       'error': 'error',
       'queue': 'queue',
