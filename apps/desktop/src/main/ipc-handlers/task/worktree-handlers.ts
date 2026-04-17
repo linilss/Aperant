@@ -2928,18 +2928,22 @@ export function registerWorktreeHandlers(
             deleteBranch: true
           });
         } else {
-          // No worktree dir — just delete the branch if it exists
+          // No worktree dir — just delete the local branch if it exists
           try {
             execFileSync(getToolPath('git'), ['branch', '-D', branch], {
-              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(),
+              timeout: 10000
             });
           } catch { /* branch may not exist */ }
-          try {
-            execFileSync(getToolPath('git'), ['push', 'origin', '--delete', branch], {
-              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-            });
-          } catch { /* remote branch may not exist */ }
         }
+
+        // Delete remote branch in the background (don't block the reset on network)
+        try {
+          execFile(getToolPath('git'), ['push', 'origin', '--delete', branch], {
+            cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv(),
+            timeout: 15000
+          }, () => { /* ignore errors — remote branch may not exist */ });
+        } catch { /* ignore */ }
 
         // 2. Reset all subtask progress and clear stale metadata fields
         const specDir = path.join(project.path, project.autoBuildPath || '.malvy', 'specs', task.specId);
