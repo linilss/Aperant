@@ -973,7 +973,7 @@ export class AgentManager extends EventEmitter {
         }
 
         if (shorthand) {
-          // First resolve to a full model ID (handles Anthropic shorthands like 'opus' → 'claude-opus-4-6')
+          // First resolve to a full model ID (handles Anthropic shorthands like 'opus' → 'claude-opus-4-7')
           const baseModelId = resolveModelId(shorthand);
 
           // If the target provider is non-Anthropic, translate the model ID to the

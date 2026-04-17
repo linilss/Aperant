@@ -655,6 +655,9 @@ export class ProjectStore {
             ? this.inferExecutionProgressFromXState(xstateState)
             : this.inferExecutionProgress(plan?.status);
 
+        // Load error message from plan (persisted by XState on failure)
+        const errorMessage = (plan as { errorMessage?: string } | null)?.errorMessage;
+
         tasks.push({
           id: dir.name, // Use spec directory name as ID
           specId: dir.name,
@@ -666,6 +669,7 @@ export class ProjectStore {
           logs: [],
           metadata,
           ...(correctedReviewReason !== undefined && { reviewReason: correctedReviewReason }),
+          ...(errorMessage && { errorMessage }),
           ...(executionProgress && { executionProgress }),
           stagedInMainProject,
           stagedAt,

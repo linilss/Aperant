@@ -18,6 +18,7 @@ import { findExecutable } from '../../platform';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
+import { getClaudeProfileManager } from '../../claude-profile-manager';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 
 // =============================================================================
@@ -151,10 +152,12 @@ export async function runFeatureRefine(
     '--model', modelId,
   ];
 
+  // Merge active Claude profile env so CLI uses the correct account
+  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env,
+    env: { ...process.env, ...profileEnv },
   });
 
   // Wire abort signal

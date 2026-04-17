@@ -244,7 +244,8 @@ export function persistPlanStatusAndReasonSync(
   reviewReason?: string,
   projectId?: string,
   xstateState?: string,
-  executionPhase?: string
+  executionPhase?: string,
+  errorMessage?: string
 ): boolean {
   try {
     let plan: Record<string, unknown>;
@@ -280,6 +281,11 @@ export function persistPlanStatusAndReasonSync(
     }
     if (executionPhase) {
       plan.executionPhase = executionPhase;
+    }
+    if (errorMessage) {
+      plan.errorMessage = errorMessage;
+    } else {
+      delete plan.errorMessage;
     }
     plan.updated_at = new Date().toISOString();
 

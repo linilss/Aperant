@@ -285,8 +285,9 @@ export class TaskStateManager {
         projectId: project.id
       });
 
-      this.persistStatus(task, project, status, reviewReason, stateValue, executionPhase);
-      this.emitStatus(taskId, status, reviewReason, project.id);
+      const errorMessage = snapshot.context.error;
+      this.persistStatus(task, project, status, reviewReason, stateValue, executionPhase, errorMessage);
+      this.emitStatus(taskId, status, reviewReason, project.id, errorMessage);
     });
 
     actor.start();
@@ -300,10 +301,11 @@ export class TaskStateManager {
     status: TaskStatus,
     reviewReason?: ReviewReason,
     xstateState?: string,
-    executionPhase?: string
+    executionPhase?: string,
+    errorMessage?: string
   ): void {
     const mainPlanPath = getPlanPath(project, task);
-    persistPlanStatusAndReasonSync(mainPlanPath, status, reviewReason, project.id, xstateState, executionPhase);
+    persistPlanStatusAndReasonSync(mainPlanPath, status, reviewReason, project.id, xstateState, executionPhase, errorMessage);
 
     const worktreePath = findTaskWorktree(project.path, task.specId);
     if (!worktreePath) return;
@@ -316,7 +318,7 @@ export class TaskStateManager {
       AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN
     );
     if (existsSync(worktreePlanPath)) {
-      persistPlanStatusAndReasonSync(worktreePlanPath, status, reviewReason, project.id, xstateState, executionPhase);
+      persistPlanStatusAndReasonSync(worktreePlanPath, status, reviewReason, project.id, xstateState, executionPhase, errorMessage);
     }
   }
 
@@ -331,7 +333,8 @@ export class TaskStateManager {
     taskId: string,
     status: TaskStatus,
     reviewReason: ReviewReason | undefined,
-    projectId?: string
+    projectId?: string,
+    errorMessage?: string
   ): void {
     if (!this.getMainWindow) {
       console.warn(`[TaskStateManager] emitStatus: No main window, cannot emit status ${status} for ${taskId}`);
@@ -344,7 +347,8 @@ export class TaskStateManager {
       taskId,
       status,
       projectId,
-      reviewReason
+      reviewReason,
+      errorMessage
     );
   }
 

@@ -618,6 +618,14 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                   />
                 </div>
               )}
+
+              {/* Error details banner */}
+              {task.reviewReason === 'errors' && task.errorMessage && (
+                <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+                  <p className="text-sm font-medium text-destructive mb-1">Error</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{task.errorMessage}</p>
+                </div>
+              )}
             </div>
 
             {/* Body - Single Column with Tabs */}

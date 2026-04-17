@@ -258,6 +258,7 @@ async function runSessionViaCLI(
   projectDir: string,
   modelId: string,
   abortSignal: AbortSignal,
+  configDir?: string,
 ): Promise<SessionResult> {
   const startTime = Date.now();
 
@@ -286,10 +287,16 @@ async function runSessionViaCLI(
 
   const combinedPrompt = `${systemPrompt}\n\n${kickoffMessage}`;
 
+  // Merge profile env so the CLI subprocess uses the correct account
+  const cliEnv: Record<string, string | undefined> = { ...process.env };
+  if (configDir) {
+    cliEnv.CLAUDE_CONFIG_DIR = configDir;
+  }
+
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env,
+    env: cliEnv,
   });
 
   child.stdin.write(combinedPrompt, 'utf-8');
@@ -631,99 +638,30 @@ async function run(): Promise<void> {
  */
 async function runDefaultSession(
   session: SerializableSessionConfig,
-  toolContext: ToolContext,
-  registry: ToolRegistry,
+  _toolContext: ToolContext,
+  _registry: ToolRegistry,
 ): Promise<void> {
-  const model = createProvider({
-    config: {
-      provider: session.provider as SupportedProvider,
-      apiKey: session.apiKey,
-      baseURL: session.baseURL,
-      oauthTokenFilePath: session.oauthTokenFilePath,
-    },
-    modelId: session.modelId,
-  });
+  postLog(`Running ${session.agentType} session via CLI`);
 
-  const tools: Record<string, AITool> = {
-    ...registry.getToolsForAgent(session.agentType, toolContext),
-    ...(mergeMcpTools(mcpClients) as Record<string, AITool>),
-  };
+  const kickoffMessage = session.initialMessages?.[0]?.content
+    ? typeof session.initialMessages[0].content === 'string'
+      ? session.initialMessages[0].content
+      : 'Proceed as described in your system prompt.'
+    : 'Proceed as described in your system prompt.';
 
-  // Resolve context window limit from model metadata
-  const contextWindowLimit = getModelContextWindow(session.modelId);
+  const result = await runSessionViaCLI(
+    session.agentType,
+    session.systemPrompt,
+    kickoffMessage,
+    session.projectDir,
+    session.modelId,
+    abortController.signal,
+    session.configDir,
+  );
 
-  const sessionConfig: SessionConfig = {
-    agentType: session.agentType,
-    model,
-    systemPrompt: session.systemPrompt,
-    initialMessages: session.initialMessages,
-    toolContext,
-    maxSteps: session.maxSteps,
-    thinkingLevel: session.thinkingLevel,
-    abortSignal: abortController.signal,
-    specDir: session.specDir,
-    projectDir: session.projectDir,
-    phase: session.phase,
-    modelShorthand: session.modelShorthand,
-    sessionNumber: session.sessionNumber,
-    subtaskId: session.subtaskId,
-    contextWindowLimit,
-  };
-
-  // Start phase logging for default session
-  const defaultPhase: Phase = session.phase ?? 'coding';
-  if (logWriter) {
-    logWriter.startPhase(defaultPhase);
+  if (result.outcome === 'error' && result.error) {
+    postError(`Session failed: ${result.error.message}`);
   }
-
-  let result: SessionResult | undefined;
-  try {
-    result = await runContinuableSession(sessionConfig, {
-      tools,
-      onEvent: (event: StreamEvent) => {
-        // Write stream events to task_logs.json for UI log display
-        if (logWriter) {
-          logWriter.processEvent(event, defaultPhase);
-        }
-        postMessage({
-          type: 'stream-event',
-          taskId: config.taskId,
-          data: event,
-          projectId: config.projectId,
-        });
-      },
-      onAuthRefresh: session.configDir
-        ? () => refreshOAuthTokenReactive(session.configDir as string)
-        : undefined,
-      onModelRefresh: session.configDir
-        ? (newToken: string) => createProvider({
-            config: {
-              provider: session.provider as SupportedProvider,
-              apiKey: newToken,
-              baseURL: session.baseURL,
-            },
-            modelId: session.modelId,
-          })
-        : undefined,
-    }, {
-      contextWindowLimit,
-      apiKey: session.apiKey,
-      baseURL: session.baseURL,
-      oauthTokenFilePath: session.oauthTokenFilePath,
-    });
-  } finally {
-    if (logWriter) {
-      const success = result?.outcome === 'completed' || result?.outcome === 'max_steps' || result?.outcome === 'context_window';
-      logWriter.endPhase(defaultPhase, success ?? false);
-    }
-  }
-
-  postMessage({
-    type: 'result',
-    taskId: config.taskId,
-    data: result as SessionResult,
-    projectId: config.projectId,
-  });
 }
 
 /** Map ExecutionPhase to Phase for log writer. Returns undefined for non-loggable phases. */
@@ -776,6 +714,7 @@ async function runBuildOrchestrator(
         runConfig.projectDir,
         session.modelId,
         abortController.signal,
+        session.configDir,
       );
     },
   });
@@ -944,6 +883,7 @@ async function runQALoop(
         runConfig.projectDir,
         session.modelId,
         abortController.signal,
+        session.configDir,
       );
     },
   });
@@ -1053,25 +993,14 @@ async function runSpecOrchestrator(
         runConfig.projectIndex,
         runConfig.specPhase,
       );
-      // Spec agents can only write to the spec directory
-      const specToolContext: ToolContext = {
-        ...toolContext,
-        allowedWritePaths: [session.specDir],
-      };
-      return runSingleSession(
+      return runSessionViaCLI(
         runConfig.agentType,
-        runConfig.phase,
         runConfig.systemPrompt,
-        runConfig.specDir,
-        runConfig.projectDir,
-        runConfig.sessionNumber,
-        undefined,
-        session,
-        specToolContext,
-        registry,
         kickoffMessage,
-        true, // skipPhaseLogging — orchestrator manages phase start/end
-        runConfig.outputSchema,
+        runConfig.projectDir,
+        session.modelId,
+        abortController.signal,
+        session.configDir,
       );
     },
   });

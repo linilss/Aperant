@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { findExecutable } from '../../platform';
+import { getClaudeProfileManager } from '../../claude-profile-manager';
 
 // =============================================================================
 // Constants
@@ -162,12 +163,14 @@ export async function runIdeation(
     '--model', modelId,
   ];
 
+  // Merge active Claude profile env so CLI uses the correct account
+  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
   console.error(`[Ideation CLI] spawning: ${claudePath} ${args.join(' ')} (type: ${ideationType})`);
 
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env,
+    env: { ...process.env, ...profileEnv },
   });
 
   child.stdin.write(combinedPrompt, 'utf-8');

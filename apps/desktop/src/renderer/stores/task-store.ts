@@ -22,7 +22,7 @@ interface TaskState {
   setTasks: (tasks: Task[]) => void;
   addTask: (task: Task) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
-  updateTaskStatus: (taskId: string, status: TaskStatus, reviewReason?: ReviewReason) => void;
+  updateTaskStatus: (taskId: string, status: TaskStatus, reviewReason?: ReviewReason, errorMessage?: string) => void;
   updateTaskFromPlan: (taskId: string, plan: ImplementationPlan) => void;
   updateExecutionProgress: (taskId: string, progress: Partial<ExecutionProgress>) => void;
   appendLog: (taskId: string, log: string) => void;
@@ -267,7 +267,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       };
     }),
 
-  updateTaskStatus: (taskId, status, reviewReason) => {
+  updateTaskStatus: (taskId, status, reviewReason, errorMessage) => {
     // Record activity for stuck detection — status changes prove the task is alive
     recordTaskActivity(taskId);
 
@@ -329,7 +329,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
             newPhase: executionProgress?.phase
           });
 
-          return { ...t, status, reviewReason, executionProgress, updatedAt: new Date() };
+          return { ...t, status, reviewReason, errorMessage, executionProgress, updatedAt: new Date() };
         })
       };
     });

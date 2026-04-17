@@ -20,6 +20,7 @@ import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 import { findExecutable } from '../../platform';
+import { getClaudeProfileManager } from '../../claude-profile-manager';
 
 // =============================================================================
 // Constants
@@ -116,12 +117,15 @@ async function runPhaseViaCLI(
     '--model', modelId,
   ];
 
+  // Merge active Claude profile env (CLAUDE_CONFIG_DIR or CLAUDE_CODE_OAUTH_TOKEN)
+  // so the CLI subprocess uses the correct account, not the system default.
+  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
   console.error(`[Roadmap CLI] spawning: ${claudePath} ${args.join(' ')}`);
 
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env,
+    env: { ...process.env, ...profileEnv },
   });
 
   // Write the prompt to stdin, then close it so the CLI knows input is done

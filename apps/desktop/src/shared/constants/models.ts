@@ -11,8 +11,7 @@ import type { BuiltinProvider } from '../types/provider-account';
 // ============================================
 
 export const AVAILABLE_MODELS = [
-  { value: 'opus-4.7', label: 'Claude Opus 4.7' },
-  { value: 'opus', label: 'Claude Opus 4.6' },
+  { value: 'opus', label: 'Claude Opus 4.7' },
   { value: 'opus-1m', label: 'Claude Opus 4.6 (1M)' },
   { value: 'opus-4.5', label: 'Claude Opus 4.5' },
   { value: 'sonnet', label: 'Claude Sonnet 4.6' },
@@ -39,8 +38,7 @@ export interface ModelOption {
 
 export const ALL_AVAILABLE_MODELS: ModelOption[] = [
   // Anthropic
-  { value: 'opus-4.7', label: 'Claude Opus 4.7', provider: 'anthropic', description: 'Latest & most capable', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
-  { value: 'opus', label: 'Claude Opus 4.6', provider: 'anthropic', description: 'Most capable', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
+  { value: 'opus', label: 'Claude Opus 4.7', provider: 'anthropic', description: 'Latest & most capable', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'opus-1m', label: 'Claude Opus 4.6 (1M)', provider: 'anthropic', description: '1M context', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
   { value: 'sonnet', label: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'opus-4.5', label: 'Claude Opus 4.5', provider: 'anthropic', description: 'Legacy', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
@@ -78,8 +76,8 @@ export const ALL_AVAILABLE_MODELS: ModelOption[] = [
 // Maps model shorthand to actual Claude model IDs
 // Values must match apps/desktop/src/main/ai/config/types.ts MODEL_ID_MAP
 export const MODEL_ID_MAP: Record<string, string> = {
+  opus: 'claude-opus-4-7',
   'opus-4.7': 'claude-opus-4-7',
-  opus: 'claude-opus-4-6',
   'opus-1m': 'claude-opus-4-6',
   'opus-4.5': 'claude-opus-4-5-20251101',
   sonnet: 'claude-sonnet-4-6',
@@ -357,10 +355,10 @@ export function getProviderPresetOrFallback(provider: BuiltinProvider, presetId:
 }
 
 // Models that support Fast Mode (same model, faster API routing, higher cost)
-export const FAST_MODE_MODELS: readonly string[] = ['opus', 'opus-1m'] as const;
+export const FAST_MODE_MODELS: readonly string[] = ['opus', 'opus-4.7', 'opus-1m'] as const;
 
 // Models that use adaptive thinking (Opus dynamically decides how much to think within the budget cap)
-export const ADAPTIVE_THINKING_MODELS: readonly string[] = ['opus', 'opus-1m'] as const;
+export const ADAPTIVE_THINKING_MODELS: readonly string[] = ['opus', 'opus-4.7', 'opus-1m'] as const;
 
 // Valid thinking levels for validation
 export const VALID_THINKING_LEVELS = ['low', 'medium', 'high', 'xhigh'] as const;
@@ -392,7 +390,7 @@ export const MEMORY_BACKENDS = [
 
 export type ReasoningType =
   | 'thinking_tokens'     // Anthropic: budget-based thinking
-  | 'adaptive_effort'     // Anthropic Opus 4.6: effort level + budget cap
+  | 'adaptive_effort'     // Anthropic Opus 4.7+: effort level + budget cap
   | 'reasoning_effort'    // OpenAI o-series: reasoning_effort param
   | 'thinking_toggle'     // Google: thinking enabled/disabled
   | 'none';               // No reasoning/thinking API
@@ -410,7 +408,7 @@ export interface ProviderModelSpec {
 export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinProvider, ProviderModelSpec>>> = {
   // ── Anthropic shorthands ──────────────────────────────────────────────────
   'opus': {
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
     xai: { modelId: 'grok-4-0709', reasoning: { type: 'reasoning_effort', level: 'high' } },
@@ -420,7 +418,7 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   },
   'glm-5': {
     zai: { modelId: 'glm-5', reasoning: { type: 'none' } },
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
   },
   'glm-4.7': {
@@ -458,7 +456,7 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   // ── OpenAI models ─────────────────────────────────────────────────────────
   'gpt-5.3-codex': {
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'gpt-5.2': {
@@ -468,7 +466,7 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   },
   'gpt-5.2-codex': {
     openai: { modelId: 'gpt-5.2-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'gpt-5.1-codex-mini': {
@@ -483,7 +481,7 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   },
   'o3': {
     openai: { modelId: 'o3', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'o4-mini': {
@@ -494,7 +492,7 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   // ── Google models ─────────────────────────────────────────────────────────
   'gemini-2.5-pro': {
     google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
   },
   'gemini-2.5-flash': {
@@ -505,7 +503,7 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   // ── xAI models ────────────────────────────────────────────────────────────
   'grok-4-0709': {
     xai: { modelId: 'grok-4-0709', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
     openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
   },
   'grok-3-mini': {

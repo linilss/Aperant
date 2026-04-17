@@ -35,8 +35,8 @@ export type Phase = 'spec' | 'planning' | 'coding' | 'qa';
  * - apps/desktop/src/shared/constants/models.ts MODEL_ID_MAP
  */
 export const MODEL_ID_MAP: Record<ModelShorthand, string> = {
+  opus: 'claude-opus-4-7',
   'opus-4.7': 'claude-opus-4-7',
-  opus: 'claude-opus-4-6',
   'opus-1m': 'claude-opus-4-6',
   'opus-4.5': 'claude-opus-4-5-20251101',
   sonnet: 'claude-sonnet-4-6',
@@ -192,7 +192,7 @@ function detectProviderFromModelId(modelId: string): SupportedProvider | undefin
  * Build provider-specific providerOptions for thinking/reasoning tokens.
  * Used by the runner to pass thinking configuration to streamText().
  *
- * @param modelId - Full model ID (e.g., 'claude-opus-4-6', 'o3-mini', 'gemini-2.5-pro')
+ * @param modelId - Full model ID (e.g., 'claude-opus-4-7', 'o3-mini', 'gemini-2.5-pro')
  * @param thinkingLevel - Configured thinking level
  * @returns Provider-specific options object, or undefined if provider doesn't support thinking
  */

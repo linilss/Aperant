@@ -259,6 +259,7 @@ export interface Task {
   description: string;
   status: TaskStatus;
   reviewReason?: ReviewReason;  // Why task needs human review (only set when status is 'human_review')
+  errorMessage?: string;  // Human-readable error description (set when task fails)
   subtasks: Subtask[];
   qaReport?: QAReport;
   logs: string[];
