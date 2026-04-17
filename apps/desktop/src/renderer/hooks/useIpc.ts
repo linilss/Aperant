@@ -6,6 +6,7 @@ import { useRateLimitStore } from '../stores/rate-limit-store';
 import { useAuthFailureStore } from '../stores/auth-failure-store';
 import { useProjectStore } from '../stores/project-store';
 import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
+import type { TraceEntry } from '../../shared/types/trace-types';
 
 /** Maximum log entries to buffer in the batch queue between flushes (OOM prevention) */
 const MAX_BATCH_QUEUE_LOGS = 100;
@@ -174,6 +175,8 @@ export function useIpcListeners(): void {
   const appendLog = useTaskStore((state) => state.appendLog);
   const batchAppendLogs = useTaskStore((state) => state.batchAppendLogs);
   const setError = useTaskStore((state) => state.setError);
+  const appendTraceEntry = useTaskStore((state) => state.appendTraceEntry);
+  const clearTrace = useTaskStore((state) => state.clearTrace);
 
   // Update module-level store actions reference for batch flushing
   // This ensures flushBatch() always has access to current action implementations
@@ -220,6 +223,11 @@ export function useIpcListeners(): void {
         // Filter by project to prevent multi-project interference
         if (!isTaskForCurrentProject(projectId)) return;
         queueUpdate(taskId, { status, reviewReason, errorMessage });
+
+        // Clear stale trace data when a task restarts
+        if (status === 'in_progress') {
+          clearTrace(taskId);
+        }
 
         // Sync roadmap feature when task completes
         if (status === 'done' || status === 'pr_created') {
@@ -379,6 +387,14 @@ export function useIpcListeners(): void {
       }
     );
 
+    // Agent trace update listener — applied immediately (not batched)
+    const cleanupTraceUpdate = window.electronAPI.onTaskTraceUpdate(
+      (taskId: string, entry: TraceEntry, projectId?: string) => {
+        if (!isTaskForCurrentProject(projectId)) return;
+        appendTraceEntry(taskId, entry);
+      }
+    );
+
     // Cleanup on unmount
     return () => {
       // Flush any pending batched updates before cleanup
@@ -399,8 +415,9 @@ export function useIpcListeners(): void {
       cleanupRateLimit();
       cleanupSDKRateLimit();
       cleanupAuthFailure();
+      cleanupTraceUpdate();
     };
-  }, [appendLog, setError]);
+  }, [appendLog, setError, appendTraceEntry, clearTrace]);
 }
 
 /**

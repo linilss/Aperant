@@ -423,6 +423,10 @@ export function registerAgenteventsHandlers(
     );
   });
 
+  agentManager.on("agent-trace-update", (taskId: string, entry, projectId?: string) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_TRACE_UPDATE, taskId, entry, projectId);
+  });
+
   // ============================================
   // File Watcher Events → Renderer
   // ============================================

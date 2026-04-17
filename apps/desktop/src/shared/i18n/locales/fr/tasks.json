@@ -1,0 +1,15 @@
+{
+  "trace": {
+    "title": "Trace",
+    "step": "Étape",
+    "toolCall": "Appel d'outil",
+    "tokens": "Tokens",
+    "estimatedCost": "Coût estimé",
+    "noEntries": "Aucune entrée de trace pour l'instant",
+    "promptTokens": "Prompt",
+    "completionTokens": "Complétion",
+    "cacheReadTokens": "Cache lu",
+    "totalCost": "Coût total",
+    "steps": "étapes"
+  }
+}

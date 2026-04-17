@@ -356,5 +356,18 @@
   "referenceImages": {
     "title": "Reference Images (optional)",
     "description": "Add visual references like screenshots or designs to help the AI understand your requirements."
+  },
+  "trace": {
+    "title": "Trace",
+    "step": "Step",
+    "toolCall": "Tool Call",
+    "tokens": "Tokens",
+    "estimatedCost": "Est. Cost",
+    "noEntries": "No trace entries yet",
+    "promptTokens": "Prompt",
+    "completionTokens": "Completion",
+    "cacheReadTokens": "Cache read",
+    "totalCost": "Total cost",
+    "steps": "steps"
   }
 }

@@ -101,7 +101,8 @@ export type WorkerMessage =
   | WorkerProgressMessage
   | WorkerStreamEventMessage
   | WorkerResultMessage
-  | WorkerTaskEventMessage;
+  | WorkerTaskEventMessage
+  | WorkerTraceUpdateMessage;
 
 export interface WorkerLogMessage {
   type: 'log';
@@ -142,6 +143,13 @@ export interface WorkerTaskEventMessage {
   type: 'task-event';
   taskId: string;
   data: Record<string, unknown>;
+  projectId?: string;
+}
+
+export interface WorkerTraceUpdateMessage {
+  type: 'trace-update';
+  taskId: string;
+  data: import('../../../shared/types/trace-types').TraceEntry;
   projectId?: string;
 }
 

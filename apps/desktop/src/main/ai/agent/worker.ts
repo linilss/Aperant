@@ -91,6 +91,15 @@ function postError(data: string): void {
   postMessage({ type: 'error', taskId: config.taskId, data, projectId: config.projectId });
 }
 
+function buildArgsSummary(toolName: string, args: Record<string, unknown>): string {
+  const firstValue = Object.values(args)[0];
+  if (typeof firstValue === 'string') {
+    return firstValue.length > 80 ? `${firstValue.slice(0, 80)}…` : firstValue;
+  }
+  const keys = Object.keys(args);
+  return keys.length > 0 ? keys.slice(0, 3).join(', ') : '';
+}
+
 function postTaskEvent(eventType: string, extra?: Record<string, unknown>): void {
   parentPort?.postMessage({
     type: 'task-event',
@@ -508,6 +517,8 @@ async function runSingleSession(
     logWriter.setSubtask(subtaskId);
   }
 
+  let lastToolCallInStep: { toolName: string; args: Record<string, unknown> } | null = null;
+
   const runnerOptions = {
     tools,
     onEvent: (event: StreamEvent) => {
@@ -522,6 +533,35 @@ async function runSingleSession(
         data: event,
         projectId: config.projectId,
       });
+      // Trace accumulation: capture last tool call per step
+      if (event.type === 'tool-call') {
+        lastToolCallInStep = { toolName: event.toolName, args: event.args };
+      } else if (event.type === 'step-finish') {
+        const stepToolName = lastToolCallInStep?.toolName ?? '(no tool)';
+        const stepArgs = lastToolCallInStep?.args ?? {};
+        const argsSummary = buildArgsSummary(stepToolName, stepArgs);
+        lastToolCallInStep = null;
+        postMessage({
+          type: 'trace-update',
+          taskId: config.taskId,
+          projectId: config.projectId,
+          data: {
+            stepNumber: event.stepNumber,
+            toolName: stepToolName,
+            argsSummary,
+            durationMs: 0,
+            usage: {
+              promptTokens: event.usage.promptTokens,
+              completionTokens: event.usage.completionTokens,
+              totalTokens: event.usage.totalTokens,
+              thinkingTokens: event.usage.thinkingTokens,
+              cacheReadTokens: event.usage.cacheReadTokens,
+              cacheCreationTokens: event.usage.cacheCreationTokens,
+            },
+            timestamp: Date.now(),
+          },
+        });
+      }
     },
     onAuthRefresh: baseSession.configDir
       ? () => refreshOAuthTokenReactive(baseSession.configDir as string)
@@ -1188,6 +1228,8 @@ async function runAgenticSpecOrchestrator(
     logWriter.startPhase('spec', 'Agentic spec orchestration');
   }
 
+  let lastToolCallInStep: { toolName: string; args: Record<string, unknown> } | null = null;
+
   let result: SessionResult | undefined;
   try {
     result = await runContinuableSession(sessionConfig, {
@@ -1202,6 +1244,35 @@ async function runAgenticSpecOrchestrator(
           data: event,
           projectId: config.projectId,
         });
+        // Trace accumulation: capture last tool call per step
+        if (event.type === 'tool-call') {
+          lastToolCallInStep = { toolName: event.toolName, args: event.args };
+        } else if (event.type === 'step-finish') {
+          const stepToolName = lastToolCallInStep?.toolName ?? '(no tool)';
+          const stepArgs = lastToolCallInStep?.args ?? {};
+          const argsSummary = buildArgsSummary(stepToolName, stepArgs);
+          lastToolCallInStep = null;
+          postMessage({
+            type: 'trace-update',
+            taskId: config.taskId,
+            projectId: config.projectId,
+            data: {
+              stepNumber: event.stepNumber,
+              toolName: stepToolName,
+              argsSummary,
+              durationMs: 0,
+              usage: {
+                promptTokens: event.usage.promptTokens,
+                completionTokens: event.usage.completionTokens,
+                totalTokens: event.usage.totalTokens,
+                thinkingTokens: event.usage.thinkingTokens,
+                cacheReadTokens: event.usage.cacheReadTokens,
+                cacheCreationTokens: event.usage.cacheCreationTokens,
+              },
+              timestamp: Date.now(),
+            },
+          });
+        }
       },
       onAuthRefresh: session.configDir
         ? () => refreshOAuthTokenReactive(session.configDir as string)
