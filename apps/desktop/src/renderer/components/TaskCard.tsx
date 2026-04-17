@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, MoreVertical, Upload, Check } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, MoreVertical, Upload, Check } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -31,7 +31,10 @@ import {
   JSON_ERROR_PREFIX,
   JSON_ERROR_TITLE_SUFFIX
 } from '../../shared/constants';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { Input } from './ui/input';
 import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue } from '../stores/task-store';
+import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
 
@@ -228,12 +231,20 @@ export const TaskCard = memo(function TaskCard({
     };
   }, [task.id, isRunning]);
 
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [baseBranchInput, setBaseBranchInput] = useState('');
+
   const handleStartStop = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isRunning) {
-      // Allow stopping both running and stuck tasks
-      // User should be able to force-stop a stuck task
       stopTask(task.id);
+    } else if (task.status === 'backlog' || task.status === 'in_progress') {
+      // Show branch confirmation before starting
+      const activeProject = useProjectStore.getState().projects.find(
+        p => p.id === task.projectId
+      );
+      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+      setShowBranchModal(true);
     } else {
       const result = await startTaskOrQueue(task.id);
       if (!result.success) {
@@ -245,6 +256,23 @@ export const TaskCard = memo(function TaskCard({
       } else if (result.action === 'queued') {
         toast({ title: t('tasks:queue.movedToQueue') });
       }
+    }
+  };
+
+  const handleConfirmBranch = async () => {
+    setShowBranchModal(false);
+    await window.electronAPI.updateTask(task.id, {
+      metadata: { ...task.metadata, baseBranch: baseBranchInput || 'dev' },
+    });
+    const result = await startTaskOrQueue(task.id);
+    if (!result.success) {
+      toast({
+        title: t('tasks:wizard.errors.startFailed'),
+        description: result.error,
+        variant: 'destructive',
+      });
+    } else if (result.action === 'queued') {
+      toast({ title: t('tasks:queue.movedToQueue') });
     }
   };
 
@@ -362,6 +390,7 @@ export const TaskCard = memo(function TaskCard({
   const isArchived = !!task.metadata?.archivedAt;
 
   return (
+    <>
     <Card
       className={cn(
         'card-surface task-card-enhanced cursor-pointer',
@@ -702,5 +731,49 @@ export const TaskCard = memo(function TaskCard({
         </div>
       </CardContent>
     </Card>
+
+    {/* Branch selection modal */}
+    <AlertDialog open={showBranchModal} onOpenChange={setShowBranchModal}>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-primary" />
+            Start Task
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="text-sm text-muted-foreground space-y-3">
+              <p>Which branch should development be based on?</p>
+              <div className="space-y-1">
+                <label htmlFor={`base-branch-${task.id}`} className="text-xs font-medium text-foreground">
+                  Base branch
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                  <Input
+                    id={`base-branch-${task.id}`}
+                    value={baseBranchInput}
+                    onChange={(e) => setBaseBranchInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmBranch(); } }}
+                    placeholder="dev"
+                    className="h-8 font-mono text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => { e.preventDefault(); handleConfirmBranch(); }}
+            disabled={!baseBranchInput.trim()}
+          >
+            <Play className="mr-2 h-4 w-4" />
+            Start Task
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }, taskCardPropsAreEqual);

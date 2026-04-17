@@ -322,6 +322,18 @@ export function registerAgenteventsHandlers(
       phase: task.executionProgress?.phase
     });
 
+    // Guard: if the task is already in a terminal XState state (pr_created, done),
+    // kill the ghost agent process instead of processing more events
+    const currentXState = taskStateManager.getCurrentState(taskId);
+    if (currentXState && ['pr_created', 'done'].includes(currentXState)) {
+      console.warn(
+        `[agent-events-handlers] Ghost agent detected: task ${taskId} is in terminal state '${currentXState}' ` +
+        `but received ${event.type}. Killing ghost process.`
+      );
+      agentManager.killTask(taskId);
+      return;
+    }
+
     const accepted = taskStateManager.handleTaskEvent(taskId, event, task, project);
     console.debug(`[agent-events-handlers] Event ${event.type} accepted: ${accepted}`);
     if (!accepted) {

@@ -111,19 +111,19 @@ export const THINKING_LEVELS = [
 // Phase configurations for each preset profile
 // Each profile has its own default phase models and thinking levels
 
-// Auto (Optimized) - Opus with optimized thinking per phase
+// Auto (Optimized) - Opus for spec/planning/QA, Sonnet for coding
 export const AUTO_PHASE_MODELS: PhaseModelConfig = {
   spec: 'opus',
   planning: 'opus',
-  coding: 'opus',
+  coding: 'sonnet',
   qa: 'opus'
 };
 
 export const AUTO_PHASE_THINKING: import('../types/settings').PhaseThinkingConfig = {
-  spec: 'high',   // Deep thinking for comprehensive spec creation
-  planning: 'high',     // High thinking for planning complex features
-  coding: 'low',        // Faster coding iterations
-  qa: 'low'             // Efficient QA review
+  spec: 'high',       // Deep thinking for comprehensive spec creation
+  planning: 'medium', // Moderate thinking for planning
+  coding: 'medium',   // Balanced coding iterations
+  qa: 'medium'        // Balanced QA review
 };
 
 // Complex Tasks - Opus with high thinking across all phases
@@ -218,7 +218,7 @@ export const DEFAULT_AGENT_PROFILES: AgentProfile[] = [
   {
     id: 'auto',
     name: 'Auto (Optimized)',
-    description: 'Uses Opus across all phases with optimized thinking levels',
+    description: 'Opus for spec, planning & QA — Sonnet for coding',
     model: 'opus',
     thinkingLevel: 'high',
     icon: 'Sparkles',
@@ -279,7 +279,7 @@ export interface ProviderPresetConfig {
  */
 export const PROVIDER_PRESET_DEFINITIONS: Partial<Record<BuiltinProvider, Record<string, ProviderPresetConfig>>> = {
   anthropic: {
-    auto:     { primaryModel: 'opus',   primaryThinking: 'high',   phaseModels: { spec: 'opus', planning: 'opus', coding: 'opus', qa: 'opus' },         phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
+    auto:     { primaryModel: 'opus',   primaryThinking: 'high',   phaseModels: { spec: 'opus', planning: 'opus', coding: 'sonnet', qa: 'opus' },   phaseThinking: { spec: 'high', planning: 'medium', coding: 'medium', qa: 'medium' } },
     complex:  { primaryModel: 'opus',   primaryThinking: 'high',   phaseModels: { spec: 'opus', planning: 'opus', coding: 'opus', qa: 'opus' },         phaseThinking: { spec: 'high', planning: 'high', coding: 'high', qa: 'high' } },
     balanced: { primaryModel: 'sonnet', primaryThinking: 'medium', phaseModels: { spec: 'sonnet', planning: 'sonnet', coding: 'sonnet', qa: 'sonnet' }, phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
     quick:    { primaryModel: 'haiku',  primaryThinking: 'low',    phaseModels: { spec: 'haiku', planning: 'haiku', coding: 'haiku', qa: 'haiku' },     phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
