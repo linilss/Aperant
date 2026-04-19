@@ -45,6 +45,9 @@ export const IPC_CHANNELS = {
   TASK_GET_MERGE_INFO: 'task:getMergeInfo',               // Get branch info before confirming merge
   TASK_POST_MERGE_PUSH: 'task:postMergePush',             // Push target branch to origin after merge
   TASK_POST_MERGE_CLEANUP: 'task:postMergeCleanup',       // Delete feature branch (local + remote) after merge
+  TASK_WORKTREE_SYNC: 'task:worktreeSync',               // Sync a single worktree with its base branch
+  TASK_WORKTREE_SYNC_ALL: 'task:worktreeSyncAll',        // Sync all other worktrees after merge
+  TASK_WORKTREE_SYNC_PROGRESS: 'task:worktreeSyncProgress', // Event: sync progress (main → renderer)
   TASK_RESET: 'task:reset',                              // Delete branch/worktree and reset status to backlog
 
   // Task refine (grill-me style AI session for a task)

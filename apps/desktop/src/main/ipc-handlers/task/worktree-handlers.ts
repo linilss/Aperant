@@ -1577,6 +1577,64 @@ Prefer keeping all changes from both sides unless they directly contradict.`,
   }
 }
 
+/**
+ * Sync a worktree with its base branch by merging origin/{baseBranch}.
+ * Uses AI conflict resolution if merge conflicts arise.
+ * Returns success/failure with details.
+ */
+async function syncWorktreeWithBase(
+  worktreePath: string,
+  baseBranch: string,
+  projectPath: string,
+): Promise<{ success: boolean; message: string; hadConflicts: boolean }> {
+  // Check for dirty working tree
+  try {
+    const status = execFileSync(getToolPath('git'), ['status', '--porcelain'], {
+      cwd: worktreePath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 10000
+    }).trim();
+    if (status) {
+      return { success: false, message: 'Worktree has uncommitted changes', hadConflicts: false };
+    }
+  } catch {
+    return { success: false, message: 'Could not check worktree status', hadConflicts: false };
+  }
+
+  // Fetch latest from origin
+  try {
+    execFileSync(getToolPath('git'), ['fetch', 'origin', baseBranch], {
+      cwd: projectPath, encoding: 'utf-8', env: getIsolatedGitEnv(), timeout: 30000
+    });
+  } catch {
+    // Non-fatal — may already be up to date
+  }
+
+  // Merge origin/{baseBranch} into the feature branch
+  try {
+    execFileSync(getToolPath('git'), ['merge', `origin/${baseBranch}`, '--no-edit'], {
+      cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv(), timeout: 30000
+    });
+    return { success: true, message: 'Up to date', hadConflicts: false };
+  } catch {
+    // Merge produced conflicts — resolve with AI
+    try {
+      await resolveGitConflictsWithAI(worktreePath);
+      execFileSync(getToolPath('git'), ['merge', '--continue', '--no-edit'], {
+        cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv(), timeout: 30000
+      });
+      return { success: true, message: 'Synced with AI conflict resolution', hadConflicts: true };
+    } catch (resolveErr) {
+      // AI couldn't resolve — abort the merge
+      try {
+        execFileSync(getToolPath('git'), ['merge', '--abort'], {
+          cwd: worktreePath, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 10000
+        });
+      } catch { /* ignore */ }
+      const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      return { success: false, message: `Could not resolve conflicts: ${msg}`, hadConflicts: true };
+    }
+  }
+}
+
 function autoDetectMergeTarget(projectPath: string, specDir: string, projectMainBranch?: string): string {
   // 1. Task metadata override
   const taskBaseBranch = getTaskBaseBranch(specDir);
@@ -2900,6 +2958,93 @@ export function registerWorktreeHandlers(
         return { success: true, data: { cleaned: true } };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Cleanup failed' };
+      }
+    }
+  );
+
+  // =============================================================================
+  // Worktree Sync (update with base branch)
+  // =============================================================================
+
+  /**
+   * Sync a single worktree with its base branch.
+   * Fetches origin, merges origin/{baseBranch} into the feature branch,
+   * and resolves any conflicts with the AI conflict resolver.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.TASK_WORKTREE_SYNC,
+    async (_, taskId: string): Promise<IPCResult<import('../../../shared/types/task').WorktreeSyncResult>> => {
+      try {
+        const { task, project } = findTaskAndProject(taskId);
+        if (!task || !project) return { success: false, error: 'Task not found' };
+
+        const worktreePath = findTaskWorktree(project.path, task.specId);
+        if (!worktreePath || !existsSync(worktreePath) || !isGitWorkTree(worktreePath)) {
+          return { success: true, data: { specId: task.specId, success: false, message: 'No worktree found', hadConflicts: false } };
+        }
+
+        const baseBranch = getEffectiveBaseBranch(project.path, task.specId, project.settings?.mainBranch);
+        const result = await syncWorktreeWithBase(worktreePath, baseBranch, project.path);
+        return { success: true, data: { specId: task.specId, ...result } };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Sync failed' };
+      }
+    }
+  );
+
+  /**
+   * Sync all worktrees for a project with their base branches (excluding a specific task).
+   * Used after merging a task to bring other in-progress worktrees up to date.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.TASK_WORKTREE_SYNC_ALL,
+    async (_, projectId: string, excludeSpecId: string): Promise<IPCResult<import('../../../shared/types/task').WorktreeSyncAllResult>> => {
+      try {
+        const project = projectStore.getProject(projectId);
+        if (!project) return { success: false, error: 'Project not found' };
+
+        const worktreesDir = getTaskWorktreeDir(project.path);
+        if (!existsSync(worktreesDir)) {
+          return { success: true, data: { results: [], totalSynced: 0, totalFailed: 0 } };
+        }
+
+        const dirs = readdirSync(worktreesDir, { withFileTypes: true })
+          .filter(d => d.isDirectory() && d.name !== excludeSpecId);
+
+        const results: import('../../../shared/types/task').WorktreeSyncResult[] = [];
+        const mainWindow = getMainWindow();
+
+        for (let i = 0; i < dirs.length; i++) {
+          const dir = dirs[i];
+          const wtPath = path.join(worktreesDir, dir.name);
+
+          // Emit progress
+          if (mainWindow) {
+            mainWindow.webContents.send(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS,
+              { specId: dir.name, status: 'syncing', index: i, total: dirs.length });
+          }
+
+          if (!isGitWorkTree(wtPath)) {
+            results.push({ specId: dir.name, success: false, message: 'Not a valid worktree', hadConflicts: false });
+            continue;
+          }
+
+          const baseBranch = getEffectiveBaseBranch(project.path, dir.name, project.settings?.mainBranch);
+          const result = await syncWorktreeWithBase(wtPath, baseBranch, project.path);
+          results.push({ specId: dir.name, ...result });
+
+          // Emit completion for this worktree
+          if (mainWindow) {
+            mainWindow.webContents.send(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS,
+              { specId: dir.name, status: result.success ? 'done' : 'failed', index: i, total: dirs.length });
+          }
+        }
+
+        const totalSynced = results.filter(r => r.success).length;
+        const totalFailed = results.filter(r => !r.success).length;
+        return { success: true, data: { results, totalSynced, totalFailed } };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Sync all failed' };
       }
     }
   );

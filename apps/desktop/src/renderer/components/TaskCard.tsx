@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, MoreVertical, Upload, Check } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -286,6 +286,26 @@ export const TaskCard = memo(function TaskCard({
     }
     setIsRecovering(false);
   };
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncWorktree = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSyncing(true);
+    const result = await window.electronAPI.syncWorktree(task.id);
+    setIsSyncing(false);
+    if (result.success && result.data) {
+      toast({
+        title: result.data.success ? 'Worktree synced' : 'Sync failed',
+        description: result.data.message,
+        variant: result.data.success ? 'default' : 'destructive',
+      });
+    } else {
+      toast({ title: 'Sync failed', description: result.error, variant: 'destructive' });
+    }
+  };
+
+  const hasWorktree = task.location === 'worktree' || ['in_progress', 'ai_review', 'human_review', 'pending_merge'].includes(task.status);
 
   const handleArchive = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -622,6 +642,22 @@ export const TaskCard = memo(function TaskCard({
               </Button>
             ) : task.status === 'human_review' ? (
               <div className="flex items-center gap-1.5">
+                {hasWorktree && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleSyncWorktree}
+                    disabled={isSyncing}
+                    title="Merge latest base branch into this worktree"
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                  </Button>
+                )}
                 {isPushed === true ? (
                   <span className="flex items-center gap-1 text-xs text-green-500 font-medium">
                     <Check className="h-3 w-3" />
@@ -680,6 +716,21 @@ export const TaskCard = memo(function TaskCard({
               >
                 <Archive className="mr-1.5 h-3 w-3" />
                 {t('actions.archive')}
+              </Button>
+            ) : task.status === 'pending_merge' ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                onClick={handleSyncWorktree}
+                disabled={isSyncing}
+                title="Merge latest base branch into this worktree"
+              >
+                {isSyncing ? (
+                  <><Loader2 className="mr-1.5 h-3 w-3 animate-spin" />Rebasing...</>
+                ) : (
+                  <><RefreshCw className="mr-1.5 h-3 w-3" />Rebase</>
+                )}
               </Button>
             ) : (task.status === 'backlog' || task.status === 'in_progress') && (
               <Button

@@ -67,6 +67,9 @@ export interface TaskAPI {
   mergeWorktreePreview: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>>;
   postMergePush: (taskId: string, targetBranch: string) => Promise<IPCResult<{ pushed: boolean }>>;
   postMergeCleanup: (taskId: string) => Promise<IPCResult<{ cleaned: boolean }>>;
+  syncWorktree: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>>;
+  syncAllWorktrees: (projectId: string, excludeSpecId: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncAllResult>>;
+  onWorktreeSyncProgress: (callback: (progress: { specId: string; status: string; index: number; total: number }) => void) => () => void;
   resetTask: (taskId: string) => Promise<IPCResult<{ reset: boolean }>>;
   discardWorktree: (taskId: string, skipStatusChange?: boolean) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
   discardOrphanedWorktree: (projectId: string, specName: string) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
@@ -196,6 +199,24 @@ export const createTaskAPI = (): TaskAPI => ({
 
   postMergeCleanup: (taskId: string): Promise<IPCResult<{ cleaned: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_POST_MERGE_CLEANUP, taskId),
+
+  syncWorktree: (taskId: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC, taskId),
+
+  syncAllWorktrees: (projectId: string, excludeSpecId: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncAllResult>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC_ALL, projectId, excludeSpecId),
+
+  onWorktreeSyncProgress: (
+    callback: (progress: { specId: string; status: string; index: number; total: number }) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { specId: string; status: string; index: number; total: number }): void => {
+      callback(progress);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS, handler);
+    };
+  },
 
   resetTask: (taskId: string): Promise<IPCResult<{ reset: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_RESET, taskId),

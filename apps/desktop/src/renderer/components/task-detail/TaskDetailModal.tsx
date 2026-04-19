@@ -33,6 +33,7 @@ import {
   GitMerge,
   Sparkles,
   GitBranch,
+  RefreshCw,
 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
@@ -90,6 +91,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   const activeProject = useProjectStore(s => s.getActiveProject());
   const showFilesTab = isFilesTabEnabled();
   const [showRefinePanel, setShowRefinePanel] = useState<false | 'interactive' | 'auto'>(false);
+  const [isSyncingWorktree, setIsSyncingWorktree] = useState(false);
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [baseBranchInput, setBaseBranchInput] = useState('');
   const progressPercent = calculateProgress(task.subtasks);
@@ -263,6 +265,21 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     onOpenChange(false);
   };
 
+  const handleSyncWorktree = async () => {
+    setIsSyncingWorktree(true);
+    const result = await window.electronAPI.syncWorktree(task.id);
+    setIsSyncingWorktree(false);
+    if (result.success && result.data) {
+      toast({
+        title: result.data.success ? 'Worktree synced' : 'Sync failed',
+        description: result.data.message,
+        variant: result.data.success ? 'default' : 'destructive',
+      });
+    } else {
+      toast({ title: 'Sync failed', description: result.error, variant: 'destructive' });
+    }
+  };
+
   const handleMergeButtonClick = async () => {
     state.setWorkspaceError(null);
     try {
@@ -426,9 +443,26 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             </button>
           )}
           <Button
+            variant="outline"
+            onClick={handleSyncWorktree}
+            disabled={isSyncingWorktree || state.isMerging}
+          >
+            {isSyncingWorktree ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Rebasing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Rebase
+              </>
+            )}
+          </Button>
+          <Button
             variant="default"
             onClick={handleMergeButtonClick}
-            disabled={state.isMerging}
+            disabled={state.isMerging || isSyncingWorktree}
             className="bg-teal-600 hover:bg-teal-700 text-white"
           >
             {state.isMerging ? (

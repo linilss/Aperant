@@ -527,6 +527,20 @@ export interface WorktreeListResult {
   worktrees: WorktreeListItem[];
 }
 
+// Worktree sync (update with base branch)
+export interface WorktreeSyncResult {
+  specId: string;
+  success: boolean;
+  message: string;
+  hadConflicts: boolean;
+}
+
+export interface WorktreeSyncAllResult {
+  results: WorktreeSyncResult[];
+  totalSynced: number;
+  totalFailed: number;
+}
+
 // Stuck task recovery types
 export interface StuckTaskInfo {
   taskId: string;
