@@ -1527,7 +1527,7 @@ function getEffectiveBaseBranch(projectPath: string, specId: string, projectMain
  * 2. Sends each file's content to the AI for resolution
  * 3. Writes the resolved content back and stages the file
  *
- * After this returns, call `git merge --continue --no-edit` to finish.
+ * After this returns, call `git merge --continue` (with GIT_EDITOR=true) to finish.
  *
  * @param cwd - Directory containing the git repo (worktree or main project)
  * @param onProgress - Optional progress callback
@@ -1618,8 +1618,19 @@ async function syncWorktreeWithBase(
     // Merge produced conflicts — resolve with AI
     try {
       await resolveGitConflictsWithAI(worktreePath);
-      execFileSync(getToolPath('git'), ['merge', '--continue', '--no-edit'], {
-        cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv(), timeout: 30000
+
+      // Check if any files are still unmerged after AI resolution
+      const remaining = execFileSync(
+        getToolPath('git'), ['diff', '--name-only', '--diff-filter=U'],
+        { cwd: worktreePath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 10000 }
+      ).trim();
+      if (remaining) {
+        // Some files couldn't be resolved — abort
+        throw new Error(`AI could not resolve conflicts in: ${remaining.split('\n').join(', ')}`);
+      }
+
+      execFileSync(getToolPath('git'), ['merge', '--continue'], {
+        cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }, timeout: 30000
       });
       return { success: true, message: 'Synced with AI conflict resolution', hadConflicts: true };
     } catch (resolveErr) {
@@ -2232,8 +2243,8 @@ export function registerWorktreeHandlers(
                 emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
                 try {
                   await resolveGitConflictsWithAI(worktreePath, (msg) => emitProgress('resolving', 45, msg));
-                  execFileSync(getToolPath('git'), ['merge', '--continue', '--no-edit'], {
-                    cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv()
+                  execFileSync(getToolPath('git'), ['merge', '--continue'], {
+                    cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
                   });
                 } catch (resolveErr) {
                   try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: worktreePath, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
@@ -2263,8 +2274,8 @@ export function registerWorktreeHandlers(
                   emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
                   try {
                     await resolveGitConflictsWithAI(project.path, (msg) => emitProgress('resolving', 45, msg));
-                    execFileSync(getToolPath('git'), ['merge', '--continue', '--no-edit'], {
-                      cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
+                    execFileSync(getToolPath('git'), ['merge', '--continue'], {
+                      cwd: project.path, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
                     });
                   } catch (resolveErr) {
                     try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
@@ -2973,7 +2984,7 @@ export function registerWorktreeHandlers(
    */
   ipcMain.handle(
     IPC_CHANNELS.TASK_WORKTREE_SYNC,
-    async (_, taskId: string): Promise<IPCResult<import('../../../shared/types/task').WorktreeSyncResult>> => {
+    async (_, taskId: string, targetBranch?: string): Promise<IPCResult<import('../../../shared/types/task').WorktreeSyncResult>> => {
       try {
         const { task, project } = findTaskAndProject(taskId);
         if (!task || !project) return { success: false, error: 'Task not found' };
@@ -2983,7 +2994,7 @@ export function registerWorktreeHandlers(
           return { success: true, data: { specId: task.specId, success: false, message: 'No worktree found', hadConflicts: false } };
         }
 
-        const baseBranch = getEffectiveBaseBranch(project.path, task.specId, project.settings?.mainBranch);
+        const baseBranch = targetBranch || getEffectiveBaseBranch(project.path, task.specId, project.settings?.mainBranch);
         const result = await syncWorktreeWithBase(worktreePath, baseBranch, project.path);
         return { success: true, data: { specId: task.specId, ...result } };
       } catch (error) {

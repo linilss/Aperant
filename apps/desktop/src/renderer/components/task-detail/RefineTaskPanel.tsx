@@ -132,7 +132,7 @@ export function RefineTaskPanel({ taskId, taskTitle, autoMode = false, onClose }
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border shadow-xl flex flex-col z-[70]">
+    <div data-refine-panel className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border shadow-xl flex flex-col z-[70]">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border electron-no-drag">
         <div className="flex items-center gap-2 min-w-0">
@@ -251,9 +251,30 @@ export function RefineTaskPanel({ taskId, taskTitle, autoMode = false, onClose }
       {/* Footer */}
       <div className="shrink-0 px-4 py-3 border-t border-border">
         {autoMode ? (
-          /* Auto mode: status + close */
+          /* Auto mode: status + optional reply + close */
           <div className="space-y-2">
-            <Button variant="outline" className="w-full" onClick={onClose} disabled={isProcessing}>
+            {/* Show input if AI finished without producing a refined description (e.g., asked a question) */}
+            {!isProcessing && !refinedDescription && messages.length > 0 && (
+              <div className="flex gap-2">
+                <Textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Reply to continue..."
+                  className="resize-none text-sm min-h-[40px] max-h-[80px]"
+                  rows={1}
+                />
+                <Button
+                  size="icon"
+                  onClick={handleSend}
+                  disabled={!inputText.trim()}
+                  className="shrink-0 h-10 w-10"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <Button variant="outline" className="w-full" onClick={onClose}>
               {isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

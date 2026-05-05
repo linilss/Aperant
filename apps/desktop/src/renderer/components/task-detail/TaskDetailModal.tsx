@@ -92,6 +92,8 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   const showFilesTab = isFilesTabEnabled();
   const [showRefinePanel, setShowRefinePanel] = useState<false | 'interactive' | 'auto'>(false);
   const [isSyncingWorktree, setIsSyncingWorktree] = useState(false);
+  const [showRebaseBranchModal, setShowRebaseBranchModal] = useState(false);
+  const [rebaseBranchInput, setRebaseBranchInput] = useState('');
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [baseBranchInput, setBaseBranchInput] = useState('');
   const progressPercent = calculateProgress(task.subtasks);
@@ -265,18 +267,24 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     onOpenChange(false);
   };
 
-  const handleSyncWorktree = async () => {
+  const handleSyncWorktree = () => {
+    setRebaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+    setShowRebaseBranchModal(true);
+  };
+
+  const handleConfirmRebase = async () => {
+    setShowRebaseBranchModal(false);
     setIsSyncingWorktree(true);
-    const result = await window.electronAPI.syncWorktree(task.id);
+    const result = await window.electronAPI.syncWorktree(task.id, rebaseBranchInput || 'dev');
     setIsSyncingWorktree(false);
     if (result.success && result.data) {
       toast({
-        title: result.data.success ? 'Worktree synced' : 'Sync failed',
-        description: result.data.message,
+        title: result.data.success ? 'Worktree rebased' : 'Rebase failed',
+        description: result.data.message + (result.data.hadConflicts ? ' (conflicts resolved by AI)' : ''),
         variant: result.data.success ? 'default' : 'destructive',
       });
     } else {
-      toast({ title: 'Sync failed', description: result.error, variant: 'destructive' });
+      toast({ title: 'Rebase failed', description: result.error, variant: 'destructive' });
     }
   };
 
@@ -531,12 +539,26 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             className={cn(
               'fixed inset-0 z-50 bg-black/60',
               'data-[state=open]:animate-in data-[state=closed]:animate-out',
-              'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+              'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+              showRefinePanel && 'pointer-events-none'
             )}
           />
 
           {/* Full-height centered modal content */}
           <DialogPrimitive.Content
+            onPointerDownOutside={(e) => {
+              // Prevent dialog close when interacting with the refine panel (fixed-positioned outside dialog bounds)
+              const target = e.target as HTMLElement;
+              if (target.closest('[data-refine-panel]')) {
+                e.preventDefault();
+              }
+            }}
+            onFocusOutside={(e) => {
+              const target = e.target as HTMLElement;
+              if (target.closest('[data-refine-panel]')) {
+                e.preventDefault();
+              }
+            }}
             className={cn(
               'fixed left-[50%] top-4 z-50',
               'translate-x-[-50%]',
@@ -1008,6 +1030,52 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             >
               <Play className="mr-2 h-4 w-4" />
               Start Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rebase Branch Picker */}
+      <AlertDialog open={showRebaseBranchModal} onOpenChange={setShowRebaseBranchModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Rebase Worktree
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                <p>Merge the latest commits from a branch into this worktree.</p>
+                <div className="space-y-1">
+                  <label htmlFor="rebase-branch-input" className="text-xs font-medium text-foreground">
+                    Source branch
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                    <Input
+                      id="rebase-branch-input"
+                      value={rebaseBranchInput}
+                      onChange={(e) => setRebaseBranchInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmRebase(); } }}
+                      placeholder="dev"
+                      className="h-8 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Conflicts will be resolved automatically by AI if possible.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmRebase(); }}
+              disabled={!rebaseBranchInput.trim()}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Rebase
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

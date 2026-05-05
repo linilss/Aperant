@@ -201,7 +201,7 @@ export function registerTaskRefineHandlers(
       let greeting: string;
 
       if (autoMode) {
-        greeting = `You are refining a task specification for this codebase. Do NOT ask questions — explore the codebase autonomously, make informed decisions, and produce a comprehensive refined specification.
+        greeting = `You are refining a task specification for this codebase. You MUST work completely autonomously. NEVER ask the user any questions — not even one. If you are unsure about something, explore the codebase to find the answer yourself. If you still can't determine the answer, make the best decision based on what you've learned and document your assumption.
 
 **Task:** ${task.title}
 
@@ -211,7 +211,10 @@ ${task.description || '(no description provided)'}
 Steps:
 1. Explore relevant source files to understand the codebase context, patterns, and conventions
 2. Identify all requirements, acceptance criteria, edge cases, and technical constraints
-3. Produce a complete, refined task description
+3. Make informed decisions about any ambiguities — do NOT ask the user
+4. Produce a complete, refined task description
+
+CRITICAL: You must NOT end your response with a question. You must produce the refined description below. If you encounter ambiguity, state your assumption and move on.
 
 At the end of your response, output the final refined description inside this exact XML block (plain markdown text, no code fences):
 
@@ -219,7 +222,7 @@ At the end of your response, output the final refined description inside this ex
 [full refined task description here — comprehensive requirements, acceptance criteria, technical details, edge cases]
 </refined_description>
 
-Proceed autonomously — no questions.`;
+Proceed now. No questions. Produce the refined description.`;
       } else {
         greeting = `I need to implement a task in this codebase:
 

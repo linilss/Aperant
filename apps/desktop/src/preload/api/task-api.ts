@@ -67,7 +67,7 @@ export interface TaskAPI {
   mergeWorktreePreview: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>>;
   postMergePush: (taskId: string, targetBranch: string) => Promise<IPCResult<{ pushed: boolean }>>;
   postMergeCleanup: (taskId: string) => Promise<IPCResult<{ cleaned: boolean }>>;
-  syncWorktree: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>>;
+  syncWorktree: (taskId: string, targetBranch?: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>>;
   syncAllWorktrees: (projectId: string, excludeSpecId: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncAllResult>>;
   onWorktreeSyncProgress: (callback: (progress: { specId: string; status: string; index: number; total: number }) => void) => () => void;
   resetTask: (taskId: string) => Promise<IPCResult<{ reset: boolean }>>;
@@ -200,8 +200,8 @@ export const createTaskAPI = (): TaskAPI => ({
   postMergeCleanup: (taskId: string): Promise<IPCResult<{ cleaned: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_POST_MERGE_CLEANUP, taskId),
 
-  syncWorktree: (taskId: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC, taskId),
+  syncWorktree: (taskId: string, targetBranch?: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC, taskId, targetBranch),
 
   syncAllWorktrees: (projectId: string, excludeSpecId: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncAllResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC_ALL, projectId, excludeSpecId),
