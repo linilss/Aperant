@@ -59,6 +59,11 @@ export const IPC_CHANNELS = {
   TASK_REFINE_COMPLETE: 'task:refine:complete',
   TASK_REFINE_ERROR: 'task:refine:error',
   TASK_REFINE_APPLIED: 'task:refine:applied',
+  TASK_REFINE_TERMINAL_START: 'task:refine:terminalStart',  // Start embedded terminal for refine pipeline
+  TASK_REFINE_PHASE_CHANGE: 'task:refine:phaseChange',      // Phase transition event (main → renderer)
+  TASK_REFINE_SKIP_PHASE: 'task:refine:skipPhase',          // Skip current refine phase
+  TASK_REFINE_GET_SESSION: 'task:refine:getSession',        // Get refine session state
+  TASK_REFINE_RESET_SESSION: 'task:refine:resetSession',    // Delete refine session and start fresh
 
   TASK_WORKTREE_DISCARD: 'task:worktreeDiscard',
   TASK_WORKTREE_DISCARD_ORPHAN: 'task:worktreeDiscardOrphan',  // Delete orphaned worktree by spec name (no task association)

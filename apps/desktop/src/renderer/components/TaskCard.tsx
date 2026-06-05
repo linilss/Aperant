@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -108,6 +108,7 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
     prevTask.metadata?.complexity === nextTask.metadata?.complexity &&
     prevTask.metadata?.archivedAt === nextTask.metadata?.archivedAt &&
     prevTask.metadata?.prUrl === nextTask.metadata?.prUrl &&
+    prevTask.metadata?.refined === nextTask.metadata?.refined &&
     // Check if any subtask statuses changed (compare all subtasks)
     prevTask.subtasks.every((s, i) => s.status === nextTask.subtasks[i]?.status)
   );
@@ -532,6 +533,16 @@ export const TaskCard = memo(function TaskCard({
               >
                 <Zap className="h-2.5 w-2.5" />
                 {t('metadata.fastMode')}
+              </Badge>
+            )}
+            {/* Refined badge */}
+            {task.metadata?.refined && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                Refined
               </Badge>
             )}
             {/* Category badge with icon */}

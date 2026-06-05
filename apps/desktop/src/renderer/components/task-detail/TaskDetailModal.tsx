@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useToast } from '../../hooks/use-toast';
@@ -43,7 +43,7 @@ import { useProjectStore } from '../../stores/project-store';
 import { TASK_STATUS_LABELS } from '../../../shared/constants';
 import { TaskEditDialog } from '../TaskEditDialog';
 import { useTaskDetail } from './hooks/useTaskDetail';
-import { RefineTaskPanel } from './RefineTaskPanel';
+import { RefineTerminalTab } from './RefineTerminalTab';
 import { TaskMetadata } from './TaskMetadata';
 import { TaskWarnings } from './TaskWarnings';
 import { TaskSubtasks } from './TaskSubtasks';
@@ -90,7 +90,11 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   const state = useTaskDetail({ task });
   const activeProject = useProjectStore(s => s.getActiveProject());
   const showFilesTab = isFilesTabEnabled();
-  const [showRefinePanel, setShowRefinePanel] = useState<false | 'interactive' | 'auto'>(false);
+  const [refineTerminalMode, setRefineTerminalMode] = useState<false | 'interactive' | 'auto'>(false);
+  const [refineCompleted, setRefineCompleted] = useState(false);
+  const [showRefineBranchModal, setShowRefineBranchModal] = useState(false);
+  const [refineBranchInput, setRefineBranchInput] = useState('');
+  const [pendingRefineMode, setPendingRefineMode] = useState<'interactive' | 'auto'>('interactive');
   const [isSyncingWorktree, setIsSyncingWorktree] = useState(false);
   const [showRebaseBranchModal, setShowRebaseBranchModal] = useState(false);
   const [rebaseBranchInput, setRebaseBranchInput] = useState('');
@@ -99,6 +103,18 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   const progressPercent = calculateProgress(task.subtasks);
   const completedSubtasks = task.subtasks.filter(s => s.status === 'completed').length;
   const totalSubtasks = task.subtasks.length;
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI?.taskRefineGetSession(task.id).then((result) => {
+      if (cancelled) return;
+      if (result?.success && result.data) {
+        const session = (result.data as { session: { completedPhases: string[] } }).session;
+        setRefineCompleted(session?.completedPhases?.length >= 4);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [task.id]);
 
   // Event Handlers
   const handleStartStop = async () => {
@@ -148,6 +164,21 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     } else if (result.action === 'queued') {
       toast({ title: t('tasks:queue.movedToQueue') });
     }
+  };
+
+  const handleStartRefine = (mode: 'interactive' | 'auto') => {
+    setPendingRefineMode(mode);
+    setRefineBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+    setShowRefineBranchModal(true);
+  };
+
+  const handleConfirmRefineBranch = async () => {
+    setShowRefineBranchModal(false);
+    await window.electronAPI.updateTask(task.id, {
+      metadata: { ...task.metadata, baseBranch: refineBranchInput || 'dev' },
+    });
+    setRefineTerminalMode(pendingRefineMode);
+    state.setActiveTab('refine');
   };
 
   const handleRecover = async () => {
@@ -539,26 +570,12 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             className={cn(
               'fixed inset-0 z-50 bg-black/60',
               'data-[state=open]:animate-in data-[state=closed]:animate-out',
-              'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-              showRefinePanel && 'pointer-events-none'
+              'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
             )}
           />
 
           {/* Full-height centered modal content */}
           <DialogPrimitive.Content
-            onPointerDownOutside={(e) => {
-              // Prevent dialog close when interacting with the refine panel (fixed-positioned outside dialog bounds)
-              const target = e.target as HTMLElement;
-              if (target.closest('[data-refine-panel]')) {
-                e.preventDefault();
-              }
-            }}
-            onFocusOutside={(e) => {
-              const target = e.target as HTMLElement;
-              if (target.closest('[data-refine-panel]')) {
-                e.preventDefault();
-              }
-            }}
             className={cn(
               'fixed left-[50%] top-4 z-50',
               'translate-x-[-50%]',
@@ -714,6 +731,14 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                       {t('tasks:files.tab')}
                     </TabsTrigger>
                   )}
+                  {refineTerminalMode && (
+                    <TabsTrigger
+                      value="refine"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    >
+                      Refine
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
                 {/* Overview Tab */}
@@ -798,6 +823,18 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                     <TaskFiles task={task} />
                   </TabsContent>
                 )}
+
+                {refineTerminalMode && (
+                  <TabsContent value="refine" className="flex-1 min-h-0 overflow-hidden mt-0">
+                    <RefineTerminalTab
+                      taskId={task.id}
+                      taskTitle={task.title}
+                      taskDescription={task.description || ''}
+                      autoMode={refineTerminalMode === 'auto'}
+                      isActive={state.activeTab === 'refine'}
+                    />
+                  </TabsContent>
+                )}
               </Tabs>
             </div>
 
@@ -827,23 +864,29 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
               {/* Refine buttons — visible for backlog/in_progress tasks when not running */}
               {(task.status === 'backlog' || task.status === 'in_progress') && !state.isRunning && (
                 <>
+                  {refineCompleted && (
+                    <Badge variant="outline" className="text-success border-success/30 bg-success/10 gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Refined
+                    </Badge>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRefinePanel('interactive')}
+                    onClick={() => handleStartRefine('interactive')}
                     className="gap-1.5"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    Refine
+                    {refineCompleted ? 'Re-refine' : 'Refine'}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRefinePanel('auto')}
+                    onClick={() => handleStartRefine('auto')}
                     className="gap-1.5"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    Auto-refine
+                    {refineCompleted ? 'Re-auto-refine' : 'Auto-refine'}
                   </Button>
                 </>
               )}
@@ -1035,6 +1078,49 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Refine Branch Picker */}
+      <AlertDialog open={showRefineBranchModal} onOpenChange={setShowRefineBranchModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-primary" />
+              Refine Task
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                <p>Which branch should the AI explore when refining this task?</p>
+                <div className="space-y-1">
+                  <label htmlFor="refine-branch-input" className="text-xs font-medium text-foreground">
+                    Base branch
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                    <Input
+                      id="refine-branch-input"
+                      value={refineBranchInput}
+                      onChange={(e) => setRefineBranchInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmRefineBranch(); } }}
+                      placeholder="dev"
+                      className="h-8 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmRefineBranch(); }}
+              disabled={!refineBranchInput.trim()}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {pendingRefineMode === 'auto' ? 'Auto-refine' : 'Refine'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Rebase Branch Picker */}
       <AlertDialog open={showRebaseBranchModal} onOpenChange={setShowRebaseBranchModal}>
         <AlertDialogContent>
@@ -1157,15 +1243,6 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Refine Panel (interactive or auto) */}
-      {showRefinePanel && (
-        <RefineTaskPanel
-          taskId={task.id}
-          taskTitle={task.title}
-          autoMode={showRefinePanel === 'auto'}
-          onClose={() => setShowRefinePanel(false)}
-        />
-      )}
     </TooltipProvider>
   );
 }

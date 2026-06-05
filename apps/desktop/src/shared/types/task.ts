@@ -246,6 +246,10 @@ export interface TaskMetadata {
   useLocalBranch?: boolean;  // If true, use the local branch directly instead of preferring origin/branch (preserves gitignored files)
   pushNewBranches?: boolean;  // If false, keep the task branch local-only instead of auto-pushing to origin
 
+  // Refine pipeline
+  refined?: boolean;  // True when the mega-groom refine pipeline has completed
+  refinedAt?: string;  // ISO date when refine completed
+
   // Archive status
   archivedAt?: string;  // ISO date when task was archived
   archivedInVersion?: string;  // Version in which task was archived (from changelog)

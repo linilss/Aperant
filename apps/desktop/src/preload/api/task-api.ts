@@ -113,6 +113,13 @@ export interface TaskAPI {
   onTaskRefineComplete: (callback: (taskId: string, refinedDescription?: string) => void) => () => void;
   onTaskRefineError: (callback: (taskId: string, error: string) => void) => () => void;
   onTaskRefineApplied: (callback: (taskId: string, projectId: string) => void) => () => void;
+
+  // Task Refine Terminal (mega-groom pipeline)
+  taskRefineTerminalStart: (taskId: string, autoMode?: boolean) => void;
+  taskRefineSkipPhase: (taskId: string) => void;
+  taskRefineGetSession: (taskId: string) => Promise<IPCResult<{ session: unknown } | null>>;
+  taskRefineResetSession: (taskId: string) => Promise<IPCResult>;
+  onTaskRefinePhaseChange: (callback: (taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>) => void) => () => void;
 }
 
 export const createTaskAPI = (): TaskAPI => ({
@@ -458,5 +465,28 @@ export const createTaskAPI = (): TaskAPI => ({
     const handler = (_: unknown, taskId: string, projectId: string) => callback(taskId, projectId);
     ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);
+  },
+
+  // Task Refine Terminal (mega-groom pipeline)
+  taskRefineTerminalStart: (taskId: string, autoMode?: boolean): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_TERMINAL_START, taskId, autoMode),
+
+  taskRefineSkipPhase: (taskId: string): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_SKIP_PHASE, taskId),
+
+  taskRefineGetSession: (taskId: string): Promise<IPCResult<{ session: unknown } | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_GET_SESSION, taskId),
+
+  taskRefineResetSession: (taskId: string): Promise<IPCResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_RESET_SESSION, taskId),
+
+  onTaskRefinePhaseChange: (
+    callback: (taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>): void => {
+      callback(taskId, phase, phaseIndex, phases);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_PHASE_CHANGE, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_PHASE_CHANGE, handler); };
   },
 });

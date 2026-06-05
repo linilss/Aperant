@@ -587,6 +587,21 @@ export class ProjectStore {
           }
         }
 
+        // Detect refined status from refine_session.json if not already set in metadata
+        if (!metadata?.refined) {
+          const refineSessionPath = path.join(specPath, 'refine_session.json');
+          if (existsSync(refineSessionPath)) {
+            try {
+              const session = JSON.parse(readFileSync(refineSessionPath, 'utf-8'));
+              if (session?.completedPhases?.length >= 4) {
+                if (!metadata) metadata = {};
+                metadata.refined = true;
+                metadata.refinedAt = session.updatedAt;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+
         // Determine task status and review reason from plan
         // For JSON errors, store just the raw error - renderer will use i18n to format
         const finalDescription = hasJsonError
