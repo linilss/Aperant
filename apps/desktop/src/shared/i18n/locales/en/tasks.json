@@ -21,7 +21,8 @@
     "viewPR": "View PR",
     "moveTo": "Move to",
     "taskActions": "Task actions",
-    "selectTask": "Select task: {{title}}"
+    "selectTask": "Select task: {{title}}",
+    "resumeNow": "Resume now"
   },
   "labels": {
     "running": "Running",
@@ -32,7 +33,11 @@
     "incomplete": "Incomplete",
     "recovering": "Recovering...",
     "needsRecovery": "Needs Recovery",
-    "needsResume": "Needs Resume"
+    "needsResume": "Needs Resume",
+    "rateLimited": "Rate limited",
+    "rateLimitedUntil": "Rate limited · {{time}}",
+    "rateLimitedHint": "Skip the wait and continue now — use after switching to an account with capacity",
+    "resumeFailed": "Could not resume task"
   },
   "reviewReason": {
     "completed": "Completed",
@@ -138,7 +143,10 @@
       "saved": "Queue settings saved",
       "saveFailed": "Failed to save queue settings",
       "retry": "Please try again"
-    }
+    },
+    "capacity": "{{active}} of {{max}} parallel slots in use",
+    "capacityWithPaused": "{{active}} of {{max}} parallel slots in use · {{paused}} paused on a rate limit (no slot held)",
+    "heldByRateLimit": "Holding — a task is paused on a rate limit, so starting more would hit the same limit. Resumes automatically."
   },
   "execution": {
     "phases": {
@@ -182,7 +190,8 @@
     "severity": "severity",
     "pullRequest": "Pull Request",
     "showMore": "Show more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "fastModeDescription": "Same Opus model with faster output. Higher cost per token."
   },
   "images": {
     "removeImageAriaLabel": "Remove image {{filename}}",
@@ -261,7 +270,7 @@
     "requireReviewLabel": "Require human review before coding",
     "requireReviewDescription": "When enabled, you'll be prompted to review the spec and implementation plan before the coding phase begins. This allows you to approve, request changes, or provide feedback.",
     "fastModeLabel": "Fast Mode",
-    "fastModeDescription": "Same Opus 4.6 model with faster output. Higher cost per token.",
+    "fastModeDescription": "Same Opus model with faster output. Higher cost per token.",
     "fastModeNotice": "Requires \"extra usage\" enabled on your Claude subscription.",
     "errors": {
       "descriptionRequired": "Please provide a description",

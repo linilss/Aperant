@@ -9,7 +9,7 @@
  * Each task runs in an isolated worktree at:
  *   {projectPath}/.malvy/worktrees/tasks/{specId}/
  * on branch:
- *   malvy/{specId}
+ *   {branchPrefix}{specId}   (default prefix: malvy/)
  *
  * The function is idempotent — calling it repeatedly with the same specId
  * returns the existing worktree without error.
@@ -22,6 +22,11 @@ import { join, resolve } from 'path';
 import { promisify } from 'util';
 
 import { getSpecsDir } from '../../../shared/constants';
+import {
+  getTaskBranchCandidates,
+  getTaskBranchName,
+  type TaskBranchSettings,
+} from '../../../shared/utils/task-branch';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -80,6 +85,8 @@ export interface WorktreeResult {
  *                        tracking after worktree creation. Defaults to true.
  * @param autoBuildPath  Optional custom data directory (e.g. ".malvy").
  *                       Passed to getSpecsDir() for spec-copy logic.
+ * @param branchSettings Project settings providing the task branch prefix.
+ *                       An existing branch with a legacy prefix is reused.
  */
 export async function createOrGetWorktree(
   projectPath: string,
@@ -88,9 +95,10 @@ export async function createOrGetWorktree(
   useLocalBranch = false,
   pushNewBranches = true,
   autoBuildPath?: string,
+  branchSettings?: TaskBranchSettings | null,
 ): Promise<WorktreeResult> {
   const worktreePath = join(projectPath, '.malvy/worktrees/tasks', specId);
-  const branchName = `malvy/${specId}`;
+  let branchName = getTaskBranchName(specId, branchSettings);
 
   // ------------------------------------------------------------------
   // Step 1: Prune stale worktree references from git's internal records
@@ -105,6 +113,15 @@ export async function createOrGetWorktree(
     const isRegistered = await isWorktreeRegistered(worktreePath, projectPath);
 
     if (isRegistered) {
+      // Report the branch actually checked out (may use a legacy prefix)
+      const checkedOut = await git(
+        ['rev-parse', '--abbrev-ref', 'HEAD'],
+        worktreePath,
+        /* allowFailure */ true,
+      );
+      if (checkedOut && checkedOut !== 'HEAD') {
+        branchName = checkedOut;
+      }
       console.warn(
         `[WorktreeManager] Using existing worktree: ${specId} on branch ${branchName}`,
       );
@@ -137,12 +154,21 @@ export async function createOrGetWorktree(
   // ------------------------------------------------------------------
   // Step 4: Check whether the target branch already exists locally
   // ------------------------------------------------------------------
-  const branchListOutput = await git(
-    ['branch', '--list', branchName],
-    projectPath,
-    /* allowFailure */ true,
-  );
-  const branchExists = branchListOutput.includes(branchName);
+  // Try the configured name first, then legacy prefixes, so a task branch
+  // created before the prefix changed keeps being used.
+  let branchExists = false;
+  for (const candidate of getTaskBranchCandidates(specId, branchSettings)) {
+    const branchListOutput = await git(
+      ['branch', '--list', candidate],
+      projectPath,
+      /* allowFailure */ true,
+    );
+    if (branchListOutput.includes(candidate)) {
+      branchName = candidate;
+      branchExists = true;
+      break;
+    }
+  }
 
   // ------------------------------------------------------------------
   // Step 5: Fetch latest from remote (non-fatal — remote may not exist)

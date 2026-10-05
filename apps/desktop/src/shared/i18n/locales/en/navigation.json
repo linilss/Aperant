@@ -1,7 +1,11 @@
 {
   "sections": {
-    "project": "Project",
-    "tools": "Tools"
+    "understand": "Understand",
+    "plan": "Plan",
+    "build": "Build",
+    "review": "Review",
+    "ship": "Ship",
+    "configure": "Configure"
   },
   "items": {
     "kanban": "Kanban Board",
@@ -9,6 +13,7 @@
     "agents": "Agents",
     "skills": "Skills",
     "insights": "Insights",
+    "moscow": "MoSCoW",
     "roadmap": "Roadmap",
     "ideation": "Ideation",
     "changelog": "Changelog",
@@ -21,14 +26,13 @@
     "azureDevOpsPRs": "Azure PRs",
     "worktrees": "Worktrees",
     "agentTools": "MCP Overview",
-    "tests": "Tests"
+    "tests": "Tests",
+    "deploy": "Deploy"
   },
   "actions": {
     "settings": "Settings",
     "help": "Help & Feedback",
     "newTask": "New Task",
-    "collapseSidebar": "Collapse Sidebar",
-    "expandSidebar": "Expand Sidebar",
     "sponsor": "Sponsor Us"
   },
   "tooltips": {

@@ -34,6 +34,7 @@ export const projectMock = {
   }),
 
   clearProjectData: async () => ({ success: true }),
+  listDeployScripts: async () => ({ success: true, data: [] }),
 
   checkProjectVersion: async () => ({
     success: true,

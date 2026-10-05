@@ -838,7 +838,7 @@ git add . ':!.malvy'
 # 2. Run git status to see what git sees
 # 3. Adjust your paths accordingly
 
-git commit -m "malvy: Complete [subtask-id] - [subtask description]
+git commit -m "[Concise description of the change, imperative mood]
 
 - Files modified: [list]
 - Verification: [type] - passed
@@ -908,7 +908,7 @@ All subtasks completed!
 Workflow type: [type]
 Total phases: [N]
 Total subtasks: [N]
-Branch: malvy/[feature-name]
+Branch: [current git branch]
 
 Ready for human review and merge.
 ```

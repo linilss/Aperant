@@ -40,6 +40,7 @@ import { cn } from '../../lib/utils';
 import { calculateProgress } from '../../lib/utils';
 import { stopTask, submitReview, recoverStuckTask, deleteTask, useTaskStore, startTaskOrQueue } from '../../stores/task-store';
 import { useProjectStore } from '../../stores/project-store';
+import { getTaskBranchName } from '../../../shared/utils/task-branch';
 import { TASK_STATUS_LABELS } from '../../../shared/constants';
 import { TaskEditDialog } from '../TaskEditDialog';
 import { useTaskDetail } from './hooks/useTaskDetail';
@@ -1227,7 +1228,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
           <AlertDialogHeader>
             <AlertDialogTitle>Delete branch?</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete <span className="font-mono">malvy/{task.specId}</span> locally and from remote?
+              Delete <span className="font-mono">{state.mergeInfo?.sourceBranch ?? getTaskBranchName(task.specId, activeProject?.settings)}</span> locally and from remote?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

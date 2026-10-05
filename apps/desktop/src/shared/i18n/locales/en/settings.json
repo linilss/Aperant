@@ -355,7 +355,10 @@
       "title": "General",
       "description": "Auto-Build and agent config",
       "useClaudeMd": "Use CLAUDE.md",
-      "useClaudeMdDescription": "Include CLAUDE.md instructions in agent context"
+      "useClaudeMdDescription": "Include CLAUDE.md instructions in agent context",
+      "branchPrefix": "Task branch prefix",
+      "branchPrefixDescription": "Tasks run on branches named {{example}}. Branches created with the old malvy/ prefix keep working.",
+      "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used."
     },
     "claude": {
       "title": "Claude Auth",

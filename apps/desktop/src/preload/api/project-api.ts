@@ -11,27 +11,19 @@ import type {
   KanbanPreferences,
   GitBranchDetail,
   InfrastructureStatus,
-  MemoryValidationResult
+  MemoryValidationResult,
+  DeployScript,
+  ClaudeDocsListing,
+  DocPointer,
+  CreatePointerInput,
+  DocProposal,
+  ApplyDocProposalsResult,
+  CodeBranch,
+  ProjectSummary,
+  DocsOptimizeOptions,
+  DocsOptimizerResult,
+  BranchProgressEvent
 } from '../../shared/types';
-
-/** Structured documentation generated for a project by the AI documentation runner. */
-export interface ProjectDocumentation {
-  generatedAt: string;
-  projectName: string;
-  overview: string;
-  architecture: string;
-  modules: Array<{
-    name: string;
-    path: string;
-    description: string;
-    responsibilities: string[];
-    keyFiles: string[];
-  }>;
-  apiSurface: string;
-  dataModels: string;
-  developerGuide: string;
-  techStack: string;
-}
 
 // Tab state interface (persisted in main process)
 export interface TabState {
@@ -52,6 +44,7 @@ export interface ProjectAPI {
   initializeProject: (projectId: string) => Promise<IPCResult<InitializationResult>>;
   checkProjectVersion: (projectId: string) => Promise<IPCResult<AutoBuildVersionInfo>>;
   clearProjectData: (projectId: string) => Promise<IPCResult<void>>;
+  listDeployScripts: (projectId: string) => Promise<IPCResult<DeployScript[]>>;
 
   // Tab State (persisted in main process for reliability)
   getTabState: () => Promise<IPCResult<TabState>>;
@@ -68,14 +61,18 @@ export interface ProjectAPI {
   searchMemories: (projectId: string, query: string) => Promise<IPCResult<unknown>>;
   getRecentMemories: (projectId: string, limit?: number) => Promise<IPCResult<unknown>>;
 
-  // Documentation Operations
-  getProjectDocumentation: (projectId: string) => Promise<IPCResult<ProjectDocumentation | null>>;
-  generateProjectDocumentation: (projectId: string) => void;
-  stopProjectDocumentation: (projectId: string) => void;
-  onDocumentationChunk: (cb: (projectId: string, chunk: string) => void) => () => void;
-  onDocumentationToolUse: (cb: (projectId: string, toolName: string) => void) => () => void;
-  onDocumentationComplete: (cb: (projectId: string, doc: ProjectDocumentation) => void) => () => void;
-  onDocumentationError: (cb: (projectId: string, error: string) => void) => () => void;
+  // CLAUDE.md docs tree + optimizer
+  listClaudeDocs: (projectId: string) => Promise<IPCResult<ClaudeDocsListing>>;
+  readClaudeDoc: (projectId: string, relativePath: string) => Promise<IPCResult<string>>;
+  listCodeBranches: (projectId: string) => Promise<IPCResult<CodeBranch[]>>;
+  getProjectSummary: (projectId: string) => Promise<IPCResult<ProjectSummary | null>>;
+  optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) => void;
+  stopClaudeDocsOptimizer: (projectId: string) => void;
+  applyDocProposals: (projectId: string, proposals: DocProposal[]) => Promise<IPCResult<ApplyDocProposalsResult>>;
+  onDocsOptimizerChunk: (cb: (projectId: string, chunk: string) => void) => () => void;
+  onDocsOptimizerBranchProgress: (cb: (projectId: string, progress: BranchProgressEvent) => void) => () => void;
+  onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => () => void;
+  onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => () => void;
 
   // Memory Infrastructure operations (LadybugDB - no Docker required)
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
@@ -87,6 +84,12 @@ export interface ProjectAPI {
   pinMemory: (memoryId: string, pinned: boolean) => Promise<IPCResult<void>>;
   deprecateMemory: (memoryId: string) => Promise<IPCResult<void>>;
   deleteMemory: (memoryId: string) => Promise<IPCResult<void>>;
+
+  // Developer pointers (user_taught memories)
+  listPointers: (projectId: string) => Promise<IPCResult<DocPointer[]>>;
+  createPointer: (projectId: string, input: CreatePointerInput) => Promise<IPCResult<DocPointer>>;
+  updatePointer: (projectId: string, memoryId: string, content: string) => Promise<IPCResult<void>>;
+  deletePointer: (projectId: string, memoryId: string) => Promise<IPCResult<void>>;
 
   // Environment Configuration
   getProjectEnv: (projectId: string) => Promise<IPCResult<ProjectEnvConfig>>;
@@ -197,6 +200,9 @@ export const createProjectAPI = (): ProjectAPI => ({
   clearProjectData: (projectId: string): Promise<IPCResult<void>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_CLEAR_DATA, projectId),
 
+  listDeployScripts: (projectId: string): Promise<IPCResult<DeployScript[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST_DEPLOY_SCRIPTS, projectId),
+
   // Tab State (persisted in main process for reliability)
   getTabState: (): Promise<IPCResult<TabState>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TAB_STATE_GET),
@@ -227,42 +233,54 @@ export const createProjectAPI = (): ProjectAPI => ({
   getRecentMemories: (projectId: string, limit?: number) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_MEMORIES, projectId, limit),
 
-  // Documentation Operations
-  getProjectDocumentation: (projectId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_DOCUMENTATION, projectId),
+  // CLAUDE.md docs tree + optimizer
+  listClaudeDocs: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_LIST, projectId),
 
-  generateProjectDocumentation: (projectId: string) =>
-    ipcRenderer.send(IPC_CHANNELS.CONTEXT_GENERATE_DOCUMENTATION, projectId),
+  readClaudeDoc: (projectId: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_READ, projectId, relativePath),
 
-  stopProjectDocumentation: (projectId: string) =>
-    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCUMENTATION_STOP, projectId),
+  listCodeBranches: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_BRANCHES, projectId),
 
-  onDocumentationChunk: (cb: (projectId: string, chunk: string) => void) => {
+  getProjectSummary: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_SUMMARY, projectId),
+
+  optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) =>
+    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCS_OPTIMIZE, projectId, options),
+
+  stopClaudeDocsOptimizer: (projectId: string) =>
+    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCS_STOP, projectId),
+
+  applyDocProposals: (projectId: string, proposals: DocProposal[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_APPLY, projectId, proposals),
+
+  onDocsOptimizerChunk: (cb: (projectId: string, chunk: string) => void) => {
     const listener = (_: Electron.IpcRendererEvent, projectId: string, chunk: string) =>
       cb(projectId, chunk);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK, listener);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_CHUNK, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_CHUNK, listener);
   },
 
-  onDocumentationToolUse: (cb: (projectId: string, toolName: string) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, projectId: string, toolName: string) =>
-      cb(projectId, toolName);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE, listener);
+  onDocsOptimizerBranchProgress: (cb: (projectId: string, progress: BranchProgressEvent) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, progress: BranchProgressEvent) =>
+      cb(projectId, progress);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_BRANCH_PROGRESS, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_BRANCH_PROGRESS, listener);
   },
 
-  onDocumentationComplete: (cb: (projectId: string, doc: ProjectDocumentation) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, projectId: string, doc: ProjectDocumentation) =>
-      cb(projectId, doc);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE, listener);
+  onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, result: DocsOptimizerResult) =>
+      cb(projectId, result);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_COMPLETE, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_COMPLETE, listener);
   },
 
-  onDocumentationError: (cb: (projectId: string, error: string) => void) => {
+  onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => {
     const listener = (_: Electron.IpcRendererEvent, projectId: string, error: string) =>
       cb(projectId, error);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR, listener);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_ERROR, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_ERROR, listener);
   },
 
   // Memory Management
@@ -277,6 +295,19 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   deleteMemory: (memoryId: string): Promise<IPCResult<void>> =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_MEMORY_DELETE, memoryId),
+
+  // Developer pointers (user_taught memories)
+  listPointers: (projectId: string): Promise<IPCResult<DocPointer[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_POINTERS_LIST, projectId),
+
+  createPointer: (projectId: string, input: CreatePointerInput): Promise<IPCResult<DocPointer>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_MEMORY_CREATE, projectId, input),
+
+  updatePointer: (projectId: string, memoryId: string, content: string): Promise<IPCResult<void>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_MEMORY_UPDATE, projectId, memoryId, content),
+
+  deletePointer: (projectId: string, memoryId: string): Promise<IPCResult<void>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_POINTERS_DELETE, projectId, memoryId),
 
   // Environment Configuration
   getProjectEnv: (projectId: string): Promise<IPCResult<ProjectEnvConfig>> =>

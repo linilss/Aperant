@@ -38,6 +38,8 @@ import {
   JSON_ERROR_PREFIX
 } from '../../../shared/constants';
 import type { Task, TaskCategory } from '../../../shared/types';
+import { getTaskBranchName } from '../../../shared/utils/task-branch';
+import { useProjectStore } from '../../stores/project-store';
 
 // Category icon mapping
 const CategoryIcon: Record<TaskCategory, typeof Target> = {
@@ -61,6 +63,7 @@ const COLLAPSED_HEIGHT = 200;
 
 export function TaskMetadata({ task }: TaskMetadataProps) {
   const { t } = useTranslation(['tasks', 'errors']);
+  const projectSettings = useProjectStore(s => s.projects.find(p => p.id === task.projectId)?.settings);
   const [isExpanded, setIsExpanded] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -311,7 +314,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
                 Worktree
               </h3>
               <span className="text-sm text-foreground/80 font-mono">
-                malvy/{task.specId}
+                {getTaskBranchName(task.specId, projectSettings)}
               </span>
             </div>
           )}

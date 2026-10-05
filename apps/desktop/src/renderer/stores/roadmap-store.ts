@@ -844,7 +844,8 @@ export function generateRoadmap(
 export function refreshRoadmap(
   projectId: string,
   enableCompetitorAnalysis?: boolean,
-  refreshCompetitorAnalysis?: boolean
+  refreshCompetitorAnalysis?: boolean,
+  guidance?: string
 ): void {
   // Debug logging
   if (window.DEBUG) {
@@ -856,7 +857,7 @@ export function refreshRoadmap(
     progress: 0,
     message: 'Refreshing roadmap...'
   });
-  window.electronAPI.refreshRoadmap(projectId, enableCompetitorAnalysis, refreshCompetitorAnalysis);
+  window.electronAPI.refreshRoadmap(projectId, enableCompetitorAnalysis, refreshCompetitorAnalysis, guidance);
 }
 
 export async function stopRoadmap(projectId: string): Promise<boolean> {

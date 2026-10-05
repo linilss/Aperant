@@ -110,6 +110,7 @@ import type {
 import type {
   CompetitorAnalysis,
   Roadmap,
+  RoadmapFeaturePriority,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress
@@ -456,6 +457,11 @@ export interface ElectronAPILegacy {
     projectId: string,
     featureId: string,
     status: RoadmapFeatureStatus
+  ) => Promise<IPCResult>;
+  updateFeaturePriority: (
+    projectId: string,
+    featureId: string,
+    priority: RoadmapFeaturePriority
   ) => Promise<IPCResult>;
   convertFeatureToSpec: (
     projectId: string,

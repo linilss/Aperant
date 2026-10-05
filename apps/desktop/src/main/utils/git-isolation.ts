@@ -15,6 +15,7 @@
 
 import { execFileSync } from 'child_process';
 import { getToolPath } from '../cli-tool-manager';
+import { getTaskBranchCandidates, getTaskBranchName, type TaskBranchSettings } from '../../shared/utils/task-branch';
 
 /**
  * Git environment variables that can cause cross-contamination between worktrees.
@@ -131,6 +132,7 @@ export interface WorktreeBranchDetectionResult {
  * @param options - Optional configuration
  * @param options.timeout - Timeout in milliseconds for git commands (default: 30000)
  * @param options.logPrefix - Prefix for log messages (e.g., "[TASK_UPDATE_STATUS]")
+ * @param options.branchSettings - Project settings providing the task branch prefix
  * @returns Object containing the branch name and whether fallback was used
  *
  * @example
@@ -148,10 +150,12 @@ export interface WorktreeBranchDetectionResult {
 export function detectWorktreeBranch(
   worktreePath: string,
   specId: string,
-  options: { timeout?: number; logPrefix?: string } = {}
+  options: { timeout?: number; logPrefix?: string; branchSettings?: TaskBranchSettings | null } = {}
 ): WorktreeBranchDetectionResult {
-  const { timeout = 30000, logPrefix = '[WORKTREE_BRANCH_DETECTION]' } = options;
-  const expectedBranch = `malvy/${specId}`;
+  const { timeout = 30000, logPrefix = '[WORKTREE_BRANCH_DETECTION]', branchSettings } = options;
+  const expectedBranch = getTaskBranchName(specId, branchSettings);
+  // Exact names this task's branch may have (configured prefix + legacy prefixes)
+  const acceptedBranches = getTaskBranchCandidates(specId, branchSettings);
   let branch = expectedBranch;
   let usingFallback = false;
 
@@ -167,7 +171,7 @@ export function detectWorktreeBranch(
     // accidentally deleting a different task's auto-claude branch. When git rev-parse
     // returns an unexpected branch, we MUST fall back to the expected pattern rather
     // than risking deletion of the wrong branch. This is critical for data safety.
-    if (detectedBranch === expectedBranch) {
+    if (acceptedBranches.includes(detectedBranch)) {
       branch = detectedBranch;
     } else {
       console.warn(`${logPrefix} Detected branch '${detectedBranch}' doesn't match expected branch '${expectedBranch}', using fallback: ${expectedBranch}`);

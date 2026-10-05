@@ -8,6 +8,7 @@ import type { Project, ProjectSettings, Task, TaskStatus, TaskMetadata, Implemen
 import { DEFAULT_PROJECT_SETTINGS, AUTO_BUILD_PATHS, getSpecsDir, JSON_ERROR_PREFIX, JSON_ERROR_TITLE_SUFFIX, TASK_STATUS_PRIORITY } from '../shared/constants';
 import { getAutoBuildPath, isInitialized } from './project-initializer';
 import { getTaskWorktreeDir } from './worktree-paths';
+import { getTaskBranchCandidates } from '../shared/utils/task-branch';
 import { findAllSpecPaths } from './utils/spec-path-helpers';
 import { ensureAbsolutePath } from './utils/path-helpers';
 import { writeFileAtomicSync } from './utils/atomic-file';
@@ -439,7 +440,7 @@ export class ProjectStore {
         task.metadata?.useWorktree !== false &&
         !task.stagedInMainProject
       ) {
-        const candidateBranches = [`malvy/${task.specId}`, `auto-claude/${task.specId}`];
+        const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
         for (const branch of candidateBranches) {
           if (this.isBranchUnmerged(project.path, branch)) {
             task.status = 'pending_merge';

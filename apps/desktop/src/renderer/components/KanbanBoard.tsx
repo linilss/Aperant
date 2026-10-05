@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2 } from 'lucide-react';
+import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2, PauseCircle } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
@@ -29,7 +29,7 @@ import { SortableTaskCard } from './SortableTaskCard';
 import { QueueSettingsModal } from './QueueSettingsModal';
 import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants';
 import { cn } from '../lib/utils';
-import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
+import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, isRateLimitPaused, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
 import { useKanbanSettingsStore, DEFAULT_COLUMN_WIDTH, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, COLLAPSED_COLUMN_WIDTH_REM, MIN_COLUMN_WIDTH_REM, MAX_COLUMN_WIDTH_REM, DEFAULT_COLUMN_WIDTH_REM, BASE_FONT_SIZE, pxToRem } from '../stores/kanban-settings-store';
 import { useToast } from '../hooks/use-toast';
@@ -243,6 +243,16 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
     id: status
   });
 
+  // Rate-limit-paused tasks sit in this column but hold no slot, so the capacity
+  // badge counts them separately from the tasks actually consuming parallelism.
+  const rateLimitPauses = useTaskStore((state) => state.rateLimitPauses);
+  const pausedTaskCount = status === 'in_progress'
+    ? tasks.filter((t) => rateLimitPauses[t.id]).length
+    : 0;
+  const activeTaskCount = tasks.length - pausedTaskCount;
+  // Auto-promotion stands down while any task is parked on a rate limit
+  const isQueueHeldByRateLimit = status === 'queue' && Object.keys(rateLimitPauses).length > 0;
+
   // Calculate selection state for this column
   const taskCount = tasks.length;
   const columnSelectedCount = tasks.filter(t => selectedTaskIds?.has(t.id)).length;
@@ -444,12 +454,27 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
             {t(TASK_STATUS_LABELS[status])}
           </h2>
           {status === 'in_progress' && maxParallelTasks ? (
-            <span className={cn(
-              "column-count-badge",
-              tasks.length >= maxParallelTasks && "bg-warning/20 text-warning border-warning/30"
-            )}>
-              {tasks.length}/{maxParallelTasks}
-            </span>
+            // Count only tasks actually working — paused ones released their slot
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <span className={cn(
+                  "column-count-badge",
+                  activeTaskCount >= maxParallelTasks && "bg-warning/20 text-warning border-warning/30"
+                )}>
+                  {activeTaskCount}/{maxParallelTasks}
+                  {pausedTaskCount > 0 && (
+                    <span className="ml-1 opacity-70">+{pausedTaskCount}</span>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <span>
+                  {pausedTaskCount > 0
+                    ? t('tasks:queue.capacityWithPaused', { active: activeTaskCount, max: maxParallelTasks, paused: pausedTaskCount })
+                    : t('tasks:queue.capacity', { active: activeTaskCount, max: maxParallelTasks })}
+                </span>
+              </TooltipContent>
+            </Tooltip>
           ) : (
             <span className="column-count-badge">
               {tasks.length}
@@ -568,6 +593,15 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-3 min-h-[120px]">
+              {/* Explain why a non-empty queue isn't moving */}
+              {status === 'queue' && tasks.length > 0 && isQueueHeldByRateLimit && (
+                <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
+                  <PauseCircle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
+                  <span className="text-xs text-warning">
+                    {t('tasks:queue.heldByRateLimit')}
+                  </span>
+                </div>
+              )}
               {tasks.length === 0 ? (
                 <div
                   className={cn(
@@ -1101,13 +1135,23 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
       // Loop until capacity is full or queue is empty
       while (true) {
         // Get CURRENT state from store to ensure accuracy
-        const currentTasks = useTaskStore.getState().tasks;
+        const { tasks: currentTasks, rateLimitPauses } = useTaskStore.getState();
+        // Rate-limit-paused tasks are idle, so they don't hold a slot
         const inProgressCount = currentTasks.filter((t) =>
-          t.status === 'in_progress' && !t.metadata?.archivedAt
+          t.status === 'in_progress' && !t.metadata?.archivedAt && !rateLimitPauses[t.id]
         ).length;
         const queuedTasks = currentTasks.filter((t) =>
           t.status === 'queue' && !t.metadata?.archivedAt && !attemptedTaskIds.has(t.id)
         );
+
+        // Don't promote into an exhausted session. A live pause means auto-swap
+        // found no account with capacity, so anything we start now would hit the
+        // same limit and park — draining the queue instead of doing work.
+        // The pause clearing re-triggers this loop via the status change listener.
+        if (isRateLimitPaused()) {
+          console.log('[Queue] Rate limit pause active, holding promotion until it clears');
+          break;
+        }
 
         // Stop if no capacity, no queued tasks, or too many consecutive failures
         if (inProgressCount >= maxParallelTasks || queuedTasks.length === 0) {
@@ -1164,6 +1208,20 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
 
     // Cleanup: unregister listener when component unmounts
     return unregister;
+  }, [processQueue]);
+
+  // Re-run the queue when a rate-limit pause clears: the parked task resumes and
+  // any slots freed while it waited can now be filled.
+  useEffect(() => {
+    return useTaskStore.subscribe((state, prev) => {
+      if (state.rateLimitPauses === prev.rateLimitPauses) return;
+      const cleared =
+        Object.keys(state.rateLimitPauses).length < Object.keys(prev.rateLimitPauses).length;
+      if (cleared) {
+        console.log('[Queue] Rate limit pause cleared, processing queue');
+        processQueue();
+      }
+    });
   }, [processQueue]);
 
   // Get task order actions from store

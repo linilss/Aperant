@@ -93,6 +93,10 @@ export interface TaskAPI {
   onTaskExecutionProgress: (
     callback: (taskId: string, progress: import('../../shared/types').ExecutionProgress, projectId?: string) => void
   ) => () => void;
+  onTaskRateLimitPause: (
+    callback: (taskId: string, info: import('../../shared/types').RateLimitPauseInfo, projectId?: string) => void
+  ) => () => void;
+  onTaskRateLimitResume: (callback: (taskId: string, projectId?: string) => void) => () => void;
 
   // Task Phase Logs
   getTaskLogs: (projectId: string, specId: string) => Promise<IPCResult<TaskLogs | null>>;
@@ -279,6 +283,39 @@ export const createTaskAPI = (): TaskAPI => ({
     ipcRenderer.on(IPC_CHANNELS.TASK_PROGRESS, handler);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.TASK_PROGRESS, handler);
+    };
+  },
+
+  onTaskRateLimitPause: (
+    callback: (taskId: string, info: import('../../shared/types').RateLimitPauseInfo, projectId?: string) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      taskId: string,
+      info: import('../../shared/types').RateLimitPauseInfo,
+      projectId?: string
+    ): void => {
+      callback(taskId, info, projectId);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, handler);
+    };
+  },
+
+  onTaskRateLimitResume: (
+    callback: (taskId: string, projectId?: string) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      taskId: string,
+      projectId?: string
+    ): void => {
+      callback(taskId, projectId);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_RATE_LIMIT_RESUME, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASK_RATE_LIMIT_RESUME, handler);
     };
   },
 

@@ -25,6 +25,12 @@ import {
 import { persistPlanStatus, updateTaskMetadataPrUrl, resetAllSubtasks, clearTaskMetadataForReset } from './plan-file-utils';
 import { getIsolatedGitEnv, refreshGitIndex } from '../../utils/git-isolation';
 import { cleanupWorktree } from '../../utils/worktree-cleanup';
+import { findExistingTaskBranch, resolveTaskBranch } from '../../utils/task-branch-resolver';
+import {
+  getTaskBranchCandidates,
+  isTaskBranch,
+  type TaskBranchSettings
+} from '../../../shared/utils/task-branch';
 import { killProcessGracefully } from '../../platform';
 import { stripAnsiCodes } from '../../../shared/utils/ansi-sanitizer';
 import { taskStateManager } from '../../task-state-manager';
@@ -35,9 +41,10 @@ export const GIT_BRANCH_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*[a-zA-Z0-9]$|^[a-zA
 /**
  * Validates a detected branch name and returns the safe branch to delete.
  *
- * Why `malvy/` prefix is considered safe:
- * - All task worktrees use branches named `malvy/{specId}`
- * - This pattern is controlled by Auto-Claude, not user input
+ * Why the task branch prefix is considered safe:
+ * - All task worktrees use branches named `{branchPrefix}{specId}` (default `malvy/`)
+ * - Legacy prefixes (`malvy/`, `auto-claude/`) are also recognised
+ * - This pattern is controlled by the app, not free-form user input
  * - If detected branch matches this pattern, it's a valid task branch
  * - If it doesn't match (e.g., `main`, `develop`, `feature/xxx`), it's likely
  *   the main project's branch being incorrectly detected from a corrupted worktree
@@ -48,7 +55,8 @@ export const GIT_BRANCH_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*[a-zA-Z0-9]$|^[a-zA
  */
 export function validateWorktreeBranch(
   detectedBranch: string | null,
-  expectedBranch: string
+  expectedBranch: string,
+  branchSettings?: TaskBranchSettings | null
 ): { branchToDelete: string; usedFallback: boolean; reason: string } {
   // If detection failed, use expected pattern
   if (detectedBranch === null) {
@@ -68,9 +76,8 @@ export function validateWorktreeBranch(
     };
   }
 
-  // Matches malvy pattern with valid specId (not just "malvy/")
-  // The specId must be non-empty for this to be a valid task branch
-  if (detectedBranch.startsWith('malvy/') && detectedBranch.length > 'malvy/'.length) {
+  // Matches a task branch prefix (configured or legacy) with a non-empty specId
+  if (isTaskBranch(detectedBranch, branchSettings)) {
     return {
       branchToDelete: detectedBranch,
       usedFallback: false,
@@ -2194,17 +2201,8 @@ export function registerWorktreeHandlers(
         // Cleanup (branch delete, worktree remove) is handled separately by
         // TASK_POST_MERGE_CLEANUP, so the user is prompted before deletion.
         if (options?.quickMerge) {
-          const candidateBranches = [`malvy/${task.specId}`, `auto-claude/${task.specId}`];
-          let featureBranch: string | null = null;
-          for (const b of candidateBranches) {
-            try {
-              execFileSync(getToolPath('git'), ['rev-parse', '--verify', b], {
-                cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-              });
-              featureBranch = b;
-              break;
-            } catch { /* not found, try next */ }
-          }
+          const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
+          const featureBranch = findExistingTaskBranch(project.path, task.specId, project.settings);
           if (!featureBranch) {
             return { success: true, data: { success: false, message: `Feature branch not found (tried: ${candidateBranches.join(', ')})` } };
           }
@@ -2414,10 +2412,7 @@ export function registerWorktreeHandlers(
           emitProgress('analyzing', 10, `${reason} — trying direct branch merge`);
 
           // Try both the current and legacy branch naming conventions
-          const candidateBranches = [
-            `malvy/${task.specId}`,
-            `auto-claude/${task.specId}`,
-          ];
+          const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
 
           for (const branch of candidateBranches) {
             try {
@@ -2546,7 +2541,9 @@ export function registerWorktreeHandlers(
                       env: getIsolatedGitEnv()
                     });
                     if (stagedStat.trim()) {
-                      const commitMsg = task.title ? task.title : `merge malvy/${task.specId}`;
+                      const commitMsg = task.title
+                        ? task.title
+                        : `merge ${resolveTaskBranch(project.path, task.specId, project.settings, worktreePath)}`;
                       execFileSync(getToolPath('git'), ['commit', '-m', commitMsg], {
                         cwd: project.path,
                         encoding: 'utf-8',
@@ -2609,7 +2606,7 @@ export function registerWorktreeHandlers(
 
                     if (!hasActualStagedChanges) {
                       // Check if worktree branch was already merged (merge commit exists)
-                      const specBranch = `malvy/${task.specId}`;
+                      const specBranch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
                       try {
                         // Check if current branch contains all commits from spec branch
                         // git merge-base --is-ancestor returns exit code 0 if true, 1 if false
@@ -2684,6 +2681,7 @@ export function registerWorktreeHandlers(
                     projectPath: project.path,
                     specId: task.specId,
                     logPrefix: '[TASK_WORKTREE_MERGE]',
+                    branchSettings: project.settings,
                     deleteBranch: true
                   });
 
@@ -2887,7 +2885,8 @@ export function registerWorktreeHandlers(
 
         const specDir = path.join(project.path, project.autoBuildPath || '.malvy', 'specs', task.specId);
         const targetBranch = autoDetectMergeTarget(project.path, specDir, project.settings?.mainBranch);
-        const sourceBranch = `malvy/${task.specId}`;
+        const worktreePath = findTaskWorktree(project.path, task.specId);
+        const sourceBranch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
 
         // Count commits ahead of target
         let commitsAhead = 0;
@@ -2900,7 +2899,6 @@ export function registerWorktreeHandlers(
           commitsAhead = Number.parseInt(out, 10) || 0;
         } catch { /* branch may not exist locally — commitsAhead stays 0 */ }
 
-        const worktreePath = findTaskWorktree(project.path, task.specId);
         const hasWorktree = !!(worktreePath && existsSync(worktreePath));
 
         return { success: true, data: { sourceBranch, targetBranch, commitsAhead, hasWorktree } };
@@ -2940,8 +2938,8 @@ export function registerWorktreeHandlers(
         const { task, project } = findTaskAndProject(taskId);
         if (!task || !project) return { success: false, error: 'Task not found' };
 
-        const branch = `malvy/${task.specId}`;
         const worktreePath = findTaskWorktree(project.path, task.specId);
+        const branch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
 
         if (worktreePath && existsSync(worktreePath)) {
           // Remove worktree (also deletes branch via cleanupWorktree)
@@ -2950,6 +2948,7 @@ export function registerWorktreeHandlers(
             projectPath: project.path,
             specId: task.specId,
             logPrefix: '[POST_MERGE_CLEANUP]',
+            branchSettings: project.settings,
             deleteBranch: true
           });
         } else {
@@ -3071,8 +3070,8 @@ export function registerWorktreeHandlers(
         const { task, project } = findTaskAndProject(taskId);
         if (!task || !project) return { success: false, error: 'Task not found' };
 
-        const branch = `malvy/${task.specId}`;
         const worktreePath = findTaskWorktree(project.path, task.specId);
+        const branch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
 
         // 1. Clean up worktree and branch
         if (worktreePath && existsSync(worktreePath)) {
@@ -3081,6 +3080,7 @@ export function registerWorktreeHandlers(
             projectPath: project.path,
             specId: task.specId,
             logPrefix: '[TASK_RESET]',
+            branchSettings: project.settings,
             deleteBranch: true
           });
         } else {
@@ -3289,6 +3289,7 @@ export function registerWorktreeHandlers(
           projectPath: project.path,
           specId: task.specId,
           logPrefix: '[TASK_WORKTREE_DISCARD]',
+          branchSettings: project.settings,
           deleteBranch: true
         });
 
@@ -3381,6 +3382,7 @@ export function registerWorktreeHandlers(
           projectPath: project.path,
           specId: specName,
           logPrefix: '[ORPHAN_CLEANUP]',
+          branchSettings: project.settings,
           deleteBranch: true
         });
 
@@ -3774,8 +3776,8 @@ export function registerWorktreeHandlers(
         // Determine base branch and branch name
         const taskBaseBranch = getTaskBaseBranch(specDir);
         const baseBranch = options?.targetBranch || taskBaseBranch || 'main';
-        const branchName = `malvy/${task.specId}`;
-        const prTitle = options?.title || `malvy: ${task.specId}`;
+        const branchName = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
+        const prTitle = options?.title || task.title || task.specId;
 
         if (taskBaseBranch) {
           debug('Using stored base branch:', taskBaseBranch);

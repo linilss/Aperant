@@ -35,7 +35,8 @@ export interface IdeationAPI {
     callback: (projectId: string, log: string) => void
   ) => IpcListenerCleanup;
   onIdeationComplete: (
-    callback: (projectId: string, session: IdeationSession) => void
+    // null when a run consolidated no ideas — listeners must not clear on it
+    callback: (projectId: string, session: IdeationSession | null) => void
   ) => IpcListenerCleanup;
   onIdeationError: (
     callback: (projectId: string, error: string) => void
@@ -101,7 +102,8 @@ export const createIdeationAPI = (): IdeationAPI => ({
     createIpcListener(IPC_CHANNELS.IDEATION_LOG, callback),
 
   onIdeationComplete: (
-    callback: (projectId: string, session: IdeationSession) => void
+    // null when a run consolidated no ideas — listeners must not clear on it
+    callback: (projectId: string, session: IdeationSession | null) => void
   ): IpcListenerCleanup =>
     createIpcListener(IPC_CHANNELS.IDEATION_COMPLETE, callback),
 

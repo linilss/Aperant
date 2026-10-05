@@ -19,6 +19,17 @@ export type ReviewReason = 'completed' | 'errors' | 'qa_rejected' | 'plan_review
 
 export type SubtaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
+// Live rate-limit pause state for a running task.
+// Mirrors the RATE_LIMIT_PAUSE sentinel file written by the orchestrator when a
+// session hits a provider rate limit. Not persisted on the Task itself — it is
+// tracked in the renderer for as long as the pause file exists on disk, because
+// a paused task only exists while its worker is alive and waiting.
+export interface RateLimitPauseInfo {
+  pausedAt: string;  // ISO date when the pause started
+  resetAt: string | null;  // ISO date when the limit resets, if the provider reported one
+  error: string;  // Provider error message that triggered the pause
+}
+
 // Re-exported from constants - single source of truth
 export type ExecutionPhase = ExecutionPhaseType;
 
@@ -237,7 +248,7 @@ export interface TaskMetadata {
   phaseModels?: PhaseModelConfig;  // Per-phase model configuration
   phaseThinking?: PhaseThinkingConfig;  // Per-phase thinking configuration
   phaseProviders?: Record<string, string>;  // Per-phase provider preference (cross-provider mode)
-  fastMode?: boolean;  // Fast Mode — faster Opus 4.6 output, higher cost per token
+  fastMode?: boolean;  // Fast Mode — faster Opus output, higher cost per token
 
   // Git/Worktree configuration
   baseBranch?: string;  // Override base branch for this task's worktree

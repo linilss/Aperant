@@ -755,8 +755,8 @@ export function setupIdeationListeners(): () => void {
     if (window.DEBUG) {
       console.log('[Ideation] Generation complete:', {
         projectId,
-        totalIdeas: session.ideas.length,
-        ideaTypes: session.ideas.reduce((acc, idea) => {
+        totalIdeas: session?.ideas.length ?? 0,
+        ideaTypes: (session?.ideas ?? []).reduce((acc, idea) => {
           acc[idea.type] = (acc[idea.type] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
@@ -766,7 +766,11 @@ export function setupIdeationListeners(): () => void {
     clearGenerationTimeout(projectId);
 
     store().setIsGenerating(false);
-    store().setSession(session);
+    // A null session means the run consolidated nothing — keep the ideas that
+    // streamed in during the run rather than clearing the view to empty.
+    if (session) {
+      store().setSession(session);
+    }
     store().resetGeneratingTypes('completed');
     store().setGenerationStatus({
       phase: 'complete',

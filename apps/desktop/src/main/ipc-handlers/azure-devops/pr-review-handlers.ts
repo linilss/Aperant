@@ -911,7 +911,7 @@ function buildSummaryComment(review: AzureDevOpsPRReviewResult): string {
     '',
     bySeverity ? `**Findings:** ${bySeverity}` : '**No findings.**',
     '',
-    `*Reviewed at ${new Date(review.reviewedAt).toLocaleString()} by malvy AI*`,
+    `*Reviewed at ${new Date(review.reviewedAt).toLocaleString()}*`,
   ].join('\n');
 }
 

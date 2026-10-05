@@ -48,6 +48,8 @@ export interface ProjectSettings {
   mainBranch?: string;
   /** Whether newly created branches should be pushed to origin and track their remote branch (default: true) */
   pushNewBranches?: boolean;
+  /** Prefix for task branch names, e.g. 'feature/' (default: 'malvy/') */
+  branchPrefix?: string;
   /** Include CLAUDE.md instructions in agent system prompt (default: true) */
   useClaudeMd?: boolean;
   /** Maximum parallel tasks allowed (default: 3) */
@@ -479,6 +481,17 @@ export interface McpTestConnectionResult {
   tools?: string[];
   /** Response time in milliseconds */
   responseTime?: number;
+}
+
+/** A `deploy*.sh` script discovered in a project, described by its leading comment block */
+export interface DeployScript {
+  /** Path relative to the project root, e.g. `deploy.sh` or `apple/deploy-ios.sh` */
+  relativePath: string;
+  name: string;
+  /** Leading `#` comment lines (excluding the shebang and any `Usage:` line) */
+  description: string;
+  /** Text after a `# Usage:` comment line, if present */
+  usage?: string;
 }
 
 // Auto Claude Initialization Types

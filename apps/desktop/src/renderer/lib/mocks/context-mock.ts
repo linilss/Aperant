@@ -2,6 +2,8 @@
  * Mock implementation for context and memory operations
  */
 
+const noop = (): void => undefined;
+
 export const contextMock = {
   getProjectContext: async () => ({
     success: true,
@@ -55,12 +57,22 @@ export const contextMock = {
     success: true
   }),
 
-  // Documentation
-  getProjectDocumentation: async () => ({ success: true, data: null }),
-  generateProjectDocumentation: () => {},
-  stopProjectDocumentation: () => {},
-  onDocumentationChunk: () => () => {},
-  onDocumentationToolUse: () => () => {},
-  onDocumentationComplete: () => () => {},
-  onDocumentationError: () => () => {}
+  // Developer pointers
+  listPointers: async () => ({ success: true, data: [] }),
+  createPointer: async () => ({ success: false, error: 'Not available in browser mock' }),
+  updatePointer: async () => ({ success: true }),
+  deletePointer: async () => ({ success: true }),
+
+  // CLAUDE.md docs tree + optimizer
+  listClaudeDocs: async () => ({ success: true, data: { docs: [], lastOptimizedAt: null } }),
+  readClaudeDoc: async () => ({ success: false, error: 'Not available in browser mock' }),
+  listCodeBranches: async () => ({ success: true, data: [] }),
+  getProjectSummary: async () => ({ success: true, data: null }),
+  optimizeClaudeDocs: noop,
+  stopClaudeDocsOptimizer: noop,
+  applyDocProposals: async () => ({ success: true, data: { applied: [], errors: [] } }),
+  onDocsOptimizerChunk: () => noop,
+  onDocsOptimizerBranchProgress: () => noop,
+  onDocsOptimizerComplete: () => noop,
+  onDocsOptimizerError: () => noop
 };

@@ -8,6 +8,7 @@ import {
 import type {
   IPCResult,
   Roadmap,
+  RoadmapFeaturePriority,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress,
@@ -25,6 +26,11 @@ import { safeSendToRenderer } from "./utils";
 import { writeFileWithRetry, readFileWithRetry } from "../utils/atomic-file";
 import { withFileLock } from "../utils/file-lock";
 import { getActiveProviderFeatureSettings } from "./feature-settings-helper";
+import {
+  applyFeaturePriorityPatch,
+  externalFieldsFromSnakeCase,
+  featureToSnakeCase,
+} from "./roadmap/feature-persistence";
 
 /**
  * Read roadmap feature settings using per-provider resolution
@@ -173,6 +179,7 @@ export function registerRoadmapHandlers(
             taskOutcome: feature.task_outcome,
             previousStatus: feature.previous_status,
             competitorInsightIds: (feature.competitor_insight_ids as string[]) || undefined,
+            ...externalFieldsFromSnakeCase(feature),
           })),
           status: rawRoadmap.status || "draft",
           competitorAnalysis,
@@ -272,13 +279,15 @@ export function registerRoadmapHandlers(
       _,
       projectId: string,
       enableCompetitorAnalysis?: boolean,
-      refreshCompetitorAnalysis?: boolean
+      refreshCompetitorAnalysis?: boolean,
+      guidance?: string
     ) => {
       // Get feature settings for roadmap
       const featureSettings = getFeatureSettings();
       const config: RoadmapConfig = {
         model: featureSettings.model,
         thinkingLevel: featureSettings.thinkingLevel,
+        guidance: guidance?.trim() || undefined,
       };
 
       debugLog("[Roadmap Handler] Refresh request:", {
@@ -369,24 +378,7 @@ export function registerRoadmapHandlers(
           const existingRoadmap = JSON.parse(content);
 
           // Transform camelCase features back to snake_case for JSON file
-          existingRoadmap.features = roadmapData.features.map((feature) => ({
-            id: feature.id,
-            title: feature.title,
-            description: feature.description,
-            rationale: feature.rationale || "",
-            priority: feature.priority,
-            complexity: feature.complexity,
-            impact: feature.impact,
-            phase_id: feature.phaseId,
-            dependencies: feature.dependencies || [],
-            status: feature.status,
-            acceptance_criteria: feature.acceptanceCriteria || [],
-            user_stories: feature.userStories || [],
-            linked_spec_id: feature.linkedSpecId,
-            task_outcome: feature.taskOutcome,
-            previous_status: feature.previousStatus,
-            competitor_insight_ids: feature.competitorInsightIds,
-          }));
+          existingRoadmap.features = roadmapData.features.map(featureToSnakeCase);
 
           // Update metadata timestamp
           existingRoadmap.metadata = existingRoadmap.metadata || {};
@@ -459,6 +451,56 @@ export function registerRoadmapHandlers(
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to update feature",
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ROADMAP_UPDATE_FEATURE_PRIORITY,
+    async (
+      _,
+      projectId: string,
+      featureId: string,
+      priority: RoadmapFeaturePriority
+    ): Promise<IPCResult> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) {
+        return { success: false, error: "Project not found" };
+      }
+
+      const roadmapPath = path.join(
+        project.path,
+        AUTO_BUILD_PATHS.ROADMAP_DIR,
+        AUTO_BUILD_PATHS.ROADMAP_FILE
+      );
+
+      try {
+        return await withFileLock(roadmapPath, async () => {
+          let content: string;
+          try {
+            content = await readFileWithRetry(roadmapPath, { encoding: "utf-8" }) as string;
+          } catch (readErr: unknown) {
+            if ((readErr as NodeJS.ErrnoException).code === 'ENOENT') {
+              return { success: false, error: "Roadmap not found" };
+            }
+            throw readErr;
+          }
+          const roadmap = JSON.parse(content);
+
+          const result = applyFeaturePriorityPatch(roadmap, featureId, priority);
+          if (!result.success) {
+            return result;
+          }
+
+          await writeFileWithRetry(roadmapPath, JSON.stringify(roadmap, null, 2), { encoding: 'utf-8' });
+
+          return { success: true };
+        });
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to update feature priority",
         };
       }
     }

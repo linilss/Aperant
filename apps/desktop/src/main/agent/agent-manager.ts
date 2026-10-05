@@ -484,6 +484,7 @@ export class AgentManager extends EventEmitter {
           options.useLocalBranch ?? false,
           project?.settings?.pushNewBranches !== false,
           project?.autoBuildPath,
+          project?.settings,
         );
         worktreePath = result.worktreePath;
         // Spec dir in the worktree (spec files were copied by createOrGetWorktree)

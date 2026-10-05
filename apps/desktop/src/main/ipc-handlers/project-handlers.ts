@@ -10,9 +10,11 @@ import type {
   InitializationResult,
   AutoBuildVersionInfo,
   GitStatus,
-  GitBranchDetail
+  GitBranchDetail,
+  DeployScript
 } from '../../shared/types';
 import { projectStore } from '../project-store';
+import { findDeployScripts } from '../deploy-scripts';
 import {
   initializeProject,
   isInitialized,
@@ -390,6 +392,24 @@ export function registerProjectHandlers(
         }
 
         return { success: result.success, data: result, error: result.error };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_LIST_DEPLOY_SCRIPTS,
+    async (_, projectId: string): Promise<IPCResult<DeployScript[]>> => {
+      try {
+        const project = projectStore.getProject(projectId);
+        if (!project) {
+          return { success: false, error: 'Project not found' };
+        }
+        return { success: true, data: await findDeployScripts(project.path) };
       } catch (error) {
         return {
           success: false,

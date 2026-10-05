@@ -66,6 +66,7 @@ import { appLog, setupErrorLogging } from './app-logger';
 import { initSentryMain } from './sentry';
 import { preWarmToolCache } from './cli-tool-manager';
 import { initializeClaudeProfileManager, getClaudeProfileManager } from './claude-profile-manager';
+import { syncActiveProfileToQueue } from './claude-profile/sync-active-profile';
 import { isProfileAuthenticated } from './claude-profile/profile-utils';
 import { isMacOS, isWindows } from './platform';
 import { ptyDaemonClient } from './terminal/pty-daemon-client';
@@ -569,6 +570,15 @@ app.whenReady().then(() => {
       if (mainWindow) {
         // Setup event forwarding from usage monitor to renderer
         initializeUsageMonitorForwarding(mainWindow);
+
+        // Align the CLI login with the account queue before anything runs.
+        // Queue changes sync on reorder, but a queue saved before that sync
+        // existed (or edited elsewhere) would otherwise stay out of step.
+        try {
+          syncActiveProfileToQueue();
+        } catch (error) {
+          console.warn('[main] Failed to sync active Claude profile to account queue:', error);
+        }
 
         // Start the usage monitor (uses unified OperationRegistry for proactive restart)
         const usageMonitor = getUsageMonitor();

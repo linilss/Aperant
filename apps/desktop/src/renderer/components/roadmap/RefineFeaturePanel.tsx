@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
-import { X, Send, Loader2, Sparkles, User, Bot, WrenchIcon, Plus, CheckCheck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { X, Send, Loader2, Sparkles, User, Bot, WrenchIcon, Plus, CheckCheck, Check } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '../ui/button';
@@ -25,7 +26,7 @@ const markdownComponents: Components = {
   code: ({ children, className }) => {
     const isInline = !className;
     return isInline ? (
-      <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+      <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono [overflow-wrap:anywhere]">{children}</code>
     ) : (
       <code className="block bg-muted p-2 rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">
         {children}
@@ -49,8 +50,21 @@ function ThinkingIndicator() {
   );
 }
 
+/** Sent by the one-click accept button; the refine prompt treats it as picking the recommendation */
+const ACCEPT_RECOMMENDATION_REPLY = 'Yes — go with your recommendation.';
+
+/** Auto-accept answers at most this many questions, then asks for the result */
+const MAX_AUTO_ACCEPT_ROUNDS = 8;
+
+/** Matches the recommendation line the refine prompt ends each question with */
+const RECOMMENDATION_PATTERN = /\*{0,2}Recommendation:?\*{0,2}/i;
+
 export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: RefineFeaturePanelProps) {
+  const { t } = useTranslation(['common']);
   const [inputText, setInputText] = useState('');
+  // Auto-accept: answer each question with its recommendation, then finish
+  const [autoAccept, setAutoAccept] = useState(false);
+  const [autoRounds, setAutoRounds] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -117,14 +131,16 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
-  const handleSend = () => {
-    const text = inputText.trim();
+  const sendMessage = (raw: string) => {
+    const text = raw.trim();
     if (!text || status === 'thinking' || status === 'streaming') return;
 
     addUserMessage(text);
     setInputText('');
     window.electronAPI.roadmapRefineSend(projectId, text);
   };
+
+  const handleSend = () => sendMessage(inputText);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -135,6 +151,36 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
 
   const isProcessing = status === 'thinking' || status === 'streaming';
   const canFinish = !isProcessing && messages.length >= 2 && status !== 'complete';
+  // Offer one-click accept whenever the AI is waiting on an answer
+  const lastMessage = messages[messages.length - 1];
+  const canAcceptRecommendation =
+    !isProcessing && status !== 'complete' && lastMessage?.role === 'assistant';
+
+  // Drive the conversation while auto-accept is on. It only ever accepts a
+  // question that actually carries a recommendation — a question without one
+  // needs a real answer, so auto mode stops and hands control back.
+  // Keyed on the last message id so each new question is handled exactly once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: must fire once per new assistant message, not on every render
+  useEffect(() => {
+    if (!autoAccept || !canAcceptRecommendation || !lastMessage) return;
+
+    if (autoRounds >= MAX_AUTO_ACCEPT_ROUNDS) {
+      setAutoAccept(false);
+      handleFinish();
+      return;
+    }
+    if (!RECOMMENDATION_PATTERN.test(lastMessage.content)) {
+      setAutoAccept(false);
+      return;
+    }
+    setAutoRounds((n) => n + 1);
+    sendMessage(ACCEPT_RECOMMENDATION_REPLY);
+  }, [autoAccept, canAcceptRecommendation, lastMessage?.id]);
+
+  // Stop auto mode on completion or error
+  useEffect(() => {
+    if (status === 'complete' || status === 'error') setAutoAccept(false);
+  }, [status]);
 
   // Auto-apply and close when refining an existing feature and featureData arrives
   useEffect(() => {
@@ -171,7 +217,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0" viewportClassName="[&>div]:!block">
         <div className="px-4 py-3 space-y-4">
           {/* Welcome / loading state when session is auto-starting */}
           {messages.length === 0 && !streamingContent && status !== 'thinking' && (
@@ -179,7 +225,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
               <div className="shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
                 <Bot className="h-4 w-4 text-primary" />
               </div>
-              <div className="flex-1 bg-muted/50 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+              <div className="flex-1 min-w-0 bg-muted/50 rounded-lg px-3 py-2 text-sm text-muted-foreground break-words">
                 {featureContext
                   ? `I'll refine "${featureContext.title}" with you. Starting session…`
                   : 'Describe a feature you want to add to the roadmap. I\'ll grill you on the details, then generate a PRD and implementation plan.'}
@@ -207,7 +253,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
               </div>
               <div
                 className={cn(
-                  'flex-1 rounded-lg px-3 py-2 text-sm',
+                  'flex-1 min-w-0 rounded-lg px-3 py-2 text-sm break-words',
                   msg.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted/50 text-foreground'
@@ -240,7 +286,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
               <div className="shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
                 <Bot className="h-4 w-4 text-primary" />
               </div>
-              <div className="flex-1 bg-muted/50 rounded-lg px-3 py-2 text-sm text-foreground">
+              <div className="flex-1 min-w-0 bg-muted/50 rounded-lg px-3 py-2 text-sm text-foreground break-words">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {streamingContent}
                 </ReactMarkdown>
@@ -288,6 +334,32 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
       {/* Footer input */}
       <div className="shrink-0 px-4 py-3 border-t border-border space-y-2">
         {/* Finish button — shown mid-conversation when not processing */}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="accent-primary"
+            checked={autoAccept}
+            disabled={status === 'complete'}
+            onChange={(e) => {
+              setAutoRounds(0);
+              setAutoAccept(e.target.checked);
+            }}
+          />
+          <span>
+            {autoAccept
+              ? t('common:refineFeature.autoAcceptRunning', { current: autoRounds, max: MAX_AUTO_ACCEPT_ROUNDS })
+              : t('common:refineFeature.autoAccept', { max: MAX_AUTO_ACCEPT_ROUNDS })}
+          </span>
+        </label>
+        {canAcceptRecommendation && !autoAccept && (
+          <Button
+            className="w-full gap-2 text-sm"
+            onClick={() => sendMessage(ACCEPT_RECOMMENDATION_REPLY)}
+          >
+            <Check className="h-4 w-4" />
+            {t('common:refineFeature.acceptRecommendation')}
+          </Button>
+        )}
         {canFinish && (
           <Button
             variant="outline"

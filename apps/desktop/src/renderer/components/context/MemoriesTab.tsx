@@ -23,9 +23,13 @@ import { cn } from '../../lib/utils';
 import { MemoryCard } from './MemoryCard';
 import { InfoItem } from './InfoItem';
 import { memoryFilterCategories, type MemoryFilterCategory } from './constants';
-import type { MemorySystemStatus, MemorySystemState, RendererMemory } from '../../../shared/types';
+import type { DocPointer, MemorySystemStatus, MemorySystemState, RendererMemory } from '../../../shared/types';
+import { PointersSection } from './PointersSection';
 
 interface MemoriesTabProps {
+  projectId: string;
+  pointers: DocPointer[];
+  onOpenPointer: (pointer: DocPointer) => void;
   memoryStatus: MemorySystemStatus | null;
   memoryState: MemorySystemState | null;
   recentMemories: RendererMemory[];
@@ -72,9 +76,12 @@ const filterIcons: Record<MemoryFilterCategory, React.ElementType> = {
 };
 
 export function MemoriesTab({
+  projectId,
+  pointers,
+  onOpenPointer,
   memoryStatus,
   memoryState,
-  recentMemories,
+  recentMemories: allMemories,
   memoriesLoading,
   searchResults,
   searchLoading,
@@ -86,6 +93,12 @@ export function MemoriesTab({
   const { t } = useTranslation('common');
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<MemoryFilterCategory>('all');
+
+  // Pointers (user_taught) are shown in their own section above
+  const recentMemories = useMemo(
+    () => allMemories.filter((m) => m.source !== 'user_taught'),
+    [allMemories]
+  );
 
   // Calculate memory counts by category
   const memoryCounts = useMemo(() => {
@@ -140,6 +153,8 @@ export function MemoriesTab({
   return (
     <ScrollArea className="h-full">
       <div className="p-6 space-y-6">
+        <PointersSection projectId={projectId} pointers={pointers} onOpenPointer={onOpenPointer} />
+
         {/* Memory Status */}
         <Card>
           <CardHeader className="pb-3">

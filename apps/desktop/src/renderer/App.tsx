@@ -35,6 +35,7 @@ import { AppSettingsDialog, type AppSection } from './components/settings/AppSet
 import type { ProjectSettingsSection } from './components/settings/ProjectSettingsContent';
 import { TerminalGrid } from './components/TerminalGrid';
 import { Roadmap } from './components/Roadmap';
+import { MoscowMatrix } from './components/moscow/MoscowMatrix';
 import { Context } from './components/Context';
 import { Ideation } from './components/Ideation';
 import { Insights } from './components/Insights';
@@ -51,6 +52,7 @@ import { AgentTools } from './components/AgentTools';
 import { ClaudeAgentsView } from './components/ClaudeAgentsView';
 import { ClaudeSkillsView } from './components/ClaudeSkillsView';
 import { Tests } from './components/tests/Tests';
+import { Deploy } from './components/deploy/Deploy';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RateLimitModal } from './components/RateLimitModal';
 import { SDKRateLimitModal } from './components/SDKRateLimitModal';
@@ -83,27 +85,36 @@ const VERSION_WARNING_275 = '2.7.5';
 // Wrapper component for ProjectTabBar
 interface ProjectTabBarWithContextProps {
   projects: Project[];
+  closedProjects: Project[];
   activeProjectId: string | null;
   onProjectSelect: (projectId: string) => void;
   onProjectClose: (projectId: string) => void;
+  onProjectOpen: (projectId: string) => void;
+  onProjectRemove: (projectId: string) => void;
   onAddProject: () => void;
   onSettingsClick: () => void;
 }
 
 function ProjectTabBarWithContext({
   projects,
+  closedProjects,
   activeProjectId,
   onProjectSelect,
   onProjectClose,
+  onProjectOpen,
+  onProjectRemove,
   onAddProject,
   onSettingsClick
 }: ProjectTabBarWithContextProps) {
   return (
     <ProjectTabBar
       projects={projects}
+      closedProjects={closedProjects}
       activeProjectId={activeProjectId}
       onProjectSelect={onProjectSelect}
       onProjectClose={onProjectClose}
+      onProjectOpen={onProjectOpen}
+      onProjectRemove={onProjectRemove}
       onAddProject={onAddProject}
       onSettingsClick={onSettingsClick}
     />
@@ -128,6 +139,7 @@ export function App() {
   const getProjectTabs = useProjectStore((state) => state.getProjectTabs);
   const openProjectIds = useProjectStore((state) => state.openProjectIds);
   const openProjectTab = useProjectStore((state) => state.openProjectTab);
+  const closeProjectTab = useProjectStore((state) => state.closeProjectTab);
   const setActiveProject = useProjectStore((state) => state.setActiveProject);
   const reorderTabs = useProjectStore((state) => state.reorderTabs);
   const tasks = useTaskStore((state) => state.tasks);
@@ -183,6 +195,8 @@ export function App() {
 
   // Get tabs and selected project
   const projectTabs = getProjectTabs();
+  // Projects that are still known to the app but have no open tab — reopenable from the tab bar
+  const closedProjects = projects.filter((p) => !openProjectIds.includes(p.id));
   const selectedProject = projects.find((p) => p.id === (activeProjectId || selectedProjectId));
 
   // Initial load
@@ -625,6 +639,29 @@ export function App() {
     }
   };
 
+  const handleRunInTerminal = (command: string, title: string): boolean => {
+    const projectPath = selectedProject?.path;
+    if (!projectPath) return false;
+
+    const store = useTerminalStore.getState();
+    const terminal = store.addTerminal(projectPath, projectPath);
+    if (!terminal) return false;
+    store.updateTerminal(terminal.id, { title });
+    setActiveView('terminals');
+
+    // The PTY is created once the terminal mounts; send the command when it is running
+    const unsubscribe = useTerminalStore.subscribe((state) => {
+      const current = state.terminals.find((t) => t.id === terminal.id);
+      if (!current) {
+        unsubscribe();
+      } else if (current.status === 'running') {
+        unsubscribe();
+        setTimeout(() => window.electronAPI.sendTerminalInput(terminal.id, `${command}\r`), 300);
+      }
+    });
+    return true;
+  };
+
   const handleAddProject = () => {
     setShowAddProjectModal(true);
   };
@@ -644,7 +681,13 @@ export function App() {
   };
 
   const handleProjectTabClose = (projectId: string) => {
-    // Show confirmation dialog before removing the project
+    // Only closes the tab — the project stays in the app and can be reopened
+    // from the "+" menu in the tab bar or from the welcome screen
+    closeProjectTab(projectId);
+  };
+
+  const handleProjectTabRemove = (projectId: string) => {
+    // Show confirmation dialog before removing the project from the app entirely
     const project = projects.find(p => p.id === projectId);
     if (project) {
       setProjectToRemove(project);
@@ -712,7 +755,11 @@ export function App() {
     setInitSuccess(false);
     setInitError(null); // Clear any previous errors
     try {
-      const result = await initializeProject(projectId);
+      // Init finishes in milliseconds; hold the spinner briefly so the click visibly registers
+      const [result] = await Promise.all([
+        initializeProject(projectId),
+        new Promise((resolve) => setTimeout(resolve, 600))
+      ]);
       console.warn('[InitDialog] Initialization result:', result);
 
       if (result?.success) {
@@ -840,9 +887,12 @@ export function App() {
               <SortableContext items={projectTabs.map(p => p.id)} strategy={horizontalListSortingStrategy}>
                 <ProjectTabBarWithContext
                   projects={projectTabs}
+                  closedProjects={closedProjects}
                   activeProjectId={activeProjectId}
                   onProjectSelect={handleProjectTabSelect}
                   onProjectClose={handleProjectTabClose}
+                  onProjectOpen={openProjectTab}
+                  onProjectRemove={handleProjectTabRemove}
                   onAddProject={handleAddProject}
                   onSettingsClick={() => setIsSettingsDialogOpen(true)}
                 />
@@ -883,6 +933,13 @@ export function App() {
                     isActive={activeView === 'terminals'}
                   />
                 </div>
+                {activeView === 'moscow' && (activeProjectId || selectedProjectId) && (
+                  <MoscowMatrix
+                    projectId={activeProjectId || selectedProjectId || ''}
+                    onGoToRoadmap={() => setActiveView('roadmap')}
+                    onGoToTask={handleGoToTask}
+                  />
+                )}
                 {activeView === 'roadmap' && (activeProjectId || selectedProjectId) && (
                   <Roadmap projectId={activeProjectId || selectedProjectId!} onGoToTask={handleGoToTask} />
                 )}
@@ -964,6 +1021,9 @@ export function App() {
                 {activeView === 'skills' && <ClaudeSkillsView />}
                 {activeView === 'tests' && (activeProjectId || selectedProjectId) && (
                   <Tests projectId={activeProjectId || selectedProjectId!} />
+                )}
+                {activeView === 'deploy' && (activeProjectId || selectedProjectId) && (
+                  <Deploy projectId={activeProjectId || selectedProjectId!} onRunInTerminal={handleRunInTerminal} />
                 )}
               </>
             ) : (

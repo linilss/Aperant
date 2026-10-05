@@ -235,5 +235,14 @@
     "step3": "Click \"Re-authenticate\" on your profile",
     "gotIt": "Got It",
     "goToSettings": "Go to Settings"
+  },
+  "regenerateRoadmap": {
+    "title": "Regenerate Roadmap",
+    "description": "Steer the new roadmap. Point out what the current cards get wrong, or where you'd rather it went.",
+    "placeholder": "e.g. Less focus on enterprise admin tooling — prioritise the mobile onboarding flow and offline support instead.",
+    "hint": "Optional. Leave empty to regenerate as usual. ⌘/Ctrl+Enter to continue.",
+    "cancel": "Cancel",
+    "continueWithGuidance": "Continue with direction",
+    "continueWithout": "Continue without direction"
   }
 }

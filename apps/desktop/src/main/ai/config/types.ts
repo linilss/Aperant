@@ -13,7 +13,19 @@ import type { SupportedProvider } from '../providers/types';
 // ============================================
 
 /** Valid model shorthands used throughout the application */
-export type ModelShorthand = 'opus-4.7' | 'opus' | 'opus-1m' | 'opus-4.5' | 'sonnet' | 'haiku';
+export type ModelShorthand =
+  | 'fable'
+  | 'opus'
+  | 'opus-5.5'
+  | 'opus-5'
+  | 'opus-4.8'
+  | 'opus-4.7'
+  | 'opus-1m'
+  | 'opus-4.5'
+  | 'sonnet'
+  | 'sonnet-5'
+  | 'sonnet-4.6'
+  | 'haiku';
 
 /** Valid thinking levels */
 export type ThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';
@@ -35,11 +47,19 @@ export type Phase = 'spec' | 'planning' | 'coding' | 'qa';
  * - apps/desktop/src/shared/constants/models.ts MODEL_ID_MAP
  */
 export const MODEL_ID_MAP: Record<ModelShorthand, string> = {
-  opus: 'claude-opus-4-7',
+  // 'opus' and 'sonnet' always track the newest model in their tier — pin a
+  // version-suffixed shorthand ('opus-4.7', 'sonnet-4.6') to stay on an older one.
+  fable: 'claude-fable-5',
+  opus: 'claude-opus-5-5',
+  'opus-5.5': 'claude-opus-5-5',
+  'opus-5': 'claude-opus-5',
+  'opus-4.8': 'claude-opus-4-8',
   'opus-4.7': 'claude-opus-4-7',
   'opus-1m': 'claude-opus-4-6',
   'opus-4.5': 'claude-opus-4-5-20251101',
-  sonnet: 'claude-sonnet-4-6',
+  sonnet: 'claude-sonnet-5',
+  'sonnet-5': 'claude-sonnet-5',
+  'sonnet-4.6': 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5-20251001',
 } as const;
 
@@ -80,12 +100,55 @@ export const EFFORT_LEVEL_MAP: Record<EffortLevel, string> = {
 } as const;
 
 /**
- * Models that support adaptive thinking via effort level.
- * These models get both max_thinking_tokens AND effort_level.
+ * Models that reject `budget_tokens` with a 400 — thinking must be adaptive.
+ * The fixed thinking-budget concept was removed on these; depth is controlled
+ * through the effort level instead.
+ */
+export const ADAPTIVE_ONLY_THINKING_MODELS: ReadonlySet<string> = new Set([
+  'claude-fable-5',
+  'claude-opus-5-5',
+  'claude-opus-5',
+  'claude-opus-4-8',
+  'claude-opus-4-7',
+  'claude-sonnet-5',
+]);
+
+/**
+ * Models that support adaptive thinking. A superset of the adaptive-only set:
+ * Opus 4.6 and Sonnet 4.6 still accept `budget_tokens`, but adaptive is the
+ * recommended mode there too.
  */
 export const ADAPTIVE_THINKING_MODELS: ReadonlySet<string> = new Set([
-  'claude-opus-4-7',
+  ...ADAPTIVE_ONLY_THINKING_MODELS,
   'claude-opus-4-6',
+  'claude-sonnet-4-6',
+]);
+
+/**
+ * Models that accept an effort level. Opus 4.5 supports low/medium/high;
+ * Haiku 4.5 and Sonnet 4.5 reject the parameter outright.
+ */
+export const EFFORT_CAPABLE_MODELS: ReadonlySet<string> = new Set([
+  ...ADAPTIVE_THINKING_MODELS,
+  'claude-opus-4-5-20251101',
+]);
+
+/**
+ * Thinking level to the effort values the Anthropic provider accepts.
+ * @ai-sdk/anthropic exposes low | medium | high | max — it has no 'xhigh',
+ * so this app's xhigh maps to the next level up rather than being rejected.
+ */
+export const ANTHROPIC_EFFORT_MAP: Record<ThinkingLevel, 'low' | 'medium' | 'high' | 'max'> = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'max',
+} as const;
+
+/** Models that support Fast Mode (`speed: 'fast'`) — removed on Opus 4.7 and earlier */
+export const FAST_MODE_MODEL_IDS: ReadonlySet<string> = new Set([
+  'claude-opus-5',
+  'claude-opus-4-8',
 ]);
 
 // ============================================
@@ -207,14 +270,14 @@ export function buildThinkingProviderOptions(
 
   switch (provider) {
     case 'anthropic': {
-      const base: Record<string, unknown> = {
-        thinking: { type: 'enabled', budgetTokens },
-      };
-      if (ADAPTIVE_THINKING_MODELS.has(modelId)) {
-        base.thinking = {
-          ...(base.thinking as Record<string, unknown>),
-          budgetTokens,
-        };
+      // Adaptive models let Claude decide how much to think; sending budgetTokens
+      // to one of them is a 400, so the two modes are mutually exclusive.
+      const base: Record<string, unknown> = ADAPTIVE_THINKING_MODELS.has(modelId)
+        ? { thinking: { type: 'adaptive' } }
+        : { thinking: { type: 'enabled', budgetTokens } };
+
+      if (EFFORT_CAPABLE_MODELS.has(modelId)) {
+        base.effort = ANTHROPIC_EFFORT_MAP[thinkingLevel];
       }
       return { anthropic: base };
     }

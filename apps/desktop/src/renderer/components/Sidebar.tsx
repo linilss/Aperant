@@ -21,14 +21,16 @@ import {
   HelpCircle,
   Heart,
   Wrench,
-  PanelLeft,
-  PanelLeftClose,
   CheckSquare,
   Bot,
   FlaskConical,
-  Wand
+  Wand,
+  ChevronRight,
+  Rocket,
+  Grid2x2
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import {
@@ -51,7 +53,7 @@ import {
   removeProject,
   initializeProject
 } from '../stores/project-store';
-import { useSettingsStore, saveSettings } from '../stores/settings-store';
+import { useSettingsStore } from '../stores/settings-store';
 import {
   useProjectEnvStore,
   loadProjectEnvConfig,
@@ -64,7 +66,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'moscow' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -78,40 +80,74 @@ interface NavItem {
   labelKey: string;
   icon: React.ElementType;
   shortcut?: string;
+  /** Only shown when this integration is enabled for the project */
+  requires?: 'github' | 'gitlab' | 'azureDevOps';
 }
 
-// Base nav items always shown
-const baseNavItems: NavItem[] = [
-  { id: 'kanban', labelKey: 'navigation:items.kanban', icon: LayoutGrid, shortcut: 'K' },
-  { id: 'terminals', labelKey: 'navigation:items.terminals', icon: Terminal, shortcut: 'A' },
-  { id: 'agents', labelKey: 'navigation:items.agents', icon: Bot, shortcut: 'E' },
-  { id: 'skills', labelKey: 'navigation:items.skills', icon: Wand, shortcut: 'S' },
-  { id: 'insights', labelKey: 'navigation:items.insights', icon: Sparkles, shortcut: 'N' },
-  { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D' },
-  { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I' },
-  { id: 'changelog', labelKey: 'navigation:items.changelog', icon: FileText, shortcut: 'L' },
-  { id: 'context', labelKey: 'navigation:items.context', icon: BookOpen, shortcut: 'C' },
-  { id: 'agent-tools', labelKey: 'navigation:items.agentTools', icon: Wrench, shortcut: 'M' },
-  { id: 'worktrees', labelKey: 'navigation:items.worktrees', icon: GitBranch, shortcut: 'W' },
-  { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T' }
-];
+interface NavSection {
+  id: string;
+  labelKey: string;
+  items: NavItem[];
+}
 
-// GitHub nav items shown when GitHub is enabled
-const githubNavItems: NavItem[] = [
-  { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G' },
-  { id: 'github-prs', labelKey: 'navigation:items.githubPRs', icon: GitPullRequest, shortcut: 'P' }
-];
-
-// GitLab nav items shown when GitLab is enabled
-const gitlabNavItems: NavItem[] = [
-  { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B' },
-  { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R' }
-];
-
-// Azure DevOps nav items shown when Azure DevOps is enabled
-const azureDevOpsNavItems: NavItem[] = [
-  { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V' },
-  { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X' }
+// Ordered as a funnel: understand → plan → build → review → ship, config last
+const navSections: NavSection[] = [
+  {
+    id: 'understand',
+    labelKey: 'navigation:sections.understand',
+    items: [
+      { id: 'context', labelKey: 'navigation:items.context', icon: BookOpen, shortcut: 'C' }
+    ]
+  },
+  {
+    id: 'plan',
+    labelKey: 'navigation:sections.plan',
+    items: [
+      { id: 'moscow', labelKey: 'navigation:items.moscow', icon: Grid2x2, shortcut: 'O' },
+      { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D' },
+      { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I' },
+      { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G', requires: 'github' },
+      { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B', requires: 'gitlab' },
+      { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V', requires: 'azureDevOps' }
+    ]
+  },
+  {
+    id: 'build',
+    labelKey: 'navigation:sections.build',
+    items: [
+      { id: 'kanban', labelKey: 'navigation:items.kanban', icon: LayoutGrid, shortcut: 'K' },
+      { id: 'terminals', labelKey: 'navigation:items.terminals', icon: Terminal, shortcut: 'A' },
+      { id: 'insights', labelKey: 'navigation:items.insights', icon: Sparkles, shortcut: 'N' }
+    ]
+  },
+  {
+    id: 'review',
+    labelKey: 'navigation:sections.review',
+    items: [
+      { id: 'worktrees', labelKey: 'navigation:items.worktrees', icon: GitBranch, shortcut: 'W' },
+      { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T' },
+      { id: 'github-prs', labelKey: 'navigation:items.githubPRs', icon: GitPullRequest, shortcut: 'P', requires: 'github' },
+      { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R', requires: 'gitlab' },
+      { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X', requires: 'azureDevOps' }
+    ]
+  },
+  {
+    id: 'ship',
+    labelKey: 'navigation:sections.ship',
+    items: [
+      { id: 'changelog', labelKey: 'navigation:items.changelog', icon: FileText, shortcut: 'L' },
+      { id: 'deploy', labelKey: 'navigation:items.deploy', icon: Rocket, shortcut: 'Y' }
+    ]
+  },
+  {
+    id: 'configure',
+    labelKey: 'navigation:sections.configure',
+    items: [
+      { id: 'agents', labelKey: 'navigation:items.agents', icon: Bot, shortcut: 'E' },
+      { id: 'skills', labelKey: 'navigation:items.skills', icon: Wand, shortcut: 'S' },
+      { id: 'agent-tools', labelKey: 'navigation:items.agentTools', icon: Wrench, shortcut: 'M' }
+    ]
+  }
 ];
 
 export function Sidebar({
@@ -134,13 +170,6 @@ export function Sidebar({
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
 
-  // Sidebar collapsed state from settings
-  const isCollapsed = settings.sidebarCollapsed ?? false;
-
-  const toggleSidebar = () => {
-    saveSettings({ sidebarCollapsed: !isCollapsed });
-  };
-
   // Subscribe to project-env-store for reactive GitHub/GitLab/Azure DevOps tab visibility
   const githubEnabled = useProjectEnvStore((state) => state.envConfig?.githubEnabled ?? false);
   const gitlabEnabled = useProjectEnvStore((state) => state.envConfig?.gitlabEnabled ?? false);
@@ -149,24 +178,31 @@ export function Sidebar({
   // Track the last loaded project ID to avoid redundant loads
   const lastLoadedProjectIdRef = useRef<string | null>(null);
 
-  // Compute visible nav items based on GitHub/GitLab/Azure DevOps enabled state from store
-  const visibleNavItems = useMemo(() => {
-    const items = [...baseNavItems];
-
-    if (githubEnabled) {
-      items.push(...githubNavItems);
-    }
-
-    if (gitlabEnabled) {
-      items.push(...gitlabNavItems);
-    }
-
-    if (azureDevOpsEnabled) {
-      items.push(...azureDevOpsNavItems);
-    }
-
-    return items;
+  // Compute visible sections based on GitHub/GitLab/Azure DevOps enabled state from store
+  const visibleSections = useMemo(() => {
+    const enabled = { github: githubEnabled, gitlab: gitlabEnabled, azureDevOps: azureDevOpsEnabled };
+    return navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => !item.requires || enabled[item.requires])
+      }))
+      .filter((section) => section.items.length > 0);
   }, [githubEnabled, gitlabEnabled, azureDevOpsEnabled]);
+
+  const visibleNavItems = useMemo(
+    () => visibleSections.flatMap((section) => section.items),
+    [visibleSections]
+  );
+
+  // Accordion: only one section open at a time, following the active view
+  const activeSectionId = visibleSections.find((section) =>
+    section.items.some((item) => item.id === activeView)
+  )?.id;
+  const [openSectionId, setOpenSectionId] = useState<string | undefined>(activeSectionId);
+
+  useEffect(() => {
+    setOpenSectionId(activeSectionId);
+  }, [activeSectionId]);
 
   // Load envConfig when project changes to ensure store is populated
   useEffect(() => {
@@ -266,7 +302,11 @@ export function Sidebar({
     const projectId = pendingProject.id;
     setIsInitializing(true);
     try {
-      const result = await initializeProject(projectId);
+      // Init finishes in milliseconds; hold the spinner briefly so the click visibly registers
+      const [result] = await Promise.all([
+        initializeProject(projectId),
+        new Promise((resolve) => setTimeout(resolve, 600))
+      ]);
       if (result?.success) {
         // Clear pendingProject FIRST before closing dialog
         // This prevents onOpenChange from triggering skip logic
@@ -312,115 +352,70 @@ export function Sidebar({
     const isActive = activeView === item.id;
     const Icon = item.icon;
 
-    const button = (
+    return (
       <button
         key={item.id}
         onClick={() => handleNavClick(item.id)}
         disabled={!selectedProjectId}
         aria-keyshortcuts={item.shortcut}
         className={cn(
-          'flex w-full items-center rounded-lg text-sm transition-all duration-200',
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
           'hover:bg-accent hover:text-accent-foreground',
           'disabled:pointer-events-none disabled:opacity-50',
-          isActive && 'bg-accent text-accent-foreground',
-          isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
+          isActive && 'bg-accent text-accent-foreground'
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
-        {!isCollapsed && (
-          <>
-            <span className="flex-1 text-left">{t(item.labelKey)}</span>
-            {item.shortcut && (
-              <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
-                {item.shortcut}
-              </kbd>
-            )}
-          </>
+        <span className="flex-1 text-left">{t(item.labelKey)}</span>
+        {item.shortcut && (
+          <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
+            {item.shortcut}
+          </kbd>
         )}
       </button>
     );
-
-    // Wrap in tooltip when collapsed
-    if (isCollapsed) {
-      return (
-        <Tooltip key={item.id}>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent side="right">
-            <span>{t(item.labelKey)}</span>
-            {item.shortcut && (
-              <kbd className="ml-2 rounded border border-border bg-secondary px-1 font-mono text-[10px]">
-                {item.shortcut}
-              </kbd>
-            )}
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    return button;
   };
 
   return (
     <TooltipProvider>
-      <div className={cn(
-        "flex h-full flex-col bg-sidebar border-r border-border transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64"
-      )}>
+      <div className="flex h-full w-64 flex-col bg-sidebar border-r border-border">
         {/* Header with drag area - extra top padding for macOS traffic lights */}
-        <div className={cn(
-          "electron-drag flex h-14 items-center pt-6 transition-all duration-300",
-          isCollapsed ? "justify-center px-2" : "px-4"
-        )}>
-          {!isCollapsed && (
-            <span className="electron-no-drag text-lg font-bold text-primary">malvy</span>
-          )}
+        <div className="electron-drag flex h-14 items-center px-4 pt-6">
+          <span className="electron-no-drag text-lg font-bold text-primary">malvy</span>
         </div>
 
         <Separator className="mt-2" />
 
-        {/* Toggle button */}
-        <div className={cn(
-          "flex py-2 transition-all duration-300",
-          isCollapsed ? "justify-center px-2" : "justify-end px-3"
-        )}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={toggleSidebar}
-                aria-label={isCollapsed ? t('actions.expandSidebar') : t('actions.collapseSidebar')}
-              >
-                {isCollapsed ? (
-                  <PanelLeft className="h-4 w-4" />
-                ) : (
-                  <PanelLeftClose className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {isCollapsed ? t('actions.expandSidebar') : t('actions.collapseSidebar')}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-
-        <Separator />
-
         {/* Navigation */}
         <ScrollArea className="flex-1">
-          <div className={cn("py-4 transition-all duration-300", isCollapsed ? "px-2" : "px-3")}>
-            {/* Project Section */}
-            <div>
-              {!isCollapsed && (
-                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t('sections.project')}
-                </h3>
-              )}
-              <nav className="space-y-1">
-                {visibleNavItems.map(renderNavItem)}
-              </nav>
-            </div>
+          <div className="px-3 py-4">
+            <nav className="space-y-1">
+              {visibleSections.map((section) => {
+                const isOpen = openSectionId === section.id;
+                return (
+                  <Collapsible
+                    key={section.id}
+                    open={isOpen}
+                    onOpenChange={(open) => setOpenSectionId(open ? section.id : undefined)}
+                  >
+                    <CollapsibleTrigger
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground',
+                        !isOpen && activeSectionId === section.id && 'text-foreground'
+                      )}
+                    >
+                      <ChevronRight
+                        className={cn('h-3 w-3 shrink-0 transition-transform duration-200', isOpen && 'rotate-90')}
+                      />
+                      <span>{t(section.labelKey)}</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1 pb-2 pl-2">
+                      {section.items.map(renderNavItem)}
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
+            </nav>
           </div>
         </ScrollArea>
 
@@ -433,25 +428,22 @@ export function Sidebar({
         <UpdateBanner />
 
         {/* Bottom section with Settings, Help, and New Task */}
-        <div className={cn("space-y-3 transition-all duration-300", isCollapsed ? "p-2" : "p-4")}>
+        <div className="space-y-3 p-4">
           {/* Settings and Help row */}
-          <div className={cn(
-            "flex items-center",
-            isCollapsed ? "flex-col gap-1" : "gap-2"
-          )}>
+          <div className="flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size={isCollapsed ? "icon" : "sm"}
-                  className={isCollapsed ? "" : "flex-1 justify-start gap-2"}
+                  size="sm"
+                  className="flex-1 justify-start gap-2"
                   onClick={onSettingsClick}
                 >
                   <Settings className="h-4 w-4" />
-                  {!isCollapsed && t('actions.settings')}
+                  {t('actions.settings')}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side={isCollapsed ? "right" : "top"}>{t('tooltips.settings')}</TooltipContent>
+              <TooltipContent side="top">{t('tooltips.settings')}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -464,48 +456,32 @@ export function Sidebar({
                   <HelpCircle className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side={isCollapsed ? "right" : "top"}>{t('tooltips.help')}</TooltipContent>
+              <TooltipContent side="top">{t('tooltips.help')}</TooltipContent>
             </Tooltip>
           </div>
 
           {/* Sponsor link */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => window.open('https://github.com/sponsors/AndyMik90', '_blank')}
-                className={cn(
-                  'flex w-full items-center text-xs transition-colors',
-                  'text-amber-500/70 hover:text-amber-400',
-                  isCollapsed ? 'justify-center' : 'gap-1.5 px-3'
-                )}
-              >
-                <Heart className="h-3.5 w-3.5" />
-                {!isCollapsed && <span>{t('actions.sponsor')}</span>}
-              </button>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right">{t('actions.sponsor')}</TooltipContent>
+          <button
+            onClick={() => window.open('https://github.com/sponsors/AndyMik90', '_blank')}
+            className={cn(
+              'flex w-full items-center gap-1.5 px-3 text-xs transition-colors',
+              'text-amber-500/70 hover:text-amber-400'
             )}
-          </Tooltip>
+          >
+            <Heart className="h-3.5 w-3.5" />
+            <span>{t('actions.sponsor')}</span>
+          </button>
 
           {/* New Task button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className="w-full"
-                size={isCollapsed ? "icon" : "default"}
-                onClick={onNewTaskClick}
-                disabled={!selectedProjectId || !selectedProject?.autoBuildPath}
-              >
-                <Plus className={isCollapsed ? "h-4 w-4" : "mr-2 h-4 w-4"} />
-                {!isCollapsed && t('actions.newTask')}
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right">{t('actions.newTask')}</TooltipContent>
-            )}
-          </Tooltip>
-          {!isCollapsed && selectedProject && !selectedProject.autoBuildPath && (
+          <Button
+            className="w-full"
+            onClick={onNewTaskClick}
+            disabled={!selectedProjectId || !selectedProject?.autoBuildPath}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t('actions.newTask')}
+          </Button>
+          {selectedProject && !selectedProject.autoBuildPath && (
             <p className="mt-2 text-xs text-muted-foreground text-center">
               {t('messages.initializeToCreateTasks')}
             </p>

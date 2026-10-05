@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import {
@@ -20,6 +21,11 @@ import {
 } from '../ui/select';
 import { Separator } from '../ui/separator';
 import { AVAILABLE_MODELS } from '../../../shared/constants';
+import {
+  DEFAULT_TASK_BRANCH_PREFIX,
+  getTaskBranchName,
+  isValidTaskBranchPrefix
+} from '../../../shared/utils/task-branch';
 import type {
   Project,
   ProjectSettings as ProjectSettingsType,
@@ -50,6 +56,8 @@ export function GeneralSettings({
   const [clearError, setClearError] = useState<string | null>(null);
   const [clearSuccess, setClearSuccess] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const branchPrefixInput = settings.branchPrefix ?? '';
+  const branchPrefixInvalid = branchPrefixInput.trim() !== '' && !isValidTaskBranchPrefix(branchPrefixInput);
 
   const handleClearData = async () => {
     setIsClearing(true);
@@ -171,6 +179,32 @@ export function GeneralSettings({
                   setSettings({ ...settings, useClaudeMd: checked })
                 }
               />
+            </div>
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="branchPrefix" className="text-sm font-medium text-foreground">
+                {t('projectSections.general.branchPrefix')}
+              </Label>
+              <Input
+                id="branchPrefix"
+                className="font-mono"
+                value={branchPrefixInput}
+                placeholder={DEFAULT_TASK_BRANCH_PREFIX}
+                onChange={(e) =>
+                  setSettings({ ...settings, branchPrefix: e.target.value || undefined })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('projectSections.general.branchPrefixDescription', {
+                  example: getTaskBranchName('001-feature', settings)
+                })}
+              </p>
+              {branchPrefixInvalid && (
+                <p className="text-xs text-destructive">
+                  {t('projectSections.general.branchPrefixInvalid', {
+                    fallback: DEFAULT_TASK_BRANCH_PREFIX
+                  })}
+                </p>
+              )}
             </div>
           </section>
 

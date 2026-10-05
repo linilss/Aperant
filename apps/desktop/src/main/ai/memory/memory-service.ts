@@ -397,6 +397,72 @@ export class MemoryServiceImpl implements MemoryService {
   }
 
   /**
+   * Fetch a single memory by ID (including deprecated ones), or null.
+   */
+  async getMemory(memoryId: string): Promise<Memory | null> {
+    const result = await this.db.execute({
+      sql: 'SELECT * FROM memories WHERE id = ?',
+      args: [memoryId],
+    });
+    if (result.rows.length === 0) return null;
+    return rowToMemory(result.rows[0] as Record<string, unknown>);
+  }
+
+  /**
+   * Update editable fields of a memory and keep the FTS index in sync.
+   * When the content changes the embedding is recomputed; if embedding fails
+   * the old vector is kept so the text update still lands.
+   */
+  async updateMemory(
+    memoryId: string,
+    patch: { content?: string; tags?: string[]; relatedFiles?: string[]; citationText?: string | null },
+  ): Promise<void> {
+    const current = await this.getMemory(memoryId);
+    if (!current) throw new Error(`Memory not found: ${memoryId}`);
+
+    const next: Memory = {
+      ...current,
+      content: patch.content ?? current.content,
+      tags: patch.tags ?? current.tags,
+      relatedFiles: patch.relatedFiles ?? current.relatedFiles,
+      citationText: patch.citationText === undefined ? current.citationText : patch.citationText ?? undefined,
+    };
+
+    const statements: { sql: string; args: (string | number | null | Buffer)[] }[] = [
+      {
+        sql: `UPDATE memories
+              SET content = ?, tags = ?, related_files = ?, citation_text = ?
+              WHERE id = ?`,
+        args: [
+          next.content,
+          JSON.stringify(next.tags),
+          JSON.stringify(next.relatedFiles),
+          next.citationText ?? null,
+          memoryId,
+        ],
+      },
+      {
+        sql: 'UPDATE memories_fts SET content = ?, tags = ?, related_files = ? WHERE memory_id = ?',
+        args: [next.content, next.tags.join(' '), next.relatedFiles.join(' '), memoryId],
+      },
+    ];
+
+    if (patch.content !== undefined && patch.content !== current.content) {
+      try {
+        const embedding = await this.embeddingService.embed(buildMemoryContextualText(next), 1024);
+        statements.push({
+          sql: 'UPDATE memory_embeddings SET embedding = ? WHERE memory_id = ?',
+          args: [Buffer.from(new Float32Array(embedding).buffer), memoryId],
+        });
+      } catch (error) {
+        console.error('[MemoryService] updateMemory re-embedding failed:', error);
+      }
+    }
+
+    await this.db.batch(statements);
+  }
+
+  /**
    * Permanently delete a memory and all associated records.
    */
   async deleteMemory(memoryId: string): Promise<void> {

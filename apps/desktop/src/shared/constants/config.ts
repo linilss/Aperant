@@ -115,7 +115,6 @@ export const AUTO_BUILD_PATHS = {
   IDEATION_FILE: 'ideation.json',
   IDEATION_CONTEXT: 'ideation_context.json',
   PROJECT_INDEX: '.malvy/project_index.json',
-  DOCUMENTATION_FILE: '.malvy/project_documentation.json',
   MEMORY_STATE: '.memory_state.json'
 } as const;
 

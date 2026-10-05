@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Archive } from 'lucide-react';
 import { RoadmapGenerationProgress } from './RoadmapGenerationProgress';
 import { CompetitorAnalysisDialog } from './CompetitorAnalysisDialog';
+import { RegenerateGuidanceDialog } from './roadmap/RegenerateGuidanceDialog';
 import { ExistingCompetitorAnalysisDialog } from './ExistingCompetitorAnalysisDialog';
 import { CompetitorAnalysisViewer } from './CompetitorAnalysisViewer';
 import { AddFeatureDialog } from './AddFeatureDialog';
@@ -61,6 +62,10 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
     setShowCompetitorDialog,
     handleGenerate,
     handleRefresh,
+    showGuidanceDialog,
+    setShowGuidanceDialog,
+    guidance,
+    handleGuidanceConfirm,
     handleCompetitorDialogAccept,
     handleCompetitorDialogDecline,
     handleStop,
@@ -235,6 +240,14 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
           competitorInsights={getCompetitorInsightsForFeature(selectedFeature, competitorAnalysis)}
         />
       )}
+
+      {/* Regenerate: optional direction, then the competitor-analysis choice */}
+      <RegenerateGuidanceDialog
+        open={showGuidanceDialog}
+        onOpenChange={setShowGuidanceDialog}
+        initialGuidance={guidance}
+        onConfirm={handleGuidanceConfirm}
+      />
 
       {/* Competitor Analysis Permission Dialog (no existing analysis) */}
       <CompetitorAnalysisDialog

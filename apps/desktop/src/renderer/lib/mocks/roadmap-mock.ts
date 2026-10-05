@@ -17,6 +17,7 @@ export const roadmapMock = {
   },
 
   updateFeatureStatus: async () => ({ success: true }),
+  updateFeaturePriority: async () => ({ success: true }),
 
   convertFeatureToSpec: async (projectId: string, _featureId: string) => ({
     success: true,

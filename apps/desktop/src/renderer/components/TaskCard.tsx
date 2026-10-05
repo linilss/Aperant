@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles, PauseCircle } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -33,7 +33,7 @@ import {
 } from '../../shared/constants';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
-import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue } from '../stores/task-store';
+import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue, useTaskStore } from '../stores/task-store';
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
@@ -147,7 +147,33 @@ export const TaskCard = memo(function TaskCard({
 
   const isRunning = task.status === 'in_progress';
   const executionPhase = task.executionProgress?.phase;
-  const hasActiveExecution = executionPhase && executionPhase !== 'idle' && executionPhase !== 'complete' && executionPhase !== 'failed';
+  // A rate-limit-paused task is still in_progress but idle — don't show a spinning
+  // phase badge for work that isn't happening, and don't let it look like it's running.
+  const rateLimitPause = useTaskStore((state) => state.rateLimitPauses[task.id]);
+  const hasActiveExecution = !rateLimitPause && executionPhase && executionPhase !== 'idle' && executionPhase !== 'complete' && executionPhase !== 'failed';
+
+  // Coarse countdown to the reset the provider reported. Ticks every 30s — the
+  // badge shows minutes/hours, so anything finer would just cause re-renders.
+  const [rateLimitResetIn, setRateLimitResetIn] = useState<string | null>(null);
+  const rateLimitResetAt = rateLimitPause?.resetAt ?? null;
+  useEffect(() => {
+    if (!rateLimitResetAt) {
+      setRateLimitResetIn(null);
+      return;
+    }
+    const update = () => {
+      const remainingMs = new Date(rateLimitResetAt).getTime() - Date.now();
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+        setRateLimitResetIn(null);
+        return;
+      }
+      const minutes = Math.ceil(remainingMs / 60_000);
+      setRateLimitResetIn(minutes >= 60 ? `${Math.ceil(minutes / 60)}h` : `${minutes}m`);
+    };
+    update();
+    const intervalId = setInterval(update, 30_000);
+    return () => clearInterval(intervalId);
+  }, [rateLimitResetAt]);
 
   // Check if task is in human_review but has no completed subtasks (crashed/incomplete)
   const isIncomplete = isIncompleteHumanReview(task);
@@ -286,6 +312,27 @@ export const TaskCard = memo(function TaskCard({
       setIsStuck(false);
     }
     setIsRecovering(false);
+  };
+
+  const [isResumingRateLimit, setIsResumingRateLimit] = useState(false);
+
+  /**
+   * Skip the remaining rate-limit wait. Writes the RESUME sentinel the worker is
+   * polling for; the pause badge clears when the file watcher sees the pause file
+   * removed. Useful after switching to an account that still has capacity.
+   */
+  const handleResumeRateLimited = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsResumingRateLimit(true);
+    const result = await window.electronAPI.resumePausedTask(task.id);
+    setIsResumingRateLimit(false);
+    if (!result.success) {
+      toast({
+        title: t('labels.resumeFailed'),
+        description: result.error,
+        variant: 'destructive'
+      });
+    }
   };
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -453,8 +500,21 @@ export const TaskCard = memo(function TaskCard({
         )}
 
         {/* Metadata badges */}
-        {(task.metadata || isStuck || isIncomplete || hasActiveExecution || reviewReasonInfo) && (
+        {(task.metadata || isStuck || isIncomplete || hasActiveExecution || reviewReasonInfo || rateLimitPause) && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {/* Rate limit pause - the task is parked, not working, and holds no slot */}
+            {rateLimitPause && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
+                title={rateLimitPause.error}
+              >
+                <PauseCircle className="h-2.5 w-2.5" />
+                {rateLimitResetIn
+                  ? t('labels.rateLimitedUntil', { time: rateLimitResetIn })
+                  : t('labels.rateLimited')}
+              </Badge>
+            )}
             {/* Stuck indicator - highest priority */}
             {isStuck && (
               <Badge
@@ -621,7 +681,23 @@ export const TaskCard = memo(function TaskCard({
 
           <div className="flex items-center gap-1.5">
             {/* Action buttons */}
-            {isStuck ? (
+            {rateLimitPause ? (
+              <Button
+                variant="warning"
+                size="sm"
+                className="h-7 px-2.5"
+                onClick={handleResumeRateLimited}
+                disabled={isResumingRateLimit}
+                title={t('labels.rateLimitedHint')}
+              >
+                {isResumingRateLimit ? (
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="mr-1.5 h-3 w-3" />
+                )}
+                {t('actions.resumeNow')}
+              </Button>
+            ) : isStuck ? (
               <Button
                 variant="warning"
                 size="sm"

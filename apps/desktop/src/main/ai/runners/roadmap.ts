@@ -19,7 +19,7 @@ import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
-import { findExecutable } from '../../platform';
+import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
 
 // =============================================================================
@@ -46,6 +46,8 @@ export interface RoadmapConfig {
   refresh?: boolean;
   /** Whether to enable competitor analysis */
   enableCompetitorAnalysis?: boolean;
+  /** Free-text direction from the user, e.g. what to steer away from on a regenerate */
+  guidance?: string;
   /** Abort signal for cancellation */
   abortSignal?: AbortSignal;
 }
@@ -104,7 +106,13 @@ async function runPhaseViaCLI(
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
 ): Promise<string> {
-  const claudePath = await findExecutable('claude');
+  const [augmentedEnv, claudePath] = await Promise.all([
+    getAugmentedEnvAsync(),
+    findExecutableAsync('claude'),
+  ]);
+  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+  const spawnEnv = { ...augmentedEnv, ...profileEnv };
+
   if (!claudePath) {
     throw new Error('claude CLI not found — make sure Claude Code is installed');
   }
@@ -117,15 +125,12 @@ async function runPhaseViaCLI(
     '--model', modelId,
   ];
 
-  // Merge active Claude profile env (CLAUDE_CONFIG_DIR or CLAUDE_CODE_OAUTH_TOKEN)
-  // so the CLI subprocess uses the correct account, not the system default.
-  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
   console.error(`[Roadmap CLI] spawning: ${claudePath} ${args.join(' ')}`);
 
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...profileEnv },
+    env: spawnEnv,
   });
 
   // Write the prompt to stdin, then close it so the CLI knows input is done
@@ -135,6 +140,10 @@ async function runPhaseViaCLI(
   let fullText = '';
   let stdoutBuffer = '';
   let stderrOutput = '';
+  // The CLI reports fatal errors (e.g. an expired login) as an is_error result
+  // event on stdout. stderr often holds only unrelated warnings, so this is the
+  // message to surface when the process exits non-zero.
+  let resultError = '';
 
   // Parse stream-json events from stdout line by line
   child.stdout.on('data', (chunk: Buffer) => {
@@ -168,6 +177,9 @@ async function runPhaseViaCLI(
           // Use the result text as a fallback if we collected nothing from streaming
           if (fullText.length === 0 && event.result) {
             fullText = String(event.result);
+          }
+          if (event.is_error === true && event.result) {
+            resultError = String(event.result);
           }
           if (event.subtype === 'error_during_execution') {
             const errMsg = String(event.error ?? event.result ?? 'CLI error');
@@ -203,7 +215,7 @@ async function runPhaseViaCLI(
       }
 
       if (code !== 0) {
-        const errDetail = stderrOutput.trim() || `exit code ${code}`;
+        const errDetail = resultError || stderrOutput.trim() || `exit code ${code}`;
         console.error(`[Roadmap CLI] process exited with code ${code}: ${errDetail}`);
         reject(new Error(`claude CLI failed: ${errDetail}`));
         return;
@@ -236,6 +248,7 @@ async function runDiscoveryPhase(
   modelId: string,
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
+  guidance?: string,
 ): Promise<RoadmapPhaseResult> {
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
   const projectIndexFile = join(projectDir, '.malvy', 'project_index.json');
@@ -252,6 +265,7 @@ async function runDiscoveryPhase(
   const contextBlock =
     `\n\n**Project Directory**: ${projectDir}\n` +
     `**Project Index File**: ${projectIndexFile}\n` +
+    buildGuidanceSection(guidance) +
     `\nRead the project index file first, then explore the codebase. ` +
     `Output your findings wrapped in <roadmap_discovery> tags as instructed above.`;
 
@@ -316,6 +330,22 @@ async function runDiscoveryPhase(
 // =============================================================================
 
 /**
+ * Render the user's regenerate guidance as a prompt section.
+ * Placed after the file references so it reads as the most recent instruction,
+ * and framed as overriding the previous roadmap's direction — the whole point is
+ * to correct where the last generation went.
+ */
+export function buildGuidanceSection(guidance?: string): string {
+  const text = guidance?.trim();
+  if (!text) return '';
+  return (
+    `\n**DIRECTION FROM THE USER** (takes priority over the previous roadmap's direction — ` +
+    `follow it when choosing the vision, audience, phases and features):\n` +
+    `${text}\n`
+  );
+}
+
+/**
  * Run the features phase — generate and prioritize roadmap features.
  */
 async function runFeaturesPhase(
@@ -325,6 +355,7 @@ async function runFeaturesPhase(
   modelId: string,
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
+  guidance?: string,
 ): Promise<RoadmapPhaseResult> {
   const roadmapFile = join(outputDir, 'roadmap.json');
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
@@ -356,6 +387,7 @@ async function runFeaturesPhase(
     `\n\n**Discovery File**: ${discoveryFile}\n` +
     `**Project Index File**: ${projectIndexFile}\n` +
     preservedSection +
+    buildGuidanceSection(guidance) +
     `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
 
   const systemPrompt = loadedFeaturesPrompt
@@ -493,6 +525,7 @@ export async function runRoadmapGeneration(
     projectDir,
     modelShorthand = 'sonnet',
     refresh = false,
+    guidance,
     abortSignal,
   } = config;
 
@@ -508,7 +541,7 @@ export async function runRoadmapGeneration(
   // Phase 1: Discovery
   onStream?.({ type: 'phase-start', phase: 'discovery' });
   const discoveryResult = await runDiscoveryPhase(
-    projectDir, outputDir, refresh, modelId, abortSignal, onStream,
+    projectDir, outputDir, refresh, modelId, abortSignal, onStream, guidance,
   );
   phases.push(discoveryResult);
   onStream?.({ type: 'phase-complete', phase: 'discovery', success: discoveryResult.success });
@@ -524,7 +557,7 @@ export async function runRoadmapGeneration(
   // Phase 2: Feature Generation
   onStream?.({ type: 'phase-start', phase: 'features' });
   const featuresResult = await runFeaturesPhase(
-    projectDir, outputDir, refresh, modelId, abortSignal, onStream,
+    projectDir, outputDir, refresh, modelId, abortSignal, onStream, guidance,
   );
   phases.push(featuresResult);
   onStream?.({ type: 'phase-complete', phase: 'features', success: featuresResult.success });

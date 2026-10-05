@@ -189,6 +189,24 @@ export function useIpcListeners(): void {
       }
     );
 
+    // A rate-limited task keeps its in_progress status but stops consuming a
+    // parallel slot, so the queue can put the freed capacity to work.
+    const cleanupRateLimitPause = window.electronAPI.onTaskRateLimitPause(
+      (taskId: string, info, projectId?: string) => {
+        if (!isTaskForCurrentProject(projectId)) return;
+        useTaskStore.getState().setRateLimitPause(taskId, info);
+        appendLog(taskId, `[RATE LIMIT] Paused: ${info.error}`);
+      }
+    );
+
+    const cleanupRateLimitResume = window.electronAPI.onTaskRateLimitResume(
+      (taskId: string, projectId?: string) => {
+        if (!isTaskForCurrentProject(projectId)) return;
+        useTaskStore.getState().clearRateLimitPause(taskId);
+        appendLog(taskId, '[RATE LIMIT] Resumed');
+      }
+    );
+
     const cleanupError = window.electronAPI.onTaskError(
       (taskId: string, error: string, projectId?: string) => {
         // Filter by project to prevent multi-project interference (issue #723)
@@ -388,6 +406,8 @@ export function useIpcListeners(): void {
         batchTimeout = null;
       }
       cleanupProgress();
+      cleanupRateLimitPause();
+      cleanupRateLimitResume();
       cleanupError();
       cleanupLog();
       cleanupStatus();

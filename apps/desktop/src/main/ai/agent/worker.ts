@@ -225,7 +225,7 @@ async function assemblePrompt(
     if (result) {
       postLog(`Project instructions loaded from ${result.source} (${(result.content.length / 1024).toFixed(1)}KB)`);
     } else {
-      postLog('No project instructions found (checked AGENTS.md, CLAUDE.md)');
+      postLog('No project instructions found (checked AGENTS.md, CLAUDE.md, .malvy/docs, .malvy/pointers.md)');
     }
   }
 
@@ -453,7 +453,7 @@ async function runSingleSession(
 ): Promise<SessionResult> {
   // Use queue-resolved model ID from baseSession (already mapped to the correct
   // provider-specific model, e.g., 'gpt-5.3-codex' for OpenAI Codex).
-  // getPhaseModel() only knows local shorthands (opus → claude-opus-4-6) and
+  // getPhaseModel() only knows local shorthands (opus → claude-opus-5-5) and
   // would create a mismatch when the provider queue selected a non-Anthropic account.
   const phaseModelId = baseSession.modelId;
   const phaseThinking = await getPhaseThinking(specDir, phase);

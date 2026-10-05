@@ -14,7 +14,7 @@
 
 import { spawn } from 'node:child_process';
 
-import { findExecutable } from '../../platform';
+import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
@@ -122,7 +122,10 @@ export async function runFeatureRefine(
     abortSignal,
   } = config;
 
-  const claudePath = await findExecutable('claude');
+  const [augmentedEnv, claudePath] = await Promise.all([
+    getAugmentedEnvAsync(),
+    findExecutableAsync('claude'),
+  ]);
   if (!claudePath) {
     onEvent({ type: 'error', error: 'claude CLI not found — make sure Claude Code is installed' });
     return;
@@ -152,12 +155,12 @@ export async function runFeatureRefine(
     '--model', modelId,
   ];
 
-  // Merge active Claude profile env so CLI uses the correct account
   const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+  const spawnEnv = { ...augmentedEnv, ...profileEnv };
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...profileEnv },
+    env: spawnEnv,
   });
 
   // Wire abort signal

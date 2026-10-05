@@ -38,6 +38,7 @@ import { GitHubOAuthFlow } from './project-settings/GitHubOAuthFlow';
 import { ProviderAccountsList } from './settings/ProviderAccountsList';
 import { useSettingsStore } from '../stores/settings-store';
 import type { Project, ProjectSettings } from '../../shared/types';
+import { getTaskBranchName } from '../../shared/utils/task-branch';
 
 interface GitHubSetupModalProps {
   open: boolean;
@@ -797,7 +798,7 @@ export function GitHubSetupModal({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   All tasks will be created from branches like{' '}
-                  <code className="px-1 bg-muted rounded">malvy/task-name</code>
+                  <code className="px-1 bg-muted rounded">{getTaskBranchName('task-name', project.settings)}</code>
                   {selectedBranch && (
                     <> based on <code className="px-1 bg-muted rounded">{selectedBranch}</code></>
                   )}

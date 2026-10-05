@@ -24,6 +24,7 @@ export * from './pr-status';
 export * from './provider-account';
 
 export * from './tests';
+export * from './claude-docs';
 
 // IPC types (must be last to use types from other modules)
 export * from './ipc';

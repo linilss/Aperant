@@ -44,7 +44,7 @@ roadmap/
 - Single "Generate Roadmap" CTA
 
 #### `RoadmapTabs.tsx`
-- Tab navigation (Phases, All Features, By Priority, Kanban)
+- Tab navigation (Kanban, Phases, All Features); priorities live in the MoSCoW view (`components/moscow/`)
 - Renders appropriate view based on active tab
 - Delegates to PhaseCard, FeatureCard, and RoadmapKanbanView
 

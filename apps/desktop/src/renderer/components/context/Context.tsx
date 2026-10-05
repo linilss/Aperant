@@ -1,18 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { FolderTree, Brain, BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { useContextStore } from '../../stores/context-store';
-import { verifyMemory, pinMemory, deprecateMemory } from '../../stores/context-store';
+import {
+  useContextStore,
+  verifyMemory,
+  pinMemory,
+  deprecateMemory,
+  loadDocs,
+  loadPointers,
+  loadBranches,
+  loadProjectSummary
+} from '../../stores/context-store';
 import { useProjectContext, useRefreshIndex, useMemorySearch } from './hooks';
 import { ProjectIndexTab } from './ProjectIndexTab';
 import { MemoriesTab } from './MemoriesTab';
-import { DocumentationTab } from './DocumentationTab';
-import type { ProjectDocumentation } from './DocumentationTab';
+import { DocsTab, type DocFocus } from './docs/DocsTab';
+import type { BranchProgressEvent, DocPointer, DocsOptimizerResult } from '../../../shared/types';
 import type { ContextProps } from './types';
 
 export function Context({ projectId }: ContextProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation(['common', 'context']);
   const {
     projectIndex,
     indexLoading,
@@ -23,18 +31,13 @@ export function Context({ projectId }: ContextProps) {
     memoriesLoading,
     searchResults,
     searchLoading,
-    documentation,
-    documentationLoading,
-    documentationError,
-    documentationStreamChunk,
-    setDocumentation,
-    setDocumentationLoading,
-    setDocumentationError,
-    appendDocumentationChunk,
-    clearDocumentationChunk,
+    docs,
+    pointers,
+    lastOptimizedAt
   } = useContextStore();
 
   const [activeTab, setActiveTab] = useState('index');
+  const [docFocus, setDocFocus] = useState<DocFocus | null>(null);
 
   // Custom hooks
   useProjectContext(projectId);
@@ -53,88 +56,74 @@ export function Context({ projectId }: ContextProps) {
     await deprecateMemory(memoryId);
   };
 
-  // Load existing documentation on mount
+  // Load docs tree, pointers, code branches and project summary for the project
   useEffect(() => {
-    let cancelled = false;
-    async function loadDocumentation() {
-      try {
-        const result = await window.electronAPI.getProjectDocumentation(projectId);
-        if (!cancelled && result.success && result.data) {
-          setDocumentation(result.data as ProjectDocumentation);
-        }
-      } catch {
-        // Silently ignore — documentation is optional
-      }
-    }
-    void loadDocumentation();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, setDocumentation]);
+    void loadDocs(projectId);
+    void loadPointers(projectId);
+    void loadBranches(projectId);
+    void loadProjectSummary(projectId);
+  }, [projectId]);
 
-  // Register IPC listeners for streaming documentation events
+  // Docs optimizer events (registered here so they survive tab switches)
   useEffect(() => {
-    const unsubChunk = window.electronAPI.onDocumentationChunk(
-      (incomingProjectId: string, chunk: string) => {
+    const store = useContextStore.getState;
+    const unsubChunk = window.electronAPI.onDocsOptimizerChunk((incomingProjectId: string, chunk: string) => {
+      if (incomingProjectId === projectId) store().appendOptimizerStream(chunk);
+    });
+    const unsubProgress = window.electronAPI.onDocsOptimizerBranchProgress(
+      (incomingProjectId: string, progress: BranchProgressEvent) => {
+        if (incomingProjectId === projectId) store().setBranchProgress(progress);
+      }
+    );
+    const unsubComplete = window.electronAPI.onDocsOptimizerComplete(
+      (incomingProjectId: string, result: DocsOptimizerResult) => {
         if (incomingProjectId === projectId) {
-          appendDocumentationChunk(chunk);
+          store().setOptimizerResult(result);
+          // Skipped branches were recorded in .meta.json — refresh their status
+          void loadBranches(projectId);
         }
       }
     );
-
-    const unsubComplete = window.electronAPI.onDocumentationComplete(
-      (incomingProjectId: string, doc: ProjectDocumentation) => {
-        if (incomingProjectId === projectId) {
-          setDocumentation(doc);
-          setDocumentationLoading(false);
-          clearDocumentationChunk();
-        }
+    const unsubError = window.electronAPI.onDocsOptimizerError((incomingProjectId: string, error: string) => {
+      if (incomingProjectId === projectId) {
+        store().setOptimizerError(error);
+        store().setOptimizerRunning(false);
       }
-    );
-
-    const unsubError = window.electronAPI.onDocumentationError(
-      (incomingProjectId: string, error: string) => {
-        if (incomingProjectId === projectId) {
-          setDocumentationError(error);
-          setDocumentationLoading(false);
-        }
-      }
-    );
-
-    // onDocumentationToolUse — no store update needed, tool indication is
-    // derived from streamChunk inside DocumentationTab
-    const unsubToolUse = window.electronAPI.onDocumentationToolUse(
-      (_incomingProjectId: string, _toolName: string) => {
-        // intentional no-op
-      }
-    );
-
+    });
     return () => {
       unsubChunk();
+      unsubProgress();
       unsubComplete();
       unsubError();
-      unsubToolUse();
     };
-  }, [
-    projectId,
-    appendDocumentationChunk,
-    setDocumentation,
-    setDocumentationLoading,
-    setDocumentationError,
-    clearDocumentationChunk,
-  ]);
+  }, [projectId]);
 
-  const handleGenerate = useCallback(() => {
-    setDocumentationLoading(true);
-    setDocumentationError(null);
-    clearDocumentationChunk();
-    window.electronAPI.generateProjectDocumentation(projectId);
-  }, [projectId, setDocumentationLoading, setDocumentationError, clearDocumentationChunk]);
+  const handleOpenDoc = useCallback((docPath: string) => {
+    setDocFocus({ path: docPath });
+    setActiveTab('docs');
+  }, []);
 
-  const handleStop = useCallback(() => {
-    window.electronAPI.stopProjectDocumentation(projectId);
-    setDocumentationLoading(false);
-  }, [projectId, setDocumentationLoading]);
+  const handleReview = useCallback(() => setActiveTab('docs'), []);
+
+  const handleOpenPointer = useCallback((pointer: DocPointer) => {
+    if (!pointer.docPath) return;
+    setDocFocus({ path: pointer.docPath, heading: pointer.heading });
+    setActiveTab('docs');
+  }, []);
+
+  const docsSummary = useMemo(() => {
+    let date = t('context:summary.never');
+    if (lastOptimizedAt) {
+      try {
+        date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+          new Date(lastOptimizedAt)
+        );
+      } catch {
+        date = lastOptimizedAt;
+      }
+    }
+    return t('context:summary.line', { docs: docs.length, pointers: pointers.length, date });
+  }, [t, docs.length, pointers.length, lastOptimizedAt]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -143,15 +132,15 @@ export function Context({ projectId }: ContextProps) {
           <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="index" className="gap-2">
               <FolderTree className="h-4 w-4" />
-              {t('context.tabs.projectIndex')}
+              {t('common:context.tabs.projectIndex')}
             </TabsTrigger>
-            <TabsTrigger value="documentation" className="gap-2">
+            <TabsTrigger value="docs" className="gap-2">
               <BookOpen className="h-4 w-4" />
-              {t('context.tabs.documentation')}
+              {t('context:tabs.docs')}
             </TabsTrigger>
             <TabsTrigger value="memories" className="gap-2">
               <Brain className="h-4 w-4" />
-              {t('context.tabs.memories')}
+              {t('common:context.tabs.memories')}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -159,29 +148,28 @@ export function Context({ projectId }: ContextProps) {
         {/* Project Index Tab */}
         <TabsContent value="index" className="flex-1 overflow-hidden m-0">
           <ProjectIndexTab
+            projectId={projectId}
+            onOpenDoc={handleOpenDoc}
+            onReview={handleReview}
             projectIndex={projectIndex}
             indexLoading={indexLoading}
             indexError={indexError}
             onRefresh={handleRefreshIndex}
+            docsSummary={docsSummary}
           />
         </TabsContent>
 
-        {/* Documentation Tab */}
-        <TabsContent value="documentation" className="flex-1 overflow-hidden m-0">
-          <DocumentationTab
-            projectId={projectId}
-            documentation={documentation}
-            isGenerating={documentationLoading}
-            streamChunk={documentationStreamChunk}
-            error={documentationError}
-            onGenerate={handleGenerate}
-            onStop={handleStop}
-          />
+        {/* Docs Tab */}
+        <TabsContent value="docs" className="flex-1 overflow-hidden m-0">
+          <DocsTab projectId={projectId} focus={docFocus} />
         </TabsContent>
 
         {/* Memories Tab */}
         <TabsContent value="memories" className="flex-1 overflow-hidden m-0">
           <MemoriesTab
+            projectId={projectId}
+            pointers={pointers}
+            onOpenPointer={handleOpenPointer}
             memoryStatus={memoryStatus}
             memoryState={memoryState}
             recentMemories={recentMemories}

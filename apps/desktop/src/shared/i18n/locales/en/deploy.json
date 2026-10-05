@@ -1,0 +1,17 @@
+{
+  "title": "Deploy",
+  "subtitle": "Run the project's deploy scripts in an agent terminal",
+  "refresh": "Refresh",
+  "run": "Deploy",
+  "confirm": "Run {{name}}?",
+  "noDescription": "No description. Add a comment block at the top of the script to describe it.",
+  "usage": "Usage",
+  "argsPlaceholder": "Arguments (optional)",
+  "loadFailed": "Could not read deploy scripts",
+  "terminalLimit": "Terminal limit reached. Close a terminal and try again.",
+  "empty": {
+    "title": "No deploy scripts found",
+    "description": "Malvy looks for deploy*.sh files in the project root and up to two folders down, like deploy.sh or deploy-ios.sh.",
+    "hint": "Comment lines at the top of the script become its description here. A \"# Usage: …\" line shows which arguments it takes."
+  }
+}

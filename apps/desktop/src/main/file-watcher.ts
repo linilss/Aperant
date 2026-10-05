@@ -2,13 +2,15 @@ import chokidar, { FSWatcher } from 'chokidar';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
-import type { ImplementationPlan } from '../shared/types';
+import type { ImplementationPlan, RateLimitPauseInfo } from '../shared/types';
 import { safeParseJson } from './utils/json-repair';
+import { RATE_LIMIT_PAUSE_FILE } from './ai/orchestration/pause-handler';
 
 interface WatcherInfo {
   taskId: string;
   watcher: FSWatcher;
   planPath: string;
+  pausePath: string;
 }
 
 /**
@@ -63,6 +65,10 @@ export class FileWatcher extends EventEmitter {
       }
 
       const planPath = path.join(specDir, 'implementation_plan.json');
+      // The orchestrator drops this sentinel next to the plan when a session hits a
+      // rate limit, and removes it on resume. It does not exist yet at watch time —
+      // chokidar watches the parent directory and fires 'add' when it appears.
+      const pausePath = path.join(specDir, RATE_LIMIT_PAUSE_FILE);
 
       // Check if plan file exists
       if (!existsSync(planPath)) {
@@ -71,7 +77,7 @@ export class FileWatcher extends EventEmitter {
       }
 
       // Create watcher with settings to handle frequent writes
-      const watcher = chokidar.watch(planPath, {
+      const watcher = chokidar.watch([planPath, pausePath], {
         persistent: true,
         ignoreInitial: true,
         awaitWriteFinish: {
@@ -91,11 +97,16 @@ export class FileWatcher extends EventEmitter {
       this.watchers.set(taskId, {
         taskId,
         watcher,
-        planPath
+        planPath,
+        pausePath
       });
 
       // Handle file changes
-      watcher.on('change', () => {
+      watcher.on('change', (changedPath: string) => {
+        if (path.normalize(changedPath) === path.normalize(pausePath)) {
+          this.emitRateLimitPause(taskId, pausePath);
+          return;
+        }
         try {
           const content = readFileSync(planPath, 'utf-8');
           const plan = safeParseJson<ImplementationPlan>(content);
@@ -105,6 +116,20 @@ export class FileWatcher extends EventEmitter {
           // If null, JSON is corrupt even after repair — skip this event
         } catch {
           // File might be in the middle of being written
+        }
+      });
+
+      // The pause sentinel appearing means the task is blocked on a rate limit
+      watcher.on('add', (addedPath: string) => {
+        if (path.normalize(addedPath) === path.normalize(pausePath)) {
+          this.emitRateLimitPause(taskId, pausePath);
+        }
+      });
+
+      // ...and its removal means the limit reset, or the user resumed early
+      watcher.on('unlink', (removedPath: string) => {
+        if (path.normalize(removedPath) === path.normalize(pausePath)) {
+          this.emit('rate-limit-resume', taskId);
         }
       });
 
@@ -124,6 +149,12 @@ export class FileWatcher extends EventEmitter {
       } catch {
         // Initial read failed - not critical
       }
+
+      // A pause may already be in effect if the watcher is being re-pointed at the
+      // worktree spec dir while the task sits in its rate-limit wait.
+      if (existsSync(pausePath)) {
+        this.emitRateLimitPause(taskId, pausePath);
+      }
     } finally {
       // Only clean up if this call still owns the entry. If a superseding
       // concurrent watch() call has already updated pendingWatches with a
@@ -136,6 +167,34 @@ export class FileWatcher extends EventEmitter {
         // cancellation flag so it doesn't linger for future watch() calls.
         this.cancelledWatches.delete(taskId);
       }
+    }
+  }
+
+  /**
+   * Parse the RATE_LIMIT_PAUSE sentinel and emit the pause event.
+   * The file is written by writeRateLimitPauseFile() in the orchestration layer.
+   */
+  private emitRateLimitPause(taskId: string, pausePath: string): void {
+    try {
+      const raw = JSON.parse(readFileSync(pausePath, 'utf-8')) as {
+        pausedAt?: string;
+        resetTimestamp?: string | null;
+        error?: string;
+      };
+      const info: RateLimitPauseInfo = {
+        pausedAt: raw.pausedAt || new Date().toISOString(),
+        resetAt: raw.resetTimestamp ?? null,
+        error: raw.error || 'Rate limit reached'
+      };
+      this.emit('rate-limit-pause', taskId, info);
+    } catch {
+      // Sentinel unreadable or mid-write — still report the pause so the UI
+      // and the queue stop treating this task as actively consuming a slot.
+      this.emit('rate-limit-pause', taskId, {
+        pausedAt: new Date().toISOString(),
+        resetAt: null,
+        error: 'Rate limit reached'
+      } satisfies RateLimitPauseInfo);
     }
   }
 

@@ -15,6 +15,13 @@ import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 
 import type { ProjectCapabilities, PromptContext, PromptValidationResult } from './types';
+import {
+  findClaudeDocs,
+  MALVY_DOCS_DIR,
+  MALVY_POINTERS_FILE,
+  resolveMalvyRoot,
+  stripPointersTitle,
+} from '../../claude-docs';
 
 // =============================================================================
 // Expected prompt files (used for startup validation)
@@ -155,31 +162,86 @@ async function tryReadFile(filePath: string): Promise<string | null> {
   }
 }
 
-/** Result of loading project instructions, includes the source filename */
+/** Result of loading project instructions, includes the source filename(s) */
 export interface ProjectInstructionsResult {
   content: string;
-  /** Which file was loaded (e.g., "AGENTS.md", "CLAUDE.md") */
+  /** Which files were loaded, comma-separated (e.g., "CLAUDE.md, .malvy/docs/CLAUDE.md, .malvy/pointers.md") */
   source: string;
 }
 
 /**
- * Load project instructions from AGENTS.md (preferred) or CLAUDE.md (fallback).
+ * Load project instructions for agent prompts.
  *
- * AGENTS.md is the canonical provider-agnostic instruction file.
- * CLAUDE.md is supported for backward compatibility.
- * Only one file is loaded — AGENTS.md takes priority if it exists.
- * Both upper and lower case variants are tried.
+ * Sections, in order (each only if present):
+ * 1. Team root doc — AGENTS.md (preferred) or CLAUDE.md, upper or lower case.
+ * 2. `## DOCUMENTATION MAP` — every team doc and `.malvy/docs` file with its first line,
+ *    so the agent knows where to read before touching a directory.
+ * 3. `## MALVY DOCS` — the root `.malvy/docs/CLAUDE.md` (Malvy's complementary layer).
+ * 4. `## DEVELOPER POINTERS (override docs where they conflict)` — from `.malvy/pointers.md`.
  *
- * @param projectDir - Project root directory
- * @returns Content of the first found instruction file, or null
+ * File reads only (no database) so it is safe to call from the agent worker thread.
+ * When `projectDir` is a task worktree, the Malvy layer is read from the owning project.
+ *
+ * @param projectDir - Project root (or task worktree) directory
+ * @returns Assembled instructions, or null if nothing was found
  */
 export async function loadProjectInstructions(projectDir: string): Promise<ProjectInstructionsResult | null> {
+  const sections: string[] = [];
+  const sources: string[] = [];
+
   const candidates = ['AGENTS.md', 'agents.md', 'CLAUDE.md', 'claude.md'];
+  let teamRoot: string | null = null;
   for (const name of candidates) {
     const content = await tryReadFile(join(projectDir, name));
-    if (content) return { content, source: name };
+    if (content) {
+      teamRoot = name;
+      sections.push(content);
+      sources.push(name);
+      break;
+    }
   }
-  return null;
+
+  const malvyRoot = resolveMalvyRoot(projectDir);
+  const sameRoot = malvyRoot === projectDir;
+  const teamDocs = (await findClaudeDocs(projectDir)).filter((d) => d.layer === 'team');
+  const malvyDocs = (await findClaudeDocs(malvyRoot)).filter((d) => d.layer === 'malvy');
+
+  const mapLines: string[] = [];
+  let hasUnincludedDoc = false;
+  for (const doc of [...teamDocs, ...malvyDocs]) {
+    // Malvy docs live in the owning project when running inside a worktree
+    const displayPath = doc.layer === 'malvy' && !sameRoot ? join(malvyRoot, doc.relativePath) : doc.relativePath;
+    let note = '';
+    if (doc.layer === 'team' && doc.relativePath === teamRoot) note = ' (included above)';
+    else if (doc.layer === 'malvy' && doc.layerPath === 'CLAUDE.md') note = ' (included below)';
+    else hasUnincludedDoc = true;
+    const layer = doc.layer === 'malvy' ? ' [malvy]' : '';
+    mapLines.push(`- \`${displayPath}\`${layer}${note}${doc.firstLine ? ` — ${doc.firstLine}` : ''}`);
+  }
+  if (hasUnincludedDoc) {
+    sections.push(
+      `## DOCUMENTATION MAP\n\n` +
+      `Read the doc for a directory before changing files in it. ` +
+      `[malvy] docs complement the team docs for the same directory.\n\n` +
+      mapLines.join('\n')
+    );
+  }
+
+  const malvyRootDoc = await tryReadFile(join(malvyRoot, MALVY_DOCS_DIR, 'CLAUDE.md'));
+  if (malvyRootDoc) {
+    sections.push(`## MALVY DOCS\n\n${malvyRootDoc}`);
+    sources.push(`${MALVY_DOCS_DIR}/CLAUDE.md`);
+  }
+
+  const pointers = await tryReadFile(join(malvyRoot, MALVY_POINTERS_FILE));
+  const pointersBody = pointers ? stripPointersTitle(pointers) : '';
+  if (pointersBody) {
+    sections.push(`## DEVELOPER POINTERS (override docs where they conflict)\n\n${pointersBody}`);
+    sources.push(MALVY_POINTERS_FILE);
+  }
+
+  if (sources.length === 0) return null;
+  return { content: sections.join('\n\n'), source: sources.join(', ') };
 }
 
 /** @deprecated Use loadProjectInstructions() instead */

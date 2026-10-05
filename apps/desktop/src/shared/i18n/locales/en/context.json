@@ -1,0 +1,146 @@
+{
+  "tabs": {
+    "docs": "Docs"
+  },
+  "summary": {
+    "line": "{{docs}} doc files · {{pointers}} pointers · last optimized {{date}}",
+    "never": "never"
+  },
+  "docs": {
+    "title": "Documentation",
+    "subtitle": "CLAUDE.md files agents read. Team docs are read-only; Malvy docs live in .malvy/docs.",
+    "optimize": "Optimize documentation",
+    "stop": "Stop",
+    "refresh": "Refresh",
+    "teamLayer": "Team docs",
+    "malvyLayer": "Malvy docs",
+    "readOnly": "Read-only team doc",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "overBudget": "Over the {{limit}}-line budget",
+    "empty": "No CLAUDE.md or AGENTS.md files found",
+    "emptyHint": "Run the optimizer to create Malvy docs in .malvy/docs.",
+    "selectFile": "Select a doc file to view it",
+    "loadError": "Could not read this file"
+  },
+  "pointers": {
+    "title": "Pointers",
+    "description": "Short corrections you taught Malvy. Agents follow them over the docs.",
+    "add": "Add pointer",
+    "new": "New pointer",
+    "placeholder": "Not X, rather Y",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "general": "General",
+    "appliedIn": "Baked into {{file}}",
+    "empty": "No pointers yet. Add one from a heading in the Docs tab.",
+    "saveError": "Could not save the pointer",
+    "openInDocs": "Open in Docs"
+  },
+  "optimizer": {
+    "running": "Optimizing documentation...",
+    "starting": "Starting...",
+    "failed": "Optimization failed",
+    "noChanges": "The optimizer proposed no changes.",
+    "progress": "{{done}}/{{total}} passes finished"
+  },
+  "review": {
+    "title": "Proposed changes",
+    "subtitle": "Approve per file. Only .malvy/docs is written.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveAll": "Approve all",
+    "close": "Close review",
+    "before": "Before",
+    "after": "After",
+    "empty": "(empty)",
+    "actions": {
+      "create": "New",
+      "update": "Update",
+      "delete": "Delete"
+    },
+    "pointersApplied_one": "{{count}} pointer baked in",
+    "pointersApplied_other": "{{count}} pointers baked in",
+    "applyError": "Some files could not be written: {{errors}}",
+    "summaryItem": "Project summary"
+  },
+  "index": {
+    "title": "Code documentation",
+    "subtitle": "Each code branch gets its own CLAUDE.md in .malvy/docs, loaded when agents work there.",
+    "coverage": "{{documented}}/{{total}} branches documented",
+    "optimizeAll": "Optimize all",
+    "stop": "Stop",
+    "rescan": "Rescan branches",
+    "reviewReady_one": "{{count}} change ready for review",
+    "reviewReady_other": "{{count}} changes ready for review",
+    "review": "Review",
+    "root": "Project root",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "pointers_one": "{{count}} pointer",
+    "pointers_other": "{{count}} pointers",
+    "openDoc": "Open doc",
+    "documentBranch": "Document this branch",
+    "noBranches": "No code branches found yet.",
+    "status": {
+      "documented": "Documented",
+      "team": "Team docs",
+      "missing": "Missing",
+      "stale": "Stale",
+      "over_budget": "Over budget"
+    },
+    "statusHint": {
+      "documented": "Malvy doc exists or the optimizer reviewed this branch",
+      "team": "Only the team's CLAUDE.md / AGENTS.md covers this branch",
+      "missing": "No documentation yet",
+      "stale": "Code changed after the branch was last documented",
+      "over_budget": "The Malvy doc is over its line budget"
+    },
+    "progress": {
+      "queued": "Queued",
+      "running": "Documenting...",
+      "done": "Proposal ready",
+      "skipped": "No changes needed",
+      "error": "Failed: {{error}}"
+    },
+    "summary": {
+      "title": "Project summary",
+      "empty": "No project summary yet",
+      "emptyHint": "Optimize the documentation to document every code branch and extract a short summary of the project.",
+      "optimize": "Optimize documentation",
+      "stack": "Stack",
+      "entryPoints": "Entry points",
+      "commands": "Commands",
+      "keyModules": "Key modules",
+      "copy": "Copy command",
+      "copied": "Copied",
+      "showBranch": "Show branch"
+    },
+    "detected": {
+      "title": "Detected stack",
+      "subtitle": "Static analysis of the project structure",
+      "refresh": "Re-analyze",
+      "analyze": "Analyze project",
+      "noIndex": "No project index found",
+      "noIndexHint": "Analyze the project to detect services, infrastructure and conventions.",
+      "loadError": "Failed to load project index",
+      "servicesCount_one": "{{count}} service",
+      "servicesCount_other": "{{count}} services",
+      "services": "Services",
+      "infrastructure": "Infrastructure",
+      "conventions": "Conventions",
+      "dockerCompose": "Docker Compose",
+      "ci": "CI/CD",
+      "deployment": "Deployment",
+      "dockerServices": "Docker services",
+      "pythonLinting": "Python linting",
+      "jsLinting": "JS linting",
+      "formatting": "Formatting",
+      "gitHooks": "Git hooks",
+      "typescript": "TypeScript",
+      "enabled": "Enabled"
+    }
+  }
+}

@@ -1,9 +1,17 @@
+import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
 import { Settings2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu';
 import type { Project } from '../../shared/types';
 
 interface SortableProjectTabProps {
@@ -13,6 +21,7 @@ interface SortableProjectTabProps {
   tabIndex: number;
   onSelect: () => void;
   onClose: (e: React.MouseEvent) => void;
+  onRemove: () => void;
   // Optional control props for active tab
   onSettingsClick?: () => void;
 }
@@ -28,9 +37,11 @@ export function SortableProjectTab({
   tabIndex,
   onSelect,
   onClose,
+  onRemove,
   onSettingsClick
 }: SortableProjectTabProps) {
   const { t } = useTranslation('common');
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
   // Build tooltip with keyboard shortcut hint (only for tabs 1-9)
   const shortcutHint = tabIndex < 9 ? `${modKey}${tabIndex + 1}` : '';
   const closeShortcut = `${modKey}W`;
@@ -66,6 +77,29 @@ export function SortableProjectTab({
       )}
       {...attributes}
     >
+      {/* Right-click menu — anchored to an invisible element inside the tab */}
+      <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <span className="absolute bottom-0 left-3 h-0 w-0" tabIndex={-1} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {canClose && (
+            <>
+              <DropdownMenuItem onClick={onClose}>
+                {t('projectTab.closeTab')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={onRemove}
+          >
+            {t('projectTab.removeProject')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <Tooltip delayDuration={200}>
         <TooltipTrigger asChild>
           <div
@@ -86,6 +120,10 @@ export function SortableProjectTab({
               ]
             )}
             onClick={onSelect}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenuOpen(true);
+            }}
           >
             {/* Drag handle - visible on hover, hidden on mobile */}
             <div

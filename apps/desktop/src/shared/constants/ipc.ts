@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   PROJECT_INITIALIZE: 'project:initialize',
   PROJECT_CHECK_VERSION: 'project:checkVersion',
   PROJECT_CLEAR_DATA: 'project:clearData',
+  PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
 
   // Tab state operations (persisted in main process)
   TAB_STATE_GET: 'tabState:get',
@@ -84,6 +85,8 @@ export const IPC_CHANNELS = {
   TASK_LOG: 'task:log',
   TASK_STATUS_CHANGE: 'task:statusChange',
   TASK_EXECUTION_PROGRESS: 'task:executionProgress',
+  TASK_RATE_LIMIT_PAUSE: 'task:rateLimitPause',      // Event: task paused on a provider rate limit
+  TASK_RATE_LIMIT_RESUME: 'task:rateLimitResume',    // Event: rate-limit pause cleared
 
   // Task phase logs (persistent, collapsible logs by phase)
   TASK_LOGS_GET: 'task:logsGet',           // Load logs from spec dir
@@ -223,6 +226,7 @@ export const IPC_CHANNELS = {
   ROADMAP_REFRESH: 'roadmap:refresh',
   ROADMAP_STOP: 'roadmap:stop',
   ROADMAP_UPDATE_FEATURE: 'roadmap:updateFeature',
+  ROADMAP_UPDATE_FEATURE_PRIORITY: 'roadmap:updateFeaturePriority',
   ROADMAP_CONVERT_TO_SPEC: 'roadmap:convertToSpec',
   COMPETITOR_ANALYSIS_SAVE: 'roadmap:competitorAnalysisSave',
 
@@ -257,16 +261,26 @@ export const IPC_CHANNELS = {
   CONTEXT_MEMORY_PIN: 'context:memory:pin',
   CONTEXT_MEMORY_DEPRECATE: 'context:memory:deprecate',
   CONTEXT_MEMORY_DELETE: 'context:memory:delete',
+  CONTEXT_MEMORY_CREATE: 'context:memory:create',
+  CONTEXT_MEMORY_UPDATE: 'context:memory:update',
 
-  // Project Documentation (AI deep research)
-  CONTEXT_GET_DOCUMENTATION: 'context:getDocumentation',
-  CONTEXT_GENERATE_DOCUMENTATION: 'context:generateDocumentation',
-  CONTEXT_DOCUMENTATION_STOP: 'context:documentationStop',
-  // Documentation events (main → renderer)
-  CONTEXT_DOCUMENTATION_CHUNK: 'context:documentationChunk',
-  CONTEXT_DOCUMENTATION_TOOL_USE: 'context:documentationToolUse',
-  CONTEXT_DOCUMENTATION_COMPLETE: 'context:documentationComplete',
-  CONTEXT_DOCUMENTATION_ERROR: 'context:documentationError',
+  // Developer pointers (user_taught memories mirrored to .malvy/pointers.md)
+  CONTEXT_POINTERS_LIST: 'context:pointers:list',
+  CONTEXT_POINTERS_DELETE: 'context:pointers:delete',
+
+  // CLAUDE.md docs tree (team + .malvy/docs layers)
+  CONTEXT_DOCS_LIST: 'context:docs:list',
+  CONTEXT_DOCS_READ: 'context:docs:read',
+  CONTEXT_DOCS_OPTIMIZE: 'context:docs:optimize',
+  CONTEXT_DOCS_STOP: 'context:docs:stop',
+  CONTEXT_DOCS_APPLY: 'context:docs:apply',
+  CONTEXT_DOCS_BRANCHES: 'context:docs:branches',
+  CONTEXT_DOCS_SUMMARY: 'context:docs:summary',
+  // Docs optimizer events (main → renderer)
+  CONTEXT_DOCS_CHUNK: 'context:docs:chunk',
+  CONTEXT_DOCS_BRANCH_PROGRESS: 'context:docs:branchProgress',
+  CONTEXT_DOCS_COMPLETE: 'context:docs:complete',
+  CONTEXT_DOCS_ERROR: 'context:docs:error',
 
   // Environment configuration
   ENV_GET: 'env:get',

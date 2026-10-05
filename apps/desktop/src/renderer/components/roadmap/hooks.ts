@@ -127,6 +127,9 @@ export function useRoadmapGeneration(projectId: string) {
   const [pendingAction, setPendingAction] = useState<'generate' | 'refresh' | null>(null);
   const [showCompetitorDialog, setShowCompetitorDialog] = useState(false);
   const [showExistingAnalysisDialog, setShowExistingAnalysisDialog] = useState(false);
+  const [showGuidanceDialog, setShowGuidanceDialog] = useState(false);
+  // Kept after a regenerate so the next one starts from the last direction given
+  const [guidance, setGuidance] = useState('');
 
   // Check if we have existing competitor analysis
   const hasExistingAnalysis = !!competitorAnalysis;
@@ -140,7 +143,15 @@ export function useRoadmapGeneration(projectId: string) {
     }
   };
 
+  // Regenerate first asks for optional direction, then continues into the
+  // competitor-analysis choice exactly as before
   const handleRefresh = () => {
+    setShowGuidanceDialog(true);
+  };
+
+  const handleGuidanceConfirm = (text: string) => {
+    setGuidance(text);
+    setShowGuidanceDialog(false);
     setPendingAction('refresh');
     if (hasExistingAnalysis) {
       setShowExistingAnalysisDialog(true);
@@ -154,7 +165,7 @@ export function useRoadmapGeneration(projectId: string) {
     if (pendingAction === 'generate') {
       generateRoadmap(projectId, true); // Enable competitor analysis
     } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, true); // Enable competitor analysis
+      refreshRoadmap(projectId, true, false, guidance); // Enable competitor analysis
     }
     setPendingAction(null);
   };
@@ -164,7 +175,7 @@ export function useRoadmapGeneration(projectId: string) {
     if (pendingAction === 'generate') {
       generateRoadmap(projectId, false); // Disable competitor analysis
     } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, false); // Disable competitor analysis
+      refreshRoadmap(projectId, false, false, guidance); // Disable competitor analysis
     }
     setPendingAction(null);
   };
@@ -175,7 +186,7 @@ export function useRoadmapGeneration(projectId: string) {
     if (pendingAction === 'generate') {
       generateRoadmap(projectId, true, false); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=false
     } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, true, false); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=false
+      refreshRoadmap(projectId, true, false, guidance); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=false
     }
     setPendingAction(null);
   };
@@ -186,7 +197,7 @@ export function useRoadmapGeneration(projectId: string) {
     if (pendingAction === 'generate') {
       generateRoadmap(projectId, true, true); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=true
     } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, true, true); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=true
+      refreshRoadmap(projectId, true, true, guidance); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=true
     }
     setPendingAction(null);
   };
@@ -196,7 +207,7 @@ export function useRoadmapGeneration(projectId: string) {
     if (pendingAction === 'generate') {
       generateRoadmap(projectId, false);
     } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, false);
+      refreshRoadmap(projectId, false, false, guidance);
     }
     setPendingAction(null);
   };
@@ -220,6 +231,11 @@ export function useRoadmapGeneration(projectId: string) {
     setShowCompetitorDialog,
     handleGenerate,
     handleRefresh,
+    // Regenerate direction
+    showGuidanceDialog,
+    setShowGuidanceDialog,
+    guidance,
+    handleGuidanceConfirm,
     handleCompetitorDialogAccept,
     handleCompetitorDialogDecline,
     handleStop,

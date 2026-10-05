@@ -3,7 +3,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../../../shared/constants';
-import { findExecutable } from '../../platform';
+import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand } from '../config/types';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
@@ -235,7 +235,10 @@ export class RefineOrchestrator {
   }
 
   private async runCliPhase(prompt: string): Promise<string> {
-    const claudePath = await findExecutable('claude');
+    const [augmentedEnv, claudePath] = await Promise.all([
+      getAugmentedEnvAsync(),
+      findExecutableAsync('claude'),
+    ]);
     if (!claudePath) {
       throw new Error('Claude CLI not found — make sure Claude Code is installed');
     }
@@ -253,10 +256,11 @@ export class RefineOrchestrator {
     ];
 
     const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+    const spawnEnv = { ...augmentedEnv, ...profileEnv };
     const child = spawn(claudePath, args, {
       cwd: this.config.projectDir,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...profileEnv },
+      env: spawnEnv,
     });
     this.activeChild = child;
 

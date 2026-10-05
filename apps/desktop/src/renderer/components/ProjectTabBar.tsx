@@ -6,13 +6,25 @@ import { Button } from './ui/button';
 import { SortableProjectTab } from './SortableProjectTab';
 import { UsageIndicator } from './UsageIndicator';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu';
 import type { Project } from '../../shared/types';
 
 interface ProjectTabBarProps {
   projects: Project[];
+  /** Projects that exist in the app but have no open tab — reopenable from the + menu */
+  closedProjects: Project[];
   activeProjectId: string | null;
   onProjectSelect: (projectId: string) => void;
   onProjectClose: (projectId: string) => void;
+  onProjectOpen: (projectId: string) => void;
+  onProjectRemove: (projectId: string) => void;
   onAddProject: () => void;
   className?: string;
   // Control props for active tab
@@ -21,9 +33,12 @@ interface ProjectTabBarProps {
 
 export function ProjectTabBar({
   projects,
+  closedProjects,
   activeProjectId,
   onProjectSelect,
   onProjectClose,
+  onProjectOpen,
+  onProjectRemove,
   onAddProject,
   className,
   onSettingsClick
@@ -109,6 +124,7 @@ export function ProjectTabBar({
                 e.stopPropagation();
                 onProjectClose(project.id);
               }}
+              onRemove={() => onProjectRemove(project.id)}
               // Pass control props only for active tab
               onSettingsClick={isActiveTab ? onSettingsClick : undefined}
             />
@@ -119,15 +135,47 @@ export function ProjectTabBar({
       <div className="flex items-center gap-2 px-2 py-1">
         <AuthStatusIndicator />
         <UsageIndicator />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={onAddProject}
-          aria-label={t('projectTab.addProjectAriaLabel')}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+        {closedProjects.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={t('projectTab.openProjectAriaLabel')}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>{t('projectTab.closedProjects')}</DropdownMenuLabel>
+              {closedProjects.map((project) => (
+                <DropdownMenuItem
+                  key={project.id}
+                  onClick={() => onProjectOpen(project.id)}
+                  className="truncate"
+                  title={project.path}
+                >
+                  {project.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onAddProject}>
+                {t('projectTab.addProject')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onAddProject}
+            aria-label={t('projectTab.addProjectAriaLabel')}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

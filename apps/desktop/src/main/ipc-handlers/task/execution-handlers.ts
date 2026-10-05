@@ -620,7 +620,7 @@ export function registerTaskExecutionHandlers(
               const { branch, usingFallback: usingFallbackBranch } = detectWorktreeBranch(
                 worktreePath,
                 task.specId,
-                { timeout: 30000, logPrefix: '[TASK_UPDATE_STATUS]' }
+                { timeout: 30000, logPrefix: '[TASK_UPDATE_STATUS]', branchSettings: project.settings }
               );
 
               // Remove the worktree

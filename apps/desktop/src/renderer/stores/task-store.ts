@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { arrayMove } from '@dnd-kit/sortable';
-import type { Task, TaskStatus, SubtaskStatus, ImplementationPlan, Subtask, TaskMetadata, ExecutionProgress, ExecutionPhase, ReviewReason, TaskDraft, ImageAttachment, TaskOrderState } from '../../shared/types';
+import type { Task, TaskStatus, SubtaskStatus, ImplementationPlan, Subtask, TaskMetadata, ExecutionProgress, ExecutionPhase, ReviewReason, TaskDraft, ImageAttachment, TaskOrderState, RateLimitPauseInfo } from '../../shared/types';
 import { debugLog, debugWarn } from '../../shared/utils/debug-logger';
 import { useProjectStore } from './project-store';
 
@@ -17,6 +17,14 @@ interface TaskState {
   isLoading: boolean;
   error: string | null;
   taskOrder: TaskOrderState | null;  // Per-column task ordering for kanban board
+  /**
+   * Tasks currently blocked on a provider rate limit, keyed by task id.
+   * These are still `in_progress` — their worker is alive but parked in
+   * waitForRateLimitResume — so they do not consume a parallel task slot.
+   * Populated from the RATE_LIMIT_PAUSE sentinel via the file watcher, and
+   * deliberately not persisted: a pause only exists while its worker does.
+   */
+  rateLimitPauses: Record<string, RateLimitPauseInfo>;
 
   // Actions
   setTasks: (tasks: Task[]) => void;
@@ -31,6 +39,8 @@ interface TaskState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearTasks: () => void;
+  setRateLimitPause: (taskId: string, info: RateLimitPauseInfo) => void;
+  clearRateLimitPause: (taskId: string) => void;
   // Task order actions for kanban drag-and-drop reordering
   setTaskOrder: (order: TaskOrderState) => void;
   reorderTasksInColumn: (status: TaskStatus, activeId: string, overId: string) => void;
@@ -201,6 +211,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   isLoading: false,
   error: null,
   taskOrder: null,
+  rateLimitPauses: {},
 
   setTasks: (tasks) => {
     debugLog('[TaskStore.setTasks] Hydrating tasks:', {
@@ -537,7 +548,25 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   setError: (error) => set({ error }),
 
-  clearTasks: () => set({ tasks: [], selectedTaskId: null, taskOrder: null }),
+  clearTasks: () => set({ tasks: [], selectedTaskId: null, taskOrder: null, rateLimitPauses: {} }),
+
+  setRateLimitPause: (taskId, info) =>
+    set((state) => {
+      // Resolve to the canonical task id — pause events arrive keyed by whichever
+      // id the agent layer used (task id or spec id), same as the other listeners.
+      const index = findTaskIndex(state.tasks, taskId);
+      const key = index === -1 ? taskId : state.tasks[index].id;
+      return { rateLimitPauses: { ...state.rateLimitPauses, [key]: info } };
+    }),
+
+  clearRateLimitPause: (taskId) =>
+    set((state) => {
+      const index = findTaskIndex(state.tasks, taskId);
+      const key = index === -1 ? taskId : state.tasks[index].id;
+      if (!(key in state.rateLimitPauses)) return state;
+      const { [key]: _removed, ...rest } = state.rateLimitPauses;
+      return { rateLimitPauses: rest };
+    }),
 
   // Task order actions for kanban drag-and-drop reordering
   setTaskOrder: (order) => set({ taskOrder: order }),
@@ -854,11 +883,29 @@ export async function forceCompleteTask(taskId: string): Promise<PersistStatusRe
  */
 export function isQueueAtCapacity(excludeTaskId?: string): boolean {
   const maxParallelTasks = useProjectStore.getState().getActiveProject()?.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
-  const currentTasks = useTaskStore.getState().tasks;
+  const { tasks: currentTasks, rateLimitPauses } = useTaskStore.getState();
+  // Tasks parked in a rate-limit wait release their slot — they are in_progress
+  // but idle, and holding capacity for them stalls the whole board.
   const inProgressCount = currentTasks.filter((t) =>
-    t.status === 'in_progress' && !t.metadata?.archivedAt && (!excludeTaskId || t.id !== excludeTaskId)
+    t.status === 'in_progress' &&
+    !t.metadata?.archivedAt &&
+    !rateLimitPauses[t.id] &&
+    (!excludeTaskId || t.id !== excludeTaskId)
   ).length;
   return inProgressCount >= maxParallelTasks;
+}
+
+/**
+ * Whether any task is currently parked in a rate-limit wait.
+ *
+ * The orchestrator only pauses after profile auto-swap failed to find an
+ * account with capacity, so an active pause means there is no usable session
+ * right now. Auto-promotion honours this: without it, every freed slot would
+ * be refilled by a task that immediately hits the same limit and pauses too,
+ * draining the queue into a pile of parked tasks.
+ */
+export function isRateLimitPaused(): boolean {
+  return Object.keys(useTaskStore.getState().rateLimitPauses).length > 0;
 }
 
 export interface StartTaskOrQueueResult {

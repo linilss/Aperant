@@ -15,7 +15,7 @@ import { join } from 'node:path';
 
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
-import { findExecutable } from '../../platform';
+import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
 
 // =============================================================================
@@ -149,7 +149,10 @@ export async function runIdeation(
   const userPrompt = `Analyze the project at ${projectDir} and generate up to ${maxIdeasPerType} ${ideationType.replace(/_/g, ' ')} ideas. Use the available tools to explore the codebase, then write your findings as a JSON file to the output directory.`;
   const combinedPrompt = `${prompt}\n\n${userPrompt}`;
 
-  const claudePath = await findExecutable('claude');
+  const [augmentedEnv, claudePath] = await Promise.all([
+    getAugmentedEnvAsync(),
+    findExecutableAsync('claude'),
+  ]);
   if (!claudePath) {
     return { success: false, text: '', error: 'claude CLI not found — make sure Claude Code is installed' };
   }
@@ -163,14 +166,14 @@ export async function runIdeation(
     '--model', modelId,
   ];
 
-  // Merge active Claude profile env so CLI uses the correct account
   const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+  const spawnEnv = { ...augmentedEnv, ...profileEnv };
   console.error(`[Ideation CLI] spawning: ${claudePath} ${args.join(' ')} (type: ${ideationType})`);
 
   const child = spawn(claudePath, args, {
     cwd: projectDir,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...profileEnv },
+    env: spawnEnv,
   });
 
   child.stdin.write(combinedPrompt, 'utf-8');
@@ -179,6 +182,9 @@ export async function runIdeation(
   let responseText = '';
   let stdoutBuffer = '';
   let stderrOutput = '';
+  // Fatal CLI errors (e.g. an expired login) arrive as an is_error result on
+  // stdout; stderr may only hold unrelated warnings
+  let resultError = '';
 
   child.stdout.on('data', (chunk: Buffer) => {
     stdoutBuffer += chunk.toString('utf-8');
@@ -208,6 +214,9 @@ export async function runIdeation(
           if (responseText.length === 0 && event.result) {
             responseText = String(event.result);
           }
+          if (event.is_error === true && event.result) {
+            resultError = String(event.result);
+          }
           if (event.subtype === 'error_during_execution') {
             const errMsg = String(event.error ?? event.result ?? 'CLI error');
             onStream?.({ type: 'error', error: errMsg });
@@ -232,7 +241,7 @@ export async function runIdeation(
         abortSignal?.removeEventListener('abort', abortHandler);
         if (abortSignal?.aborted) { reject(new Error('Aborted')); return; }
         if (code !== 0) {
-          reject(new Error(`claude CLI failed: ${stderrOutput.trim() || `exit code ${code}`}`));
+          reject(new Error(`claude CLI failed: ${resultError || stderrOutput.trim() || `exit code ${code}`}`));
           return;
         }
         resolve();

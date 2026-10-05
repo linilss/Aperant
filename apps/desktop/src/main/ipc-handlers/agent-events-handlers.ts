@@ -8,6 +8,7 @@ import type {
   SDKRateLimitInfo,
   AuthFailureInfo,
   ImplementationPlan,
+  RateLimitPauseInfo,
 } from "../../shared/types";
 import { XSTATE_SETTLED_STATES, XSTATE_ACTIVE_STATES, XSTATE_TO_PHASE, mapStateToLegacy } from "../../shared/state-machines";
 import { AgentManager } from "../agent";
@@ -267,7 +268,7 @@ export function registerAgenteventsHandlers(
             );
             execFileSync(
               getToolPath('git'),
-              ['commit', '-m', `malvy: save uncommitted work for ${task.specId}`],
+              ['commit', '-m', `Save uncommitted work for ${taskTitle}`],
               { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
             );
             console.warn(`[agent-events-handlers] Auto-committed uncommitted work for task ${taskId}`);
@@ -499,6 +500,24 @@ export function registerAgenteventsHandlers(
     // File watcher events don't carry projectId — fall back to lookup
     const { project } = findTaskAndProject(taskId);
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_ERROR, taskId, error, project?.id);
+  });
+
+  // Rate-limit pause/resume. The task keeps running (its worker is blocked in
+  // waitForRateLimitResume), but it is not doing any work — the renderer uses
+  // this to stop counting it against the parallel task limit.
+  fileWatcher.on("rate-limit-pause", (taskId: string, info: RateLimitPauseInfo) => {
+    const { project } = findTaskAndProject(taskId);
+    console.warn(`[FileWatcher→Renderer] Task ${taskId} paused on rate limit`, {
+      resetAt: info.resetAt,
+      projectId: project?.id ?? 'UNKNOWN'
+    });
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, taskId, info, project?.id);
+  });
+
+  fileWatcher.on("rate-limit-resume", (taskId: string) => {
+    const { project } = findTaskAndProject(taskId);
+    console.warn(`[FileWatcher→Renderer] Task ${taskId} resumed from rate limit`);
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_RATE_LIMIT_RESUME, taskId, project?.id);
   });
 }
 

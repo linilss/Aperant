@@ -377,6 +377,7 @@ export function registerTaskCRUDHandlers(agentManager: AgentManager): void {
           projectPath: project.path,
           specId: task.specId,
           logPrefix: '[TASK_DELETE]',
+          branchSettings: project.settings,
           deleteBranch: true
         });
 

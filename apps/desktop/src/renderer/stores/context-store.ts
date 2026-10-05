@@ -4,26 +4,18 @@ import type {
   MemorySystemStatus,
   MemorySystemState,
   RendererMemory,
-  ContextSearchResult
+  ContextSearchResult,
+  ClaudeDocFile,
+  DocPointer,
+  DocProposal,
+  CreatePointerInput,
+  ApplyDocProposalsResult,
+  CodeBranch,
+  ProjectSummary,
+  BranchProgressEvent,
+  DocsOptimizeOptions,
+  DocsOptimizerResult
 } from '../../shared/types';
-
-export interface ProjectDocumentation {
-  generatedAt: string;
-  projectName: string;
-  overview: string;
-  architecture: string;
-  modules: Array<{
-    name: string;
-    path: string;
-    description: string;
-    responsibilities: string[];
-    keyFiles: string[];
-  }>;
-  apiSurface: string;
-  dataModels: string;
-  developerGuide: string;
-  techStack: string;
-}
 
 interface ContextState {
   // Project Index
@@ -46,11 +38,26 @@ interface ContextState {
   searchLoading: boolean;
   searchQuery: string;
 
-  // Documentation
-  documentation: ProjectDocumentation | null;
-  documentationLoading: boolean;
-  documentationError: string | null;
-  documentationStreamChunk: string;
+  // Docs tree (team + .malvy/docs)
+  docs: ClaudeDocFile[];
+  docsLoading: boolean;
+  lastOptimizedAt: string | null;
+
+  // Developer pointers
+  pointers: DocPointer[];
+
+  // Code branches + project summary (.malvy/docs/project_summary.json)
+  branches: CodeBranch[];
+  branchesLoading: boolean;
+  projectSummary: ProjectSummary | null;
+
+  // Docs optimizer
+  optimizerRunning: boolean;
+  optimizerStream: string;
+  optimizerError: string | null;
+  proposals: DocProposal[] | null;
+  /** Live per-branch status of the current/last run, keyed by branch path */
+  branchProgress: Record<string, BranchProgressEvent>;
 
   // Actions
   setProjectIndex: (index: ProjectIndex | null) => void;
@@ -65,11 +72,18 @@ interface ContextState {
   setSearchResults: (results: ContextSearchResult[]) => void;
   setSearchLoading: (loading: boolean) => void;
   setSearchQuery: (query: string) => void;
-  setDocumentation: (doc: ProjectDocumentation | null) => void;
-  setDocumentationLoading: (loading: boolean) => void;
-  setDocumentationError: (error: string | null) => void;
-  appendDocumentationChunk: (chunk: string) => void;
-  clearDocumentationChunk: () => void;
+  setDocs: (docs: ClaudeDocFile[], lastOptimizedAt: string | null) => void;
+  setDocsLoading: (loading: boolean) => void;
+  setPointers: (pointers: DocPointer[]) => void;
+  setBranches: (branches: CodeBranch[]) => void;
+  setBranchesLoading: (loading: boolean) => void;
+  setProjectSummary: (summary: ProjectSummary | null) => void;
+  setBranchProgress: (progress: BranchProgressEvent) => void;
+  setOptimizerResult: (result: DocsOptimizerResult) => void;
+  setOptimizerRunning: (running: boolean) => void;
+  appendOptimizerStream: (chunk: string) => void;
+  setOptimizerError: (error: string | null) => void;
+  setProposals: (proposals: DocProposal[] | null) => void;
   clearAll: () => void;
 }
 
@@ -94,11 +108,25 @@ export const useContextStore = create<ContextState>((set) => ({
   searchLoading: false,
   searchQuery: '',
 
-  // Documentation
-  documentation: null,
-  documentationLoading: false,
-  documentationError: null,
-  documentationStreamChunk: '',
+  // Docs tree
+  docs: [],
+  docsLoading: false,
+  lastOptimizedAt: null,
+
+  // Developer pointers
+  pointers: [],
+
+  // Code branches + project summary
+  branches: [],
+  branchesLoading: false,
+  projectSummary: null,
+
+  // Docs optimizer
+  optimizerRunning: false,
+  optimizerStream: '',
+  optimizerError: null,
+  proposals: null,
+  branchProgress: {},
 
   // Actions
   setProjectIndex: (index) => set({ projectIndex: index }),
@@ -113,12 +141,21 @@ export const useContextStore = create<ContextState>((set) => ({
   setSearchResults: (results) => set({ searchResults: results }),
   setSearchLoading: (loading) => set({ searchLoading: loading }),
   setSearchQuery: (query) => set({ searchQuery: query }),
-  setDocumentation: (doc) => set({ documentation: doc }),
-  setDocumentationLoading: (loading) => set({ documentationLoading: loading }),
-  setDocumentationError: (error) => set({ documentationError: error }),
-  appendDocumentationChunk: (chunk) =>
-    set((state) => ({ documentationStreamChunk: state.documentationStreamChunk + chunk })),
-  clearDocumentationChunk: () => set({ documentationStreamChunk: '' }),
+  setDocs: (docs, lastOptimizedAt) => set({ docs, lastOptimizedAt }),
+  setDocsLoading: (loading) => set({ docsLoading: loading }),
+  setPointers: (pointers) => set({ pointers }),
+  setBranches: (branches) => set({ branches }),
+  setBranchesLoading: (loading) => set({ branchesLoading: loading }),
+  setProjectSummary: (summary) => set({ projectSummary: summary }),
+  setBranchProgress: (progress) =>
+    set((state) => ({ branchProgress: { ...state.branchProgress, [progress.branch]: progress } })),
+  setOptimizerResult: (result) =>
+    set({ proposals: result.proposals, optimizerRunning: false }),
+  setOptimizerRunning: (running) => set({ optimizerRunning: running }),
+  appendOptimizerStream: (chunk) =>
+    set((state) => ({ optimizerStream: state.optimizerStream + chunk })),
+  setOptimizerError: (error) => set({ optimizerError: error }),
+  setProposals: (proposals) => set({ proposals }),
   clearAll: () =>
     set({
       projectIndex: null,
@@ -133,10 +170,18 @@ export const useContextStore = create<ContextState>((set) => ({
       searchResults: [],
       searchLoading: false,
       searchQuery: '',
-      documentation: null,
-      documentationLoading: false,
-      documentationError: null,
-      documentationStreamChunk: ''
+      docs: [],
+      docsLoading: false,
+      lastOptimizedAt: null,
+      pointers: [],
+      branches: [],
+      branchesLoading: false,
+      projectSummary: null,
+      optimizerRunning: false,
+      optimizerStream: '',
+      optimizerError: null,
+      proposals: null,
+      branchProgress: {}
     })
 }));
 
@@ -334,4 +379,165 @@ export async function deleteMemory(memoryId: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ============================================================
+// Docs tree
+// ============================================================
+
+/**
+ * Load the CLAUDE.md docs tree (both layers) and last optimization time
+ */
+export async function loadDocs(projectId: string): Promise<void> {
+  const store = useContextStore.getState();
+  store.setDocsLoading(true);
+  try {
+    const result = await window.electronAPI.listClaudeDocs(projectId);
+    if (result.success && result.data) {
+      store.setDocs(result.data.docs, result.data.lastOptimizedAt);
+    } else {
+      store.setDocs([], null);
+    }
+  } catch {
+    store.setDocs([], null);
+  } finally {
+    store.setDocsLoading(false);
+  }
+}
+
+/**
+ * Load code branches with their documentation status
+ */
+export async function loadBranches(projectId: string): Promise<void> {
+  const store = useContextStore.getState();
+  store.setBranchesLoading(true);
+  try {
+    const result = await window.electronAPI.listCodeBranches(projectId);
+    store.setBranches(result.success && result.data ? result.data : []);
+  } catch {
+    store.setBranches([]);
+  } finally {
+    store.setBranchesLoading(false);
+  }
+}
+
+/**
+ * Load `.malvy/docs/project_summary.json`
+ */
+export async function loadProjectSummary(projectId: string): Promise<void> {
+  try {
+    const result = await window.electronAPI.getProjectSummary(projectId);
+    useContextStore.getState().setProjectSummary(result.success && result.data ? result.data : null);
+  } catch {
+    useContextStore.getState().setProjectSummary(null);
+  }
+}
+
+// ============================================================
+// Developer pointers
+// ============================================================
+
+/**
+ * Load developer pointers (user_taught memories)
+ */
+export async function loadPointers(projectId: string): Promise<void> {
+  try {
+    const result = await window.electronAPI.listPointers(projectId);
+    useContextStore.getState().setPointers(result.success && result.data ? result.data : []);
+  } catch {
+    useContextStore.getState().setPointers([]);
+  }
+}
+
+export async function createPointer(projectId: string, input: CreatePointerInput): Promise<boolean> {
+  try {
+    const result = await window.electronAPI.createPointer(projectId, input);
+    if (result.success) await loadPointers(projectId);
+    return result.success;
+  } catch {
+    return false;
+  }
+}
+
+export async function updatePointer(projectId: string, memoryId: string, content: string): Promise<boolean> {
+  try {
+    const result = await window.electronAPI.updatePointer(projectId, memoryId, content);
+    if (result.success) await loadPointers(projectId);
+    return result.success;
+  } catch {
+    return false;
+  }
+}
+
+export async function deletePointer(projectId: string, memoryId: string): Promise<boolean> {
+  try {
+    const result = await window.electronAPI.deletePointer(projectId, memoryId);
+    if (result.success) {
+      const store = useContextStore.getState();
+      store.setPointers(store.pointers.filter((p) => p.id !== memoryId));
+      store.setRecentMemories(store.recentMemories.filter((m) => m.id !== memoryId));
+    }
+    return result.success;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================
+// Docs optimizer
+// ============================================================
+
+/**
+ * Start the orchestrated docs optimizer (all branches + root by default, or
+ * only `options.branches`); results arrive via onDocsOptimizer* listeners
+ */
+export function startDocsOptimizer(projectId: string, options?: DocsOptimizeOptions): void {
+  useContextStore.setState({
+    optimizerRunning: true,
+    optimizerStream: '',
+    optimizerError: null,
+    proposals: null,
+    branchProgress: {}
+  });
+  window.electronAPI.optimizeClaudeDocs(projectId, options);
+}
+
+export function stopDocsOptimizer(projectId: string): void {
+  window.electronAPI.stopClaudeDocsOptimizer(projectId);
+  useContextStore.getState().setOptimizerRunning(false);
+}
+
+/**
+ * Apply approved proposals, drop them from the review list and reload docs + pointers
+ */
+export async function applyProposals(
+  projectId: string,
+  approved: DocProposal[]
+): Promise<ApplyDocProposalsResult | null> {
+  try {
+    const result = await window.electronAPI.applyDocProposals(projectId, approved);
+    if (!result.success || !result.data) return null;
+    const appliedPaths = new Set(result.data.applied);
+    const store = useContextStore.getState();
+    const remaining = (store.proposals ?? []).filter((p) => !appliedPaths.has(p.path));
+    store.setProposals(remaining.length > 0 ? remaining : null);
+    await Promise.all([
+      loadDocs(projectId),
+      loadPointers(projectId),
+      loadBranches(projectId),
+      loadProjectSummary(projectId)
+    ]);
+    return result.data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drop a proposal from the review list without applying it
+ */
+export function rejectProposal(path: string): void {
+  const store = useContextStore.getState();
+  const remaining = (store.proposals ?? []).filter((p) => p.path !== path);
+  store.setProposals(remaining.length > 0 ? remaining : null);
 }

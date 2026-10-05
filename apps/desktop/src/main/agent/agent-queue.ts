@@ -20,6 +20,7 @@ import { runRoadmapGeneration } from '../ai/runners/roadmap';
 import type { RoadmapStreamEvent } from '../ai/runners/roadmap';
 import type { ModelShorthand, ThinkingLevel } from '../ai/config/types';
 import { resolvePromptsDir } from '../ai/prompts/prompt-loader';
+import { ideationTypeFileName, mergeIdeationIdeas } from './ideation-consolidation';
 
 /**
  * Queue management for ideation and roadmap generation
@@ -216,6 +217,8 @@ export class AgentQueueManager {
 
     // Track progress
     const completedTypes = new Set<string>();
+    /** Raw ideas produced by this run, keyed by type — consolidated when the run ends */
+    const generatedIdeasByType = new Map<string, RawIdea[]>();
     const enabledTypes = config.enabledTypes.length > 0
       ? config.enabledTypes
       : [...IDEATION_TYPES];
@@ -275,11 +278,14 @@ export class AgentQueueManager {
           debugLog('[Agent Queue] Ideation type completed:', { projectId, ideationType });
 
           // Load and emit type-specific ideas
-          const typeFilePath = path.join(outputDir, `${ideationType}_ideas.json`);
+          const typeFilePath = path.join(outputDir, ideationTypeFileName(ideationType));
           try {
             const content = await fsPromises.readFile(typeFilePath, 'utf-8');
             const data: Record<string, RawIdea[]> = JSON.parse(content);
-            const rawIdeas: RawIdea[] = data[ideationType] || [];
+            const rawIdeas: RawIdea[] = data[ideationType] || data.ideas || [];
+            // Keep the raw ideas so the final consolidation writes exactly what
+            // was streamed to the UI, instead of re-reading the files.
+            generatedIdeasByType.set(ideationType, rawIdeas);
             const ideas: Idea[] = rawIdeas.map(transformIdeaFromSnakeCase);
             this.emitter.emit('ideation-type-complete', projectId, ideationType, ideas);
           } catch (err) {
@@ -326,57 +332,49 @@ export class AgentQueueManager {
       completedTypes: Array.from(completedTypes)
     });
 
-    // Load and emit the complete ideation session.
-    // The CLI runner writes individual *_ideas.json files per type.
-    // Assemble them into ideation.json if it doesn't already exist.
+    // Consolidate this run's ideas into ideation.json — the file the UI reads.
+    //
+    // This runs on EVERY completed run. It previously only ran when ideation.json
+    // was absent, so on any project that had generated ideas before, a new run's
+    // results were never written: the stale file was loaded and emitted instead,
+    // and the renderer's setSession() replaced the ideas it had just streamed in.
     try {
       const ideationFilePath = path.join(outputDir, 'ideation.json');
 
-      if (!existsSync(ideationFilePath)) {
-        // Assemble from individual type files written by the CLI runner
-        const typeFileMap: Record<string, string> = {
-          code_improvements: 'code_improvements_ideas.json',
-          ui_ux_improvements: 'ui_ux_ideas.json',
-          documentation_gaps: 'documentation_gaps_ideas.json',
-          security_hardening: 'security_hardening_ideas.json',
-          performance_optimizations: 'performance_optimizations_ideas.json',
-          code_quality: 'code_quality_ideas.json',
-        };
-
-        const allIdeas: unknown[] = [];
-        for (const [ideaType, fileName] of Object.entries(typeFileMap)) {
-          const filePath = path.join(outputDir, fileName);
-          if (existsSync(filePath)) {
-            try {
-              const content = await fsPromises.readFile(filePath, 'utf-8');
-              const data = JSON.parse(content);
-              // Each file is { [type]: [...ideas] }
-              const ideas = data[ideaType] ?? data.ideas ?? [];
-              allIdeas.push(...(Array.isArray(ideas) ? ideas : []));
-            } catch { /* skip malformed files */ }
-          }
-        }
-
-        if (allIdeas.length > 0) {
-          const assembled = {
-            id: `ideation-${Date.now()}`,
-            ideas: allIdeas,
-            generated_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          await fsPromises.writeFile(ideationFilePath, JSON.stringify(assembled, null, 2), 'utf-8');
-          debugLog('[Agent Queue] Assembled ideation.json from individual type files:', { totalIdeas: allIdeas.length });
+      // Read whatever is already there so types that didn't run are preserved
+      let existingRaw: { id?: string; ideas?: RawIdea[]; generated_at?: string } = {};
+      if (existsSync(ideationFilePath)) {
+        try {
+          existingRaw = JSON.parse(await fsPromises.readFile(ideationFilePath, 'utf-8'));
+        } catch (err) {
+          debugError('[Agent Queue] Existing ideation.json is unreadable, rebuilding:', err);
         }
       }
 
-      if (existsSync(ideationFilePath)) {
-        const content = await fsPromises.readFile(ideationFilePath, 'utf-8');
-        const rawSession = JSON.parse(content);
-        const session = transformSessionFromSnakeCase(rawSession, projectId);
-        debugLog('[Agent Queue] Loaded ideation session:', { totalIdeas: session.ideas?.length || 0 });
+      const existingIdeas: RawIdea[] = Array.isArray(existingRaw.ideas) ? existingRaw.ideas : [];
+
+      const mergedIdeas = mergeIdeationIdeas(existingIdeas, generatedIdeasByType);
+
+      if (mergedIdeas.length > 0) {
+        const consolidated = {
+          ...existingRaw,
+          id: existingRaw.id || `ideation-${Date.now()}`,
+          ideas: mergedIdeas,
+          generated_at: existingRaw.generated_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        await writeFileWithRetry(ideationFilePath, JSON.stringify(consolidated, null, 2), { encoding: 'utf-8' });
+        debugLog('[Agent Queue] Consolidated ideation.json:', {
+          regeneratedTypes: Array.from(generatedIdeasByType.keys()),
+          totalIdeas: mergedIdeas.length,
+        });
+
+        const session = transformSessionFromSnakeCase(consolidated, projectId);
         this.emitter.emit('ideation-complete', projectId, session);
       } else {
-        debugLog('[Agent Queue] No ideation data found after assembly attempt');
+        // Nothing on disk and nothing generated. Emit null so the UI can stop the
+        // spinner — the renderer keeps whatever it already has rather than clearing.
+        debugLog('[Agent Queue] Ideation run produced no ideas');
         this.emitter.emit('ideation-complete', projectId, null);
       }
     } catch (err) {
@@ -453,6 +451,7 @@ export class AgentQueueManager {
           thinkingLevel: (config?.thinkingLevel || 'medium') as ThinkingLevel,
           refresh,
           enableCompetitorAnalysis,
+          guidance: config?.guidance,
           abortSignal: abortController.signal,
         },
         (event: RoadmapStreamEvent) => {

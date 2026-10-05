@@ -1049,6 +1049,11 @@ export function registerSettingsHandlers(
           const { getClaudeProfileManager } = await import('../claude-profile-manager');
           const manager = getClaudeProfileManager();
           manager.setAccountPriorityOrder(order);
+
+          // CLI runners (roadmap, ideation, agents) log in via the active profile,
+          // not the queue — make the new #1 account the one they use
+          const { syncActiveProfileToQueue } = await import('../claude-profile/sync-active-profile');
+          syncActiveProfileToQueue(order);
         } catch {
           // Non-fatal: usage-monitor may use stale order until next app restart
         }
