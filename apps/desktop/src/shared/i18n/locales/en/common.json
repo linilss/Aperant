@@ -997,5 +997,14 @@
     "acceptRecommendation": "Yes, go with the recommendation",
     "autoAccept": "Auto-accept recommendations (up to {{max}} questions, then finish)",
     "autoAcceptRunning": "Auto-accepting… {{current}}/{{max}} — uncheck to take over"
+  },
+  "remote": {
+    "notPaired": {
+      "title": "Not paired",
+      "description": "Scan the QR code in Malvy on your computer (Settings → Remote access) to connect this device."
+    },
+    "connecting": "Connecting to Malvy…",
+    "reconnecting": "Reconnecting…",
+    "notAvailable": "Not available from remote devices"
   }
 }

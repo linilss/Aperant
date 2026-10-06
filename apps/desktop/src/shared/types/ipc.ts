@@ -972,5 +972,7 @@ declare global {
     electronAPI: ElectronAPI;
     DEBUG: boolean;
     platform?: PlatformInfo;
+    /** True when running as the LAN web UI (browser over WebSocket), not inside Electron. */
+    isRemote?: boolean;
   }
 }

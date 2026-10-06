@@ -7,6 +7,7 @@ import type { ChangelogFormat, ChangelogAudience, ChangelogEmojiLevel } from './
 import type { SupportedLanguage } from '../constants/i18n';
 import type { ProviderAccount, BuiltinProvider } from './provider-account';
 import type { ProviderModelSpec } from '../constants/models';
+import type { RemoteAccessSettings } from './remote-access';
 
 // Color theme types for multi-theme support
 export type ColorTheme = 'default' | 'dusk' | 'lime' | 'ocean' | 'retro' | 'neo' | 'forest';
@@ -358,6 +359,8 @@ export interface AppSettings {
   sidebarCollapsed?: boolean;
   // GPU acceleration for terminal rendering (WebGL)
   gpuAcceleration?: GpuAcceleration;
+  // LAN web access (phone browser). Managed via REMOTE_ACCESS_* IPC only; ignored by SETTINGS_SAVE.
+  remoteAccess?: RemoteAccessSettings;
 }
 
 // GPU acceleration mode for terminal WebGL rendering

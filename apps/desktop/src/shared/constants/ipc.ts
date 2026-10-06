@@ -729,4 +729,10 @@ export const IPC_CHANNELS = {
   TESTS_COMPLETE: 'tests:complete',
   TESTS_ERROR: 'tests:error',
   TESTS_STOPPED: 'tests:stopped',
+
+  // Remote access (LAN web UI) — desktop only, denylisted for remote clients
+  REMOTE_ACCESS_GET_STATUS: 'remote-access:getStatus',
+  REMOTE_ACCESS_SET_CONFIG: 'remote-access:setConfig',
+  REMOTE_ACCESS_ROTATE_TOKEN: 'remote-access:rotateToken',
+  REMOTE_ACCESS_STATUS_CHANGED: 'remote-access:statusChanged',  // Event: server state / client count changed
 } as const;

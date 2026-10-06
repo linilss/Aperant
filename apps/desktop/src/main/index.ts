@@ -1,3 +1,6 @@
+// Record ipcMain handlers for LAN remote access before anything registers one.
+import './remote/install-ipc-registry';
+
 // Polyfill CommonJS require for ESM compatibility
 // This MUST be at the very top, before any imports that might trigger Sentry's
 // require-in-the-middle hooks. Sentry's hooks expect require.cache to exist,
@@ -70,6 +73,7 @@ import { syncActiveProfileToQueue } from './claude-profile/sync-active-profile';
 import { isProfileAuthenticated } from './claude-profile/profile-utils';
 import { isMacOS, isWindows } from './platform';
 import { ptyDaemonClient } from './terminal/pty-daemon-client';
+import { attachRemoteEventFanout, initRemoteAccess, shutdownRemoteAccess } from './remote/remote-access';
 import type { AppSettings, AuthFailureInfo } from '../shared/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,6 +259,9 @@ function createWindow(): void {
       spellcheck: true // Enable spell check for text inputs
     }
   });
+
+  // Mirror renderer events to paired LAN web clients (no-op while remote access is off)
+  attachRemoteEventFanout(mainWindow);
 
   // Show window when ready to avoid visual flash
   mainWindow.on('ready-to-show', () => {
@@ -548,6 +555,9 @@ app.whenReady().then(() => {
   // Setup IPC handlers
   setupIpcHandlers(agentManager, terminalManager, () => mainWindow);
 
+  // LAN web access: settings IPC + start server if enabled
+  initRemoteAccess(() => mainWindow);
+
   // Create window
   createWindow();
 
@@ -709,6 +719,9 @@ app.on('before-quit', (event) => {
   // Perform async cleanup, then allow quit to proceed
   (async () => {
     try {
+      // Stop the LAN web access server so the port is released
+      await shutdownRemoteAccess();
+
       // Kill all running agent processes
       if (agentManager) {
         await agentManager.killAll();
