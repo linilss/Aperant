@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Plus,
@@ -84,6 +84,8 @@ interface NavItem {
   /** Only shown when this integration is enabled for the project */
   requires?: 'github' | 'gitlab' | 'azureDevOps';
 }
+
+const COLLAPSED_SECTIONS_KEY = 'malvy.sidebar.collapsedSections';
 
 interface NavSection {
   id: string;
@@ -206,15 +208,36 @@ export function Sidebar({
     [visibleSections]
   );
 
-  // Accordion: only one section open at a time, following the active view
+  // All sections start expanded; a section can be collapsed by hand (remembered per
+  // viewer) and is reopened when navigation lands in it
   const activeSectionId = visibleSections.find((section) =>
     section.items.some((item) => item.id === activeView)
   )?.id;
-  const [openSectionId, setOpenSectionId] = useState<string | undefined>(activeSectionId);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_SECTIONS_KEY) ?? '[]') as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const setSectionOpen = useCallback((sectionId: string, open: boolean) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (open) next.delete(sectionId);
+      else next.add(sectionId);
+      try {
+        localStorage.setItem(COLLAPSED_SECTIONS_KEY, JSON.stringify([...next]));
+      } catch {
+        // Storage unavailable: keep the state for this session only
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    setOpenSectionId(activeSectionId);
-  }, [activeSectionId]);
+    if (activeSectionId) setSectionOpen(activeSectionId, true);
+  }, [activeSectionId, setSectionOpen]);
 
   // Load envConfig when project changes to ensure store is populated
   useEffect(() => {
@@ -403,12 +426,12 @@ export function Sidebar({
           <div className="px-3 py-4">
             <nav className="space-y-1">
               {visibleSections.map((section) => {
-                const isOpen = openSectionId === section.id;
+                const isOpen = !collapsedSections.has(section.id);
                 return (
                   <Collapsible
                     key={section.id}
                     open={isOpen}
-                    onOpenChange={(open) => setOpenSectionId(open ? section.id : undefined)}
+                    onOpenChange={(open) => setSectionOpen(section.id, open)}
                   >
                     <CollapsibleTrigger
                       className={cn(
