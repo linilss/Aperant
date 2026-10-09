@@ -57,6 +57,11 @@ export function ProjectIndexTab({
   }, [highlighted]);
 
   const documented = useMemo(() => documentedCount(branches), [branches]);
+  const passCounts = useMemo(() => {
+    const events = Object.values(branchProgress);
+    const finished = events.filter((e) => e.status === 'done' || e.status === 'skipped' || e.status === 'error');
+    return { done: finished.length, total: events.length };
+  }, [branchProgress]);
   const branchFor = useCallback((path: string) => branchForPath(path, branches), [branches]);
 
   const showBranch = useCallback((branch: string) => {
@@ -75,6 +80,42 @@ export function ProjectIndexTab({
     <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:!block">
       <div className="space-y-6 p-6 max-md:p-4">
         <p className="text-xs text-muted-foreground">{docsSummary}</p>
+
+        {/* Optimizer status — kept above the summary card so it is visible without scrolling */}
+        {optimizerRunning && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+            <span className="flex items-center gap-2 text-foreground">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
+              {t('index.running', passCounts)}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => stopDocsOptimizer(projectId)}>
+              <Square className="mr-1.5 h-3.5 w-3.5" />
+              {t('index.stop')}
+            </Button>
+          </div>
+        )}
+
+        {optimizerError && !optimizerRunning && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            <p className="font-medium">{t('optimizer.failed')}</p>
+            <p className="whitespace-pre-line break-words text-xs text-destructive/80">{optimizerError}</p>
+          </div>
+        )}
+
+        {proposals && proposals.length > 0 && !optimizerRunning && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+            <span className="text-foreground">{t('index.reviewReady', { count: proposals.length })}</span>
+            <Button size="sm" onClick={onReview}>
+              {t('index.review')}
+            </Button>
+          </div>
+        )}
+
+        {proposals && proposals.length === 0 && !optimizerRunning && !optimizerError && (
+          <div className="rounded-md border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+            {t('index.noChanges')}
+          </div>
+        )}
 
         <ProjectSummaryCard
           summary={projectSummary}
@@ -118,22 +159,6 @@ export function ProjectIndexTab({
               )}
             </div>
           </div>
-
-          {optimizerError && !optimizerRunning && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-              <p className="font-medium">{t('optimizer.failed')}</p>
-              <p className="whitespace-pre-line break-words text-xs text-destructive/80">{optimizerError}</p>
-            </div>
-          )}
-
-          {proposals && proposals.length > 0 && !optimizerRunning && (
-            <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
-              <span className="text-foreground">{t('index.reviewReady', { count: proposals.length })}</span>
-              <Button size="sm" onClick={onReview}>
-                {t('index.review')}
-              </Button>
-            </div>
-          )}
 
           <Card className="overflow-hidden">
             <CodeBranchTree

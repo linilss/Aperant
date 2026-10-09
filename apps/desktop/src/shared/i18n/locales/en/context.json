@@ -72,6 +72,8 @@
     "coverage": "{{documented}}/{{total}} branches documented",
     "optimizeAll": "Optimize all",
     "stop": "Stop",
+    "running": "Optimizing documentation… {{done}}/{{total}} passes finished",
+    "noChanges": "Optimization finished — no documentation changes needed.",
     "rescan": "Rescan branches",
     "reviewReady_one": "{{count}} change ready for review",
     "reviewReady_other": "{{count}} changes ready for review",
