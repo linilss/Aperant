@@ -66,6 +66,26 @@ describe('loadProjectInstructions', () => {
     expect(result!.source).toBe('CLAUDE.md, .malvy/docs/CLAUDE.md, .malvy/pointers.md');
   });
 
+  it('skips team docs but keeps the Malvy layer when includeTeamDocs is false', async () => {
+    write(root, 'CLAUDE.md', '# Team root');
+    write(root, 'AGENTS.md', '# Team agents');
+    write(root, 'src/main/CLAUDE.md', '# Main process\n');
+    write(root, '.malvy/docs/CLAUDE.md', '# Malvy root');
+    write(root, '.malvy/docs/src/main/CLAUDE.md', '# Malvy main\n');
+    write(root, '.malvy/pointers.md', '# Developer pointers\n\n- Pointer\n');
+
+    const result = await loadProjectInstructions(root, { includeTeamDocs: false });
+    const content = result!.content;
+
+    expect(content).not.toContain('# Team root');
+    expect(content).not.toContain('# Team agents');
+    expect(content).not.toContain('src/main/CLAUDE.md` —');
+    expect(content).toContain('- `.malvy/docs/src/main/CLAUDE.md` [malvy] — Malvy main');
+    expect(content).toContain('## MALVY DOCS\n\n# Malvy root');
+    expect(content).toContain('- Pointer');
+    expect(result!.source).toBe('.malvy/docs/CLAUDE.md, .malvy/pointers.md');
+  });
+
   it('reads the Malvy layer from the owning project when running in a task worktree', async () => {
     const worktree = path.join(root, '.malvy', 'worktrees', 'tasks', '001-task');
     write(worktree, 'CLAUDE.md', '# Team root (worktree)');

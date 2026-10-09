@@ -387,12 +387,12 @@ export function ClaudeCodeStatusBadge({ className }: ClaudeCodeStatusBadgeProps)
               <span className="truncate">Claude Code</span>
               {status === "outdated" && (
                 <span className="ml-auto text-[10px] bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1.5 py-0.5 rounded">
-                  {t("common:update", "Update")}
+                  {t("common:buttons.update", "Update")}
                 </span>
               )}
               {status === "not-found" && (
                 <span className="ml-auto text-[10px] bg-destructive/20 text-destructive px-1.5 py-0.5 rounded">
-                  {t("common:install", "Install")}
+                  {t("common:buttons.install", "Install")}
                 </span>
               )}
             </Button>
@@ -478,8 +478,8 @@ export function ClaudeCodeStatusBadge({ className }: ClaudeCodeStatusBadgeProps)
                   <Download className="h-3 w-3" />
                 )}
                 {status === "outdated"
-                  ? t("common:update", "Update")
-                  : t("common:install", "Install")}
+                  ? t("common:buttons.update", "Update")
+                  : t("common:buttons.install", "Install")}
               </Button>
             )}
             <Button
@@ -490,7 +490,7 @@ export function ClaudeCodeStatusBadge({ className }: ClaudeCodeStatusBadgeProps)
               disabled={status === "loading"}
             >
               <RefreshCw className={cn("h-3 w-3", status === "loading" && "animate-spin")} />
-              {t("common:refresh", "Refresh")}
+              {t("common:buttons.refresh", "Refresh")}
             </Button>
           </div>
 
@@ -637,7 +637,7 @@ export function ClaudeCodeStatusBadge({ className }: ClaudeCodeStatusBadgeProps)
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common:cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:buttons.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={performInstall}>
               {t("navigation:claudeCode.updateAnyway", "Open Terminal & Update")}
             </AlertDialogAction>
@@ -669,7 +669,7 @@ export function ClaudeCodeStatusBadge({ className }: ClaudeCodeStatusBadgeProps)
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setSelectedVersion(null)}>
-              {t("common:cancel", "Cancel")}
+              {t("common:buttons.cancel", "Cancel")}
             </AlertDialogCancel>
             <AlertDialogAction onClick={performVersionSwitch}>
               {t("navigation:claudeCode.switchAnyway", "Open Terminal & Switch")}
@@ -697,7 +697,7 @@ export function ClaudeCodeStatusBadge({ className }: ClaudeCodeStatusBadgeProps)
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setSelectedInstallation(null)}>
-              {t("common:cancel", "Cancel")}
+              {t("common:buttons.cancel", "Cancel")}
             </AlertDialogCancel>
             <AlertDialogAction onClick={performPathSwitch}>
               {t("navigation:claudeCode.switchInstallationConfirm", "Switch")}

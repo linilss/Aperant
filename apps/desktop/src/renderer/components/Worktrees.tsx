@@ -270,7 +270,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
         await loadWorktrees();
         setShowDeleteConfirm(false);
         toast({
-          title: t('common:actions.success'),
+          title: t('common:labels.success'),
           description: t('common:worktrees.deleteSuccess', { branch: worktreeToDelete.branch || worktreeToDelete.specName }),
         });
         setWorktreeToDelete(null);
@@ -425,7 +425,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
       setError(`${t('common:errors.bulkDeletePartialFailure')}\n${errors.join('\n')}`);
     } else {
       toast({
-        title: t('common:actions.success'),
+        title: t('common:labels.success'),
         description: t('common:worktrees.bulkDeleteSuccess', { count: deletedCount }),
       });
     }
@@ -448,7 +448,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
         // Refresh worktrees after successful delete
         await loadWorktrees();
         toast({
-          title: t('common:actions.success'),
+          title: t('common:labels.success'),
           description: t('common:worktrees.deleteSuccess', { branch: terminalWorktreeToDelete.name }),
         });
         setTerminalWorktreeToDelete(null);

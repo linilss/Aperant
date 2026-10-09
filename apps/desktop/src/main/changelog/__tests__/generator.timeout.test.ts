@@ -12,6 +12,7 @@ mockChildProcess.pid = 12345;
 mockChildProcess.kill = vi.fn();
 mockChildProcess.stdout = new EventEmitter();
 mockChildProcess.stderr = new EventEmitter();
+mockChildProcess.stdin = { write: vi.fn(), end: vi.fn() };
 
 const mockSpawn = vi.fn(() => mockChildProcess);
 
@@ -33,16 +34,13 @@ vi.mock('electron', () => ({
   }
 }));
 
-vi.mock('../../python-detector', () => ({
-  parsePythonCommand: vi.fn((cmd: string) => [cmd, []])
-}));
-
 vi.mock('../../env-utils', () => ({
   getAugmentedEnv: vi.fn(() => ({ PATH: '/usr/bin' }))
 }));
 
 vi.mock('../../platform', () => ({
-  isWindows: vi.fn(() => false)
+  isWindows: vi.fn(() => false),
+  requiresShell: vi.fn(() => false)
 }));
 
 vi.mock('../../rate-limit-detector', () => ({
@@ -75,7 +73,6 @@ describe('ChangelogGenerator - Subprocess Timeout', () => {
     // Import generator after mocks are set up
     const { ChangelogGenerator } = await import('../generator');
     generator = new ChangelogGenerator(
-      '/usr/bin/python3',
       '/usr/bin/claude',
       '/tmp/auto-build',
       {},
@@ -132,8 +129,8 @@ describe('ChangelogGenerator - Subprocess Timeout', () => {
 
     // Verify process was spawned
     expect(mockSpawn).toHaveBeenCalledWith(
-      '/usr/bin/python3',
-      expect.arrayContaining(['-c', expect.any(String)]),
+      '/usr/bin/claude',
+      expect.arrayContaining(['-p', '--model', 'haiku']),
       expect.objectContaining({
         cwd: '/tmp/auto-build',
         env: expect.any(Object)
@@ -345,6 +342,7 @@ describe('ChangelogGenerator - Subprocess Timeout', () => {
     mockChildProcess2.kill = vi.fn(() => true);
     mockChildProcess2.stdout = new EventEmitter();
     mockChildProcess2.stderr = new EventEmitter();
+    mockChildProcess2.stdin = { write: vi.fn(), end: vi.fn() };
     mockSpawn.mockReturnValueOnce(mockChildProcess2);
 
     // Start second generation with different projectId (starts 2 minutes after first)

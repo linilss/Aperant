@@ -310,6 +310,12 @@ export class AgentManager extends EventEmitter {
   /**
    * Start spec creation process
    */
+  /** Resolve ProjectSettings.useClaudeMd (default true) for a project. */
+  private getUseClaudeMd(projectId: string | undefined, projectPath: string): boolean {
+    const project = projectStore.getProjects().find((p) => p.id === projectId || p.path === projectPath);
+    return project?.settings?.useClaudeMd !== false;
+  }
+
   async startSpecCreation(
     taskId: string,
     projectPath: string,
@@ -400,6 +406,7 @@ export class AgentManager extends EventEmitter {
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
         linearEnabled: !!process.env.LINEAR_API_KEY,
       },
+      useClaudeMd: this.getUseClaudeMd(projectId, projectPath),
       toolContext: {
         cwd: projectPath,
         projectDir: projectPath,
@@ -525,6 +532,7 @@ export class AgentManager extends EventEmitter {
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
         linearEnabled: !!process.env.LINEAR_API_KEY,
       },
+      useClaudeMd: project?.settings?.useClaudeMd !== false,
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,
@@ -628,6 +636,7 @@ export class AgentManager extends EventEmitter {
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
         linearEnabled: !!process.env.LINEAR_API_KEY,
       },
+      useClaudeMd: project?.settings?.useClaudeMd !== false,
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,

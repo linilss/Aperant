@@ -4,7 +4,6 @@
 
 import type { NotificationSettings, MemoryEmbeddingProvider } from './project';
 import type { ChangelogFormat, ChangelogAudience, ChangelogEmojiLevel } from './changelog';
-import type { SupportedLanguage } from '../constants/i18n';
 import type { ProviderAccount, BuiltinProvider } from './provider-account';
 import type { ProviderModelSpec } from '../constants/models';
 import type { RemoteAccessSettings } from './remote-access';
@@ -264,14 +263,11 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   colorTheme?: ColorTheme;
   defaultModel: string;
-  agentFramework: string;
-  pythonPath?: string;
   gitPath?: string;
   githubCLIPath?: string;
   gitlabCLIPath?: string;
   claudePath?: string;
   autoBuildPath?: string;
-  autoUpdateAutoBuild: boolean;
   autoNameTerminals: boolean;
   notifications: NotificationSettings;
   // Global API keys (used as defaults for all projects)
@@ -284,7 +280,6 @@ export interface AppSettings {
   globalXAIApiKey?: string;
   globalAzureApiKey?: string;
   globalAzureBaseUrl?: string;
-  globalBedrockRegion?: string;
   // Unified provider accounts (multi-provider)
   providerAccounts?: ProviderAccount[];
   /** Global priority order — array of ProviderAccount IDs. First = highest priority. */
@@ -299,13 +294,11 @@ export interface AppSettings {
   memoryEnabled?: boolean;
   memoryEmbeddingProvider?: MemoryEmbeddingProvider;
   memoryOllamaEmbeddingModel?: string;
-  memoryOllamaEmbeddingDim?: number;
   memoryVoyageApiKey?: string;
   memoryVoyageEmbeddingModel?: string;
   memoryAzureApiKey?: string;
   memoryAzureBaseUrl?: string;
   memoryAzureEmbeddingDeployment?: string;
-  memoryGoogleApiKey?: string;
   memoryOpenaiEmbeddingModel?: string;
   memoryGoogleEmbeddingModel?: string;
   // Onboarding wizard completion state
@@ -338,8 +331,6 @@ export interface AppSettings {
   _migratedDefaultModelSync?: boolean;
   _migratedUltrathinkToHigh?: boolean;
   _migratedToPerProviderConfig?: boolean;
-  // Language preference for UI (i18n)
-  language?: SupportedLanguage;
   // Developer tools preferences
   preferredIDE?: SupportedIDE;
   customIDEPath?: string;      // For 'custom' IDE
@@ -355,8 +346,6 @@ export interface AppSettings {
   autoNameClaudeTerminals?: boolean;
   // Track which version warnings have been shown (e.g., ["2.7.5"])
   seenVersionWarnings?: string[];
-  // Sidebar collapsed state (icons only when true)
-  sidebarCollapsed?: boolean;
   // GPU acceleration for terminal rendering (WebGL)
   gpuAcceleration?: GpuAcceleration;
   // LAN web access (phone browser). Managed via REMOTE_ACCESS_* IPC only; ignored by SETTINGS_SAVE.

@@ -34,7 +34,7 @@ export function MemoryStep({ onNext, onBack }: MemoryStepProps) {
     googleEmbeddingModel: settings.memoryGoogleEmbeddingModel || '',
     ollamaBaseUrl: settings.ollamaBaseUrl || 'http://localhost:11434',
     ollamaEmbeddingModel: settings.memoryOllamaEmbeddingModel || 'qwen3-embedding:4b',
-    ollamaEmbeddingDim: settings.memoryOllamaEmbeddingDim ?? 2560,
+    ollamaEmbeddingDim: 2560,
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -65,7 +65,6 @@ export function MemoryStep({ onNext, onBack }: MemoryStepProps) {
         memoryEmbeddingProvider: config.embeddingProvider,
         ollamaBaseUrl: config.ollamaBaseUrl || undefined,
         memoryOllamaEmbeddingModel: config.ollamaEmbeddingModel || undefined,
-        memoryOllamaEmbeddingDim: config.ollamaEmbeddingDim || undefined,
         globalOpenAIApiKey: config.openaiApiKey.trim() || undefined,
         memoryOpenaiEmbeddingModel: config.openaiEmbeddingModel?.trim() || undefined,
         globalGoogleApiKey: config.googleApiKey.trim() || undefined,
@@ -85,7 +84,6 @@ export function MemoryStep({ onNext, onBack }: MemoryStepProps) {
           memoryEmbeddingProvider: config.embeddingProvider,
           ollamaBaseUrl: config.ollamaBaseUrl || undefined,
           memoryOllamaEmbeddingModel: config.ollamaEmbeddingModel || undefined,
-          memoryOllamaEmbeddingDim: config.ollamaEmbeddingDim || undefined,
           globalOpenAIApiKey: config.openaiApiKey.trim() || undefined,
           memoryOpenaiEmbeddingModel: config.openaiEmbeddingModel?.trim() || undefined,
           globalGoogleApiKey: config.googleApiKey.trim() || undefined,

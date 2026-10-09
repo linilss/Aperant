@@ -533,12 +533,11 @@ app.whenReady().then(() => {
       }
     }
 
-    if (settings.pythonPath || validAutoBuildPath) {
+    if (validAutoBuildPath) {
       console.warn('[main] Configuring AgentManager with settings:', {
-        pythonPath: settings.pythonPath,
         autoBuildPath: validAutoBuildPath
       });
-      agentManager.configure(settings.pythonPath, validAutoBuildPath);
+      agentManager.configure(undefined, validAutoBuildPath);
     }
   } catch (error: unknown) {
     // ENOENT means no settings file yet - that's fine, use defaults
@@ -565,7 +564,7 @@ app.whenReady().then(() => {
   // This ensures CLI detection is done before user needs it
   // Include all commonly used tools to prevent sync blocking on first use
   setImmediate(() => {
-    preWarmToolCache(['claude', 'git', 'gh', 'python']).catch((error) => {
+    preWarmToolCache(['claude', 'git', 'gh']).catch((error) => {
       console.warn('[main] Failed to pre-warm CLI cache:', error);
     });
   });

@@ -13,8 +13,7 @@ const GITLAB_ENV_KEYS = {
   ENABLED: 'GITLAB_ENABLED',
   TOKEN: 'GITLAB_TOKEN',
   INSTANCE_URL: 'GITLAB_INSTANCE_URL',
-  PROJECT: 'GITLAB_PROJECT',
-  AUTO_SYNC: 'GITLAB_AUTO_SYNC'
+  PROJECT: 'GITLAB_PROJECT'
 } as const;
 
 // Azure DevOps environment variable keys
@@ -68,18 +67,12 @@ export function registerEnvHandlers(
     if (config.linearProjectId !== undefined) {
       existingVars['LINEAR_PROJECT_ID'] = config.linearProjectId;
     }
-    if (config.linearRealtimeSync !== undefined) {
-      existingVars['LINEAR_REALTIME_SYNC'] = config.linearRealtimeSync ? 'true' : 'false';
-    }
     // GitHub Integration
     if (config.githubToken !== undefined) {
       existingVars['GITHUB_TOKEN'] = config.githubToken;
     }
     if (config.githubRepo !== undefined) {
       existingVars['GITHUB_REPO'] = config.githubRepo;
-    }
-    if (config.githubAutoSync !== undefined) {
-      existingVars['GITHUB_AUTO_SYNC'] = config.githubAutoSync ? 'true' : 'false';
     }
     // GitLab Integration
     if (config.gitlabEnabled !== undefined) {
@@ -93,9 +86,6 @@ export function registerEnvHandlers(
     }
     if (config.gitlabProject !== undefined) {
       existingVars[GITLAB_ENV_KEYS.PROJECT] = config.gitlabProject;
-    }
-    if (config.gitlabAutoSync !== undefined) {
-      existingVars[GITLAB_ENV_KEYS.AUTO_SYNC] = config.gitlabAutoSync ? 'true' : 'false';
     }
     // Azure DevOps Integration
     if (config.azureDevOpsEnabled !== undefined) {
@@ -152,9 +142,6 @@ export function registerEnvHandlers(
     }
     if (config.memoryDbPath !== undefined) {
       existingVars['GRAPHITI_DB_PATH'] = config.memoryDbPath;
-    }
-    if (config.enableFancyUi !== undefined) {
-      existingVars['ENABLE_FANCY_UI'] = config.enableFancyUi ? 'true' : 'false';
     }
 
     // MCP Server Configuration
@@ -216,14 +203,12 @@ ${existingVars['AUTO_BUILD_MODEL'] ? `AUTO_BUILD_MODEL=${existingVars['AUTO_BUIL
 ${existingVars['LINEAR_API_KEY'] ? `LINEAR_API_KEY=${existingVars['LINEAR_API_KEY']}` : '# LINEAR_API_KEY='}
 ${existingVars['LINEAR_TEAM_ID'] ? `LINEAR_TEAM_ID=${existingVars['LINEAR_TEAM_ID']}` : '# LINEAR_TEAM_ID='}
 ${existingVars['LINEAR_PROJECT_ID'] ? `LINEAR_PROJECT_ID=${existingVars['LINEAR_PROJECT_ID']}` : '# LINEAR_PROJECT_ID='}
-${existingVars['LINEAR_REALTIME_SYNC'] !== undefined ? `LINEAR_REALTIME_SYNC=${existingVars['LINEAR_REALTIME_SYNC']}` : '# LINEAR_REALTIME_SYNC=false'}
 
 # =============================================================================
 # GITHUB INTEGRATION (OPTIONAL)
 # =============================================================================
 ${existingVars['GITHUB_TOKEN'] ? `GITHUB_TOKEN=${existingVars['GITHUB_TOKEN']}` : '# GITHUB_TOKEN='}
 ${existingVars['GITHUB_REPO'] ? `GITHUB_REPO=${existingVars['GITHUB_REPO']}` : '# GITHUB_REPO=owner/repo'}
-${existingVars['GITHUB_AUTO_SYNC'] !== undefined ? `GITHUB_AUTO_SYNC=${existingVars['GITHUB_AUTO_SYNC']}` : '# GITHUB_AUTO_SYNC=false'}
 
 # =============================================================================
 # GITLAB INTEGRATION (OPTIONAL)
@@ -232,7 +217,6 @@ ${existingVars[GITLAB_ENV_KEYS.ENABLED] !== undefined ? `${GITLAB_ENV_KEYS.ENABL
 ${envLine(existingVars, GITLAB_ENV_KEYS.INSTANCE_URL, 'https://gitlab.com')}
 ${envLine(existingVars, GITLAB_ENV_KEYS.TOKEN)}
 ${envLine(existingVars, GITLAB_ENV_KEYS.PROJECT, 'group/project')}
-${envLine(existingVars, GITLAB_ENV_KEYS.AUTO_SYNC, 'false')}
 
 # =============================================================================
 # AZURE DEVOPS INTEGRATION (OPTIONAL)
@@ -248,11 +232,6 @@ ${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PROJECT, 'MyProject')}
 # Default base branch for worktree creation
 # If not set, Auto Claude will auto-detect main/master, or fall back to current branch
 ${existingVars['DEFAULT_BRANCH'] ? `DEFAULT_BRANCH=${existingVars['DEFAULT_BRANCH']}` : '# DEFAULT_BRANCH=main'}
-
-# =============================================================================
-# UI SETTINGS (OPTIONAL)
-# =============================================================================
-${existingVars['ENABLE_FANCY_UI'] !== undefined ? `ENABLE_FANCY_UI=${existingVars['ENABLE_FANCY_UI']}` : '# ENABLE_FANCY_UI=true'}
 
 # =============================================================================
 # MCP SERVER CONFIGURATION (per-project overrides)
@@ -355,7 +334,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         gitlabEnabled: false,
         azureDevOpsEnabled: false,
         memoryEnabled: false,
-        enableFancyUi: true,
         openaiKeyIsGlobal: false
       };
 
@@ -384,9 +362,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       if (vars['LINEAR_PROJECT_ID']) {
         config.linearProjectId = vars['LINEAR_PROJECT_ID'];
       }
-      if (vars['LINEAR_REALTIME_SYNC']?.toLowerCase() === 'true') {
-        config.linearRealtimeSync = true;
-      }
 
       // GitHub config
       if (vars['GITHUB_TOKEN']) {
@@ -395,9 +370,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
       if (vars['GITHUB_REPO']) {
         config.githubRepo = vars['GITHUB_REPO'];
-      }
-      if (vars['GITHUB_AUTO_SYNC']?.toLowerCase() === 'true') {
-        config.githubAutoSync = true;
       }
 
       // GitLab config
@@ -411,9 +383,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
       if (vars[GITLAB_ENV_KEYS.PROJECT]) {
         config.gitlabProject = vars[GITLAB_ENV_KEYS.PROJECT];
-      }
-      if (vars[GITLAB_ENV_KEYS.AUTO_SYNC]?.toLowerCase() === 'true') {
-        config.gitlabAutoSync = true;
       }
 
       // Azure DevOps config
@@ -452,10 +421,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
       if (vars['GRAPHITI_DB_PATH']) {
         config.memoryDbPath = vars['GRAPHITI_DB_PATH'];
-      }
-
-      if (vars['ENABLE_FANCY_UI']?.toLowerCase() === 'false') {
-        config.enableFancyUi = false;
       }
 
       // Populate memoryProviderConfig from .env file (embeddings only - no LLM provider)

@@ -20,7 +20,6 @@ export class VersionSuggester {
   private debugEnabled: boolean;
 
   constructor(
-    private pythonPath: string,
     private claudePath: string,
     private autoBuildSourcePath: string,
     debugEnabled: boolean
@@ -48,18 +47,25 @@ export class VersionSuggester {
 
     // Build prompt for Claude to analyze commits
     const prompt = this.buildPrompt(commits, currentVersion);
-    const script = this.createAnalysisScript(prompt);
 
     // Build environment
     const spawnEnv = this.buildSpawnEnvironment();
 
     return new Promise((resolve, _reject) => {
-      // Use python3/python as fallback command (Python subprocess path removed in Vercel AI SDK migration)
-      const pythonCommand = this.pythonPath || 'python3';
-      const childProcess = spawn(pythonCommand, ['-c', script], {
-        cwd: this.autoBuildSourcePath,
-        env: spawnEnv
-      });
+      // Run the Claude CLI directly (haiku, text output); the prompt goes in via stdin.
+      // Windows .cmd/.bat shims need a shell to execute.
+      const needsShell = requiresShell(this.claudePath);
+      const childProcess = spawn(
+        needsShell ? `"${this.claudePath}"` : this.claudePath,
+        ['-p', '--output-format', 'text', '--model', 'haiku'],
+        {
+          cwd: this.autoBuildSourcePath,
+          env: spawnEnv,
+          shell: needsShell
+        }
+      );
+      childProcess.stdin?.write(prompt, 'utf-8');
+      childProcess.stdin?.end();
 
       let output = '';
       let errorOutput = '';
@@ -123,54 +129,6 @@ Respond with ONLY a JSON object in this exact format (no markdown, no extra text
   "bumpType": "major|minor|patch",
   "reason": "Brief explanation of the decision"
 }`;
-  }
-
-  /**
-   * Create Python script to run Claude analysis
-   *
-   * On Windows, .cmd/.bat files require shell=True in subprocess.run() because
-   * they are batch scripts that need cmd.exe to execute, not direct executables.
-   */
-  private createAnalysisScript(prompt: string): string {
-    // Escape the prompt for Python string literal
-    const escapedPrompt = prompt
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n');
-
-    // Escape the claude path for Python string (handle Windows backslashes)
-    const escapedClaudePath = this.claudePath
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"');
-
-    // Detect if this is a Windows batch file (.cmd or .bat)
-    // These require shell=True in subprocess.run() because they need cmd.exe to execute
-    const needsShell = requiresShell(this.claudePath);
-
-    return `
-import subprocess
-import sys
-
-# Use haiku model for fast, cost-effective analysis
-prompt = "${escapedPrompt}"
-
-try:
-    # shell=${needsShell ? 'True' : 'False'} - Windows .cmd files require shell execution
-    result = subprocess.run(
-        ["${escapedClaudePath}", "chat", "--model", "haiku", "--prompt", prompt],
-        capture_output=True,
-        text=True,
-        check=True,
-        shell=${needsShell ? 'True' : 'False'}
-    )
-    print(result.stdout)
-except subprocess.CalledProcessError as e:
-    print(f"Error: {e.stderr}", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f"Error: {str(e)}", file=sys.stderr)
-    sys.exit(1)
-`;
   }
 
   /**
@@ -241,10 +199,7 @@ except Exception as e:
       ...profileEnv,
       // Ensure critical env vars are set for claude CLI
       ...(isWindows() ? { USERPROFILE: homeDir } : { HOME: homeDir }),
-      USER: process.env.USER || process.env.USERNAME || 'user',
-      PYTHONUNBUFFERED: '1',
-      PYTHONIOENCODING: 'utf-8',
-      PYTHONUTF8: '1'
+      USER: process.env.USER || process.env.USERNAME || 'user'
     };
 
     return spawnEnv;

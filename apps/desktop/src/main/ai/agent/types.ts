@@ -77,6 +77,11 @@ export interface SerializableSessionConfig {
   };
   /** Enable agentic orchestration mode where the AI drives the pipeline via SpawnSubagent tool */
   useAgenticOrchestration?: boolean;
+  /**
+   * Include the team's CLAUDE.md/AGENTS.md in agent context (ProjectSettings.useClaudeMd).
+   * Defaults to true. Malvy's own layer (.malvy/docs, pointers) is always included.
+   */
+  useClaudeMd?: boolean;
   /** Tool context serialized fields */
   toolContext: {
     cwd: string;

@@ -146,7 +146,7 @@ export class AgentQueueManager {
     projectPath: string,
     refresh: boolean = false,
     enableCompetitorAnalysis: boolean = false,
-    _refreshCompetitorAnalysis: boolean = false,
+    refreshCompetitorAnalysis: boolean = false,
     config?: RoadmapConfig
   ): Promise<void> {
     debugLog('[Agent Queue] Starting roadmap generation:', {
@@ -158,7 +158,7 @@ export class AgentQueueManager {
     });
 
     // Use projectId as taskId for roadmap operations
-    await this.runRoadmapRunner(projectId, projectPath, refresh, enableCompetitorAnalysis, config);
+    await this.runRoadmapRunner(projectId, projectPath, refresh, enableCompetitorAnalysis, refreshCompetitorAnalysis, config);
   }
 
   /**
@@ -393,6 +393,7 @@ export class AgentQueueManager {
     projectPath: string,
     refresh: boolean,
     enableCompetitorAnalysis: boolean,
+    refreshCompetitorAnalysis: boolean,
     config?: RoadmapConfig
   ): Promise<void> {
     debugLog('[Agent Queue] Running roadmap via TS runner:', { projectId, projectPath });
@@ -451,13 +452,15 @@ export class AgentQueueManager {
           thinkingLevel: (config?.thinkingLevel || 'medium') as ThinkingLevel,
           refresh,
           enableCompetitorAnalysis,
+          refreshCompetitorAnalysis,
           guidance: config?.guidance,
           abortSignal: abortController.signal,
         },
         (event: RoadmapStreamEvent) => {
           switch (event.type) {
             case 'phase-start': {
-              progressPhase = event.phase;
+              // Map runner phase names onto the UI's GenerationPhase values
+              progressPhase = event.phase === 'features' ? 'generating' : 'discovering';
               progressPercent = Math.min(progressPercent + 20, 90);
               const msg = `Running ${event.phase} phase...`;
               this.emitter.emit('roadmap-log', projectId, msg);

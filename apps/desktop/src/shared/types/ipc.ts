@@ -88,12 +88,7 @@ import type {
   GitTagInfo,
   GitCommit,
   GitHistoryOptions,
-  BranchDiffOptions,
-  ReleaseableVersion,
-  ReleasePreflightStatus,
-  CreateReleaseRequest,
-  CreateReleaseResult,
-  ReleaseProgress
+  BranchDiffOptions
 } from './changelog';
 import type {
   IdeationSession,
@@ -308,12 +303,6 @@ export interface ElectronAPILegacy {
     message?: string;
     detectedAt: string;
   }) => void) => () => void;
-  /** Listen for auth terminal creation - allows UI to display the OAuth terminal */
-  onTerminalAuthCreated: (callback: (info: {
-    terminalId: string;
-    profileId: string;
-    profileName: string
-  }) => void) => () => void;
   /** Listen for Claude busy state changes (for visual indicator: red=busy, green=idle) */
   onTerminalClaudeBusy: (callback: (id: string, isBusy: boolean) => void) => () => void;
   /** Listen for Claude exit (user closed Claude within terminal, returned to shell) */
@@ -322,14 +311,6 @@ export interface ElectronAPILegacy {
   onTerminalPendingResume: (callback: (id: string, sessionId?: string) => void) => () => void;
   /** Listen for profile change events - terminals need to be recreated with new profile env vars */
   onTerminalProfileChanged: (callback: (event: TerminalProfileChangedEvent) => void) => () => void;
-  /** Listen for OAuth code input requests (manual OAuth flow) */
-  onTerminalOAuthCodeNeeded: (callback: (info: {
-    terminalId: string;
-    profileId: string;
-    profileName: string
-  }) => void) => () => void;
-  /** Submit OAuth code from user (for manual OAuth flow) */
-  submitOAuthCode: (terminalId: string, code: string) => Promise<IPCResult>;
 
   // Claude profile management (multi-account support)
   getClaudeProfiles: () => Promise<IPCResult<ClaudeProfileSettings>>;
@@ -339,8 +320,6 @@ export interface ElectronAPILegacy {
   setActiveClaudeProfile: (profileId: string) => Promise<IPCResult>;
   /** Switch terminal to use a different Claude profile (restarts Claude with new config) */
   switchClaudeProfile: (terminalId: string, profileId: string) => Promise<IPCResult>;
-  /** Initialize authentication for a Claude profile (legacy - uses hidden terminal) */
-  initializeClaudeProfile: (profileId: string) => Promise<IPCResult>;
   /** Set OAuth token for a profile (used when capturing from terminal) */
   setClaudeProfileToken: (profileId: string, token: string, email?: string) => Promise<IPCResult>;
   /** Prepare authentication for a Claude profile - returns terminal config for embedded terminal */
@@ -402,7 +381,6 @@ export interface ElectronAPILegacy {
   getSentryConfig: () => Promise<{ dsn: string; tracesSampleRate: number; profilesSampleRate: number }>;
 
   getCliToolsInfo: () => Promise<IPCResult<{
-    python: import('./cli').ToolDetectionResult;
     git: import('./cli').ToolDetectionResult;
     gh: import('./cli').ToolDetectionResult;
     glab: import('./cli').ToolDetectionResult;
@@ -672,22 +650,6 @@ export interface ElectronAPILegacy {
     callback: (projectId: string, result: GitLabInvestigationResult) => void
   ) => () => void;
   onGitLabInvestigationError: (
-    callback: (projectId: string, error: string) => void
-  ) => () => void;
-
-  // Release operations
-  getReleaseableVersions: (projectId: string) => Promise<IPCResult<ReleaseableVersion[]>>;
-  runReleasePreflightCheck: (projectId: string, version: string) => Promise<IPCResult<ReleasePreflightStatus>>;
-  createRelease: (request: CreateReleaseRequest) => void;
-
-  // Release event listeners
-  onReleaseProgress: (
-    callback: (projectId: string, progress: ReleaseProgress) => void
-  ) => () => void;
-  onReleaseComplete: (
-    callback: (projectId: string, result: CreateReleaseResult) => void
-  ) => () => void;
-  onReleaseError: (
     callback: (projectId: string, error: string) => void
   ) => () => void;
 

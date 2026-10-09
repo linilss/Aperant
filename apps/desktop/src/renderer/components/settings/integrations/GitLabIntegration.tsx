@@ -550,13 +550,6 @@ export function GitLabIntegration({
               onRefresh={fetchBranches}
             />
           )}
-
-          <Separator />
-
-          <AutoSyncToggle
-            enabled={envConfig.gitlabAutoSync || false}
-            onToggle={(checked) => updateEnvConfig({ gitlabAutoSync: checked })}
-          />
         </>
       )}
     </div>
@@ -813,30 +806,6 @@ function IssuesAvailableInfo() {
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-interface AutoSyncToggleProps {
-  enabled: boolean;
-  onToggle: (checked: boolean) => void;
-}
-
-function AutoSyncToggle({ enabled, onToggle }: AutoSyncToggleProps) {
-  const { t } = useTranslation('gitlab');
-
-  return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-info" />
-          <Label className="font-normal text-foreground">{t('settings.autoSyncOnLoad')}</Label>
-        </div>
-        <p className="text-xs text-muted-foreground pl-6">
-          {t('settings.autoSyncDescription')}
-        </p>
-      </div>
-      <Switch checked={enabled} onCheckedChange={onToggle} />
     </div>
   );
 }

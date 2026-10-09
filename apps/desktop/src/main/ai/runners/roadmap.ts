@@ -8,7 +8,7 @@
  * the same code path as Agent Terminals (the CLI manages its own rate-limit backoff)
  * rather than calling api.anthropic.com directly via the Vercel AI SDK.
  *
- * Multi-step process: project discovery → feature generation.
+ * Multi-step process: project discovery → (optional) competitor analysis → feature generation.
  */
 
 import { spawn } from 'node:child_process';
@@ -46,6 +46,8 @@ export interface RoadmapConfig {
   refresh?: boolean;
   /** Whether to enable competitor analysis */
   enableCompetitorAnalysis?: boolean;
+  /** Re-run competitor analysis even if competitor_analysis.json exists */
+  refreshCompetitorAnalysis?: boolean;
   /** Free-text direction from the user, e.g. what to steer away from on a regenerate */
   guidance?: string;
   /** Abort signal for cancellation */
@@ -105,6 +107,7 @@ async function runPhaseViaCLI(
   modelId: string,
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
+  allowedTools: string = 'Read,Glob,Grep',
 ): Promise<string> {
   const [augmentedEnv, claudePath] = await Promise.all([
     getAugmentedEnvAsync(),
@@ -121,7 +124,7 @@ async function runPhaseViaCLI(
     '--print',
     '--verbose',
     '--output-format', 'stream-json',
-    '--allowedTools', 'Read,Glob,Grep',
+    '--allowedTools', allowedTools,
     '--model', modelId,
   ];
 
@@ -326,6 +329,87 @@ async function runDiscoveryPhase(
 }
 
 // =============================================================================
+// Competitor Analysis Phase
+// =============================================================================
+
+/**
+ * Run the competitor analysis phase — research competitors via web search and
+ * write competitor_analysis.json (read by the roadmap UI and the features phase).
+ *
+ * Skipped when the file already exists unless `refresh` is set. Failure is
+ * non-fatal: the roadmap is still generated without competitor insights.
+ */
+async function runCompetitorAnalysisPhase(
+  projectDir: string,
+  outputDir: string,
+  refresh: boolean,
+  modelId: string,
+  abortSignal?: AbortSignal,
+  onStream?: RoadmapStreamCallback,
+): Promise<RoadmapPhaseResult> {
+  const competitorFile = join(outputDir, 'competitor_analysis.json');
+  const discoveryFile = join(outputDir, 'roadmap_discovery.json');
+  const manualCompetitorsFile = join(outputDir, 'manual_competitors.json');
+  const projectIndexFile = join(projectDir, '.malvy', 'project_index.json');
+
+  if (existsSync(competitorFile) && !refresh) {
+    return { phase: 'competitor_analysis', success: true, outputs: [competitorFile], errors: [] };
+  }
+
+  const errors: string[] = [];
+  const loadedPrompt = tryLoadPrompt('competitor_analysis');
+
+  const contextBlock =
+    `\n\n**Discovery File**: ${discoveryFile}\n` +
+    `**Project Index File**: ${projectIndexFile}\n` +
+    (existsSync(manualCompetitorsFile)
+      ? `**Manually Added Competitors** (include these): ${manualCompetitorsFile}\n`
+      : '') +
+    `\nYou cannot write files in this session. Instead of creating competitor_analysis.json, ` +
+    `output the complete JSON (same structure as above) wrapped in <competitor_analysis> tags. ` +
+    `The orchestrator saves it for you.`;
+
+  const systemPrompt = loadedPrompt
+    ? loadedPrompt + contextBlock
+    : `You are a competitor analysis agent. Read "${discoveryFile}", use WebSearch/WebFetch to research 3-5 competitors and their user pain points, ` +
+      `then output a JSON object wrapped in <competitor_analysis> tags with fields: project_context, competitors (id, name, url, description, relevance, pain_points[id, description, source, severity, frequency, opportunity], strengths, market_position), market_gaps, insights_summary, research_metadata, created_at.`;
+
+  const userPrompt =
+    `Read the discovery file at "${discoveryFile}", research competitors with WebSearch and WebFetch, ` +
+    `then you MUST finish by outputting the full competitor analysis JSON wrapped in <competitor_analysis> tags. ` +
+    `Do not stop after tool calls — always finish with the JSON output.`;
+
+  const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const fullText = await runPhaseViaCLI(
+        combinedPrompt, projectDir, modelId, abortSignal, onStream, 'Read,Glob,Grep,WebSearch,WebFetch',
+      );
+      const match = fullText.match(/<competitor_analysis>([\s\S]*?)<\/competitor_analysis>/);
+      if (!match) {
+        errors.push(`Attempt ${attempt + 1}: No <competitor_analysis> block in AI response`);
+        continue;
+      }
+      const data = safeParseJson<Record<string, unknown>>(match[1].trim());
+      if (!data || !Array.isArray(data.competitors)) {
+        errors.push(`Attempt ${attempt + 1}: Invalid JSON or missing competitors in <competitor_analysis> block`);
+        continue;
+      }
+      if (!data.created_at) data.created_at = new Date().toISOString();
+      writeFileSync(competitorFile, JSON.stringify(data, null, 2), 'utf-8');
+      return { phase: 'competitor_analysis', success: true, outputs: [competitorFile], errors: [] };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      errors.push(`Attempt ${attempt + 1}: ${msg}`);
+      if (abortSignal?.aborted) break;
+    }
+  }
+
+  return { phase: 'competitor_analysis', success: false, outputs: [], errors };
+}
+
+// =============================================================================
 // Features Phase
 // =============================================================================
 
@@ -356,8 +440,10 @@ async function runFeaturesPhase(
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
   guidance?: string,
+  useCompetitorAnalysis: boolean = false,
 ): Promise<RoadmapPhaseResult> {
   const roadmapFile = join(outputDir, 'roadmap.json');
+  const competitorFile = join(outputDir, 'competitor_analysis.json');
   const discoveryFile = join(outputDir, 'roadmap_discovery.json');
   const projectIndexFile = join(projectDir, '.malvy', 'project_index.json');
 
@@ -383,9 +469,16 @@ async function runFeaturesPhase(
       `\n**EXISTING FEATURES TO PRESERVE** (do NOT regenerate these — generate NEW complementary features):\n${preservedInfo}\n`;
   }
 
+  const competitorSection = useCompetitorAnalysis && existsSync(competitorFile)
+    ? `**Competitor Analysis File**: ${competitorFile}\n` +
+      `Read it and prioritize features that address competitor pain points and market gaps; ` +
+      `put the addressed pain point / gap IDs in each feature's "competitor_insight_ids".\n`
+    : '';
+
   const contextBlock =
     `\n\n**Discovery File**: ${discoveryFile}\n` +
     `**Project Index File**: ${projectIndexFile}\n` +
+    competitorSection +
     preservedSection +
     buildGuidanceSection(guidance) +
     `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
@@ -515,7 +608,8 @@ function mergeFeatures(
  *
  * Multi-phase pipeline:
  * 1. Discovery — analyze project, infer audience and vision
- * 2. Features — generate and prioritize roadmap features
+ * 2. Competitor analysis (optional) — web research into competitors' pain points
+ * 3. Features — generate and prioritize roadmap features
  */
 export async function runRoadmapGeneration(
   config: RoadmapConfig,
@@ -525,6 +619,8 @@ export async function runRoadmapGeneration(
     projectDir,
     modelShorthand = 'sonnet',
     refresh = false,
+    enableCompetitorAnalysis = false,
+    refreshCompetitorAnalysis = false,
     guidance,
     abortSignal,
   } = config;
@@ -554,10 +650,26 @@ export async function runRoadmapGeneration(
     };
   }
 
-  // Phase 2: Feature Generation
+  // Phase 2 (optional): Competitor Analysis — non-fatal on failure
+  if (enableCompetitorAnalysis) {
+    onStream?.({ type: 'phase-start', phase: 'competitor_analysis' });
+    const competitorResult = await runCompetitorAnalysisPhase(
+      projectDir, outputDir, refreshCompetitorAnalysis, modelId, abortSignal, onStream,
+    );
+    phases.push(competitorResult);
+    onStream?.({ type: 'phase-complete', phase: 'competitor_analysis', success: competitorResult.success });
+    if (!competitorResult.success) {
+      if (abortSignal?.aborted) {
+        return { success: false, phases, error: 'Aborted' };
+      }
+      onStream?.({ type: 'error', error: `Competitor analysis failed (continuing without it): ${competitorResult.errors.join('; ')}` });
+    }
+  }
+
+  // Phase 3: Feature Generation
   onStream?.({ type: 'phase-start', phase: 'features' });
   const featuresResult = await runFeaturesPhase(
-    projectDir, outputDir, refresh, modelId, abortSignal, onStream, guidance,
+    projectDir, outputDir, refresh, modelId, abortSignal, onStream, guidance, enableCompetitorAnalysis,
   );
   phases.push(featuresResult);
   onStream?.({ type: 'phase-complete', phase: 'features', success: featuresResult.success });

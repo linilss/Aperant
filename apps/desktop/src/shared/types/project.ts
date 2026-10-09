@@ -40,8 +40,6 @@ export interface Project {
 
 export interface ProjectSettings {
   model: string;
-  memoryBackend: 'memory' | 'file';
-  linearSync: boolean;
   linearTeamId?: string;
   notifications: NotificationSettings;
   /** Main branch name for worktree creation (default: auto-detected or 'main') */
@@ -340,13 +338,11 @@ export interface ProjectEnvConfig {
   linearApiKey?: string;
   linearTeamId?: string;
   linearProjectId?: string;
-  linearRealtimeSync?: boolean; // Enable real-time sync of new Linear tasks
 
   // GitHub Integration
   githubEnabled: boolean;
   githubToken?: string;
   githubRepo?: string; // Format: owner/repo
-  githubAutoSync?: boolean; // Auto-sync issues on project load
   githubAuthMethod?: 'oauth' | 'pat'; // How the token was obtained
 
   // GitLab Integration
@@ -354,7 +350,6 @@ export interface ProjectEnvConfig {
   gitlabInstanceUrl?: string; // Default: https://gitlab.com, or self-hosted URL
   gitlabToken?: string;
   gitlabProject?: string; // Format: group/project or numeric ID
-  gitlabAutoSync?: boolean; // Auto-sync issues on project load
 
   // Azure DevOps Integration
   azureDevOpsEnabled: boolean;
@@ -375,9 +370,6 @@ export interface ProjectEnvConfig {
   openaiKeyIsGlobal?: boolean;
   memoryDatabase?: string;
   memoryDbPath?: string;
-
-  // UI Settings
-  enableFancyUi: boolean;
 
   // MCP Server Configuration (per-project overrides)
   mcpServers?: {

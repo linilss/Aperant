@@ -225,13 +225,11 @@ describe('ProjectStore', () => {
 
       const project = store.addProject(TEST_PROJECT_PATH);
       const updated = store.updateProjectSettings(project.id, {
-        model: 'sonnet',
-        linearSync: true
+        model: 'sonnet'
       });
 
       expect(updated).toBeDefined();
       expect(updated?.settings.model).toBe('sonnet');
-      expect(updated?.settings.linearSync).toBe(true);
     });
 
     it('should update updatedAt timestamp', async () => {

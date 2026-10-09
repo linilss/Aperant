@@ -38,8 +38,8 @@ interface SecuritySettingsProps {
 
 export function SecuritySettings({
   envConfig,
-  settings,
-  setSettings,
+  settings: _settings,
+  setSettings: _setSettings,
   updateEnvConfig,
   showOpenAIKey,
   setShowOpenAIKey,
@@ -366,10 +366,7 @@ export function SecuritySettings({
             </div>
             <Switch
               checked={envConfig.memoryEnabled}
-              onCheckedChange={(checked) => {
-                updateEnvConfig({ memoryEnabled: checked });
-                setSettings({ ...settings, memoryBackend: checked ? 'memory' : 'file' });
-              }}
+              onCheckedChange={(checked) => updateEnvConfig({ memoryEnabled: checked })}
             />
           </div>
 

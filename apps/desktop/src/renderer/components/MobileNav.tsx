@@ -172,7 +172,7 @@ export function MobileBackBar({ onBack, title }: MobileBackBarProps) {
         className="flex h-10 shrink-0 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
       >
         <ChevronLeft className="h-4 w-4" />
-        {t('buttons.back')}
+        {t('common:buttons.back')}
       </button>
       {title && <span className="min-w-0 truncate text-sm font-medium">{title}</span>}
     </div>

@@ -178,17 +178,6 @@ export interface GitHubAPI {
   /** AI-powered version suggestion based on commits since last release */
   suggestReleaseVersion: (projectId: string) => Promise<IPCResult<VersionSuggestion>>;
 
-  // Release operations (changelog-based)
-  getReleaseableVersions: (projectId: string) => Promise<IPCResult<unknown>>;
-  runReleasePreflightCheck: (projectId: string, version: string) => Promise<IPCResult<unknown>>;
-  createRelease: (options: {
-    projectId: string;
-    version: string;
-    body: string;
-    draft?: boolean;
-    prerelease?: boolean;
-  }) => Promise<IPCResult<unknown>>;
-
   // OAuth operations (gh CLI)
   checkGitHubCli: () => Promise<IPCResult<{ installed: boolean; version?: string }>>;
   checkGitHubAuth: () => Promise<IPCResult<{ authenticated: boolean; username?: string }>>;
@@ -588,22 +577,6 @@ export const createGitHubAPI = (): GitHubAPI => ({
 
   suggestReleaseVersion: (projectId: string): Promise<IPCResult<VersionSuggestion>> =>
     invokeIpc(IPC_CHANNELS.RELEASE_SUGGEST_VERSION, projectId),
-
-  // Release operations (changelog-based)
-  getReleaseableVersions: (projectId: string): Promise<IPCResult<unknown>> =>
-    invokeIpc(IPC_CHANNELS.RELEASE_GET_VERSIONS, projectId),
-
-  runReleasePreflightCheck: (projectId: string, version: string): Promise<IPCResult<unknown>> =>
-    invokeIpc(IPC_CHANNELS.RELEASE_PREFLIGHT, projectId, version),
-
-  createRelease: (options: {
-    projectId: string;
-    version: string;
-    body: string;
-    draft?: boolean;
-    prerelease?: boolean;
-  }): Promise<IPCResult<unknown>> =>
-    invokeIpc(IPC_CHANNELS.RELEASE_CREATE, options),
 
   // OAuth operations (gh CLI)
   checkGitHubCli: (): Promise<IPCResult<{ installed: boolean; version?: string }>> =>

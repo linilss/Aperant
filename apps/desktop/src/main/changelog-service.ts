@@ -13,4 +13,4 @@
  */
 
 export { ChangelogService, changelogService } from './changelog/changelog-service';
-export type { ChangelogConfig, PromptBuildOptions, VersionSuggestion, GenerationScriptParams } from './changelog/types';
+export type { ChangelogConfig, PromptBuildOptions, VersionSuggestion } from './changelog/types';

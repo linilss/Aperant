@@ -2674,6 +2674,20 @@ export function registerPRHandlers(getMainWindow: () => BrowserWindow | null): v
     }
   );
 
+  // External review finished (renderer polled the result from disk) or timed out (null result).
+  // Moves the XState actor out of 'externalReview' so the UI stops showing a running review.
+  ipcMain.handle(
+    IPC_CHANNELS.GITHUB_PR_NOTIFY_EXTERNAL_REVIEW_COMPLETE,
+    async (_, projectId: string, prNumber: number, result: PreloadPRReviewResult | null): Promise<void> => {
+      debugLog("notifyExternalReviewComplete handler called", { projectId, prNumber, hasResult: !!result });
+      if (result) {
+        stateManager.handleComplete(projectId, prNumber, result);
+      } else {
+        stateManager.handleError(projectId, prNumber, "External review timed out");
+      }
+    }
+  );
+
   // Cancel PR review
   ipcMain.handle(
     IPC_CHANNELS.GITHUB_PR_REVIEW_CANCEL,

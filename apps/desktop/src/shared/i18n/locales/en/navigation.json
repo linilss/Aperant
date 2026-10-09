@@ -38,8 +38,7 @@
   "actions": {
     "settings": "Settings",
     "help": "Help & Feedback",
-    "newTask": "New Task",
-    "sponsor": "Sponsor Us"
+    "newTask": "New Task"
   },
   "tooltips": {
     "settings": "Application Settings",

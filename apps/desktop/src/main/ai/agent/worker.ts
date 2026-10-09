@@ -45,7 +45,7 @@ import type { SpecPhase } from '../orchestration/spec-orchestrator';
 import type { AgentType } from '../config/agent-configs';
 import type { Phase } from '../config/types';
 import type { ExecutionPhase } from '../../../shared/constants/phase-protocol';
-import { getPhaseThinking } from '../config/phase-config';
+import { getFastMode, getPhaseThinking } from '../config/phase-config';
 import { TaskLogWriter } from '../logging/task-log-writer';
 import { loadProjectInstructions, injectContext } from '../prompts/prompt-loader';
 import { createMcpClientsForAgent, mergeMcpTools, closeAllMcpClients } from '../mcp/client';
@@ -202,6 +202,9 @@ let mcpClients: McpClientResult[] = [];
 // Prompt Assembly (provider-agnostic context injection)
 // =============================================================================
 
+/** Task Fast Mode flag, read once per worker from task_metadata.json */
+let cachedFastMode: boolean | undefined;
+
 let cachedProjectInstructions: string | null | undefined;
 let cachedProjectInstructionsSource: string | null = null;
 
@@ -219,7 +222,9 @@ async function assemblePrompt(
 
   // Load project instructions once per worker lifetime
   if (cachedProjectInstructions === undefined) {
-    const result = await loadProjectInstructions(session.projectDir);
+    const result = await loadProjectInstructions(session.projectDir, {
+      includeTeamDocs: session.useClaudeMd !== false,
+    });
     cachedProjectInstructions = result?.content ?? null;
     cachedProjectInstructionsSource = result?.source ?? null;
     if (result) {
@@ -282,6 +287,18 @@ async function runSessionViaCLI(
     '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep,WebFetch',
     '--model', modelId,
   ];
+  // Project setting "Use CLAUDE.md" off: skip project-level settings sources so the CLI
+  // does not auto-load the team's CLAUDE.md. 'local' keeps CLAUDE.local.md (Malvy's layer).
+  if (config.session.useClaudeMd === false) {
+    args.push('--setting-sources', 'user,local');
+  }
+  // Fast Mode (task_metadata.json fastMode): faster Opus output via the CLI's fastMode setting
+  if (cachedFastMode === undefined) {
+    cachedFastMode = config.session.specDir ? await getFastMode(config.session.specDir) : false;
+  }
+  if (cachedFastMode) {
+    args.push('--settings', JSON.stringify({ fastMode: true }));
+  }
 
   postLog(`[CLI] Spawning claude for ${agentType}: ${claudePath} ${args.join(' ')}`);
 
@@ -545,6 +562,7 @@ async function runSingleSession(
       apiKey: baseSession.apiKey,
       baseURL: baseSession.baseURL,
       oauthTokenFilePath: baseSession.oauthTokenFilePath,
+      configDir: baseSession.configDir,
     });
   } catch (error) {
     // Ensure log cleanup happens on failure
@@ -1221,6 +1239,7 @@ async function runAgenticSpecOrchestrator(
       apiKey: session.apiKey,
       baseURL: session.baseURL,
       oauthTokenFilePath: session.oauthTokenFilePath,
+      configDir: session.configDir,
     });
   } finally {
     if (logWriter) {

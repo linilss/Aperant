@@ -104,7 +104,10 @@
     "gotIt": "Got it",
     "continue": "Continue",
     "saving": "Saving...",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "update": "Update",
+    "install": "Install",
+    "continueAnyway": "Continue Anyway"
   },
   "actions": {
     "save": "Save",
@@ -159,7 +162,9 @@
     "taskNotFoundForWorktree": "Task not found for worktree: {{specName}}",
     "failedToDeleteTaskWorktree": "Failed to delete task worktree: {{specName}}",
     "terminalWorktreeNotFound": "Terminal worktree not found: {{name}}",
-    "failedToDeleteTerminalWorktree": "Failed to delete terminal worktree: {{name}}"
+    "failedToDeleteTerminalWorktree": "Failed to delete terminal worktree: {{name}}",
+    "noProviderConfigured": "No AI provider configured",
+    "configureProviderFirst": "Please add a provider account in Settings to use AI features."
   },
   "worktrees": {
     "deleteSuccess": "Worktree '{{branch}}' deleted successfully",
@@ -435,7 +440,9 @@
       "agentActivity": "Agent Activity",
       "showMore": "Show {{count}} more",
       "hideMore": "Hide {{count}} more"
-    }
+    },
+    "verdictOutdated": "AI verdict may be outdated",
+    "rerunReviewSuggestion": "Consider re-running the review after resolving these issues."
   },
   "downloads": {
     "toggleExpand": "Toggle download details",

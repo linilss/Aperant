@@ -12,7 +12,6 @@ interface MemoryBackendSectionProps {
   envConfig: ProjectEnvConfig;
   settings: ProjectSettings;
   onUpdateConfig: (updates: Partial<ProjectEnvConfig>) => void;
-  onUpdateSettings: (updates: Partial<ProjectSettings>) => void;
 }
 
 /**
@@ -25,7 +24,6 @@ export function MemoryBackendSection({
   onToggle,
   envConfig,
   onUpdateConfig,
-  onUpdateSettings,
 }: MemoryBackendSectionProps) {
   const pc = envConfig.memoryProviderConfig;
 
@@ -48,10 +46,9 @@ export function MemoryBackendSection({
   };
 
   const handlePanelChange = (updates: Partial<MemoryPanelConfig>) => {
-    // Handle enabled toggle specially — also update project settings
+    // Handle enabled toggle specially
     if ('enabled' in updates) {
       onUpdateConfig({ memoryEnabled: updates.enabled });
-      onUpdateSettings({ memoryBackend: updates.enabled ? 'memory' : 'file' });
     }
 
     // Handle OpenAI key via top-level envConfig field

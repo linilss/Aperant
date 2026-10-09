@@ -19,7 +19,6 @@ import {
   Sparkles,
   GitBranch,
   HelpCircle,
-  Heart,
   Wrench,
   CheckSquare,
   Bot,
@@ -461,7 +460,7 @@ export function Sidebar({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => window.open('https://github.com/AndyMik90/Auto-Claude/issues', '_blank')}
+                  onClick={() => window.open('https://github.com/linilss/Aperant/issues', '_blank')}
                   aria-label={t('tooltips.help')}
                 >
                   <HelpCircle className="h-4 w-4" />
@@ -470,18 +469,6 @@ export function Sidebar({
               <TooltipContent side="top">{t('tooltips.help')}</TooltipContent>
             </Tooltip>
           </div>
-
-          {/* Sponsor link */}
-          <button
-            onClick={() => window.open('https://github.com/sponsors/AndyMik90', '_blank')}
-            className={cn(
-              'flex w-full items-center gap-1.5 px-3 text-xs transition-colors',
-              'text-amber-500/70 hover:text-amber-400'
-            )}
-          >
-            <Heart className="h-3.5 w-3.5" />
-            <span>{t('actions.sponsor')}</span>
-          </button>
 
           {/* New Task button */}
           <Button

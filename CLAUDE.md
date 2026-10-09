@@ -8,7 +8,7 @@ Malvy (formerly Auto Claude) is an autonomous multi-agent coding framework — a
 
 **Vercel AI SDK only** — All AI interactions use `ai` package via `apps/desktop/src/main/ai/`. NEVER use `@anthropic-ai/sdk` directly. Use `createProvider()` and `streamText()`/`generateText()`.
 
-**i18n required** — All frontend text uses `react-i18next`. Hardcoded strings break localization. Add keys to `en/*.json` and `fr/*.json`.
+**i18n required** — All frontend text uses `react-i18next`. Hardcoded strings break localization. Add keys to `en/*.json` (English is the only locale).
 
 **Platform abstraction** — Never use `process.platform` directly. Import from `apps/desktop/src/main/platform/`.
 

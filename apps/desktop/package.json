@@ -3,10 +3,10 @@
   "version": "2.8.0-beta.6",
   "type": "module",
   "description": "Autonomous multi-agent coding framework",
-  "homepage": "https://github.com/AndyMik90/malvy",
+  "homepage": "https://github.com/linilss/Aperant",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AndyMik90/malvy.git"
+    "url": "https://github.com/linilss/Aperant.git"
   },
   "main": "./out/main/index.js",
   "author": {
@@ -171,8 +171,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "AndyMik90",
-        "repo": "malvy"
+        "owner": "linilss",
+        "repo": "Aperant"
       }
     ],
     "directories": {

@@ -1,45 +1,75 @@
+import { EventEmitter } from 'node:events';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // =============================================================================
 // Mocks — must be declared before any imports that use them
 // =============================================================================
 
-const mockStreamText = vi.fn();
+/** Responder decides what the fake `claude` CLI prints for a given prompt + args */
+type Responder = (prompt: string, args: string[]) => { text: string; code?: number };
+let responder: Responder = () => ({ text: '' });
 
-vi.mock('ai', () => ({
-  streamText: (...args: unknown[]) => mockStreamText(...args),
-  stepCountIs: (n: number) => ({ type: 'stepCount', count: n }),
+const spawnCalls: Array<{ args: string[]; prompt: string }> = [];
+
+const mockSpawn = vi.fn((_cmd: string, args: string[]) => {
+  const child = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    stdin: { write: (s: string) => void; end: () => void };
+    kill: () => void;
+  };
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.kill = vi.fn();
+  let prompt = '';
+  child.stdin = {
+    write: (s: string) => {
+      prompt += s;
+    },
+    end: () => {
+      spawnCalls.push({ args, prompt });
+      const { text, code = 0 } = responder(prompt, args);
+      setImmediate(() => {
+        const event = { type: 'assistant', message: { content: [{ type: 'text', text }] } };
+        child.stdout.emit('data', Buffer.from(`${JSON.stringify(event)}\n`));
+        child.emit('close', code);
+      });
+    },
+  };
+  return child;
+});
+
+vi.mock('node:child_process', () => ({
+  spawn: (...args: unknown[]) => mockSpawn(...(args as [string, string[]])),
 }));
 
-const mockCreateSimpleClient = vi.fn();
-
-vi.mock('../../client/factory', () => ({
-  createSimpleClient: (...args: unknown[]) => mockCreateSimpleClient(...args),
+vi.mock('../../../env-utils', () => ({
+  getAugmentedEnvAsync: vi.fn().mockResolvedValue({ PATH: '/usr/bin' }),
+  findExecutableAsync: vi.fn().mockResolvedValue('/usr/bin/claude'),
 }));
 
-// Filesystem mocks
-const mockExistsSync = vi.fn();
-const mockReadFileSync = vi.fn();
-const mockWriteFileSync = vi.fn();
+vi.mock('../../../claude-profile-manager', () => ({
+  getClaudeProfileManager: () => ({ getActiveProfileEnv: () => ({}) }),
+}));
+
+const mockResolveModelId = vi.fn((shorthand: string) => `model-${shorthand}`);
+vi.mock('../../config/phase-config', () => ({
+  resolveModelId: (shorthand: string) => mockResolveModelId(shorthand),
+}));
+
+// Filesystem mocks — an in-memory file set
+const files = new Map<string, string>();
 const mockMkdirSync = vi.fn();
-const mockRenameSync = vi.fn();
 
 vi.mock('node:fs', () => ({
-  existsSync: (...args: unknown[]) => mockExistsSync(...args),
-  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
-  writeFileSync: (...args: unknown[]) => mockWriteFileSync(...args),
+  existsSync: (p: string) => p.endsWith('roadmap') || files.has(p),
+  readFileSync: (p: string) => files.get(p) ?? '',
+  writeFileSync: (p: string, content: string) => {
+    files.set(p, content);
+  },
   mkdirSync: (...args: unknown[]) => mockMkdirSync(...args),
-  renameSync: (...args: unknown[]) => mockRenameSync(...args),
 }));
 
-// Tool registry mock
-vi.mock('../../tools/build-registry', () => ({
-  buildToolRegistry: () => ({
-    getToolsForAgent: vi.fn().mockReturnValue({}),
-  }),
-}));
-
-// json-repair used for safeParseJson
 vi.mock('../../../utils/json-repair', () => ({
   safeParseJson: (text: string) => {
     try {
@@ -50,9 +80,9 @@ vi.mock('../../../utils/json-repair', () => ({
   },
 }));
 
-// tryLoadPrompt — return null so inline prompts are used
+// tryLoadPrompt — return a stub prompt so the runner's context blocks are appended
 vi.mock('../../prompts/prompt-loader', () => ({
-  tryLoadPrompt: vi.fn().mockReturnValue(null),
+  tryLoadPrompt: vi.fn((name: string) => `# ${name} prompt`),
 }));
 
 // =============================================================================
@@ -66,67 +96,48 @@ import type { RoadmapConfig, RoadmapStreamEvent } from '../roadmap';
 // Helpers
 // =============================================================================
 
-const fakeModel = { modelId: 'claude-sonnet-test' };
+const OUT = '/project/.malvy/roadmap';
+const DISCOVERY = `${OUT}/roadmap_discovery.json`;
+const ROADMAP = `${OUT}/roadmap.json`;
+const COMPETITOR = `${OUT}/competitor_analysis.json`;
 
-function makeMockClient() {
-  return {
-    model: fakeModel,
-    systemPrompt: '',
-    tools: {},
-    maxSteps: 30,
-  };
-}
-
-function makeStream(parts: Array<Record<string, unknown>>) {
-  return {
-    fullStream: (async function* () {
-      for (const part of parts) {
-        yield part;
-      }
-    })(),
-  };
-}
-
-/** Valid discovery JSON that passes schema validation */
-const VALID_DISCOVERY_JSON = JSON.stringify({
+const VALID_DISCOVERY = {
   project_name: 'TestProject',
   target_audience: 'Developers',
   product_vision: 'Make coding easier',
-  key_features: ['Auth', 'Dashboard'],
-  technical_stack: { language: 'TypeScript' },
-  constraints: [],
-});
+};
 
-/** Valid roadmap JSON that passes schema validation (>=3 features, all required keys) */
-const VALID_ROADMAP_JSON = JSON.stringify({
+const VALID_ROADMAP = {
   vision: 'Automate everything',
-  target_audience: { primary: 'Developers', secondary: 'QA' },
+  target_audience: { primary: 'Developers' },
   phases: [{ id: 'p1', name: 'MVP' }],
   features: [
-    {
-      id: 'f1', title: 'Feature A', description: 'Desc A', priority: 'high',
-      complexity: 'medium', impact: 'high', phase_id: 'p1', status: 'planned',
-      acceptance_criteria: [], user_stories: [],
-    },
-    {
-      id: 'f2', title: 'Feature B', description: 'Desc B', priority: 'medium',
-      complexity: 'low', impact: 'medium', phase_id: 'p1', status: 'planned',
-      acceptance_criteria: [], user_stories: [],
-    },
-    {
-      id: 'f3', title: 'Feature C', description: 'Desc C', priority: 'low',
-      complexity: 'high', impact: 'low', phase_id: 'p1', status: 'planned',
-      acceptance_criteria: [], user_stories: [],
-    },
+    { id: 'f1', title: 'Feature A', status: 'idea' },
+    { id: 'f2', title: 'Feature B', status: 'idea' },
+    { id: 'f3', title: 'Feature C', status: 'idea' },
   ],
-});
+};
+
+const VALID_COMPETITOR = {
+  project_context: { project_name: 'TestProject' },
+  competitors: [{ id: 'competitor-1', name: 'Rival', pain_points: [{ id: 'pain-1-1', description: 'Slow' }] }],
+};
+
+const isCompetitorCall = (args: string[]) => args.join(' ').includes('WebSearch');
+
+/** Default responder: answers each phase with valid tagged JSON */
+const happyResponder: Responder = (prompt, args) => {
+  if (isCompetitorCall(args)) {
+    return { text: `<competitor_analysis>${JSON.stringify(VALID_COMPETITOR)}</competitor_analysis>` };
+  }
+  if (prompt.includes('<roadmap_discovery>')) {
+    return { text: `<roadmap_discovery>${JSON.stringify(VALID_DISCOVERY)}</roadmap_discovery>` };
+  }
+  return { text: `<roadmap_features>${JSON.stringify(VALID_ROADMAP)}</roadmap_features>` };
+};
 
 function baseConfig(overrides: Partial<RoadmapConfig> = {}): RoadmapConfig {
-  return {
-    projectDir: '/project',
-    outputDir: '/project/.malvy/roadmap',
-    ...overrides,
-  };
+  return { projectDir: '/project', outputDir: OUT, ...overrides };
 }
 
 // =============================================================================
@@ -136,285 +147,131 @@ function baseConfig(overrides: Partial<RoadmapConfig> = {}): RoadmapConfig {
 describe('runRoadmapGeneration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreateSimpleClient.mockResolvedValue(makeMockClient());
-    // Output dir exists by default (created by mkdirSync is a no-op)
-    mockExistsSync.mockReturnValue(false);
-    mockMkdirSync.mockReturnValue(undefined);
-    mockStreamText.mockReturnValue(makeStream([]));
+    files.clear();
+    spawnCalls.length = 0;
+    responder = happyResponder;
   });
 
-  // ---------------------------------------------------------------------------
-  // Successful full pipeline
-  // ---------------------------------------------------------------------------
-
-  it('returns success with roadmapPath when both phases succeed', async () => {
-    // existsSync: outputDir does not exist initially; discovery file created after phase 1
-    let discoveryCreated = false;
-
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap')) return true; // outputDir exists
-      if (p.endsWith('roadmap_discovery.json') && discoveryCreated) return true;
-      if (p.endsWith('roadmap.json') && discoveryCreated) return false; // not yet
-      return false;
-    });
-
-    // streamText yields nothing — validation happens from file reads
-    mockStreamText.mockImplementation(() => {
-      discoveryCreated = true; // simulate file being written during stream
-      return makeStream([]);
-    });
-
-    // readFileSync returns valid JSON for each file
-    mockReadFileSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap_discovery.json')) return VALID_DISCOVERY_JSON;
-      if (p.endsWith('roadmap.json')) return VALID_ROADMAP_JSON;
-      return '{}';
-    });
-
-    // After agent runs, both files exist
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap_discovery.json')) return true;
-      if (p.endsWith('roadmap.json')) return true;
-      return true; // outputDir, etc.
-    });
-
+  it('runs discovery then features and writes both files', async () => {
     const result = await runRoadmapGeneration(baseConfig());
 
     expect(result.success).toBe(true);
-    expect(result.roadmapPath).toContain('roadmap.json');
-    expect(result.phases).toHaveLength(2);
-    expect(result.phases[0].phase).toBe('discovery');
-    expect(result.phases[1].phase).toBe('features');
+    expect(result.roadmapPath).toBe(ROADMAP);
+    expect(result.phases.map((p) => p.phase)).toEqual(['discovery', 'features']);
+    expect(JSON.parse(files.get(DISCOVERY) ?? '{}').project_name).toBe('TestProject');
+    expect(JSON.parse(files.get(ROADMAP) ?? '{}').features).toHaveLength(3);
   });
 
-  // ---------------------------------------------------------------------------
-  // Discovery phase failure
-  // ---------------------------------------------------------------------------
-
-  it('returns failure when discovery phase fails after all retries', async () => {
-    // Discovery file is never created
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap')) return true; // outputDir exists
-      return false; // discovery file never appears
-    });
-
-    mockStreamText.mockReturnValue(makeStream([]));
+  it('returns failure and skips features when discovery fails after all retries', async () => {
+    responder = () => ({ text: 'no tags here' });
 
     const result = await runRoadmapGeneration(baseConfig());
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Discovery failed');
     expect(result.phases).toHaveLength(1);
-    expect(result.phases[0].phase).toBe('discovery');
-    expect(result.phases[0].success).toBe(false);
+    expect(spawnCalls).toHaveLength(3);
   });
 
-  it('does not run features phase when discovery fails', async () => {
-    mockExistsSync.mockReturnValue(false);
-    mockStreamText.mockReturnValue(makeStream([]));
-
-    const result = await runRoadmapGeneration(baseConfig());
-
-    // Only 1 phase in result — features was never attempted
-    expect(result.phases).toHaveLength(1);
-  });
-
-  // ---------------------------------------------------------------------------
-  // Features phase failure
-  // ---------------------------------------------------------------------------
-
-  it('returns failure when features phase fails (no roadmap.json created)', async () => {
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap')) return true;
-      if (p.endsWith('roadmap_discovery.json')) return true; // discovery succeeded
-      if (p.endsWith('project_index.json')) return false;
-      return false; // roadmap.json never created
-    });
-
-    mockReadFileSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap_discovery.json')) return VALID_DISCOVERY_JSON;
-      return '{}';
-    });
-
-    mockStreamText.mockReturnValue(makeStream([]));
+  it('records the CLI error when the process exits non-zero', async () => {
+    responder = () => ({ text: '', code: 1 });
 
     const result = await runRoadmapGeneration(baseConfig());
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Feature generation failed');
-    expect(result.phases).toHaveLength(2);
-    expect(result.phases[1].phase).toBe('features');
-    expect(result.phases[1].success).toBe(false);
+    expect(result.phases[0].errors[0]).toContain('claude CLI failed');
   });
 
-  // ---------------------------------------------------------------------------
-  // Cache (refresh=false) — skip phases when files already exist
-  // ---------------------------------------------------------------------------
-
-  it('skips discovery phase when discovery file already exists and refresh=false', async () => {
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap')) return true;
-      if (p.endsWith('roadmap_discovery.json')) return true; // already exists
-      if (p.endsWith('roadmap.json')) return true; // also exists
-      return false;
-    });
+  it('skips phases whose output already exists when refresh=false', async () => {
+    files.set(DISCOVERY, JSON.stringify(VALID_DISCOVERY));
+    files.set(ROADMAP, JSON.stringify(VALID_ROADMAP));
 
     const result = await runRoadmapGeneration(baseConfig({ refresh: false }));
 
-    // streamText should not have been called since both files exist
-    expect(mockStreamText).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
+    expect(mockSpawn).not.toHaveBeenCalled();
   });
 
-  // ---------------------------------------------------------------------------
-  // Output directory creation
-  // ---------------------------------------------------------------------------
-
-  it('creates output directory when it does not exist', async () => {
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap') && !p.includes('.json')) return false; // dir does not exist
-      return false;
-    });
-    mockStreamText.mockReturnValue(makeStream([]));
-
-    await runRoadmapGeneration(baseConfig({ outputDir: '/project/.malvy/roadmap' }));
-
-    expect(mockMkdirSync).toHaveBeenCalledWith(
-      expect.stringContaining('roadmap'),
-      expect.objectContaining({ recursive: true }),
-    );
-  });
-
-  // ---------------------------------------------------------------------------
-  // Streaming events
-  // ---------------------------------------------------------------------------
-
-  it('emits phase-start and phase-complete events for both phases', async () => {
-    // Make discovery succeed via cached file
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap')) return true;
-      if (p.endsWith('roadmap_discovery.json')) return true;
-      if (p.endsWith('roadmap.json')) return true;
-      return false;
-    });
-
-    const events: RoadmapStreamEvent[] = [];
-    await runRoadmapGeneration(baseConfig({ refresh: false }), (e) => events.push(e));
-
-    const phaseStartEvents = events.filter((e) => e.type === 'phase-start');
-    const phaseCompleteEvents = events.filter((e) => e.type === 'phase-complete');
-
-    expect(phaseStartEvents).toHaveLength(2);
-    expect(phaseCompleteEvents).toHaveLength(2);
-    expect((phaseStartEvents[0] as { type: string; phase: string }).phase).toBe('discovery');
-    expect((phaseStartEvents[1] as { type: string; phase: string }).phase).toBe('features');
-  });
-
-  it('forwards text-delta events from stream to callback', async () => {
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap_discovery.json')) return true;
-      if (p.endsWith('roadmap.json')) return true;
-      return true;
-    });
-
-    const events: RoadmapStreamEvent[] = [];
-    await runRoadmapGeneration(baseConfig({ refresh: false }), (e) => events.push(e));
-
-    // Since files exist and refresh=false, streamText is never called and no text-delta fires
-    // This confirms the caching path works correctly
-    const textEvents = events.filter((e) => e.type === 'text-delta');
-    expect(textEvents).toHaveLength(0);
-  });
-
-  it('forwards text-delta from active streamText run when discovery must be generated', async () => {
-    // outputDir exists, but discovery file does not (first attempt)
-    // After first streamText run, discovery file appears
-    let callCount = 0;
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap') && !p.includes('.json')) return true;
-      if (p.endsWith('roadmap_discovery.json')) return callCount > 0;
-      return false;
-    });
-
-    mockReadFileSync.mockReturnValue(VALID_DISCOVERY_JSON);
-
-    mockStreamText.mockImplementation(() => {
-      callCount++;
-      return {
-        fullStream: (async function* () {
-          yield { type: 'text-delta', text: 'Analyzing project...' };
-        })(),
-      };
-    });
-
+  it('emits phase-start/phase-complete events and forwards text deltas', async () => {
     const events: RoadmapStreamEvent[] = [];
     await runRoadmapGeneration(baseConfig(), (e) => events.push(e));
 
-    const textEvents = events.filter((e) => e.type === 'text-delta');
-    expect(textEvents.length).toBeGreaterThan(0);
+    const starts = events.filter((e) => e.type === 'phase-start').map((e) => (e as { phase: string }).phase);
+    expect(starts).toEqual(['discovery', 'features']);
+    expect(events.some((e) => e.type === 'text-delta')).toBe(true);
   });
 
-  // ---------------------------------------------------------------------------
-  // Client configuration
-  // ---------------------------------------------------------------------------
-
-  it('uses sonnet and medium thinking level by default', async () => {
-    mockExistsSync.mockReturnValue(false);
-    mockStreamText.mockReturnValue(makeStream([]));
-
+  it('uses sonnet by default and honours a custom modelShorthand', async () => {
     await runRoadmapGeneration(baseConfig());
+    expect(mockResolveModelId).toHaveBeenLastCalledWith('sonnet');
 
-    const clientArgs = mockCreateSimpleClient.mock.calls[0][0];
-    expect(clientArgs.modelShorthand).toBe('sonnet');
-    expect(clientArgs.thinkingLevel).toBe('medium');
+    files.clear();
+    await runRoadmapGeneration(baseConfig({ modelShorthand: 'haiku' }));
+    expect(mockResolveModelId).toHaveBeenLastCalledWith('haiku');
+    expect(spawnCalls.at(-1)?.args).toContain('model-haiku');
   });
 
-  it('accepts custom modelShorthand and thinkingLevel', async () => {
-    mockExistsSync.mockReturnValue(false);
-    mockStreamText.mockReturnValue(makeStream([]));
+  it('defaults the output directory to <project>/.malvy/roadmap', async () => {
+    const result = await runRoadmapGeneration({ projectDir: '/my/project' });
 
-    await runRoadmapGeneration(baseConfig({ modelShorthand: 'haiku', thinkingLevel: 'low' }));
-
-    const clientArgs = mockCreateSimpleClient.mock.calls[0][0];
-    expect(clientArgs.modelShorthand).toBe('haiku');
-    expect(clientArgs.thinkingLevel).toBe('low');
-  });
-
-  it('uses default outputDir when not provided', async () => {
-    mockExistsSync.mockReturnValue(false);
-    mockStreamText.mockReturnValue(makeStream([]));
-
-    await runRoadmapGeneration({ projectDir: '/my/project' });
-
-    // mkdirSync should have been called with the default path
-    expect(mockMkdirSync).toHaveBeenCalledWith(
-      expect.stringContaining('.malvy'),
-      expect.anything(),
-    );
+    expect(result.roadmapPath).toBe('/my/project/.malvy/roadmap/roadmap.json');
   });
 
   // ---------------------------------------------------------------------------
-  // Error handling — streamText throws
+  // Competitor analysis
   // ---------------------------------------------------------------------------
 
-  it('records error in phase when streamText throws during discovery', async () => {
-    mockExistsSync.mockImplementation((p: string) => {
-      if (p.endsWith('roadmap') && !p.includes('.json')) return true;
-      return false;
+  describe('competitor analysis', () => {
+    it('does not run when disabled', async () => {
+      const result = await runRoadmapGeneration(baseConfig());
+
+      expect(result.phases.map((p) => p.phase)).not.toContain('competitor_analysis');
+      expect(spawnCalls.some((c) => isCompetitorCall(c.args))).toBe(false);
     });
 
-    mockStreamText.mockImplementation(() => {
-      return {
-        // biome-ignore lint/correctness/useYield: intentionally throwing before yield to test error path
-        fullStream: (async function* () {
-          throw new Error('network failure');
-        })(),
-      };
+    it('runs with web tools between discovery and features, saves the file and feeds it to features', async () => {
+      const result = await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true }));
+
+      expect(result.success).toBe(true);
+      expect(result.phases.map((p) => p.phase)).toEqual(['discovery', 'competitor_analysis', 'features']);
+
+      const competitorCall = spawnCalls.find((c) => isCompetitorCall(c.args));
+      expect(competitorCall?.args.join(' ')).toContain('Read,Glob,Grep,WebSearch,WebFetch');
+
+      const saved = JSON.parse(files.get(COMPETITOR) ?? '{}');
+      expect(saved.competitors[0].name).toBe('Rival');
+      expect(saved.created_at).toBeDefined();
+
+      const featuresCall = spawnCalls.at(-1);
+      expect(featuresCall?.prompt).toContain(COMPETITOR);
+      expect(featuresCall?.prompt).toContain('competitor_insight_ids');
     });
 
-    const result = await runRoadmapGeneration(baseConfig());
+    it('reuses an existing analysis unless refreshCompetitorAnalysis is set', async () => {
+      files.set(COMPETITOR, JSON.stringify(VALID_COMPETITOR));
 
-    expect(result.success).toBe(false);
-    expect(result.phases[0].errors.length).toBeGreaterThan(0);
+      await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true, refresh: true }));
+      expect(spawnCalls.some((c) => isCompetitorCall(c.args))).toBe(false);
+
+      spawnCalls.length = 0;
+      await runRoadmapGeneration(
+        baseConfig({ enableCompetitorAnalysis: true, refresh: true, refreshCompetitorAnalysis: true }),
+      );
+      expect(spawnCalls.some((c) => isCompetitorCall(c.args))).toBe(true);
+    });
+
+    it('continues to the features phase when competitor analysis fails', async () => {
+      responder = (prompt, args) => (isCompetitorCall(args) ? { text: 'nothing useful' } : happyResponder(prompt, args));
+      const events: RoadmapStreamEvent[] = [];
+
+      const result = await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true }), (e) => events.push(e));
+
+      expect(result.success).toBe(true);
+      const competitor = result.phases.find((p) => p.phase === 'competitor_analysis');
+      expect(competitor?.success).toBe(false);
+      expect(files.has(COMPETITOR)).toBe(false);
+      expect(spawnCalls.at(-1)?.prompt).not.toContain(COMPETITOR);
+      expect(events.some((e) => e.type === 'error')).toBe(true);
+    });
   });
 });

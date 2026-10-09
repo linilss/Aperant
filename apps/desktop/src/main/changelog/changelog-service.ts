@@ -186,7 +186,6 @@ export class ChangelogService extends EventEmitter {
       const autoBuildEnv = this.loadAutoBuildEnv();
 
       this.generator = new ChangelogGenerator(
-        '',
         claudePath,
         autoBuildSource,
         autoBuildEnv,
@@ -222,7 +221,6 @@ export class ChangelogService extends EventEmitter {
       const { autoBuildSource, claudePath } = this.ensurePrerequisites();
 
       this.versionSuggester = new VersionSuggester(
-        '',
         claudePath,
         autoBuildSource,
         this.isDebugEnabled()

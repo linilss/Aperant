@@ -183,13 +183,20 @@ export interface ProjectInstructionsResult {
  * When `projectDir` is a task worktree, the Malvy layer is read from the owning project.
  *
  * @param projectDir - Project root (or task worktree) directory
+ * @param options.includeTeamDocs - When false (ProjectSettings.useClaudeMd off), the team's
+ *   AGENTS.md/CLAUDE.md is skipped and left out of the documentation map. Malvy's own layer
+ *   is always included.
  * @returns Assembled instructions, or null if nothing was found
  */
-export async function loadProjectInstructions(projectDir: string): Promise<ProjectInstructionsResult | null> {
+export async function loadProjectInstructions(
+  projectDir: string,
+  options: { includeTeamDocs?: boolean } = {},
+): Promise<ProjectInstructionsResult | null> {
+  const includeTeamDocs = options.includeTeamDocs !== false;
   const sections: string[] = [];
   const sources: string[] = [];
 
-  const candidates = ['AGENTS.md', 'agents.md', 'CLAUDE.md', 'claude.md'];
+  const candidates = includeTeamDocs ? ['AGENTS.md', 'agents.md', 'CLAUDE.md', 'claude.md'] : [];
   let teamRoot: string | null = null;
   for (const name of candidates) {
     const content = await tryReadFile(join(projectDir, name));
@@ -203,7 +210,7 @@ export async function loadProjectInstructions(projectDir: string): Promise<Proje
 
   const malvyRoot = resolveMalvyRoot(projectDir);
   const sameRoot = malvyRoot === projectDir;
-  const teamDocs = (await findClaudeDocs(projectDir)).filter((d) => d.layer === 'team');
+  const teamDocs = includeTeamDocs ? (await findClaudeDocs(projectDir)).filter((d) => d.layer === 'team') : [];
   const malvyDocs = (await findClaudeDocs(malvyRoot)).filter((d) => d.layer === 'malvy');
 
   const mapLines: string[] = [];

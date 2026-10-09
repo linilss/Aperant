@@ -324,11 +324,7 @@ const browserMockAPI = {
     startStatusPolling: async () => true,
     stopStatusPolling: async () => true,
     getPollingMetadata: async () => null,
-    onPRStatusUpdate: () => () => {},
-    // Release operations (changelog-based)
-    getReleaseableVersions: async () => ({ success: true, data: [] }),
-    runReleasePreflightCheck: async () => ({ success: true, data: { canRelease: true, checks: [], blockers: [] } }),
-    createRelease: async () => ({ success: true, data: { url: '' } })
+    onPRStatusUpdate: () => () => {}
   },
 
   // Queue Routing API (rate limit recovery)

@@ -146,7 +146,17 @@
     },
     "capacity": "{{active}} of {{max}} parallel slots in use",
     "capacityWithPaused": "{{active}} of {{max}} parallel slots in use · {{paused}} paused on a rate limit (no slot held)",
-    "heldByRateLimit": "Holding — a task is paused on a rate limit, so starting more would hit the same limit. Resumes automatically."
+    "heldByRateLimit": "Holding — a task is paused on a rate limit, so starting more would hit the same limit. Resumes automatically.",
+    "autoSwap": {
+      "title": "Profile Swapped",
+      "description": "Switched from {{from}} to {{to}} ({{reason}})",
+      "batchTitle": "{{count}} Profile Swaps",
+      "batchDescription": "Tasks redistributed to: {{profiles}}"
+    },
+    "blocked": {
+      "title": "Queue Blocked",
+      "description": "All profiles are at capacity. Tasks will resume when a profile becomes available."
+    }
   },
   "execution": {
     "phases": {
@@ -246,7 +256,11 @@
     "maxImagesError": "Maximum of {{count}} images allowed",
     "invalidTypeError": "Invalid image type. Allowed: {{types}}",
     "removeImage": "Remove image",
-    "processingError": "Failed to process image"
+    "processingError": "Failed to process image",
+    "requestChanges": "Request Changes",
+    "description": "Found issues? Describe what needs to be fixed and the AI will continue working on it.",
+    "placeholder": "Describe the issues or changes needed...",
+    "submitting": "Submitting..."
   },
   "review": {
     "mergeTooltip": "Merges changes from the task's worktree branch back to your base branch. AI will resolve any conflicts. You can then choose whether to keep or remove the worktree."
@@ -365,5 +379,6 @@
   "referenceImages": {
     "title": "Reference Images (optional)",
     "description": "Add visual references like screenshots or designs to help the AI understand your requirements."
-  }
+  },
+  "untitled": "Untitled"
 }

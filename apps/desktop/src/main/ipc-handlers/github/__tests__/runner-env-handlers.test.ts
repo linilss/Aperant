@@ -245,8 +245,6 @@ function createProject(): Project {
     autoBuildPath: '.malvy',
     settings: {
       model: 'default',
-      memoryBackend: 'file',
-      linearSync: false,
       notifications: {
         onTaskComplete: false,
         onTaskFailed: false,

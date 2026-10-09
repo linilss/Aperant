@@ -429,13 +429,6 @@ export function GitHubIntegration({
               </div>
             </>
           )}
-
-          <Separator />
-
-          <AutoSyncToggle
-            enabled={envConfig.githubAutoSync || false}
-            onToggle={(checked) => updateEnvConfig({ githubAutoSync: checked })}
-          />
         </>
       )}
     </div>
@@ -659,28 +652,6 @@ function IssuesAvailableInfo() {
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-interface AutoSyncToggleProps {
-  enabled: boolean;
-  onToggle: (checked: boolean) => void;
-}
-
-function AutoSyncToggle({ enabled, onToggle }: AutoSyncToggleProps) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-info" />
-          <Label className="font-normal text-foreground">Auto-Sync on Load</Label>
-        </div>
-        <p className="text-xs text-muted-foreground pl-6">
-          Automatically fetch issues when the project loads
-        </p>
-      </div>
-      <Switch checked={enabled} onCheckedChange={onToggle} />
     </div>
   );
 }

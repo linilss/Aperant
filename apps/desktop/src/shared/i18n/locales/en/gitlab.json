@@ -99,8 +99,6 @@
     "noMatchingBranches": "No matching branches",
     "noBranchesFound": "No branches found",
     "branchFromNote": "All new tasks will branch from",
-    "autoSyncOnLoad": "Auto-Sync on Load",
-    "autoSyncDescription": "Automatically fetch issues when the project loads",
     "cli": {
       "required": "GitLab CLI Required",
       "notInstalled": "The GitLab CLI (glab) is required for OAuth authentication. Install it to use the 'Use OAuth' option.",

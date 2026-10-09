@@ -1,4 +1,4 @@
-import { Radio, Import, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Import, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
@@ -92,15 +92,6 @@ export function LinearIntegration({
 
           <Separator />
 
-          <RealtimeSyncToggle
-            enabled={envConfig.linearRealtimeSync || false}
-            onToggle={(checked) => updateEnvConfig({ linearRealtimeSync: checked })}
-          />
-
-          {envConfig.linearRealtimeSync && <RealtimeSyncWarning />}
-
-          <Separator />
-
           <TeamProjectIds
             teamId={envConfig.linearTeamId || ''}
             projectId={envConfig.linearProjectId || ''}
@@ -173,39 +164,6 @@ function ImportTasksPrompt({ onOpenLinearImport }: ImportTasksPromptProps) {
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-interface RealtimeSyncToggleProps {
-  enabled: boolean;
-  onToggle: (checked: boolean) => void;
-}
-
-function RealtimeSyncToggle({ enabled, onToggle }: RealtimeSyncToggleProps) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <div className="flex items-center gap-2">
-          <Radio className="h-4 w-4 text-info" />
-          <Label className="font-normal text-foreground">Real-time Sync</Label>
-        </div>
-        <p className="text-xs text-muted-foreground pl-6">
-          Automatically import new tasks created in Linear
-        </p>
-      </div>
-      <Switch checked={enabled} onCheckedChange={onToggle} />
-    </div>
-  );
-}
-
-function RealtimeSyncWarning() {
-  return (
-    <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 ml-6">
-      <p className="text-xs text-warning">
-        When enabled, new Linear issues will be automatically imported into AutoBuild.
-        Make sure to configure your team/project filters below to control which issues are imported.
-      </p>
     </div>
   );
 }

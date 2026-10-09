@@ -13,10 +13,6 @@
       "title": "Display",
       "description": "Adjust the size of UI elements"
     },
-    "language": {
-      "title": "Language",
-      "description": "Choose your preferred language"
-    },
     "devtools": {
       "title": "Developer Tools",
       "description": "IDE and terminal preferences"
@@ -179,11 +175,17 @@
     "ollamaLoading": "Loading Ollama models...",
     "ollamaNoModels": "No Ollama models installed",
     "ollamaNoModelsHint": "Install models in Agent Settings → Ollama tab",
-    "apiKeyOnly": "API key"
-  },
-  "language": {
-    "label": "Interface Language",
-    "description": "Select the language for the application interface"
+    "apiKeyOnly": "API key",
+    "configureProvider": "Configure",
+    "contextWindow": "{{size}} context",
+    "capabilities": {
+      "thinking": "Thinking",
+      "tools": "Tools",
+      "vision": "Vision"
+    },
+    "customModel": "Custom model ID",
+    "customModelPlaceholder": "Enter model ID...",
+    "useCustomModel": "Use"
   },
   "scale": {
     "presets": "Scale Presets",
@@ -211,9 +213,6 @@
   "general": {
     "otherAgentSettings": "Other Agent Settings",
     "otherAgentSettingsDescription": "Additional agent configuration options",
-    "agentFramework": "Agent Framework",
-    "agentFrameworkDescription": "The coding framework used for autonomous tasks",
-    "agentFrameworkAutoClaude": "malvy",
     "aiTerminalNaming": "AI Terminal Naming",
     "aiTerminalNamingDescription": "Automatically name terminals based on commands (uses AI Naming model)",
     "featureModelSettings": "Feature Model Settings",
@@ -222,9 +221,6 @@
     "thinkingLevel": "Thinking Level",
     "paths": "Paths",
     "pathsDescription": "Configure executable and framework paths",
-    "pythonPath": "Python Path",
-    "pythonPathDescription": "Path to Python executable (leave empty for auto-detection)",
-    "pythonPathPlaceholder": "python3 (default)",
     "gitPath": "Git Path",
     "gitPathDescription": "Path to Git executable (leave empty for auto-detection)",
     "gitPathPlaceholder": "git (default)",
@@ -305,7 +301,8 @@
       "label": "YOLO Mode",
       "description": "Start Claude with --dangerously-skip-permissions flag, bypassing all safety prompts. Use with extreme caution.",
       "warning": "This mode bypasses Claude's permission system. Only enable if you fully trust the code being executed."
-    }
+    },
+    "customPath": "Custom path"
   },
   "updates": {
     "title": "Updates",
@@ -325,8 +322,6 @@
     "viewRelease": "View full release on GitHub",
     "unableToCheck": "Unable to check for updates",
     "checkForUpdates": "Check for Updates",
-    "autoUpdateProjects": "Auto-Update Projects",
-    "autoUpdateProjectsDescription": "Automatically update malvy in projects when a new version is available",
     "betaUpdates": "Beta Updates",
     "betaUpdatesDescription": "Receive pre-release beta versions with new features (may be less stable)",
     "stableDowngradeAvailable": "Stable Version Available",
@@ -359,7 +354,7 @@
       "title": "General",
       "description": "Auto-Build and agent config",
       "useClaudeMd": "Use CLAUDE.md",
-      "useClaudeMdDescription": "Include CLAUDE.md instructions in agent context",
+      "useClaudeMdDescription": "Include the team's CLAUDE.md/AGENTS.md in agent context. When off, agents also skip project-level Claude settings; Malvy's own docs and pointers are always included.",
       "branchPrefix": "Task branch prefix",
       "branchPrefixDescription": "Tasks run on branches named {{example}}. Branches created with the old malvy/ prefix keep working.",
       "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used."
@@ -869,7 +864,8 @@
     "description": "Access logs and debug information for troubleshooting",
     "errorReporting": {
       "label": "Anonymous Error Reporting",
-      "description": "Send crash reports to help improve malvy. No personal data or code is collected."
+      "description": "Send crash reports to help improve malvy. No personal data or code is collected.",
+      "saveFailed": "Failed to save error reporting setting"
     },
     "openLogsFolder": "Open Logs Folder",
     "copyDebugInfo": "Copy Debug Info",

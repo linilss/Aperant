@@ -1108,11 +1108,11 @@ export function AgentTools() {
                   <div className="flex items-center gap-3">
                     <Brain className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <span className="text-sm font-medium">{t('settings:mcp.servers.memory.name')}</span>
+                      <span className="text-sm font-medium">{t('settings:mcp.servers.graphiti.name')}</span>
                       <p className="text-xs text-muted-foreground">
                         {envConfig.memoryProviderConfig
-                          ? t('settings:mcp.servers.memory.description')
-                          : t('settings:mcp.servers.memory.notConfigured')}
+                          ? t('settings:mcp.servers.graphiti.description')
+                          : t('settings:mcp.servers.graphiti.notConfigured')}
                       </p>
                     </div>
                   </div>

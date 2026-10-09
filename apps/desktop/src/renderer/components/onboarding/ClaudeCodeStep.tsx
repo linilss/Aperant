@@ -293,20 +293,20 @@ export function ClaudeCodeStep({ onNext, onBack, onSkip }: ClaudeCodeStepProps) 
         {/* Navigation buttons */}
         <div className="flex justify-between mt-8 pt-6 border-t border-border">
           <Button variant="outline" onClick={onBack}>
-            {t('common:back', 'Back')}
+            {t('common:buttons.back', 'Back')}
           </Button>
 
           <div className="flex gap-3">
             <Button variant="ghost" onClick={onSkip}>
-              {t('common:skip', 'Skip')}
+              {t('common:buttons.skip', 'Skip')}
             </Button>
             <Button
               onClick={onNext}
               disabled={status === 'loading'}
             >
               {status === 'installed'
-                ? t('common:continue', 'Continue')
-                : t('common:continueAnyway', 'Continue Anyway')
+                ? t('common:buttons.continue', 'Continue')
+                : t('common:buttons.continueAnyway', 'Continue Anyway')
               }
             </Button>
           </div>
