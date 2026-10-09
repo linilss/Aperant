@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRoadmapStore, loadRoadmap, generateRoadmap, refreshRoadmap, stopRoadmap } from '../../stores/roadmap-store';
 import { useTaskStore } from '../../stores/task-store';
-import { loadCompetitors, useCompetitorStore } from '../../stores/competitor-store';
+import { loadCompetitors } from '../../stores/competitor-store';
 import type { RoadmapFeature } from '../../../shared/types';
 
 /**
@@ -120,14 +120,12 @@ export function useFeatureDelete(projectId: string) {
  * Hook to manage roadmap generation as a step of the Plan funnel.
  *
  * Competitor analysis lives on the Competitors page (Competitors → Roadmap → MoSCoW).
- * When it has analyzed competitors, the roadmap reuses that analysis and the saved
- * direction ranking without asking. Otherwise a dialog offers to go there first or to
- * generate without competitor analysis.
+ * Generate/Regenerate always open a dialog first: with an analysis it previews the
+ * competitors and ranked directions the roadmap will follow; without one it offers to
+ * run it now — the roadmap's competitor phase uses the Competitors pipeline, so the
+ * result is saved back to the Competitors page.
  */
 export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () => void) {
-  const roadmapAnalysis = useRoadmapStore((state) => state.competitorAnalysis);
-  const competitorProjectId = useCompetitorStore((state) => state.projectId);
-  const competitorData = useCompetitorStore((state) => state.data);
   const [pendingAction, setPendingAction] = useState<'generate' | 'refresh' | null>(null);
   const [showCompetitorDialog, setShowCompetitorDialog] = useState(false);
   const [showGuidanceDialog, setShowGuidanceDialog] = useState(false);
@@ -138,29 +136,23 @@ export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () =
     void loadCompetitors(projectId);
   }, [projectId]);
 
-  const hasPageAnalysis =
-    competitorProjectId === projectId && (competitorData?.competitors.some((c) => c.analyzed) ?? false);
-  const hasExistingAnalysis = hasPageAnalysis || !!roadmapAnalysis;
-
-  const run = (action: 'generate' | 'refresh', withCompetitors: boolean, text = guidance) => {
-    // refreshCompetitorAnalysis=false: reuse the Competitors page analysis
+  const run = (action: 'generate' | 'refresh', withCompetitors: boolean) => {
+    // refreshCompetitorAnalysis=false: reuse an existing analysis, run one only if missing
     if (action === 'generate') {
       generateRoadmap(projectId, withCompetitors, false);
     } else {
-      refreshRoadmap(projectId, withCompetitors, false, text);
+      refreshRoadmap(projectId, withCompetitors, false, guidance);
     }
   };
 
-  const startOrAsk = (action: 'generate' | 'refresh', text?: string) => {
-    if (hasExistingAnalysis) {
-      run(action, true, text);
-    } else {
-      setPendingAction(action);
-      setShowCompetitorDialog(true);
-    }
+  const openPreview = (action: 'generate' | 'refresh') => {
+    setPendingAction(action);
+    // Fresh state so the preview shows the latest ranking from the Competitors page
+    void loadCompetitors(projectId, { force: true });
+    setShowCompetitorDialog(true);
   };
 
-  const handleGenerate = () => startOrAsk('generate');
+  const handleGenerate = () => openPreview('generate');
 
   // Regenerate first asks for optional direction, then continues as generate
   const handleRefresh = () => {
@@ -170,17 +162,13 @@ export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () =
   const handleGuidanceConfirm = (text: string) => {
     setGuidance(text);
     setShowGuidanceDialog(false);
-    startOrAsk('refresh', text);
+    openPreview('refresh');
   };
 
-  // "Go to Competitors": run the funnel step first
+  // "Generate roadmap" / "Analyze & generate"
   const handleCompetitorDialogAccept = () => {
+    if (pendingAction) run(pendingAction, true);
     setPendingAction(null);
-    if (onGoToCompetitors) {
-      onGoToCompetitors();
-    } else if (pendingAction) {
-      run(pendingAction, true);
-    }
   };
 
   // "Generate without"
@@ -189,13 +177,18 @@ export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () =
     setPendingAction(null);
   };
 
+  // "Edit in Competitors" / "Open Competitors"
+  const handleGoToCompetitors = () => {
+    setPendingAction(null);
+    onGoToCompetitors?.();
+  };
+
   const handleStop = async () => {
     await stopRoadmap(projectId);
   };
 
   return {
     pendingAction,
-    hasExistingAnalysis,
     showCompetitorDialog,
     setShowCompetitorDialog,
     handleGenerate,
@@ -206,6 +199,7 @@ export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () =
     handleGuidanceConfirm,
     handleCompetitorDialogAccept,
     handleCompetitorDialogDecline,
+    handleGoToCompetitors,
     handleStop,
   };
 }

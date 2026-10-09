@@ -351,9 +351,9 @@ async function runDiscoveryPhase(
  * Competitor analysis phase — delegates to the Competitors page pipeline
  * (competitors/pipeline.ts) so there is one competitor flow. A fresh analysis
  * from that page (or an earlier run) is reused as-is; otherwise discover +
- * profile run and write competitor_analysis.json. Directions and the user's
- * ranking (strategy.json) are left alone — they are re-synthesized on the
- * Competitors page.
+ * profile run and write competitor_analysis.json, so the result shows up on the
+ * Competitors page. Directions are synthesized too when the user hasn't saved a
+ * ranking yet; a saved ranking (strategy.json) is never overwritten.
  *
  * Failure is non-fatal: the roadmap is still generated without competitor insights.
  */
@@ -398,7 +398,8 @@ async function runCompetitorAnalysisPhase(
           }
         },
       },
-      { focus: existing?.focus, count: existing?.competitorCount, synthesize: false },
+      // Synthesize directions too unless the user already ranked them on the Competitors page
+      { focus: existing?.focus, count: existing?.competitorCount, synthesize: !existing?.rankingSavedAt },
     );
     if (outcome.success) {
       return { phase: 'competitor_analysis', success: true, outputs: [competitorFile], errors: [] };

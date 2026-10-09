@@ -60,6 +60,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
     handleGuidanceConfirm,
     handleCompetitorDialogAccept,
     handleCompetitorDialogDecline,
+    handleGoToCompetitors,
     handleStop,
   } = useRoadmapGeneration(projectId, onGoToCompetitors);
 
@@ -172,6 +173,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
           onOpenChange={setShowCompetitorDialog}
           onAccept={handleCompetitorDialogAccept}
           onDecline={handleCompetitorDialogDecline}
+          onGoToCompetitors={onGoToCompetitors ? handleGoToCompetitors : undefined}
+          projectId={projectId}
         />
       </>
     );
@@ -244,6 +247,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
         onOpenChange={setShowCompetitorDialog}
         onAccept={handleCompetitorDialogAccept}
         onDecline={handleCompetitorDialogDecline}
+        onGoToCompetitors={onGoToCompetitors ? handleGoToCompetitors : undefined}
+        projectId={projectId}
       />
 
       {/* Competitor Analysis Viewer */}

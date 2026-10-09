@@ -276,14 +276,14 @@ describe('runRoadmapGeneration', () => {
       expect(mockRunFullAnalysis).not.toHaveBeenCalled();
     });
 
-    it('delegates to the Competitors pipeline (no synthesis), saves the file and feeds it to features', async () => {
+    it('delegates to the Competitors pipeline (with synthesis when no ranking is saved), saves the file and feeds it to features', async () => {
       pipelineProfilesRival();
       const result = await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true }));
 
       expect(result.success).toBe(true);
       expect(result.phases.map((p) => p.phase)).toEqual(['discovery', 'competitor_analysis', 'features']);
       expect(mockRunFullAnalysis).toHaveBeenCalledTimes(1);
-      expect(mockRunFullAnalysis.mock.calls[0][1]).toMatchObject({ synthesize: false });
+      expect(mockRunFullAnalysis.mock.calls[0][1]).toMatchObject({ synthesize: true });
 
       const saved = JSON.parse(files.get(COMPETITOR) ?? '{}');
       expect(saved.competitors[0].name).toBe('Rival');
