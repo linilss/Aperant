@@ -218,6 +218,20 @@ export const IPC_CHANNELS = {
   ROADMAP_CONVERT_TO_SPEC: 'roadmap:convertToSpec',
   COMPETITOR_ANALYSIS_SAVE: 'roadmap:competitorAnalysisSave',
 
+  // Competitors page (Plan → Competitors)
+  COMPETITORS_GET: 'competitors:get',
+  COMPETITORS_ANALYZE: 'competitors:analyze',
+  COMPETITORS_STOP: 'competitors:stop',
+  COMPETITORS_REFRESH_ONE: 'competitors:refreshOne', // profile one: pool deep-dive or refresh a card
+  COMPETITORS_RESYNTHESIZE: 'competitors:resynthesize',
+  COMPETITORS_SAVE_RANKING: 'competitors:saveRanking',
+  COMPETITORS_MOVE_TO_POOL: 'competitors:moveToPool',
+  COMPETITORS_ADD_MANUAL: 'competitors:addManual',
+  // Competitors events (main -> renderer)
+  COMPETITORS_PROGRESS: 'competitors:progress',
+  COMPETITORS_COMPLETE: 'competitors:complete',
+  COMPETITORS_ERROR: 'competitors:error',
+
   // Roadmap events (main -> renderer)
   ROADMAP_PROGRESS: 'roadmap:progress',
   ROADMAP_COMPLETE: 'roadmap:complete',

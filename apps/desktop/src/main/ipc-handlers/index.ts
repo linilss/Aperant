@@ -38,6 +38,7 @@ import { registerCodexAuthHandlers } from './codex-auth-handlers';
 import { registerFeatureRefineHandlers } from './feature-refine-handlers';
 import { registerTaskRefineHandlers } from './task-refine-handlers';
 import { registerTestsHandlers } from './tests-handlers';
+import { registerCompetitorHandlers } from './competitor-handlers';
 import { notificationService } from '../notification-service';
 import { setAgentManagerRef } from './utils';
 
@@ -142,6 +143,9 @@ export function setupIpcHandlers(
 
   // Tests handlers (discover, run, config)
   registerTestsHandlers(getMainWindow);
+
+  // Competitors page (Plan → Competitors)
+  registerCompetitorHandlers(getMainWindow);
 
   console.warn('[IPC] All handler modules registered successfully');
 }

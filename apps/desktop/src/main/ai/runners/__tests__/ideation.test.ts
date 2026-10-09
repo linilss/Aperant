@@ -153,6 +153,34 @@ describe('runIdeation', () => {
     expect(result.text).toBe('final summary');
   });
 
+  it('adds the ranked directions from the Competitors page to the prompt', async () => {
+    mockReadFileSync.mockImplementation((path: string) =>
+      String(path).endsWith('strategy.json')
+        ? JSON.stringify({
+            directions: [
+              { id: 'dir-a', title: 'Coach-first', avoid: false, note: 'Core bet' },
+              { id: 'dir-b', title: 'Cheapest', avoid: true, note: '' },
+            ],
+            ranking_saved_at: '2026-10-01T00:00:00.000Z',
+          })
+        : '# Ideation prompt',
+    );
+
+    await runIdeation(baseConfig());
+
+    const prompt = spawnCalls[0].prompt;
+    expect(prompt).toContain('STRATEGIC DIRECTION');
+    expect(prompt).toContain('1. Coach-first');
+    expect(prompt).toContain('Core bet');
+    expect(prompt).toMatch(/Steer away from[\s\S]*Cheapest/);
+  });
+
+  it('adds no strategy section without a saved ranking', async () => {
+    await runIdeation(baseConfig());
+
+    expect(spawnCalls[0].prompt).not.toContain('STRATEGIC DIRECTION');
+  });
+
   it('spawns the claude CLI in stream-json mode with sonnet by default', async () => {
     await runIdeation(baseConfig());
 

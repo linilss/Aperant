@@ -30,6 +30,13 @@ export interface Competitor {
   strengths: string[];
   marketPosition: string;
   source?: CompetitorSource;
+  // Profile fields written by the Competitors page pipeline (absent in older files)
+  positioning?: string;
+  targetAudience?: string;
+  keyFeatures?: string[];
+  pricingModel?: string;
+  weaknesses?: string[];
+  differentiator?: string;
 }
 
 export interface ManualCompetitorInput {

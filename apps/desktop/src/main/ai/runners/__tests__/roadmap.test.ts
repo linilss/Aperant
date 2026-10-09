@@ -67,7 +67,37 @@ vi.mock('node:fs', () => ({
   writeFileSync: (p: string, content: string) => {
     files.set(p, content);
   },
+  renameSync: (from: string, to: string) => {
+    files.set(to, files.get(from) ?? '');
+    files.delete(from);
+  },
   mkdirSync: (...args: unknown[]) => mockMkdirSync(...args),
+}));
+
+// The competitor phase delegates to the Competitors page pipeline
+type Store = {
+  get: () => Record<string, unknown>;
+  update: (fn: (s: Record<string, unknown>) => Record<string, unknown>) => Record<string, unknown>;
+};
+const mockRunFullAnalysis = vi.fn(
+  async (_ctx: { store: Store }, _opts: Record<string, unknown>): Promise<{ success: boolean; aborted: boolean; error?: string }> => ({
+    success: true,
+    aborted: false,
+  }),
+);
+vi.mock('../competitors/pipeline', () => ({
+  runFullAnalysis: (ctx: { store: Store }, opts: Record<string, unknown>) => mockRunFullAnalysis(ctx, opts),
+  createMemoryStore: (initial: Record<string, unknown>, onChange?: (s: Record<string, unknown>) => void): Store => {
+    let state = initial;
+    return {
+      get: () => state,
+      update: (fn) => {
+        state = fn(state);
+        onChange?.(state);
+        return state;
+      },
+    };
+  },
 }));
 
 vi.mock('../../../utils/json-repair', () => ({
@@ -118,18 +148,35 @@ const VALID_ROADMAP = {
   ],
 };
 
-const VALID_COMPETITOR = {
+const freshCompetitor = (analyzedAt = new Date().toISOString()) => ({
+  analyzed_at: analyzedAt,
   project_context: { project_name: 'TestProject' },
   competitors: [{ id: 'competitor-1', name: 'Rival', pain_points: [{ id: 'pain-1-1', description: 'Slow' }] }],
-};
+});
 
-const isCompetitorCall = (args: string[]) => args.join(' ').includes('WebSearch');
+const STRATEGY = `${OUT}/strategy.json`;
+
+/** Pipeline stand-in: profiles one competitor into the store (which persists both files) */
+function pipelineProfilesRival() {
+  mockRunFullAnalysis.mockImplementationOnce(async (ctx) => {
+    ctx.store.update((s) => ({
+      ...s,
+      analyzedAt: new Date().toISOString(),
+      competitors: [
+        {
+          id: 'c-rival', name: 'Rival', url: 'https://rival.example', oneLiner: 'Rival app', relevanceScore: 90,
+          analyzed: true, positioning: 'Rival app', targetAudience: '', keyFeatures: [], pricingModel: '',
+          strengths: [], weaknesses: [], differentiator: '', relevance: 'high', painPoints: [], source: 'ai',
+          status: 'done', profiledAt: new Date().toISOString(),
+        },
+      ],
+    }));
+    return { success: true, aborted: false };
+  });
+}
 
 /** Default responder: answers each phase with valid tagged JSON */
-const happyResponder: Responder = (prompt, args) => {
-  if (isCompetitorCall(args)) {
-    return { text: `<competitor_analysis>${JSON.stringify(VALID_COMPETITOR)}</competitor_analysis>` };
-  }
+const happyResponder: Responder = (prompt) => {
   if (prompt.includes('<roadmap_discovery>')) {
     return { text: `<roadmap_discovery>${JSON.stringify(VALID_DISCOVERY)}</roadmap_discovery>` };
   }
@@ -226,17 +273,17 @@ describe('runRoadmapGeneration', () => {
       const result = await runRoadmapGeneration(baseConfig());
 
       expect(result.phases.map((p) => p.phase)).not.toContain('competitor_analysis');
-      expect(spawnCalls.some((c) => isCompetitorCall(c.args))).toBe(false);
+      expect(mockRunFullAnalysis).not.toHaveBeenCalled();
     });
 
-    it('runs with web tools between discovery and features, saves the file and feeds it to features', async () => {
+    it('delegates to the Competitors pipeline (no synthesis), saves the file and feeds it to features', async () => {
+      pipelineProfilesRival();
       const result = await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true }));
 
       expect(result.success).toBe(true);
       expect(result.phases.map((p) => p.phase)).toEqual(['discovery', 'competitor_analysis', 'features']);
-
-      const competitorCall = spawnCalls.find((c) => isCompetitorCall(c.args));
-      expect(competitorCall?.args.join(' ')).toContain('Read,Glob,Grep,WebSearch,WebFetch');
+      expect(mockRunFullAnalysis).toHaveBeenCalledTimes(1);
+      expect(mockRunFullAnalysis.mock.calls[0][1]).toMatchObject({ synthesize: false });
 
       const saved = JSON.parse(files.get(COMPETITOR) ?? '{}');
       expect(saved.competitors[0].name).toBe('Rival');
@@ -247,21 +294,29 @@ describe('runRoadmapGeneration', () => {
       expect(featuresCall?.prompt).toContain('competitor_insight_ids');
     });
 
-    it('reuses an existing analysis unless refreshCompetitorAnalysis is set', async () => {
-      files.set(COMPETITOR, JSON.stringify(VALID_COMPETITOR));
+    it('reuses a fresh analysis from the Competitors page unless refreshCompetitorAnalysis is set', async () => {
+      files.set(COMPETITOR, JSON.stringify(freshCompetitor()));
 
       await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true, refresh: true }));
-      expect(spawnCalls.some((c) => isCompetitorCall(c.args))).toBe(false);
+      expect(mockRunFullAnalysis).not.toHaveBeenCalled();
+      expect(spawnCalls.at(-1)?.prompt).toContain(COMPETITOR);
 
-      spawnCalls.length = 0;
       await runRoadmapGeneration(
         baseConfig({ enableCompetitorAnalysis: true, refresh: true, refreshCompetitorAnalysis: true }),
       );
-      expect(spawnCalls.some((c) => isCompetitorCall(c.args))).toBe(true);
+      expect(mockRunFullAnalysis).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-runs the pipeline when the cached analysis is stale', async () => {
+      files.set(COMPETITOR, JSON.stringify(freshCompetitor('2020-01-01T00:00:00.000Z')));
+
+      await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true }));
+
+      expect(mockRunFullAnalysis).toHaveBeenCalledTimes(1);
     });
 
     it('continues to the features phase when competitor analysis fails', async () => {
-      responder = (prompt, args) => (isCompetitorCall(args) ? { text: 'nothing useful' } : happyResponder(prompt, args));
+      mockRunFullAnalysis.mockResolvedValueOnce({ success: false, aborted: false, error: 'Discovery failed: boom' });
       const events: RoadmapStreamEvent[] = [];
 
       const result = await runRoadmapGeneration(baseConfig({ enableCompetitorAnalysis: true }), (e) => events.push(e));
@@ -272,6 +327,38 @@ describe('runRoadmapGeneration', () => {
       expect(files.has(COMPETITOR)).toBe(false);
       expect(spawnCalls.at(-1)?.prompt).not.toContain(COMPETITOR);
       expect(events.some((e) => e.type === 'error')).toBe(true);
+    });
+  });
+
+  describe('strategy guidance from the Competitors page', () => {
+    const ranked = {
+      directions: [
+        { id: 'dir-coach', title: 'Coach-first', description: 'AI programs', avoid: false, note: 'Our core bet' },
+        { id: 'dir-cheap', title: 'Cheapest option', avoid: true, note: 'Race to the bottom' },
+      ],
+      ranking_saved_at: new Date().toISOString(),
+    };
+
+    it('adds the ranked directions to the discovery and features prompts', async () => {
+      files.set(STRATEGY, JSON.stringify(ranked));
+
+      await runRoadmapGeneration(baseConfig());
+
+      const [discoveryCall, featuresCall] = spawnCalls;
+      for (const call of [discoveryCall, featuresCall]) {
+        expect(call.prompt).toContain('STRATEGIC DIRECTION');
+        expect(call.prompt).toContain('1. Coach-first');
+        expect(call.prompt).toContain('Our core bet');
+        expect(call.prompt).toMatch(/Steer away from[\s\S]*Cheapest option/);
+      }
+    });
+
+    it('adds nothing when no ranking was saved', async () => {
+      files.set(STRATEGY, JSON.stringify({ ...ranked, ranking_saved_at: null }));
+
+      await runRoadmapGeneration(baseConfig());
+
+      expect(spawnCalls.every((c) => !c.prompt.includes('STRATEGIC DIRECTION'))).toBe(true);
     });
   });
 });

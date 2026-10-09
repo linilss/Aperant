@@ -26,7 +26,8 @@ import {
   Wand,
   ChevronRight,
   Rocket,
-  Grid2x2
+  Grid2x2,
+  Swords
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -65,7 +66,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'moscow' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'competitors' | 'moscow' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -103,6 +104,7 @@ const navSections: NavSection[] = [
     id: 'plan',
     labelKey: 'navigation:sections.plan',
     items: [
+      { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F' },
       { id: 'moscow', labelKey: 'navigation:items.moscow', icon: Grid2x2, shortcut: 'O' },
       { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D' },
       { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I' },

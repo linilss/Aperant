@@ -1013,5 +1013,104 @@
     "connecting": "Connecting to Malvy…",
     "reconnecting": "Reconnecting…",
     "notAvailable": "Not available from remote devices"
+  },
+  "competitors": {
+    "title": "Competitor analysis",
+    "subtitle": "Find alternatives, pick a strategic direction, and steer the roadmap with it",
+    "analyzedAt": "Analyzed {{date}}",
+    "focusLabel": "Focus",
+    "focusPlaceholder": "Optional focus, e.g. \"iOS fitness apps in Scandinavia\"",
+    "countLabel": "Profile top {{count}}",
+    "analyze": "Analyze competitors",
+    "refreshAll": "Refresh all",
+    "stop": "Stop",
+    "dismiss": "Dismiss",
+    "errorPrefix": "Error: {{error}}",
+    "manual": "Manual",
+    "noneAnalyzed": "No analyzed competitors. Deep-dive one from the pool below.",
+    "relevance": {
+      "high": "High relevance",
+      "medium": "Medium relevance",
+      "low": "Low relevance"
+    },
+    "progress": {
+      "starting": "Starting…",
+      "discovering": "Finding competitors…",
+      "profiling": "Profiling {{done}}/{{total}}…",
+      "synthesizing": "Synthesizing directions…"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Profiling…",
+      "error": "Profiling failed: {{error}}"
+    },
+    "sections": {
+      "analyzed": "Analyzed competitors ({{count}})",
+      "pool": "Competitor pool ({{count}})",
+      "directions": "Strategic directions"
+    },
+    "card": {
+      "refresh": "Refresh this competitor",
+      "moveToPool": "Move back to the pool",
+      "differentiator": "Differentiator",
+      "audience": "Target audience",
+      "pricing": "Pricing",
+      "pricingUnknown": "Not public",
+      "keyFeatures": "Key features",
+      "strengths": "Strengths",
+      "weaknesses": "Weaknesses",
+      "painPoints": "User pain points",
+      "more": "Details",
+      "less": "Less"
+    },
+    "pool": {
+      "hint": "Other alternatives found, by relevance. Deep-dive one to add it to the analyzed set.",
+      "empty": "The pool is empty.",
+      "score": "Relevance {{score}}",
+      "deepDive": "Deep-dive {{name}}",
+      "namePlaceholder": "Competitor name",
+      "urlPlaceholder": "URL (optional)",
+      "add": "Add to pool",
+      "duplicate": "That competitor is already listed."
+    },
+    "directions": {
+      "hint": "Rank the directions: drag the handle (long-press on touch) or use the arrows. The top 3 not avoided are pursued; avoided ones are steered away from.",
+      "dragHandle": "Drag to reorder {{title}}",
+      "moveUp": "Move {{title}} up",
+      "moveDown": "Move {{title}} down",
+      "pursue": "Pursue",
+      "avoided": "Avoided",
+      "avoid": "Avoid",
+      "occupiedBy": "Occupied by",
+      "nobody": "Nobody yet",
+      "opportunity": "Opportunity",
+      "fit": "Fit with this project",
+      "risk": "Risk",
+      "notePlaceholder": "Add a note (optional)",
+      "noteLabel": "Note for {{title}}",
+      "saveRanking": "Save ranking",
+      "resynthesize": "Re-synthesize directions",
+      "synthesize": "Synthesize directions",
+      "stale": "The analyzed competitors changed since these directions were synthesized.",
+      "pending": "Directions appear once the competitors are profiled.",
+      "none": "No directions yet."
+    },
+    "next": {
+      "roadmap": "Next: Generate roadmap",
+      "ideation": "Ideate with this direction",
+      "hint": "Roadmap, MoSCoW priorities and Ideation now follow your ranking."
+    },
+    "chip": {
+      "guidedBy": "Guided by: {{title}}",
+      "tooltip": "Your top-ranked direction from the competitor analysis. Click to change it."
+    },
+    "empty": {
+      "title": "Who else solves this problem?",
+      "description": "The plan funnel starts here: understand the competition before deciding what to build.",
+      "step1": "AI finds the alternatives to this project and profiles the most relevant ones.",
+      "step2": "It synthesizes the strategic directions they take, with gaps and fit.",
+      "step3": "You rank the directions and mark the ones to avoid.",
+      "step4": "Roadmap, MoSCoW and Ideation are generated along your top directions."
+    }
   }
 }

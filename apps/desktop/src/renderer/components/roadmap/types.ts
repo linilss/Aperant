@@ -3,6 +3,8 @@ import type { RoadmapFeature, RoadmapPhase, Roadmap, CompetitorPainPoint, Compet
 export interface RoadmapProps {
   projectId: string;
   onGoToTask?: (taskId: string) => void;
+  /** Back to Plan → Competitors (from the "Guided by" chip) */
+  onGoToCompetitors?: () => void;
 }
 
 export interface PhaseCardProps {

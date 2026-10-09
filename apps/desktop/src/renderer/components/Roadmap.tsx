@@ -12,6 +12,7 @@ import { RoadmapEmptyState } from './roadmap/RoadmapEmptyState';
 import { RoadmapTabs } from './roadmap/RoadmapTabs';
 import { FeatureDetailPanel } from './roadmap/FeatureDetailPanel';
 import { RefineFeaturePanel } from './roadmap/RefineFeaturePanel';
+import { StrategyGuidanceBar, StrategyGuidanceChip } from './competitors/StrategyGuidanceChip';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -30,7 +31,7 @@ import type { FeatureRefineResult } from '../stores/feature-refine-store';
 import type { RoadmapFeature } from '../../shared/types';
 import type { RoadmapProps } from './roadmap/types';
 
-export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
+export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapProps) {
   const { t } = useTranslation('common');
 
   // Feature Refine session store
@@ -168,7 +169,12 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
   if (!roadmap) {
     return (
       <>
-        <RoadmapEmptyState onGenerate={handleGenerate} />
+        <div className="relative h-full">
+          <div className="absolute left-0 right-0 top-0 z-10 flex justify-center p-3">
+            <StrategyGuidanceChip projectId={projectId} onClick={onGoToCompetitors} />
+          </div>
+          <RoadmapEmptyState onGenerate={handleGenerate} />
+        </div>
         {/* Dialog for projects WITHOUT existing competitor analysis */}
         <CompetitorAnalysisDialog
           open={showCompetitorDialog}
@@ -194,6 +200,9 @@ export function Roadmap({ projectId, onGoToTask }: RoadmapProps) {
   // Main roadmap view
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {/* Funnel handoff from Plan → Competitors */}
+      <StrategyGuidanceBar projectId={projectId} onClick={onGoToCompetitors} />
+
       {/* Header */}
       <RoadmapHeader
         roadmap={roadmap}

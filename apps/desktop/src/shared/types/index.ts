@@ -17,6 +17,7 @@ export * from './settings';
 export * from './changelog';
 export * from './insights';
 export * from './roadmap';
+export * from './competitors';
 export * from './integrations';
 export * from './app-update';
 export * from './cli';

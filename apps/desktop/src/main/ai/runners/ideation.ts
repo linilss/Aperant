@@ -17,6 +17,7 @@ import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { loadStrategyGuidance } from './competitors/guidance';
 
 // =============================================================================
 // Constants
@@ -145,6 +146,11 @@ export async function runIdeation(
   prompt += `\n\n---\n\n**Output Directory**: ${outputDir}\n`;
   prompt += `**Project Directory**: ${projectDir}\n`;
   prompt += `**Max Ideas**: ${maxIdeasPerType}\n`;
+  // Funnel handoff: the user's ranked directions from the Competitors page
+  const strategy = loadStrategyGuidance(projectDir);
+  if (strategy) {
+    prompt += `${strategy}Favor ideas that serve the pursued directions; skip ideas that mainly serve avoided ones.\n`;
+  }
 
   const userPrompt = `Analyze the project at ${projectDir} and generate up to ${maxIdeasPerType} ${ideationType.replace(/_/g, ' ')} ideas. Use the available tools to explore the codebase, then write your findings as a JSON file to the output directory.`;
   const combinedPrompt = `${prompt}\n\n${userPrompt}`;

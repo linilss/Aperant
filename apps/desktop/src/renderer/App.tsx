@@ -66,6 +66,9 @@ import { ViewStateProvider } from './contexts/ViewStateContext';
 
 // Non-initial views are code-split so the first paint (kanban) loads less JS
 const Roadmap = lazy(() => import('./components/Roadmap').then((m) => ({ default: m.Roadmap })));
+const CompetitorAnalysis = lazy(() =>
+  import('./components/competitors/CompetitorAnalysis').then((m) => ({ default: m.CompetitorAnalysis }))
+);
 const MoscowMatrix = lazy(() => import('./components/moscow/MoscowMatrix').then((m) => ({ default: m.MoscowMatrix })));
 const Context = lazy(() => import('./components/Context').then((m) => ({ default: m.Context })));
 const Ideation = lazy(() => import('./components/Ideation').then((m) => ({ default: m.Ideation })));
@@ -1012,6 +1015,13 @@ export function App() {
                   </div>
                 )}
                 <Suspense fallback={<ViewFallback />}>
+                {activeView === 'competitors' && (activeProjectId || selectedProjectId) && (
+                  <CompetitorAnalysis
+                    projectId={activeProjectId || selectedProjectId || ''}
+                    onGoToRoadmap={() => setActiveView('roadmap')}
+                    onGoToIdeation={() => setActiveView('ideation')}
+                  />
+                )}
                 {activeView === 'moscow' && (activeProjectId || selectedProjectId) && (
                   <MoscowMatrix
                     projectId={activeProjectId || selectedProjectId || ''}
@@ -1020,7 +1030,11 @@ export function App() {
                   />
                 )}
                 {activeView === 'roadmap' && (activeProjectId || selectedProjectId) && (
-                  <Roadmap projectId={activeProjectId || selectedProjectId!} onGoToTask={handleGoToTask} />
+                  <Roadmap
+                    projectId={activeProjectId || selectedProjectId!}
+                    onGoToTask={handleGoToTask}
+                    onGoToCompetitors={() => setActiveView('competitors')}
+                  />
                 )}
                 {activeView === 'context' && (activeProjectId || selectedProjectId) && (
                   <ErrorBoundary>
@@ -1028,7 +1042,11 @@ export function App() {
                   </ErrorBoundary>
                 )}
                 {activeView === 'ideation' && (activeProjectId || selectedProjectId) && (
-                  <Ideation projectId={activeProjectId || selectedProjectId!} onGoToTask={handleGoToTask} />
+                  <Ideation
+                    projectId={activeProjectId || selectedProjectId!}
+                    onGoToTask={handleGoToTask}
+                    onGoToCompetitors={() => setActiveView('competitors')}
+                  />
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (
                   <Insights projectId={activeProjectId || selectedProjectId!} />

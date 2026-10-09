@@ -18,7 +18,8 @@ import {
   changelogMock,
   insightsMock,
   infrastructureMock,
-  settingsMock
+  settingsMock,
+  competitorMock
 } from './mocks';
 
 // Check if we're in a browser (not Electron)
@@ -124,6 +125,9 @@ const browserMockAPI = {
 
   // Infrastructure & Docker Operations
   ...infrastructureMock,
+
+  // Competitors page
+  ...competitorMock,
 
   // API Profile Management (custom Anthropic-compatible endpoints)
   getAPIProfiles: async () => ({

@@ -107,6 +107,12 @@ export function registerRoadmapHandlers(
                 strengths: (c.strengths as string[]) || [],
                 marketPosition: (c.market_position as string) || "",
                 source: c.source || undefined,
+                positioning: (c.positioning as string) || undefined,
+                targetAudience: (c.target_audience as string) || undefined,
+                keyFeatures: (c.key_features as string[]) || undefined,
+                pricingModel: (c.pricing_model as string) || undefined,
+                weaknesses: (c.weaknesses as string[]) || undefined,
+                differentiator: (c.differentiator as string) || undefined,
               })),
               marketGaps: (rawCompetitor.market_gaps || []).map((g: Record<string, unknown>) => ({
                 id: g.id,
@@ -126,8 +132,8 @@ export function registerRoadmapHandlers(
                 sourcesConsulted: rawCompetitor.research_metadata?.sources_consulted || [],
                 limitations: rawCompetitor.research_metadata?.limitations || [],
               },
-              createdAt: rawCompetitor.metadata?.created_at
-                ? new Date(rawCompetitor.metadata.created_at)
+              createdAt: rawCompetitor.metadata?.created_at || rawCompetitor.created_at
+                ? new Date(rawCompetitor.metadata?.created_at || rawCompetitor.created_at)
                 : new Date(),
             };
           } catch {
@@ -837,14 +843,33 @@ ${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n"
         }
 
         await withFileLock(competitorAnalysisPath, async () => {
+          // Keep fields this dialog doesn't know about (Competitors page profile
+          // fields, pool, focus, analyzed_at) — merge over the existing file.
+          let existingRaw: Record<string, unknown> = {};
+          if (existsSync(competitorAnalysisPath)) {
+            try {
+              existingRaw = JSON.parse(
+                (await readFileWithRetry(competitorAnalysisPath, { encoding: "utf-8" })) as string
+              );
+            } catch {
+              existingRaw = {};
+            }
+          }
+          const existingById = new Map(
+            (Array.isArray(existingRaw.competitors) ? existingRaw.competitors : [])
+              .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+              .map((c) => [String(c.id), c])
+          );
           // Transform camelCase to snake_case for JSON file
           const serialized = {
+            ...existingRaw,
             project_context: {
               project_name: competitorAnalysis.projectContext.projectName,
               project_type: competitorAnalysis.projectContext.projectType,
               target_audience: competitorAnalysis.projectContext.targetAudience,
             },
             competitors: competitorAnalysis.competitors.map((c) => ({
+              ...(existingById.get(c.id) ?? {}),
               id: c.id,
               name: c.name,
               url: c.url,

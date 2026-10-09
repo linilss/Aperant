@@ -9,6 +9,8 @@
  * rather than calling api.anthropic.com directly via the Vercel AI SDK.
  *
  * Multi-step process: project discovery → (optional) competitor analysis → feature generation.
+ * The user's ranked strategic directions from the Competitors page (strategy.json)
+ * are added to the discovery and features prompts as guidance.
  */
 
 import { spawn } from 'node:child_process';
@@ -21,6 +23,15 @@ import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
+import {
+  createMemoryStore,
+  emptyCompetitorState,
+  isCompetitorAnalysisFresh,
+  loadCompetitorState,
+  loadStrategyGuidance,
+  runFullAnalysis,
+  saveCompetitorState,
+} from './competitors';
 
 // =============================================================================
 // Constants
@@ -269,6 +280,7 @@ async function runDiscoveryPhase(
     `\n\n**Project Directory**: ${projectDir}\n` +
     `**Project Index File**: ${projectIndexFile}\n` +
     buildGuidanceSection(guidance) +
+    loadStrategyGuidance(projectDir) +
     `\nRead the project index file first, then explore the codebase. ` +
     `Output your findings wrapped in <roadmap_discovery> tags as instructed above.`;
 
@@ -333,11 +345,14 @@ async function runDiscoveryPhase(
 // =============================================================================
 
 /**
- * Run the competitor analysis phase — research competitors via web search and
- * write competitor_analysis.json (read by the roadmap UI and the features phase).
+ * Competitor analysis phase — delegates to the Competitors page pipeline
+ * (competitors/pipeline.ts) so there is one competitor flow. A fresh analysis
+ * from that page (or an earlier run) is reused as-is; otherwise discover +
+ * profile run and write competitor_analysis.json. Directions and the user's
+ * ranking (strategy.json) are left alone — they are re-synthesized on the
+ * Competitors page.
  *
- * Skipped when the file already exists unless `refresh` is set. Failure is
- * non-fatal: the roadmap is still generated without competitor insights.
+ * Failure is non-fatal: the roadmap is still generated without competitor insights.
  */
 async function runCompetitorAnalysisPhase(
   projectDir: string,
@@ -348,65 +363,52 @@ async function runCompetitorAnalysisPhase(
   onStream?: RoadmapStreamCallback,
 ): Promise<RoadmapPhaseResult> {
   const competitorFile = join(outputDir, 'competitor_analysis.json');
-  const discoveryFile = join(outputDir, 'roadmap_discovery.json');
-  const manualCompetitorsFile = join(outputDir, 'manual_competitors.json');
-  const projectIndexFile = join(projectDir, '.malvy', 'project_index.json');
+  const existing = loadCompetitorState(projectDir);
 
-  if (existsSync(competitorFile) && !refresh) {
+  if (!refresh && existsSync(competitorFile) && isCompetitorAnalysisFresh(existing)) {
+    onStream?.({ type: 'text-delta', text: 'Reusing the competitor analysis from the Competitors page.\n' });
     return { phase: 'competitor_analysis', success: true, outputs: [competitorFile], errors: [] };
   }
 
-  const errors: string[] = [];
-  const loadedPrompt = tryLoadPrompt('competitor_analysis');
+  const manualFile = join(outputDir, 'manual_competitors.json');
+  const manualRaw = existsSync(manualFile)
+    ? safeParseJson<{ competitors?: Array<{ name?: string; url?: string }> }>(readFileSync(manualFile, 'utf-8'))
+    : null;
+  const extraManual = (manualRaw?.competitors ?? [])
+    .filter((c) => typeof c?.name === 'string' && c.name.trim())
+    .map((c) => ({ name: String(c.name), url: typeof c.url === 'string' ? c.url : '' }));
 
-  const contextBlock =
-    `\n\n**Discovery File**: ${discoveryFile}\n` +
-    `**Project Index File**: ${projectIndexFile}\n` +
-    (existsSync(manualCompetitorsFile)
-      ? `**Manually Added Competitors** (include these): ${manualCompetitorsFile}\n`
-      : '') +
-    `\nYou cannot write files in this session. Instead of creating competitor_analysis.json, ` +
-    `output the complete JSON (same structure as above) wrapped in <competitor_analysis> tags. ` +
-    `The orchestrator saves it for you.`;
-
-  const systemPrompt = loadedPrompt
-    ? loadedPrompt + contextBlock
-    : `You are a competitor analysis agent. Read "${discoveryFile}", use WebSearch/WebFetch to research 3-5 competitors and their user pain points, ` +
-      `then output a JSON object wrapped in <competitor_analysis> tags with fields: project_context, competitors (id, name, url, description, relevance, pain_points[id, description, source, severity, frequency, opportunity], strengths, market_position), market_gaps, insights_summary, research_metadata, created_at.`;
-
-  const userPrompt =
-    `Read the discovery file at "${discoveryFile}", research competitors with WebSearch and WebFetch, ` +
-    `then you MUST finish by outputting the full competitor analysis JSON wrapped in <competitor_analysis> tags. ` +
-    `Do not stop after tool calls — always finish with the JSON output.`;
-
-  const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const fullText = await runPhaseViaCLI(
-        combinedPrompt, projectDir, modelId, abortSignal, onStream, 'Read,Glob,Grep,WebSearch,WebFetch',
-      );
-      const match = fullText.match(/<competitor_analysis>([\s\S]*?)<\/competitor_analysis>/);
-      if (!match) {
-        errors.push(`Attempt ${attempt + 1}: No <competitor_analysis> block in AI response`);
-        continue;
-      }
-      const data = safeParseJson<Record<string, unknown>>(match[1].trim());
-      if (!data || !Array.isArray(data.competitors)) {
-        errors.push(`Attempt ${attempt + 1}: Invalid JSON or missing competitors in <competitor_analysis> block`);
-        continue;
-      }
-      if (!data.created_at) data.created_at = new Date().toISOString();
-      writeFileSync(competitorFile, JSON.stringify(data, null, 2), 'utf-8');
+  const store = createMemoryStore(existing ?? emptyCompetitorState(), (state) => saveCompetitorState(projectDir, state));
+  try {
+    const outcome = await runFullAnalysis(
+      {
+        projectDir,
+        store,
+        modelId,
+        abortSignal,
+        extraManual,
+        onEvent: (event) => {
+          if (event.kind === 'competitor' && event.competitor.status === 'done') {
+            onStream?.({ type: 'text-delta', text: `Profiled ${event.competitor.name}\n` });
+          } else if (event.kind === 'phase') {
+            onStream?.({ type: 'text-delta', text: `Competitors: ${event.phase}…\n` });
+          }
+        },
+      },
+      { focus: existing?.focus, count: existing?.competitorCount, synthesize: false },
+    );
+    if (outcome.success) {
       return { phase: 'competitor_analysis', success: true, outputs: [competitorFile], errors: [] };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      errors.push(`Attempt ${attempt + 1}: ${msg}`);
-      if (abortSignal?.aborted) break;
     }
+    return { phase: 'competitor_analysis', success: false, outputs: [], errors: [outcome.error ?? (outcome.aborted ? 'Aborted' : 'Failed')] };
+  } catch (error) {
+    return {
+      phase: 'competitor_analysis',
+      success: false,
+      outputs: [],
+      errors: [error instanceof Error ? error.message : String(error)],
+    };
   }
-
-  return { phase: 'competitor_analysis', success: false, outputs: [], errors };
 }
 
 // =============================================================================
@@ -481,6 +483,7 @@ async function runFeaturesPhase(
     competitorSection +
     preservedSection +
     buildGuidanceSection(guidance) +
+    loadStrategyGuidance(projectDir) +
     `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
 
   const systemPrompt = loadedFeaturesPrompt

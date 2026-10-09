@@ -10,13 +10,16 @@ import { IdeaDetailPanel } from './IdeaDetailPanel';
 import { useIdeation } from './hooks/useIdeation';
 import { useViewState } from '../../contexts/ViewStateContext';
 import { ALL_IDEATION_TYPES } from './constants';
+import { StrategyGuidanceBar, StrategyGuidanceChip } from '../competitors/StrategyGuidanceChip';
 
 interface IdeationProps {
   projectId: string;
   onGoToTask?: (taskId: string) => void;
+  /** Back to Plan → Competitors (from the "Guided by" chip) */
+  onGoToCompetitors?: () => void;
 }
 
-export function Ideation({ projectId, onGoToTask }: IdeationProps) {
+export function Ideation({ projectId, onGoToTask, onGoToCompetitors }: IdeationProps) {
   // Get showArchived from shared context for cross-page sync
   const { showArchived } = useViewState();
 
@@ -88,14 +91,19 @@ export function Ideation({ projectId, onGoToTask }: IdeationProps) {
   if (!session) {
     return (
       <>
-        <IdeationEmptyState
-          config={config}
-          hasToken={hasToken}
-          isCheckingToken={isCheckingToken}
-          onGenerate={handleGenerate}
-          onOpenConfig={() => setShowConfigDialog(true)}
-          onToggleIdeationType={toggleIdeationType}
-        />
+        <div className="relative h-full">
+          <div className="absolute left-0 right-0 top-0 z-10 flex justify-center p-3">
+            <StrategyGuidanceChip projectId={projectId} onClick={onGoToCompetitors} />
+          </div>
+          <IdeationEmptyState
+            config={config}
+            hasToken={hasToken}
+            isCheckingToken={isCheckingToken}
+            onGenerate={handleGenerate}
+            onOpenConfig={() => setShowConfigDialog(true)}
+            onToggleIdeationType={toggleIdeationType}
+          />
+        </div>
 
         <IdeationDialogs
           showConfigDialog={showConfigDialog}
@@ -116,6 +124,9 @@ export function Ideation({ projectId, onGoToTask }: IdeationProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {/* Funnel handoff from Plan → Competitors */}
+      <StrategyGuidanceBar projectId={projectId} onClick={onGoToCompetitors} />
+
       {/* Header */}
       <IdeationHeader
         totalIdeas={summary.totalIdeas}

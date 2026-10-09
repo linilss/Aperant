@@ -21,6 +21,7 @@ import { createGitLabAPI, GitLabAPI } from './modules/gitlab-api';
 import { createAzureDevOpsAPI, AzureDevOpsAPI } from './modules/azure-devops-api';
 import { createShellAPI, ShellAPI } from './modules/shell-api';
 import { createTestsAPI, TestsAPI } from './modules/tests-api';
+import { createCompetitorAPI, CompetitorAPI } from './modules/competitor-api';
 
 /**
  * Combined Agent API interface
@@ -36,7 +37,8 @@ export interface AgentAPI extends
   GitLabAPI,
   AzureDevOpsAPI,
   ShellAPI,
-  TestsAPI {}
+  TestsAPI,
+  CompetitorAPI {}
 
 /**
  * Creates the complete Agent API by combining all module APIs
@@ -54,6 +56,7 @@ export const createAgentAPI = (): AgentAPI => {
   const azureDevOpsAPI = createAzureDevOpsAPI();
   const shellAPI = createShellAPI();
   const testsAPI = createTestsAPI();
+  const competitorAPI = createCompetitorAPI();
 
   return {
     // Roadmap API
@@ -85,6 +88,9 @@ export const createAgentAPI = (): AgentAPI => {
 
     // Tests API
     ...testsAPI,
+
+    // Competitors page API
+    ...competitorAPI,
   };
 };
 
@@ -99,4 +105,5 @@ export type {
   GitLabAPI,
   ShellAPI,
   TestsAPI,
+  CompetitorAPI,
 };
