@@ -183,7 +183,7 @@ function isCodexModel(modelId: string): boolean {
 export interface CreateProviderOptions {
   /** Provider configuration */
   config: ProviderConfig;
-  /** Full model ID (e.g., 'claude-sonnet-4-5-20250929') */
+  /** Full model ID (e.g., 'claude-sonnet-5-5') */
   modelId: string;
 }
 
@@ -234,7 +234,7 @@ export function createProvider(options: CreateProviderOptions): LanguageModel {
  * Detects the provider for a model ID based on its prefix.
  * Uses MODEL_PROVIDER_MAP for prefix-based matching.
  *
- * @param modelId - Full model ID (e.g., 'claude-sonnet-4-5-20250929', 'gpt-4o')
+ * @param modelId - Full model ID (e.g., 'claude-sonnet-5-5', 'gpt-4o')
  * @returns The detected provider, or undefined if no match
  */
 export function detectProviderFromModel(modelId: string): SupportedProvider | undefined {

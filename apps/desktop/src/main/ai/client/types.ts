@@ -118,7 +118,7 @@ export interface AgentClientResult {
 export interface SimpleClientResult {
   /** Resolved language model instance */
   model: LanguageModel;
-  /** Resolved model ID string (e.g. 'claude-opus-4-6', 'gpt-5.3-codex') — use for provider detection */
+  /** Resolved model ID string (e.g. 'claude-opus-5-5', 'gpt-5.3-codex') — use for provider detection */
   resolvedModelId: string;
   /** Tools (may be empty for pure text generation) */
   tools: Record<string, AITool>;

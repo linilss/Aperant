@@ -15,7 +15,7 @@ import type { ThinkingLevel, EffortLevel } from '../config/types';
 import {
   THINKING_BUDGET_MAP,
   EFFORT_LEVEL_MAP,
-  ADAPTIVE_THINKING_MODELS,
+  isAdaptiveThinkingModelId,
 } from '../config/types';
 
 // ============================================
@@ -44,7 +44,7 @@ export interface ThinkingConfig {
  * @returns True if the model supports adaptive thinking
  */
 export function isAdaptiveModel(modelId: string): boolean {
-  return ADAPTIVE_THINKING_MODELS.has(modelId);
+  return isAdaptiveThinkingModelId(modelId);
 }
 
 /**

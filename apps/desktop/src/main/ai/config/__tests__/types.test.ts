@@ -30,12 +30,17 @@ describe('buildThinkingProviderOptions', () => {
 
   // budget_tokens is rejected with a 400 on these models — thinking must be adaptive
   it.each([
+    'claude-fable-5-1',
     'claude-fable-5',
+    'claude-sonnet-5-5',
     'claude-opus-5-5',
     'claude-opus-5',
     'claude-opus-4-8',
     'claude-opus-4-7',
     'claude-sonnet-5',
+    // Prefix matching: future point releases and generations
+    'claude-opus-5-6',
+    'claude-sonnet-6',
   ])('should use adaptive thinking with an effort level for %s', (modelId) => {
     const result = buildThinkingProviderOptions(modelId, 'high');
     expect(result).toEqual({
@@ -45,6 +50,14 @@ describe('buildThinkingProviderOptions', () => {
       },
     });
   });
+
+  it.each(['claude-haiku-4-5-20251001', 'claude-3-5-sonnet-20241022'])(
+    'should not treat pre-5 model %s as adaptive via the prefix match',
+    (modelId) => {
+      const result = buildThinkingProviderOptions(modelId, 'high');
+      expect(result?.anthropic?.thinking).toEqual({ type: 'enabled', budgetTokens: 16384 });
+    },
+  );
 
   it('should map xhigh to max for Anthropic, which has no xhigh effort level', () => {
     const result = buildThinkingProviderOptions('claude-opus-5', 'xhigh');

@@ -17,7 +17,7 @@ import {
   MODEL_BETAS_MAP,
   THINKING_BUDGET_MAP,
   EFFORT_LEVEL_MAP,
-  ADAPTIVE_THINKING_MODELS,
+  isAdaptiveThinkingModelId,
   DEFAULT_PHASE_MODELS,
   DEFAULT_PHASE_THINKING,
 } from './types';
@@ -234,7 +234,7 @@ export async function getPhaseThinking(
  * Check if a model supports adaptive thinking via effort level.
  */
 export function isAdaptiveModel(modelId: string): boolean {
-  return ADAPTIVE_THINKING_MODELS.has(modelId);
+  return isAdaptiveThinkingModelId(modelId);
 }
 
 /** Thinking kwargs returned for model configuration */

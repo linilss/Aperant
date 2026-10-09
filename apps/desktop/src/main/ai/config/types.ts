@@ -49,15 +49,17 @@ export type Phase = 'spec' | 'planning' | 'coding' | 'qa';
 export const MODEL_ID_MAP: Record<ModelShorthand, string> = {
   // 'opus' and 'sonnet' always track the newest model in their tier — pin a
   // version-suffixed shorthand ('opus-4.7', 'sonnet-4.6') to stay on an older one.
-  fable: 'claude-fable-5',
+  fable: 'claude-fable-5-1',
   opus: 'claude-opus-5-5',
   'opus-5.5': 'claude-opus-5-5',
   'opus-5': 'claude-opus-5',
   'opus-4.8': 'claude-opus-4-8',
   'opus-4.7': 'claude-opus-4-7',
-  'opus-1m': 'claude-opus-4-6',
+  // Legacy alias kept so saved settings still resolve. Opus 5.5 has a 1M
+  // context window by default, so no beta header is needed.
+  'opus-1m': 'claude-opus-5-5',
   'opus-4.5': 'claude-opus-4-5-20251101',
-  sonnet: 'claude-sonnet-5',
+  sonnet: 'claude-sonnet-5-5',
   'sonnet-5': 'claude-sonnet-5',
   'sonnet-4.6': 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5-20251001',
@@ -67,9 +69,7 @@ export const MODEL_ID_MAP: Record<ModelShorthand, string> = {
  * Model shorthand to required SDK beta headers.
  * Maps model shorthands that need special beta flags (e.g., 1M context window).
  */
-export const MODEL_BETAS_MAP: Partial<Record<ModelShorthand, string[]>> = {
-  'opus-1m': ['context-1m-2025-08-07'],
-} as const;
+export const MODEL_BETAS_MAP: Partial<Record<ModelShorthand, string[]>> = {} as const;
 
 // ============================================
 // Thinking Budget (mirrors phase_config.py)
@@ -105,7 +105,9 @@ export const EFFORT_LEVEL_MAP: Record<EffortLevel, string> = {
  * through the effort level instead.
  */
 export const ADAPTIVE_ONLY_THINKING_MODELS: ReadonlySet<string> = new Set([
+  'claude-fable-5-1',
   'claude-fable-5',
+  'claude-sonnet-5-5',
   'claude-opus-5-5',
   'claude-opus-5',
   'claude-opus-4-8',
@@ -134,6 +136,24 @@ export const EFFORT_CAPABLE_MODELS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Claude generation 5 and later (e.g. claude-opus-5-5, claude-sonnet-6), also
+ * when prefixed (Bedrock 'us.anthropic.…') or date-suffixed. Lets future point
+ * releases get adaptive thinking without a code change. Old-style ids like
+ * 'claude-3-5-sonnet' don't match because the family name comes first here.
+ */
+const CLAUDE_GEN5_PLUS_PATTERN = /claude-[a-z]+-(?:[5-9]|[1-9]\d)(?:[-.@:]|$)/;
+
+/** True if the model uses adaptive thinking (exact list or Claude 5+ id). */
+export function isAdaptiveThinkingModelId(modelId: string): boolean {
+  return ADAPTIVE_THINKING_MODELS.has(modelId) || CLAUDE_GEN5_PLUS_PATTERN.test(modelId);
+}
+
+/** True if the model accepts an Anthropic effort level. */
+export function isEffortCapableModelId(modelId: string): boolean {
+  return EFFORT_CAPABLE_MODELS.has(modelId) || CLAUDE_GEN5_PLUS_PATTERN.test(modelId);
+}
+
+/**
  * Thinking level to the effort values the Anthropic provider accepts.
  * @ai-sdk/anthropic exposes low | medium | high | max — it has no 'xhigh',
  * so this app's xhigh maps to the next level up rather than being rejected.
@@ -147,6 +167,7 @@ export const ANTHROPIC_EFFORT_MAP: Record<ThinkingLevel, 'low' | 'medium' | 'hig
 
 /** Models that support Fast Mode (`speed: 'fast'`) — removed on Opus 4.7 and earlier */
 export const FAST_MODE_MODEL_IDS: ReadonlySet<string> = new Set([
+  'claude-opus-5-5',
   'claude-opus-5',
   'claude-opus-4-8',
 ]);
@@ -255,7 +276,7 @@ function detectProviderFromModelId(modelId: string): SupportedProvider | undefin
  * Build provider-specific providerOptions for thinking/reasoning tokens.
  * Used by the runner to pass thinking configuration to streamText().
  *
- * @param modelId - Full model ID (e.g., 'claude-opus-4-7', 'o3-mini', 'gemini-2.5-pro')
+ * @param modelId - Full model ID (e.g., 'claude-opus-5-5', 'o3-mini', 'gemini-2.5-pro')
  * @param thinkingLevel - Configured thinking level
  * @returns Provider-specific options object, or undefined if provider doesn't support thinking
  */
@@ -272,11 +293,11 @@ export function buildThinkingProviderOptions(
     case 'anthropic': {
       // Adaptive models let Claude decide how much to think; sending budgetTokens
       // to one of them is a 400, so the two modes are mutually exclusive.
-      const base: Record<string, unknown> = ADAPTIVE_THINKING_MODELS.has(modelId)
+      const base: Record<string, unknown> = isAdaptiveThinkingModelId(modelId)
         ? { thinking: { type: 'adaptive' } }
         : { thinking: { type: 'enabled', budgetTokens } };
 
-      if (EFFORT_CAPABLE_MODELS.has(modelId)) {
+      if (isEffortCapableModelId(modelId)) {
         base.effort = ANTHROPIC_EFFORT_MAP[thinkingLevel];
       }
       return { anthropic: base };

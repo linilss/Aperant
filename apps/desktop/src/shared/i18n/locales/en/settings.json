@@ -108,11 +108,11 @@
       "haikuLabel": "Haiku Model (Optional)",
       "sonnetLabel": "Sonnet Model (Optional)",
       "opusLabel": "Opus Model (Optional)",
-      "defaultPlaceholder": "e.g., claude-sonnet-4-6",
+      "defaultPlaceholder": "e.g., claude-sonnet-5-5",
       "haikuPlaceholder": "e.g., claude-haiku-4-5-20251001",
-      "sonnetPlaceholder": "e.g., claude-sonnet-4-6",
-      "opusPlaceholder": "e.g., claude-opus-4-7",
-      "opus1mPlaceholder": "e.g., claude-opus-4-7 (1M context)"
+      "sonnetPlaceholder": "e.g., claude-sonnet-5-5",
+      "opusPlaceholder": "e.g., claude-opus-5-5",
+      "opus1mPlaceholder": "e.g., claude-opus-5-5 (1M context)"
     },
     "empty": {
       "title": "No API profiles configured",
@@ -172,7 +172,7 @@
   },
   "modelSelect": {
     "placeholder": "Select a model or type manually",
-    "placeholderManual": "Enter model name (e.g., claude-sonnet-4-6)",
+    "placeholderManual": "Enter model name (e.g., claude-sonnet-5-5)",
     "searchPlaceholder": "Search models...",
     "noResults": "No models match your search",
     "discoveryNotAvailable": "Model discovery not available. Enter model name manually.",

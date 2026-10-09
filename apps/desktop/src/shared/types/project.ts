@@ -239,7 +239,7 @@ export interface MemoryProviderConfig {
   // OpenRouter (multi-provider aggregator)
   openrouterApiKey?: string;
   openrouterBaseUrl?: string;  // Default: https://openrouter.ai/api/v1
-  openrouterLlmModel?: string;  // LLM model selection (e.g., 'anthropic/claude-sonnet-4')
+  openrouterLlmModel?: string;  // LLM model selection (e.g., 'anthropic/claude-sonnet-5.5')
   openrouterEmbeddingModel?: string;
 
   // Ollama Embeddings (local, no API key required)
