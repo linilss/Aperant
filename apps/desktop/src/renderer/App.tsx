@@ -1047,6 +1047,7 @@ export function App() {
                     projectId={activeProjectId || selectedProjectId!}
                     onGoToTask={handleGoToTask}
                     onGoToCompetitors={() => setActiveView('competitors')}
+                    onGoToMoscow={() => setActiveView('moscow')}
                   />
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (

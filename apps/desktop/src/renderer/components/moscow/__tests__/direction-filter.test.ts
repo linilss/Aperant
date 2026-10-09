@@ -7,6 +7,7 @@ import {
   toggleDirectionFilter,
 } from '../direction-filter';
 import type { StrategicDirection } from '../../../../shared/types/competitors';
+import type { Idea } from '../../../../shared/types';
 
 const dir = (id: string, avoid = false): StrategicDirection => ({
   id,
@@ -65,5 +66,35 @@ describe('direction helpers', () => {
   it('toggles a token', () => {
     expect(toggleDirectionFilter([], 'a')).toEqual(['a']);
     expect(toggleDirectionFilter(['a', 'b'], 'a')).toEqual(['b']);
+  });
+});
+
+describe('shared with Ideation (ideas carry the same directionIds)', () => {
+  const idea = (id: string, directionIds?: string[]): Idea => ({
+    id,
+    type: 'code_improvements',
+    title: id,
+    description: '',
+    rationale: '',
+    status: 'draft',
+    createdAt: new Date(),
+    buildsUpon: [],
+    estimatedEffort: 'small',
+    affectedFiles: [],
+    existingPatterns: [],
+    directionIds,
+  });
+  const ideas = [idea('i1', ['b']), idea('i2', []), idea('i3')];
+
+  it('filters ideas by direction and untagged, keeping the idea type', () => {
+    const result: Idea[] = filterFeaturesByDirection(ideas, ['b'], directions);
+    expect(ids(result)).toEqual(['i1']);
+    expect(ids(filterFeaturesByDirection(ideas, [UNTAGGED_FILTER], directions))).toEqual(['i2', 'i3']);
+  });
+
+  it('detects tagging and resolves ranked directions for ideas', () => {
+    expect(hasDirectionTagging(ideas)).toBe(true);
+    expect(hasDirectionTagging([ideas[2]])).toBe(false);
+    expect(resolveFeatureDirections(ideas[0], directions).map((r) => r.rank)).toEqual([2]);
   });
 });

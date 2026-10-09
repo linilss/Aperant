@@ -1,4 +1,4 @@
-import { directionIdsFromRaw } from './feature-persistence';
+import { directionIdsFromRaw, externalFieldsFromSnakeCase } from './feature-persistence';
 import type {
   Roadmap,
   RoadmapFeature,
@@ -166,7 +166,8 @@ function transformFeature(raw: RawRoadmapFeature): RoadmapFeature {
     userStories: raw.user_stories || raw.userStories || [],
     linkedSpecId: raw.linked_spec_id || raw.linkedSpecId,
     competitorInsightIds: raw.competitor_insight_ids || raw.competitorInsightIds,
-    directionIds: directionIdsFromRaw(raw as unknown as Record<string, unknown>)
+    directionIds: directionIdsFromRaw(raw as unknown as Record<string, unknown>),
+    ...externalFieldsFromSnakeCase(raw as unknown as Record<string, unknown>)
   };
 }
 

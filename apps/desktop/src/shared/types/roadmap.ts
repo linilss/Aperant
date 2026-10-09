@@ -152,6 +152,8 @@ export interface RoadmapFeature {
   externalId?: string;    // ID from external system (e.g., Canny post ID)
   externalUrl?: string;   // Link back to external system
   votes?: number;         // Vote count from external system
+  /** Ideation idea this feature was created from ("Add to roadmap") */
+  sourceIdeaId?: string;
 }
 
 export interface Roadmap {

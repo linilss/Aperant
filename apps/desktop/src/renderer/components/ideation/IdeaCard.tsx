@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, Play, X } from 'lucide-react';
+import { ExternalLink, Grid2x2, MapPlus, Play, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
@@ -26,6 +26,7 @@ import type {
   CodeQualityIdea
 } from '../../../shared/types';
 import { TypeIcon } from './TypeIcon';
+import { DirectionTagChips } from '../competitors/DirectionTagChips';
 import {
   isCodeImprovementIdea,
   isUIUXIdea,
@@ -43,9 +44,26 @@ interface IdeaCardProps {
   onGoToTask?: (taskId: string) => void;
   onDismiss: (idea: Idea) => void;
   onToggleSelect: (ideaId: string) => void;
+  /** Funnel: add the idea as a roadmap feature */
+  onAddToRoadmap?: (idea: Idea) => void;
+  /** Open MoSCoW (for ideas already on the roadmap) */
+  onGoToMoscow?: () => void;
+  /** For direction tag chips */
+  projectId?: string;
 }
 
-export function IdeaCard({ idea, isSelected, onClick, onConvert, onGoToTask, onDismiss, onToggleSelect }: IdeaCardProps) {
+export function IdeaCard({
+  idea,
+  isSelected,
+  onClick,
+  onConvert,
+  onGoToTask,
+  onDismiss,
+  onToggleSelect,
+  onAddToRoadmap,
+  onGoToMoscow,
+  projectId,
+}: IdeaCardProps) {
   const { t } = useTranslation('common');
   const isDismissed = idea.status === 'dismissed';
   const isArchived = idea.status === 'archived';
@@ -78,7 +96,7 @@ export function IdeaCard({ idea, isSelected, onClick, onConvert, onGoToTask, onD
 
         <div className="flex-1 flex items-start justify-between">
           <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
             <Badge variant="outline" className={IDEATION_TYPE_COLORS[idea.type]}>
               <TypeIcon type={idea.type} />
               <span className="ml-1">{IDEATION_TYPE_LABELS[idea.type]}</span>
@@ -123,6 +141,7 @@ export function IdeaCard({ idea, isSelected, onClick, onConvert, onGoToTask, onD
             {idea.title}
           </h3>
           <p className="text-sm text-muted-foreground line-clamp-2">{idea.description}</p>
+          <DirectionTagChips feature={idea} projectId={projectId} />
           </div>
           {/* Action buttons */}
           {!isInactive && !isConverted && (
@@ -144,6 +163,25 @@ export function IdeaCard({ idea, isSelected, onClick, onConvert, onGoToTask, onD
                 </TooltipTrigger>
                 <TooltipContent>{t('accessibility.convertToTaskAriaLabel')}</TooltipContent>
               </Tooltip>
+              {onAddToRoadmap && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddToRoadmap(idea);
+                      }}
+                      aria-label={t('ideation.addToRoadmap')}
+                    >
+                      <MapPlus className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('ideation.addToRoadmap')}</TooltipContent>
+                </Tooltip>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -182,6 +220,28 @@ export function IdeaCard({ idea, isSelected, onClick, onConvert, onGoToTask, onD
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{t('accessibility.goToTaskAriaLabel')}</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+          {/* Added to the roadmap: link to MoSCoW */}
+          {isConverted && !idea.taskId && idea.roadmapFeatureId && onGoToMoscow && (
+            <div className="flex items-center gap-1 ml-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGoToMoscow();
+                    }}
+                    aria-label={t('ideation.viewInMoscow')}
+                  >
+                    <Grid2x2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('ideation.viewInMoscow')}</TooltipContent>
               </Tooltip>
             </div>
           )}

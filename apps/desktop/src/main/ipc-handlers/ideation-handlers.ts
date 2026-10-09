@@ -29,6 +29,7 @@ import {
   refreshIdeationSession,
   stopIdeationGeneration,
   convertIdeaToTask,
+  addIdeaToRoadmapHandler,
 } from "./ideation";
 import { safeSendToRenderer } from "./utils";
 
@@ -70,6 +71,9 @@ export function registerIdeationHandlers(
 
   // Task conversion
   ipcMain.handle(IPC_CHANNELS.IDEATION_CONVERT_TO_TASK, convertIdeaToTask);
+
+  // Funnel: idea → roadmap feature (roadmap.json)
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_ADD_FEATURE_FROM_IDEA, addIdeaToRoadmapHandler);
 
   // ============================================
   // Ideation Agent Events → Renderer

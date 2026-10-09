@@ -1,5 +1,12 @@
-import type { RoadmapFeature } from '../../../shared/types';
 import type { StrategicDirection } from '../../../shared/types/competitors';
+
+/**
+ * Anything tagged with strategic directions (roadmap features, ideation ideas).
+ * undefined = generated before tagging existed; [] = tagged, serves none.
+ */
+export interface DirectionTagged {
+  directionIds?: string[];
+}
 
 /** Filter token for features that advance no known direction */
 export const UNTAGGED_FILTER = '__untagged__';
@@ -12,7 +19,7 @@ export interface RankedDirectionRef {
 
 /** The feature's directions that still exist in strategy.json, in rank order */
 export function resolveFeatureDirections(
-  feature: Pick<RoadmapFeature, 'directionIds'>,
+  feature: DirectionTagged,
   directions: StrategicDirection[],
 ): RankedDirectionRef[] {
   const ids = feature.directionIds;
@@ -24,8 +31,8 @@ export function resolveFeatureDirections(
   return result;
 }
 
-/** True when at least one feature was generated with direction tagging */
-export function hasDirectionTagging(features: Array<Pick<RoadmapFeature, 'directionIds'>>): boolean {
+/** True when at least one item (feature/idea) was generated with direction tagging */
+export function hasDirectionTagging(features: DirectionTagged[]): boolean {
   return features.some((f) => Array.isArray(f.directionIds));
 }
 
@@ -34,7 +41,7 @@ export function hasDirectionTagging(features: Array<Pick<RoadmapFeature, 'direct
  * An empty selection means "All directions". Ids not in `directions` are ignored,
  * so a feature tagged only with stale ids counts as untagged.
  */
-export function filterFeaturesByDirection<T extends Pick<RoadmapFeature, 'directionIds'>>(
+export function filterFeaturesByDirection<T extends DirectionTagged>(
   features: T[],
   selected: readonly string[],
   directions: StrategicDirection[],

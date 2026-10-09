@@ -512,7 +512,18 @@
     "conversionFailed": "Conversion failed",
     "conversionFailedDescription": "Failed to convert idea to task",
     "conversionError": "Conversion error",
-    "conversionErrorDescription": "An error occurred while converting the idea"
+    "conversionErrorDescription": "An error occurred while converting the idea",
+    "addToRoadmap": "Add to roadmap",
+    "addingToRoadmap": "Adding to roadmap...",
+    "addedToRoadmap": "Added to roadmap",
+    "addedToRoadmapDescription": "\"{{title}}\" is now a roadmap feature under review.",
+    "addToRoadmapFailed": "Could not add to roadmap",
+    "viewInMoscow": "View in MoSCoW",
+    "noIdeasToDisplay": "No ideas to display",
+    "directions": {
+      "filterLabel": "Filter ideas by strategic direction",
+      "untaggedHint": "Regenerate ideas to tag them with your strategic directions"
+    }
   },
   "issues": {
     "loadingMore": "Loading more...",

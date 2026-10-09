@@ -21,6 +21,9 @@ import type { RoadmapStreamEvent } from '../ai/runners/roadmap';
 import type { ModelShorthand, ThinkingLevel } from '../ai/config/types';
 import { resolvePromptsDir } from '../ai/prompts/prompt-loader';
 import { ideationTypeFileName, mergeIdeationIdeas } from './ideation-consolidation';
+import { ideationContextOptions } from '../ai/runners/ideation-context';
+import { loadKnownDirectionIds, sanitizeFeatureDirectionIds } from '../ai/runners/competitors/guidance';
+import { projectStore } from '../project-store';
 
 /**
  * Queue management for ideation and roadmap generation
@@ -230,6 +233,9 @@ export class AgentQueueManager {
 
     const outputDir = path.join(projectPath, '.malvy', 'ideation');
 
+    // Existing roadmap features / kanban tasks for the prompt (per the user's toggles)
+    const contextOptions = ideationContextOptions(config, () => projectStore.getTasks(projectId));
+
     // Emit initial progress
     this.emitter.emit('ideation-progress', projectId, {
       phase: 'analyzing',
@@ -264,6 +270,7 @@ export class AgentQueueManager {
             modelShorthand: (config.model || 'sonnet') as ModelShorthand,
             thinkingLevel: (config.thinkingLevel || 'medium') as ThinkingLevel,
             maxIdeasPerType: config.maxIdeasPerType || 5,
+            ...contextOptions,
             abortSignal: abortController.signal,
           },
           (event: IdeationStreamEvent) => {
@@ -283,10 +290,12 @@ export class AgentQueueManager {
             const content = await fsPromises.readFile(typeFilePath, 'utf-8');
             const data: Record<string, RawIdea[]> = JSON.parse(content);
             const rawIdeas: RawIdea[] = data[ideationType] || data.ideas || [];
+            // Keep only direction ids that exist in strategy.json
+            sanitizeFeatureDirectionIds(rawIdeas, loadKnownDirectionIds(projectPath));
             // Keep the raw ideas so the final consolidation writes exactly what
             // was streamed to the UI, instead of re-reading the files.
             generatedIdeasByType.set(ideationType, rawIdeas);
-            const ideas: Idea[] = rawIdeas.map(transformIdeaFromSnakeCase);
+            const ideas: Idea[] = rawIdeas.map((idea) => transformIdeaFromSnakeCase(idea));
             this.emitter.emit('ideation-type-complete', projectId, ideationType, ideas);
           } catch (err) {
             debugError('[Agent Queue] Failed to load ideas for type:', ideationType, err);

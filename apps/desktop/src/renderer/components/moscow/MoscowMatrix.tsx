@@ -24,15 +24,10 @@ import { useRoadmapStore, loadRoadmap } from '../../stores/roadmap-store';
 import { useToast } from '../../hooks/use-toast';
 import { MOSCOW_QUADRANTS, MoscowQuadrant } from './MoscowQuadrant';
 import { StrategyGuidanceChip } from '../competitors/StrategyGuidanceChip';
-import { DirectionTag, useProjectDirections } from '../competitors/DirectionTagChips';
+import { useProjectDirections } from '../competitors/DirectionTagChips';
+import { DirectionFilterBar } from '../competitors/DirectionFilterBar';
 import { loadCompetitors } from '../../stores/competitor-store';
-import { cn } from '../../lib/utils';
-import {
-  UNTAGGED_FILTER,
-  filterFeaturesByDirection,
-  hasDirectionTagging,
-  toggleDirectionFilter,
-} from './direction-filter';
+import { filterFeaturesByDirection, hasDirectionTagging } from './direction-filter';
 import type { RoadmapFeature, RoadmapFeaturePriority } from '../../../shared/types';
 
 interface MoscowMatrixProps {
@@ -204,57 +199,17 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     </div>
   );
 
-  const filterChipClass = (active: boolean) =>
-    cn(
-      'inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs transition-colors',
-      active
-        ? 'border-primary bg-primary/10 text-primary'
-        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-    );
-
-  const directionBar = showDirectionFilter ? (
-    <div
-      role="toolbar"
-      aria-label={t('roadmap.moscow.directions.filterLabel')}
-      className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border px-6 py-2 max-md:px-3"
-    >
-      <button
-        type="button"
-        aria-pressed={directionFilter.length === 0}
-        onClick={() => setDirectionFilter([])}
-        className={filterChipClass(directionFilter.length === 0)}
-      >
-        {t('roadmap.moscow.directions.all')}
-      </button>
-      {directions.map((direction, i) => {
-        const active = directionFilter.includes(direction.id);
-        return (
-          <button
-            key={direction.id}
-            type="button"
-            aria-pressed={active}
-            onClick={() => setDirectionFilter((prev) => toggleDirectionFilter(prev, direction.id))}
-            className={cn('rounded-full', active && 'ring-2 ring-primary ring-offset-1 ring-offset-background')}
-          >
-            <DirectionTag direction={direction} rank={i + 1} className="py-0.5 text-xs" />
-          </button>
-        );
-      })}
-      <button
-        type="button"
-        aria-pressed={directionFilter.includes(UNTAGGED_FILTER)}
-        onClick={() => setDirectionFilter((prev) => toggleDirectionFilter(prev, UNTAGGED_FILTER))}
-        className={filterChipClass(directionFilter.includes(UNTAGGED_FILTER))}
-      >
-        {t('roadmap.moscow.directions.untagged')}
-      </button>
-    </div>
-  ) : directions.length > 0 && !isTagged ? (
-    <p className="flex shrink-0 items-center gap-1.5 border-b border-border px-6 py-2 text-xs text-muted-foreground max-md:px-3">
-      <Compass className="h-3.5 w-3.5 shrink-0" />
-      {t('roadmap.moscow.directions.regenerateHint')}
-    </p>
-  ) : null;
+  const directionBar = (
+    <DirectionFilterBar
+      directions={directions}
+      selected={directionFilter}
+      onChange={setDirectionFilter}
+      isTagged={isTagged}
+      untaggedHint={t('roadmap.moscow.directions.regenerateHint')}
+      ariaLabel={t('roadmap.moscow.directions.filterLabel')}
+      className="border-b border-border px-6 py-2 max-md:px-3"
+    />
+  );
 
   if (!projectRoadmap) {
     return (

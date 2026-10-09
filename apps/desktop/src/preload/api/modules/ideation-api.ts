@@ -21,6 +21,7 @@ export interface IdeationAPI {
   stopIdeation: (projectId: string) => Promise<IPCResult>;
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus) => Promise<IPCResult>;
   convertIdeaToTask: (projectId: string, ideaId: string) => Promise<IPCResult<Task>>;
+  addIdeaToRoadmap: (projectId: string, ideaId: string) => Promise<IPCResult<{ featureId: string }>>;
   dismissIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
   dismissAllIdeas: (projectId: string) => Promise<IPCResult>;
   archiveIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
@@ -74,6 +75,9 @@ export const createIdeationAPI = (): IdeationAPI => ({
 
   convertIdeaToTask: (projectId: string, ideaId: string): Promise<IPCResult<Task>> =>
     invokeIpc(IPC_CHANNELS.IDEATION_CONVERT_TO_TASK, projectId, ideaId),
+
+  addIdeaToRoadmap: (projectId: string, ideaId: string): Promise<IPCResult<{ featureId: string }>> =>
+    invokeIpc(IPC_CHANNELS.ROADMAP_ADD_FEATURE_FROM_IDEA, projectId, ideaId),
 
   dismissIdea: (projectId: string, ideaId: string): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.IDEATION_DISMISS, projectId, ideaId),

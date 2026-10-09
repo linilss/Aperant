@@ -216,6 +216,7 @@ export const IPC_CHANNELS = {
   ROADMAP_UPDATE_FEATURE: 'roadmap:updateFeature',
   ROADMAP_UPDATE_FEATURE_PRIORITY: 'roadmap:updateFeaturePriority',
   ROADMAP_CONVERT_TO_SPEC: 'roadmap:convertToSpec',
+  ROADMAP_ADD_FEATURE_FROM_IDEA: 'roadmap:addFeatureFromIdea',
   COMPETITOR_ANALYSIS_SAVE: 'roadmap:competitorAnalysisSave',
 
   // Competitors page (Plan → Competitors)

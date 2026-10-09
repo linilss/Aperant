@@ -72,6 +72,12 @@ export interface RawIdea extends Record<string, unknown> {
 
   // Linked task
   linked_task_id?: string;
+
+  // Funnel links
+  direction_ids?: string[];
+  directionIds?: string[];
+  /** Roadmap feature created from this idea */
+  roadmap_feature_id?: string;
 }
 
 export interface RawIdeationData {

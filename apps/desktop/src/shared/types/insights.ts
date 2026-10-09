@@ -38,6 +38,13 @@ export interface IdeaBase {
   status: IdeationStatus;
   createdAt: Date;
   taskId?: string; // ID of the created task when status is 'converted'
+  /**
+   * Strategic direction ids (strategy.json) this idea advances.
+   * undefined = generated before direction tagging existed; [] = tagged, serves none.
+   */
+  directionIds?: string[];
+  /** Roadmap feature created from this idea ("Add to roadmap") */
+  roadmapFeatureId?: string;
 }
 
 export interface CodeImprovementIdea extends IdeaBase {

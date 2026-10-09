@@ -330,4 +330,72 @@ describe('runIdeation', () => {
 
     expect(mockReadFileSync).toHaveBeenCalledWith('/prompts/ideation_security.md', 'utf-8');
   });
+  describe('existing-work context and direction tags', () => {
+    const roadmapJson = JSON.stringify({
+      features: [
+        { id: 'f-1', title: 'Offline mode', priority: 'must', status: 'planned', description: 'x'.repeat(300) },
+        { id: 'f-2', title: 'Dark theme', priority: 'could', status: 'done', description: 'Theme' },
+      ],
+    });
+
+    beforeEach(() => {
+      mockReadFileSync.mockImplementation((path: string) => {
+        const p = String(path);
+        if (p.endsWith('roadmap.json')) return roadmapJson;
+        if (p.endsWith('strategy.json')) {
+          return JSON.stringify({
+            directions: [
+              { id: 'dir-a', title: 'Coach-first', avoid: false },
+              { id: 'dir-b', title: 'Cheapest', avoid: true },
+            ],
+            ranking_saved_at: '2026-10-01T00:00:00.000Z',
+          });
+        }
+        return '# Ideation prompt';
+      });
+    });
+
+    const tasks = [
+      { title: 'Add login', status: 'in_progress' },
+      { title: 'Fix crash', status: 'backlog' },
+    ];
+
+    it('adds roadmap features only when includeRoadmapContext is on', async () => {
+      await runIdeation(baseConfig({ includeRoadmapContext: true }));
+      const prompt = spawnCalls[0].prompt;
+      expect(prompt).toContain('EXISTING ROADMAP FEATURES');
+      expect(prompt).toContain('- [must/planned] Offline mode');
+      expect(prompt).toContain('- [could/done] Dark theme');
+      expect(prompt).not.toContain('x'.repeat(100));
+
+      await runIdeation(baseConfig({ includeRoadmapContext: false }));
+      expect(spawnCalls[1].prompt).not.toContain('EXISTING ROADMAP FEATURES');
+    });
+
+    it('adds kanban tasks only when includeKanbanContext is on', async () => {
+      await runIdeation(baseConfig({ includeKanbanContext: true, existingTasks: tasks }));
+      const prompt = spawnCalls[0].prompt;
+      expect(prompt).toContain('EXISTING TASKS');
+      expect(prompt).toContain('- [in_progress] Add login');
+
+      await runIdeation(baseConfig({ includeKanbanContext: false, existingTasks: tasks }));
+      expect(spawnCalls[1].prompt).not.toContain('EXISTING TASKS');
+    });
+
+    it('adds no existing-work context by default', async () => {
+      await runIdeation(baseConfig());
+      const prompt = spawnCalls[0].prompt;
+      expect(prompt).not.toContain('EXISTING ROADMAP FEATURES');
+      expect(prompt).not.toContain('EXISTING TASKS');
+    });
+
+    it('lists direction ids so each idea can be tagged with direction_ids', async () => {
+      await runIdeation(baseConfig());
+      const prompt = spawnCalls[0].prompt;
+      expect(prompt).toContain('DIRECTION TAGS');
+      expect(prompt).toContain('"dir-a" #1 Coach-first');
+      expect(prompt).toContain('"dir-b" #2 Cheapest (AVOID)');
+      expect(prompt).toContain('"direction_ids"');
+    });
+  });
 });

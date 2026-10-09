@@ -9,6 +9,7 @@ import type { IPCResult, IdeationSession } from '../../../shared/types';
 import { projectStore } from '../../project-store';
 import { transformIdeaFromSnakeCase } from './transformers';
 import { readIdeationFile } from './file-utils';
+import { loadKnownDirectionIds, sanitizeFeatureDirectionIds } from '../../ai/runners/competitors/guidance';
 
 /**
  * Get ideation session for a project
@@ -34,6 +35,11 @@ export async function getIdeationSession(
   }
 
   try {
+    // Drop direction ids no longer in strategy.json (in memory only; untagged stays untagged)
+    if (Array.isArray(rawIdeation.ideas)) {
+      sanitizeFeatureDirectionIds(rawIdeation.ideas, loadKnownDirectionIds(project.path), false);
+    }
+
     // Transform snake_case to camelCase for frontend
     const enabledTypes = (rawIdeation.config?.enabled_types || rawIdeation.config?.enabledTypes || []) as unknown[];
 

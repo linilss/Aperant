@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ChevronRight, ExternalLink, Lightbulb, Loader2, Play, X } from 'lucide-react';
+import { ChevronRight, ExternalLink, Grid2x2, Lightbulb, Loader2, MapPlus, Play, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../../../shared/constants';
 import type { Idea } from '../../../shared/types';
 import { TypeIcon } from './TypeIcon';
+import { DirectionTagChips } from '../competitors/DirectionTagChips';
 import {
   isCodeImprovementIdea,
   isUIUXIdea,
@@ -31,12 +32,31 @@ interface IdeaDetailPanelProps {
   onGoToTask?: (taskId: string) => void;
   onDismiss: (idea: Idea) => void;
   isConverting?: boolean;
+  /** Funnel: add the idea as a roadmap feature */
+  onAddToRoadmap?: (idea: Idea) => void;
+  isAddingToRoadmap?: boolean;
+  /** Open MoSCoW (for ideas already on the roadmap) */
+  onGoToMoscow?: () => void;
+  /** For direction tag chips */
+  projectId?: string;
 }
 
-export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismiss, isConverting }: IdeaDetailPanelProps) {
+export function IdeaDetailPanel({
+  idea,
+  onClose,
+  onConvert,
+  onGoToTask,
+  onDismiss,
+  isConverting,
+  onAddToRoadmap,
+  isAddingToRoadmap,
+  onGoToMoscow,
+  projectId,
+}: IdeaDetailPanelProps) {
   const { t } = useTranslation('common');
   const isDismissed = idea.status === 'dismissed';
   const isConverted = idea.status === 'converted';
+  const isArchived = idea.status === 'archived';
 
   return (
     <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-lg flex flex-col z-50 max-md:inset-x-0 max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]">
@@ -44,7 +64,7 @@ export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismis
       <div className="shrink-0 p-4 border-b border-border electron-no-drag">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge variant="outline" className={IDEATION_TYPE_COLORS[idea.type]}>
                 <TypeIcon type={idea.type} />
                 <span className="ml-1">{IDEATION_TYPE_LABELS[idea.type]}</span>
@@ -56,6 +76,7 @@ export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismis
               )}
             </div>
             <h2 className="font-semibold">{idea.title}</h2>
+            <DirectionTagChips feature={idea} projectId={projectId} />
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label={t('accessibility.closePanelAriaLabel')}>
             <ChevronRight className="h-4 w-4" />
@@ -90,7 +111,7 @@ export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismis
       </div>
 
       {/* Actions */}
-      {!isDismissed && !isConverted && (
+      {!isDismissed && !isConverted && !isArchived && (
         <div className="shrink-0 p-4 border-t border-border space-y-2">
           <Button className="w-full" onClick={() => onConvert(idea)} disabled={isConverting}>
             {isConverting ? (
@@ -100,6 +121,21 @@ export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismis
             )}
             {isConverting ? t('common:ideation.converting') : t('common:ideation.convertToTask')}
           </Button>
+          {onAddToRoadmap && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => onAddToRoadmap(idea)}
+              disabled={isAddingToRoadmap}
+            >
+              {isAddingToRoadmap ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <MapPlus className="h-4 w-4 mr-2" />
+              )}
+              {isAddingToRoadmap ? t('common:ideation.addingToRoadmap') : t('common:ideation.addToRoadmap')}
+            </Button>
+          )}
           <Button
             variant="outline"
             className="w-full"
@@ -113,7 +149,15 @@ export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismis
           </Button>
         </div>
       )}
-      {isConverted && idea.taskId && onGoToTask && (
+      {isConverted && !idea.taskId && idea.roadmapFeatureId && onGoToMoscow && (
+        <div className="shrink-0 p-4 border-t border-border">
+          <Button className="w-full" onClick={onGoToMoscow}>
+            <Grid2x2 className="h-4 w-4 mr-2" />
+            {t('common:ideation.viewInMoscow')}
+          </Button>
+        </div>
+      )}
+      {(isConverted || isArchived) && idea.taskId && onGoToTask && (
         <div className="shrink-0 p-4 border-t border-border">
           <Button className="w-full" onClick={() => onGoToTask(idea.taskId!)}>
             <ExternalLink className="h-4 w-4 mr-2" />

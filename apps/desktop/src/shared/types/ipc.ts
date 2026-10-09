@@ -660,6 +660,7 @@ export interface ElectronAPILegacy {
   stopIdeation: (projectId: string) => Promise<IPCResult>;
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus) => Promise<IPCResult>;
   convertIdeaToTask: (projectId: string, ideaId: string) => Promise<IPCResult<Task>>;
+  addIdeaToRoadmap: (projectId: string, ideaId: string) => Promise<IPCResult<{ featureId: string }>>;
   dismissIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
   dismissAllIdeas: (projectId: string) => Promise<IPCResult>;
   archiveIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;

@@ -17,7 +17,13 @@ import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
-import { loadStrategyGuidance } from './competitors/guidance';
+import { loadIdeaDirectionTaggingSection, loadStrategyGuidance } from './competitors/guidance';
+import {
+  buildKanbanContextSection,
+  buildRoadmapContextSection,
+  loadRoadmapFeaturesForContext,
+  type IdeationContextTask,
+} from './ideation-context';
 
 // =============================================================================
 // Constants
@@ -75,6 +81,12 @@ export interface IdeationConfig {
   thinkingLevel?: ThinkingLevel;
   /** Maximum ideas per type (defaults to 5) */
   maxIdeasPerType?: number;
+  /** List existing roadmap features (read from roadmap.json) to avoid duplicates */
+  includeRoadmapContext?: boolean;
+  /** List existing kanban tasks (`existingTasks`) to avoid duplicates */
+  includeKanbanContext?: boolean;
+  /** Existing tasks for the kanban context (supplied by the caller) */
+  existingTasks?: IdeationContextTask[];
   /** Abort signal for cancellation */
   abortSignal?: AbortSignal;
 }
@@ -150,6 +162,14 @@ export async function runIdeation(
   const strategy = loadStrategyGuidance(projectDir);
   if (strategy) {
     prompt += `${strategy}Favor ideas that serve the pursued directions; skip ideas that mainly serve avoided ones.\n`;
+  }
+  prompt += loadIdeaDirectionTaggingSection(projectDir);
+  // Existing work, so ideas don't duplicate what is already planned
+  if (config.includeRoadmapContext) {
+    prompt += buildRoadmapContextSection(loadRoadmapFeaturesForContext(projectDir));
+  }
+  if (config.includeKanbanContext && config.existingTasks) {
+    prompt += buildKanbanContextSection(config.existingTasks);
   }
 
   const userPrompt = `Analyze the project at ${projectDir} and generate up to ${maxIdeasPerType} ${ideationType.replace(/_/g, ' ')} ideas. Use the available tools to explore the codebase, then write your findings as a JSON file to the output directory.`;

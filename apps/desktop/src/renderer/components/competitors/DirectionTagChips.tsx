@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
 import { useCompetitorStore } from '../../stores/competitor-store';
-import { resolveFeatureDirections } from '../moscow/direction-filter';
-import type { RoadmapFeature } from '../../../shared/types';
+import { resolveFeatureDirections, type DirectionTagged } from '../moscow/direction-filter';
 import type { StrategicDirection } from '../../../shared/types/competitors';
 
 const NO_DIRECTIONS: StrategicDirection[] = [];
@@ -52,11 +51,12 @@ export function DirectionTag({ direction, rank, className }: DirectionTagProps) 
 }
 
 interface DirectionTagChipsProps {
-  feature: Pick<RoadmapFeature, 'directionIds'>;
+  /** A roadmap feature or ideation idea */
+  feature: DirectionTagged;
   projectId?: string;
 }
 
-/** The feature's direction tags; renders nothing when it has none */
+/** The item's direction tags; renders nothing when it has none */
 export function DirectionTagChips({ feature, projectId }: DirectionTagChipsProps) {
   const directions = useProjectDirections(projectId);
   const refs = resolveFeatureDirections(feature, directions);

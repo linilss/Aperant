@@ -55,12 +55,14 @@ function sourceFromSnakeCase(raw: unknown): FeatureSource | undefined {
  */
 export function externalFieldsFromSnakeCase(
   raw: Record<string, unknown>
-): Pick<RoadmapFeature, 'source' | 'externalId' | 'externalUrl' | 'votes'> {
+): Pick<RoadmapFeature, 'source' | 'externalId' | 'externalUrl' | 'votes' | 'sourceIdeaId'> {
+  const sourceIdeaId = raw.source_idea_id ?? raw.sourceIdeaId;
   return {
     source: sourceFromSnakeCase(raw.source),
     externalId: (raw.external_id as string | undefined) ?? undefined,
     externalUrl: (raw.external_url as string | undefined) ?? undefined,
     votes: typeof raw.votes === 'number' ? raw.votes : undefined,
+    sourceIdeaId: typeof sourceIdeaId === 'string' && sourceIdeaId ? sourceIdeaId : undefined,
   };
 }
 
@@ -100,6 +102,7 @@ export function featureToSnakeCase(feature: RoadmapFeature): Record<string, unkn
     external_id: feature.externalId,
     external_url: feature.externalUrl,
     votes: feature.votes,
+    source_idea_id: feature.sourceIdeaId,
   };
 }
 

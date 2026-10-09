@@ -45,6 +45,8 @@ interface IdeationState {
   setConfig: (config: Partial<IdeationConfig>) => void;
   updateIdeaStatus: (ideaId: string, status: IdeationStatus) => void;
   setIdeaTaskId: (ideaId: string, taskId: string) => void;
+  /** Idea was added to the roadmap: mark it converted and keep the feature link */
+  setIdeaRoadmapFeatureId: (ideaId: string, featureId: string) => void;
   dismissIdea: (ideaId: string) => void;
   dismissAllIdeas: () => void;
   archiveIdea: (ideaId: string) => void;
@@ -152,6 +154,25 @@ export const useIdeationStore = create<IdeationState>((set) => ({
       const updatedIdeas = state.session.ideas.map((idea) =>
         idea.id === ideaId
           ? { ...idea, taskId, status: 'archived' as IdeationStatus }
+          : idea
+      );
+
+      return {
+        session: {
+          ...state.session,
+          ideas: updatedIdeas,
+          updatedAt: new Date()
+        }
+      };
+    }),
+
+  setIdeaRoadmapFeatureId: (ideaId, featureId) =>
+    set((state) => {
+      if (!state.session) return state;
+
+      const updatedIdeas = state.session.ideas.map((idea) =>
+        idea.id === ideaId
+          ? { ...idea, roadmapFeatureId: featureId, status: 'converted' as IdeationStatus }
           : idea
       );
 

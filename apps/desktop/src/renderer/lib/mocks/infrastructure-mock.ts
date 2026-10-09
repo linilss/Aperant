@@ -129,6 +129,11 @@ export const infrastructureMock = {
     error: 'Not available in browser mock'
   }),
 
+  addIdeaToRoadmap: async () => ({
+    success: false,
+    error: 'Not available in browser mock'
+  }),
+
   dismissIdea: async () => ({ success: true }),
 
   dismissAllIdeas: async () => ({ success: true }),

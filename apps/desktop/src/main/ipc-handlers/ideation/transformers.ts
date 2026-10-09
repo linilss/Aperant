@@ -17,6 +17,7 @@ import type {
 } from '../../../shared/types';
 import { debugLog } from '../../../shared/utils/debug-logger';
 import type { RawIdea } from './types';
+import { directionIdsFromRaw } from '../roadmap/feature-persistence';
 
 const VALID_IDEATION_TYPES: ReadonlySet<IdeationType> = new Set([
   'code_improvements',
@@ -54,6 +55,21 @@ function validateEnabledTypes(rawTypes: unknown): IdeationType[] {
  * Transform an idea from snake_case (Python backend) to camelCase (TypeScript frontend)
  */
 export function transformIdeaFromSnakeCase(idea: RawIdea): Idea {
+  return withFunnelLinks(transformIdeaFields(idea), idea);
+}
+
+/** Task / roadmap / direction links shared by every idea type (only set when present) */
+function withFunnelLinks(result: Idea, idea: RawIdea): Idea {
+  const directionIds = directionIdsFromRaw(idea);
+  if (directionIds) result.directionIds = directionIds;
+  if (typeof idea.linked_task_id === 'string' && idea.linked_task_id) result.taskId = idea.linked_task_id;
+  if (typeof idea.roadmap_feature_id === 'string' && idea.roadmap_feature_id) {
+    result.roadmapFeatureId = idea.roadmap_feature_id;
+  }
+  return result;
+}
+
+function transformIdeaFields(idea: RawIdea): Idea {
   const status = (idea.status || 'draft') as IdeationStatus;
   const createdAt = idea.created_at ? new Date(idea.created_at) : new Date();
 

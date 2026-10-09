@@ -105,6 +105,29 @@ export function loadDirectionTaggingSection(projectDir: string): string {
 }
 
 /**
+ * Compact direction-tagging section for ideation: same id list as the roadmap
+ * features phase, asking each idea for an optional `direction_ids`. '' without directions.
+ */
+export function buildIdeaDirectionTaggingSection(state: CompetitorStrategyState | null): string {
+  const directions = state?.directions ?? [];
+  if (directions.length === 0) return '';
+  const list = directions.map((d, i) => `"${d.id}" #${i + 1} ${d.title}${d.avoid ? ' (AVOID)' : ''}`).join('; ');
+  return (
+    `\n**DIRECTION TAGS**: ${list}\n` +
+    'Give each idea "direction_ids": the ids above (only those) of the directions it advances; [] when none.\n'
+  );
+}
+
+/** Load strategy.json and build the idea direction-tagging section ('' when absent) */
+export function loadIdeaDirectionTaggingSection(projectDir: string): string {
+  try {
+    return buildIdeaDirectionTaggingSection(loadCompetitorState(projectDir));
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Normalize `direction_ids` on raw (snake_case) features in place against the
  * known direction ids: unknown / non-string ids are dropped and duplicates removed.
  * With known ids, `defaultMissing` features get [] (tagged, serves none).
