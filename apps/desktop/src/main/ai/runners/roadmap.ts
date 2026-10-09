@@ -28,7 +28,10 @@ import {
   emptyCompetitorState,
   isCompetitorAnalysisFresh,
   loadCompetitorState,
+  loadDirectionTaggingSection,
+  loadKnownDirectionIds,
   loadStrategyGuidance,
+  sanitizeFeatureDirectionIds,
   runFullAnalysis,
   saveCompetitorState,
 } from './competitors';
@@ -484,6 +487,7 @@ async function runFeaturesPhase(
     preservedSection +
     buildGuidanceSection(guidance) +
     loadStrategyGuidance(projectDir) +
+    loadDirectionTaggingSection(projectDir) +
     `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
 
   const systemPrompt = loadedFeaturesPrompt
@@ -518,6 +522,10 @@ async function runFeaturesPhase(
           }
 
           if (missing.length === 0 && featureCount >= 3) {
+            // Keep only direction ids that exist in strategy.json
+            const knownDirectionIds = loadKnownDirectionIds(projectDir);
+            sanitizeFeatureDirectionIds(data.features as Record<string, unknown>[], knownDirectionIds);
+            sanitizeFeatureDirectionIds(preservedFeatures, knownDirectionIds, false);
             if (preservedFeatures.length > 0) {
               data.features = mergeFeatures(data.features as Record<string, unknown>[], preservedFeatures);
             }

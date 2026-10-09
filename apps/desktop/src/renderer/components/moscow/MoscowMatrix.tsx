@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { MouseAndPenSensor, TOUCH_DRAG_ACTIVATION } from '../../lib/dnd-sensors';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Grid2x2, Map as MapIcon } from 'lucide-react';
+import { Compass, Grid2x2, Map as MapIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { FeatureDetailPanel } from '../roadmap/FeatureDetailPanel';
@@ -23,12 +23,24 @@ import { getCompetitorInsightsForFeature } from '../roadmap/utils';
 import { useRoadmapStore, loadRoadmap } from '../../stores/roadmap-store';
 import { useToast } from '../../hooks/use-toast';
 import { MOSCOW_QUADRANTS, MoscowQuadrant } from './MoscowQuadrant';
+import { StrategyGuidanceChip } from '../competitors/StrategyGuidanceChip';
+import { DirectionTag, useProjectDirections } from '../competitors/DirectionTagChips';
+import { loadCompetitors } from '../../stores/competitor-store';
+import { cn } from '../../lib/utils';
+import {
+  UNTAGGED_FILTER,
+  filterFeaturesByDirection,
+  hasDirectionTagging,
+  toggleDirectionFilter,
+} from './direction-filter';
 import type { RoadmapFeature, RoadmapFeaturePriority } from '../../../shared/types';
 
 interface MoscowMatrixProps {
   projectId: string;
   onGoToRoadmap: () => void;
   onGoToTask?: (specId: string) => void;
+  /** Navigate to the Competitors page (strategy chip / empty-state funnel) */
+  onGoToCompetitors?: () => void;
 }
 
 const QUADRANT_IDS = MOSCOW_QUADRANTS.map((q) => q.id) as string[];
@@ -37,7 +49,7 @@ function isQuadrantId(id: string): id is RoadmapFeaturePriority {
   return QUADRANT_IDS.includes(id);
 }
 
-export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMatrixProps) {
+export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompetitors }: MoscowMatrixProps) {
   const { t } = useTranslation('common');
   const { toast } = useToast();
 
@@ -52,6 +64,16 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [activeFeature, setActiveFeature] = useState<RoadmapFeature | null>(null);
   const [overQuadrant, setOverQuadrant] = useState<RoadmapFeaturePriority | null>(null);
+  /** Selected direction ids / UNTAGGED_FILTER; empty = all directions */
+  const [directionFilter, setDirectionFilter] = useState<string[]>([]);
+
+  const directions = useProjectDirections(projectId);
+
+  // Directions feed the tag chips and the filter row
+  useEffect(() => {
+    void loadCompetitors(projectId);
+    setDirectionFilter([]);
+  }, [projectId]);
 
   // Load the roadmap only if the store does not already hold this project's roadmap
   useEffect(() => {
@@ -68,16 +90,23 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
 
   const projectRoadmap = roadmap && roadmap.projectId === projectId ? roadmap : null;
 
+  const allFeatures = projectRoadmap?.features;
+  const isTagged = useMemo(() => hasDirectionTagging(allFeatures ?? []), [allFeatures]);
+  const showDirectionFilter = isTagged && directions.length > 0;
+
   const featuresByPriority = useMemo(() => {
     const grouped = { must: [], should: [], could: [], wont: [] } as Record<
       RoadmapFeaturePriority,
       RoadmapFeature[]
     >;
-    for (const feature of projectRoadmap?.features ?? []) {
+    const visible = showDirectionFilter
+      ? filterFeaturesByDirection(allFeatures ?? [], directionFilter, directions)
+      : (allFeatures ?? []);
+    for (const feature of visible) {
       (grouped[feature.priority] ?? grouped.should).push(feature);
     }
     return grouped;
-  }, [projectRoadmap?.features]);
+  }, [allFeatures, showDirectionFilter, directionFilter, directions]);
 
   // Derive from the store so the panel reflects optimistic updates
   const selectedFeature =
@@ -169,8 +198,63 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
           <p className="text-sm text-muted-foreground">{t('roadmap.moscow.subtitle')}</p>
         </div>
       </div>
+      <div className="min-w-0 max-md:w-full">
+        <StrategyGuidanceChip projectId={projectId} onClick={onGoToCompetitors} />
+      </div>
     </div>
   );
+
+  const filterChipClass = (active: boolean) =>
+    cn(
+      'inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs transition-colors',
+      active
+        ? 'border-primary bg-primary/10 text-primary'
+        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+    );
+
+  const directionBar = showDirectionFilter ? (
+    <div
+      role="toolbar"
+      aria-label={t('roadmap.moscow.directions.filterLabel')}
+      className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border px-6 py-2 max-md:px-3"
+    >
+      <button
+        type="button"
+        aria-pressed={directionFilter.length === 0}
+        onClick={() => setDirectionFilter([])}
+        className={filterChipClass(directionFilter.length === 0)}
+      >
+        {t('roadmap.moscow.directions.all')}
+      </button>
+      {directions.map((direction, i) => {
+        const active = directionFilter.includes(direction.id);
+        return (
+          <button
+            key={direction.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => setDirectionFilter((prev) => toggleDirectionFilter(prev, direction.id))}
+            className={cn('rounded-full', active && 'ring-2 ring-primary ring-offset-1 ring-offset-background')}
+          >
+            <DirectionTag direction={direction} rank={i + 1} className="py-0.5 text-xs" />
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        aria-pressed={directionFilter.includes(UNTAGGED_FILTER)}
+        onClick={() => setDirectionFilter((prev) => toggleDirectionFilter(prev, UNTAGGED_FILTER))}
+        className={filterChipClass(directionFilter.includes(UNTAGGED_FILTER))}
+      >
+        {t('roadmap.moscow.directions.untagged')}
+      </button>
+    </div>
+  ) : directions.length > 0 && !isTagged ? (
+    <p className="flex shrink-0 items-center gap-1.5 border-b border-border px-6 py-2 text-xs text-muted-foreground max-md:px-3">
+      <Compass className="h-3.5 w-3.5 shrink-0" />
+      {t('roadmap.moscow.directions.regenerateHint')}
+    </p>
+  ) : null;
 
   if (!projectRoadmap) {
     return (
@@ -183,11 +267,20 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
             <Card className="w-full max-w-lg p-8 text-center">
               <Grid2x2 className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
               <h2 className="mb-2 text-xl font-semibold">{t('roadmap.moscow.empty.title')}</h2>
-              <p className="mb-6 text-muted-foreground">{t('roadmap.moscow.empty.description')}</p>
-              <Button onClick={onGoToRoadmap} size="lg">
-                <MapIcon className="mr-2 h-4 w-4" />
-                {t('roadmap.moscow.empty.goToRoadmap')}
-              </Button>
+              <p className="mb-3 text-muted-foreground">{t('roadmap.moscow.empty.description')}</p>
+              <p className="mb-6 text-sm font-medium text-foreground">{t('roadmap.moscow.empty.funnel')}</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button onClick={onGoToRoadmap} size="lg">
+                  <MapIcon className="mr-2 h-4 w-4" />
+                  {t('roadmap.moscow.empty.generateRoadmap')}
+                </Button>
+                {onGoToCompetitors && (
+                  <Button onClick={onGoToCompetitors} size="lg" variant="outline">
+                    <Compass className="mr-2 h-4 w-4" />
+                    {t('roadmap.moscow.empty.goToCompetitors')}
+                  </Button>
+                )}
+              </div>
             </Card>
           )}
         </div>
@@ -198,6 +291,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {header}
+      {directionBar}
 
       <DndContext
         sensors={sensors}

@@ -1,3 +1,4 @@
+import { directionIdsFromRaw } from './feature-persistence';
 import type {
   Roadmap,
   RoadmapFeature,
@@ -44,6 +45,8 @@ interface RawRoadmapFeature {
   linkedSpecId?: string;
   competitor_insight_ids?: string[];
   competitorInsightIds?: string[];
+  direction_ids?: string[];
+  directionIds?: string[];
 }
 
 interface RawRoadmap {
@@ -162,7 +165,8 @@ function transformFeature(raw: RawRoadmapFeature): RoadmapFeature {
     acceptanceCriteria: raw.acceptance_criteria || raw.acceptanceCriteria || [],
     userStories: raw.user_stories || raw.userStories || [],
     linkedSpecId: raw.linked_spec_id || raw.linkedSpecId,
-    competitorInsightIds: raw.competitor_insight_ids || raw.competitorInsightIds
+    competitorInsightIds: raw.competitor_insight_ids || raw.competitorInsightIds,
+    directionIds: directionIdsFromRaw(raw as unknown as Record<string, unknown>)
   };
 }
 

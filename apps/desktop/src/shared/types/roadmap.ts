@@ -142,6 +142,11 @@ export interface RoadmapFeature {
   taskOutcome?: TaskOutcome;
   previousStatus?: RoadmapFeatureStatus;
   competitorInsightIds?: string[];
+  /**
+   * Strategic direction ids (strategy.json) this feature advances.
+   * undefined = generated before direction tagging existed; [] = tagged, serves none.
+   */
+  directionIds?: string[];
   // External integration fields
   source?: FeatureSource;
   externalId?: string;    // ID from external system (e.g., Canny post ID)

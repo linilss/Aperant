@@ -65,6 +65,16 @@ export function externalFieldsFromSnakeCase(
 }
 
 /**
+ * Reads `direction_ids` (or camelCase `directionIds`) tolerantly: non-arrays give
+ * undefined (untagged roadmap), non-string entries are dropped.
+ */
+export function directionIdsFromRaw(raw: Record<string, unknown>): string[] | undefined {
+  const value = raw.direction_ids ?? raw.directionIds;
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+}
+
+/**
  * Converts a renderer (camelCase) feature to the snake_case shape stored in roadmap.json.
  */
 export function featureToSnakeCase(feature: RoadmapFeature): Record<string, unknown> {
@@ -85,6 +95,7 @@ export function featureToSnakeCase(feature: RoadmapFeature): Record<string, unkn
     task_outcome: feature.taskOutcome,
     previous_status: feature.previousStatus,
     competitor_insight_ids: feature.competitorInsightIds,
+    direction_ids: feature.directionIds,
     source: sourceToSnakeCase(feature.source),
     external_id: feature.externalId,
     external_url: feature.externalUrl,

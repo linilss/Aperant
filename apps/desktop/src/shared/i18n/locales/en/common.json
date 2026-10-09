@@ -743,8 +743,18 @@
       },
       "empty": {
         "title": "No Roadmap Yet",
-        "description": "The MoSCoW matrix prioritizes the features in your project's roadmap. Generate a roadmap first, then come back here to sort its features.",
-        "goToRoadmap": "Go to Roadmap"
+        "description": "MoSCoW is the last step of planning. Rank strategic directions on Competitors (optional), generate a roadmap from them, then sort its features into Must, Should, Could and Won't here.",
+        "funnel": "Competitors → Roadmap → MoSCoW",
+        "generateRoadmap": "Generate roadmap",
+        "goToCompetitors": "Rank directions first"
+      },
+      "directions": {
+        "filterLabel": "Filter features by strategic direction",
+        "all": "All directions",
+        "untagged": "Untagged",
+        "tooltip": "Direction #{{rank}}: {{title}}",
+        "avoidTooltip": "Direction #{{rank}} (avoid): {{title}}",
+        "regenerateHint": "Regenerate the roadmap to tag features with directions"
       }
     }
   },

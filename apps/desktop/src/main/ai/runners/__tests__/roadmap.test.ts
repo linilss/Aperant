@@ -360,5 +360,58 @@ describe('runRoadmapGeneration', () => {
 
       expect(spawnCalls.every((c) => !c.prompt.includes('STRATEGIC DIRECTION'))).toBe(true);
     });
+
+    it('lists the directions with ids in the features prompt and asks for direction_ids', async () => {
+      files.set(STRATEGY, JSON.stringify(ranked));
+
+      await runRoadmapGeneration(baseConfig());
+
+      const [discoveryCall, featuresCall] = spawnCalls;
+      expect(featuresCall.prompt).toContain('DIRECTION TAGS');
+      expect(featuresCall.prompt).toContain('id "dir-coach" — #1 Coach-first');
+      expect(featuresCall.prompt).toContain('id "dir-cheap" — #2 Cheapest option (AVOID)');
+      expect(featuresCall.prompt).toContain('"direction_ids"');
+      expect(discoveryCall.prompt).not.toContain('DIRECTION TAGS');
+    });
+
+    it('drops unknown direction ids from the generated features', async () => {
+      files.set(STRATEGY, JSON.stringify(ranked));
+      responder = (prompt) =>
+        prompt.includes('<roadmap_discovery>')
+          ? { text: `<roadmap_discovery>${JSON.stringify(VALID_DISCOVERY)}</roadmap_discovery>` }
+          : {
+              text: `<roadmap_features>${JSON.stringify({
+                ...VALID_ROADMAP,
+                features: [
+                  { id: 'f1', title: 'A', direction_ids: ['dir-coach', 'dir-ghost'] },
+                  { id: 'f2', title: 'B', direction_ids: 'dir-coach' },
+                  { id: 'f3', title: 'C' },
+                ],
+              })}</roadmap_features>`,
+            };
+
+      await runRoadmapGeneration(baseConfig());
+
+      const features = JSON.parse(files.get(ROADMAP) ?? '{}').features;
+      expect(features.map((f: { direction_ids?: string[] }) => f.direction_ids)).toEqual([['dir-coach'], [], []]);
+    });
+
+    it('strips direction_ids when there is no strategy', async () => {
+      responder = (prompt) =>
+        prompt.includes('<roadmap_discovery>')
+          ? { text: `<roadmap_discovery>${JSON.stringify(VALID_DISCOVERY)}</roadmap_discovery>` }
+          : {
+              text: `<roadmap_features>${JSON.stringify({
+                ...VALID_ROADMAP,
+                features: VALID_ROADMAP.features.map((f) => ({ ...f, direction_ids: ['dir-x'] })),
+              })}</roadmap_features>`,
+            };
+
+      await runRoadmapGeneration(baseConfig());
+
+      expect(spawnCalls.every((c) => !c.prompt.includes('DIRECTION TAGS'))).toBe(true);
+      const features = JSON.parse(files.get(ROADMAP) ?? '{}').features;
+      expect(features.every((f: Record<string, unknown>) => !('direction_ids' in f))).toBe(true);
+    });
   });
 });

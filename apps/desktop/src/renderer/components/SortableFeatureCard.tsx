@@ -11,6 +11,7 @@ import {
 } from './ui/tooltip';
 import { Play, ExternalLink, TrendingUp, Layers, ThumbsUp, Archive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { DirectionTagChips } from './competitors/DirectionTagChips';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './roadmap/TaskOutcomeBadge';
 import {
   ROADMAP_PRIORITY_COLORS,
@@ -123,6 +124,7 @@ export function SortableFeatureCard({
               )}
             </div>
             <h3 className="font-medium text-sm leading-snug line-clamp-2">{feature.title}</h3>
+            <DirectionTagChips feature={feature} projectId={roadmap?.projectId} />
           </div>
           <div className="shrink-0 flex items-center gap-1">
             {feature.taskOutcome ? (

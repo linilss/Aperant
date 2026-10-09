@@ -1027,6 +1027,7 @@ export function App() {
                     projectId={activeProjectId || selectedProjectId || ''}
                     onGoToRoadmap={() => setActiveView('roadmap')}
                     onGoToTask={handleGoToTask}
+                    onGoToCompetitors={() => setActiveView('competitors')}
                   />
                 )}
                 {activeView === 'roadmap' && (activeProjectId || selectedProjectId) && (

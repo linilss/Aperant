@@ -28,6 +28,7 @@ import { withFileLock } from "../utils/file-lock";
 import { getActiveProviderFeatureSettings } from "./feature-settings-helper";
 import {
   applyFeaturePriorityPatch,
+  directionIdsFromRaw,
   externalFieldsFromSnakeCase,
   featureToSnakeCase,
 } from "./roadmap/feature-persistence";
@@ -185,6 +186,7 @@ export function registerRoadmapHandlers(
             taskOutcome: feature.task_outcome,
             previousStatus: feature.previous_status,
             competitorInsightIds: (feature.competitor_insight_ids as string[]) || undefined,
+            directionIds: directionIdsFromRaw(feature),
             ...externalFieldsFromSnakeCase(feature),
           })),
           status: rawRoadmap.status || "draft",

@@ -69,3 +69,72 @@ export function loadStrategyGuidance(projectDir: string): string {
     return '';
   }
 }
+
+// ---- Direction tagging (roadmap features → direction_ids) -------------------------
+
+/**
+ * Prompt section listing every direction with its id and rank so the features
+ * phase can tag each feature with `direction_ids`. '' when there are no directions.
+ */
+export function buildDirectionTaggingSection(state: CompetitorStrategyState | null): string {
+  const directions = state?.directions ?? [];
+  if (directions.length === 0) return '';
+
+  const lines: string[] = [
+    '',
+    '**DIRECTION TAGS** (strategic directions from the competitor analysis, in the user\'s rank order):',
+  ];
+  directions.forEach((d, i) => {
+    lines.push(`- id "${d.id}" — #${i + 1} ${d.title}${d.avoid ? ' (AVOID)' : ''}`);
+  });
+  lines.push(
+    'For EVERY feature set "direction_ids" to the ids (from the list above only) of the directions it advances — ' +
+      'zero or more; use [] when it serves none. A feature that mainly serves an AVOID direction should normally be ' +
+      '"wont" or left out.',
+  );
+  return `${lines.join('\n')}\n`;
+}
+
+/** Load strategy.json and build the direction-tagging section ('' when absent) */
+export function loadDirectionTaggingSection(projectDir: string): string {
+  try {
+    return buildDirectionTaggingSection(loadCompetitorState(projectDir));
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Normalize `direction_ids` on raw (snake_case) features in place against the
+ * known direction ids: unknown / non-string ids are dropped and duplicates removed.
+ * With known ids, `defaultMissing` features get [] (tagged, serves none).
+ * Without any known ids, `direction_ids` is removed (nothing to tag against).
+ */
+export function sanitizeFeatureDirectionIds(
+  features: Array<Record<string, unknown>>,
+  knownIds: ReadonlySet<string>,
+  defaultMissing = true,
+): void {
+  for (const feature of features) {
+    if (knownIds.size === 0) {
+      delete feature.direction_ids;
+      continue;
+    }
+    const raw = feature.direction_ids ?? feature.directionIds;
+    delete feature.directionIds;
+    if (!Array.isArray(raw)) {
+      if (defaultMissing) feature.direction_ids = [];
+      continue;
+    }
+    feature.direction_ids = [...new Set(raw.filter((id): id is string => typeof id === 'string' && knownIds.has(id)))];
+  }
+}
+
+/** Direction ids from strategy.json (empty set when absent/unreadable) */
+export function loadKnownDirectionIds(projectDir: string): Set<string> {
+  try {
+    return new Set((loadCompetitorState(projectDir)?.directions ?? []).map((d) => d.id));
+  } catch {
+    return new Set();
+  }
+}

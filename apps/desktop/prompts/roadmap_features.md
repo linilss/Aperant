@@ -50,6 +50,8 @@ Apply MoSCoW ruthlessly. Most features should be "should" or "could" — if ever
 - **could** — valuable but users have workarounds; enhances delight
 - **wont** — explicitly out of scope now (still include these in features list with `"priority": "wont"` so they're tracked)
 
+If a **DIRECTION TAGS** list is given below, set each feature's `direction_ids` to the ids of the directions it advances (zero or more, only ids from that list). Features that mainly serve an AVOID direction should normally be `wont` or omitted. Without that list, leave `direction_ids` as `[]`.
+
 ---
 
 ## STEP 4 — Assess Complexity & Impact
@@ -152,7 +154,8 @@ Output the complete roadmap wrapped in `<roadmap_features>` tags:
       "user_stories": [
         "As a [specific role from discovery], I want [specific action] so that [concrete benefit]"
       ],
-      "competitor_insight_ids": []
+      "competitor_insight_ids": [],
+      "direction_ids": []
     }
   ],
   "metadata": {
