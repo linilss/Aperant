@@ -3,9 +3,9 @@
  * =============
  *
  * Handles rate-limit and authentication pause/resume signalling via
- * filesystem sentinel files. See apps/desktop/src/main/ai/orchestration/pause-handler.ts for the TypeScript implementation.
+ * filesystem sentinel files.
  *
- * The backend (or, in this TS port, the build orchestrator) creates a pause
+ * The build orchestrator creates a pause
  * file when it hits a rate limit or auth failure. The frontend removes this
  * file (or creates a RESUME file) to signal that execution can continue.
  */
@@ -14,7 +14,7 @@ import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // =============================================================================
-// Constants — see apps/desktop/src/main/ai/orchestration/pause-handler.ts
+// Constants
 // =============================================================================
 
 /** Created in specDir when the provider returns HTTP 429. */
@@ -25,9 +25,6 @@ export const AUTH_FAILURE_PAUSE_FILE = 'AUTH_PAUSE';
 
 /** Created by the frontend UI to signal that the user wants to resume. */
 export const RESUME_FILE = 'RESUME';
-
-/** Created by the frontend when a human needs to review before continuing. */
-export const HUMAN_INTERVENTION_FILE = 'PAUSE';
 
 /** Maximum time to wait for rate-limit reset (2 hours). */
 const MAX_RATE_LIMIT_WAIT_MS = 7_200_000;
@@ -251,26 +248,4 @@ export async function waitForAuthResume(
 
   // Timeout reached — clean up and return so the build can continue / fail
   removePauseFile(specDir, AUTH_FAILURE_PAUSE_FILE);
-}
-
-// =============================================================================
-// Human intervention check
-// =============================================================================
-
-/**
- * Check whether a human intervention pause file exists.
- *
- * When PAUSE exists, the build orchestrator should not start the next session
- * until the user removes the file or signals resume.
- *
- * @returns The contents of the PAUSE file, or null if no pause is active.
- */
-export function checkHumanIntervention(specDir: string): string | null {
-  const pauseFile = join(specDir, HUMAN_INTERVENTION_FILE);
-  if (!existsSync(pauseFile)) return null;
-  try {
-    return readFileSync(pauseFile, 'utf8').trim();
-  } catch {
-    return '';
-  }
 }

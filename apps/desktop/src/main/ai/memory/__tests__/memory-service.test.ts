@@ -383,47 +383,6 @@ describe('MemoryServiceImpl', () => {
   });
 
   // ----------------------------------------------------------
-  // searchByPattern()
-  // ----------------------------------------------------------
-
-  describe('searchByPattern()', () => {
-    it('returns null when no BM25 results', async () => {
-      // searchBM25 calls db.execute
-      mockExecute.mockResolvedValueOnce({ rows: [] });
-
-      const result = await service.searchByPattern('some pattern');
-
-      expect(result).toBeNull();
-    });
-
-    it('returns a memory when BM25 finds a match', async () => {
-      // First execute: BM25 result
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ id: 'mem-001', bm25_score: -1.5 }],
-      });
-      // Second execute: fetch full memory
-      mockExecute.mockResolvedValueOnce({ rows: [makeMemoryRow()] });
-
-      const result = await service.searchByPattern('typescript testing');
-
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe('mem-001');
-    });
-
-    it('returns null if the fetched memory is deprecated', async () => {
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ id: 'mem-001', bm25_score: -1.5 }],
-      });
-      // Memory fetch returns empty (deprecated = 0 condition excludes it)
-      mockExecute.mockResolvedValueOnce({ rows: [] });
-
-      const result = await service.searchByPattern('test');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  // ----------------------------------------------------------
   // insertUserTaught()
   // ----------------------------------------------------------
 
@@ -448,48 +407,6 @@ describe('MemoryServiceImpl', () => {
       expect(memoriesArgs).toContain(1.0);
       // scope = 'global'
       expect(memoriesArgs).toContain('global');
-    });
-  });
-
-  // ----------------------------------------------------------
-  // searchWorkflowRecipe()
-  // ----------------------------------------------------------
-
-  describe('searchWorkflowRecipe()', () => {
-    it('returns workflow_recipe memories', async () => {
-      const recipe = makeMemoryResult({ id: 'recipe-001', type: 'workflow_recipe' });
-      const other = makeMemoryResult({ id: 'other-001', type: 'gotcha' });
-      mockRetrievalSearch.mockResolvedValueOnce({
-        memories: [recipe, other],
-        formattedContext: '',
-      });
-
-      const results = await service.searchWorkflowRecipe('deploy to production');
-
-      expect(results).toHaveLength(1);
-      expect(results[0].type).toBe('workflow_recipe');
-    });
-
-    it('respects limit option', async () => {
-      const recipes = Array.from({ length: 10 }, (_, i) =>
-        makeMemoryResult({ id: `recipe-${i}`, type: 'workflow_recipe' }),
-      );
-      mockRetrievalSearch.mockResolvedValueOnce({
-        memories: recipes,
-        formattedContext: '',
-      });
-
-      const results = await service.searchWorkflowRecipe('task', { limit: 3 });
-
-      expect(results).toHaveLength(3);
-    });
-
-    it('returns empty array on pipeline failure', async () => {
-      mockRetrievalSearch.mockRejectedValueOnce(new Error('Pipeline error'));
-
-      const results = await service.searchWorkflowRecipe('task');
-
-      expect(results).toEqual([]);
     });
   });
 

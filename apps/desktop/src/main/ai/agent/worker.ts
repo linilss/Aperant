@@ -237,12 +237,33 @@ async function assemblePrompt(
     }
   }
 
+  // HUMAN_INPUT.md is read on every prompt (not cached) so instructions the
+  // user drops into the spec dir mid-build reach the next session
+  const humanInput = readHumanInput(session.specDir);
+  if (humanInput) {
+    postLog('Human input injected from HUMAN_INPUT.md');
+  }
+
   return injectContext(basePrompt, {
     specDir: session.specDir,
     projectDir: session.projectDir,
     projectInstructions: cachedProjectInstructions,
     memoryContext: session.memoryContext,
+    humanInput,
   });
+}
+
+/** Contents of `<specDir>/HUMAN_INPUT.md`, or null when absent or empty. */
+function readHumanInput(specDir: string | undefined): string | null {
+  if (!specDir) return null;
+  const filePath = join(specDir, 'HUMAN_INPUT.md');
+  if (!existsSync(filePath)) return null;
+  try {
+    const content = readFileSync(filePath, 'utf-8').trim();
+    return content.length > 0 ? content : null;
+  } catch {
+    return null;
+  }
 }
 
 // =============================================================================

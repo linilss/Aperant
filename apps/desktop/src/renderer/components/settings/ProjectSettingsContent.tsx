@@ -86,8 +86,6 @@ function ProjectSettingsContentInner({
     updateEnvConfig,
     showLinearKey,
     setShowLinearKey,
-    showOpenAIKey,
-    setShowOpenAIKey,
     showGitHubToken,
     setShowGitHubToken,
     expandedSections: _expandedSections,
@@ -136,8 +134,6 @@ function ProjectSettingsContentInner({
         updateEnvConfig={updateEnvConfig}
         showLinearKey={showLinearKey}
         setShowLinearKey={setShowLinearKey}
-        showOpenAIKey={showOpenAIKey}
-        setShowOpenAIKey={setShowOpenAIKey}
         showGitHubToken={showGitHubToken}
         setShowGitHubToken={setShowGitHubToken}
         gitHubConnectionStatus={gitHubConnectionStatus}

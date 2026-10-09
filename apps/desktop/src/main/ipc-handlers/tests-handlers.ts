@@ -8,7 +8,6 @@ import {
   discoverTestProjects,
   runTests,
   stopTests,
-  getTestConfig,
   saveSolution,
   loadSolution,
 } from './tests';
@@ -76,40 +75,12 @@ export function registerTestsHandlers(getMainWindow: () => BrowserWindow | null)
   );
 
   // ──────────────────────────────────────────────────────────────
-  // TESTS_RUN_SINGLE
-  // ──────────────────────────────────────────────────────────────
-  ipcMain.handle(
-    IPC_CHANNELS.TESTS_RUN_SINGLE,
-    async (_event, projectId: string, testId: string, testProjectId: string) => {
-      return runTestsImpl(projectId, { testId, testProjectId }, getMainWindow);
-    },
-  );
-
-  // ──────────────────────────────────────────────────────────────
   // TESTS_STOP
   // ──────────────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.TESTS_STOP, (_event, _projectId: string, testProjectId: string) => {
     stopTests(testProjectId);
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.TESTS_STOPPED, _projectId, testProjectId);
     return { success: true };
-  });
-
-  // ──────────────────────────────────────────────────────────────
-  // TESTS_GET_CONFIG
-  // ──────────────────────────────────────────────────────────────
-  ipcMain.handle(IPC_CHANNELS.TESTS_GET_CONFIG, async (_event, projectId: string) => {
-    const project = projectStore.getProject(projectId);
-    if (!project) {
-      return { success: false, error: 'Project not found' };
-    }
-
-    try {
-      const config = await getTestConfig(project.path);
-      return { success: true, data: config };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { success: false, error: message };
-    }
   });
 }
 

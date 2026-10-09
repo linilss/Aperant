@@ -47,17 +47,9 @@ export const IPC_CHANNELS = {
   TASK_POST_MERGE_PUSH: 'task:postMergePush',             // Push target branch to origin after merge
   TASK_POST_MERGE_CLEANUP: 'task:postMergeCleanup',       // Delete feature branch (local + remote) after merge
   TASK_WORKTREE_SYNC: 'task:worktreeSync',               // Sync a single worktree with its base branch
-  TASK_WORKTREE_SYNC_ALL: 'task:worktreeSyncAll',        // Sync all other worktrees after merge
-  TASK_WORKTREE_SYNC_PROGRESS: 'task:worktreeSyncProgress', // Event: sync progress (main → renderer)
   TASK_RESET: 'task:reset',                              // Delete branch/worktree and reset status to backlog
 
-  // Task refine (grill-me style AI session for a task)
-  TASK_REFINE_START: 'task:refine:start',
-  TASK_REFINE_SEND: 'task:refine:send',
-  TASK_REFINE_STOP: 'task:refine:stop',
-  TASK_REFINE_CHUNK: 'task:refine:chunk',
-  TASK_REFINE_TOOL_USE: 'task:refine:toolUse',
-  TASK_REFINE_COMPLETE: 'task:refine:complete',
+  // Task refine (mega-groom pipeline in an embedded terminal)
   TASK_REFINE_ERROR: 'task:refine:error',
   TASK_REFINE_APPLIED: 'task:refine:applied',
   TASK_REFINE_TERMINAL_START: 'task:refine:terminalStart',  // Start embedded terminal for refine pipeline
@@ -379,7 +371,6 @@ export const IPC_CHANNELS = {
   GITLAB_INVESTIGATION_ERROR: 'gitlab:investigationError',
 
   // GitLab MR Review operations
-  GITLAB_MR_GET_DIFF: 'gitlab:mr:getDiff',
   GITLAB_MR_REVIEW: 'gitlab:mr:review',
   GITLAB_MR_REVIEW_CANCEL: 'gitlab:mr:reviewCancel',
   GITLAB_MR_GET_REVIEW: 'gitlab:mr:getReview',
@@ -393,61 +384,15 @@ export const IPC_CHANNELS = {
   GITLAB_MR_LIST_MORE: 'gitlab:mr:listMore',              // Load more MRs (pagination)
   GITLAB_MR_DELETE_REVIEW: 'gitlab:mr:deleteReview',    // Delete a posted review
   GITLAB_MR_CHECK_MERGE_READINESS: 'gitlab:mr:checkMergeReadiness',  // Check if MR can be merged
-  GITLAB_MR_GET_REVIEWS_BATCH: 'gitlab:mr:getReviewsBatch',  // Batch load reviews for multiple MRs
-  GITLAB_MR_FIX: 'gitlab:mr:fix',                        // Auto-fix issues in MR
   GITLAB_MR_GET_LOGS: 'gitlab:mr:getLogs',               // Get AI review logs
-  GITLAB_MR_STATUS_POLL_START: 'gitlab:mr:statusPollStart',  // Start polling MR status
-  GITLAB_MR_STATUS_POLL_STOP: 'gitlab:mr:statusPollStop',    // Stop polling MR status
-  GITLAB_MR_MEMORY_GET: 'gitlab:mr:memory:get',          // Get MR review memories
-  GITLAB_MR_MEMORY_SEARCH: 'gitlab:mr:memory:search',    // Search MR review memories
 
   // GitLab MR Review events (main -> renderer)
   GITLAB_MR_REVIEW_PROGRESS: 'gitlab:mr:reviewProgress',
   GITLAB_MR_REVIEW_COMPLETE: 'gitlab:mr:reviewComplete',
   GITLAB_MR_REVIEW_ERROR: 'gitlab:mr:reviewError',
-  GITLAB_MR_STATUS_UPDATE: 'gitlab:mr:statusUpdate',
-
-  // GitLab Auto-Fix operations
-  GITLAB_AUTOFIX_START: 'gitlab:autofix:start',
-  GITLAB_AUTOFIX_STOP: 'gitlab:autofix:stop',
-  GITLAB_AUTOFIX_GET_QUEUE: 'gitlab:autofix:getQueue',
-  GITLAB_AUTOFIX_CHECK_LABELS: 'gitlab:autofix:checkLabels',
-  GITLAB_AUTOFIX_CHECK_NEW: 'gitlab:autofix:checkNew',
-  GITLAB_AUTOFIX_GET_CONFIG: 'gitlab:autofix:getConfig',
-  GITLAB_AUTOFIX_SAVE_CONFIG: 'gitlab:autofix:saveConfig',
-  GITLAB_AUTOFIX_BATCH: 'gitlab:autofix:batch',
-  GITLAB_AUTOFIX_GET_BATCHES: 'gitlab:autofix:getBatches',
-
-  // GitLab Auto-Fix events (main -> renderer)
-  GITLAB_AUTOFIX_PROGRESS: 'gitlab:autofix:progress',
-  GITLAB_AUTOFIX_COMPLETE: 'gitlab:autofix:complete',
-  GITLAB_AUTOFIX_ERROR: 'gitlab:autofix:error',
-  GITLAB_AUTOFIX_BATCH_PROGRESS: 'gitlab:autofix:batchProgress',
-  GITLAB_AUTOFIX_BATCH_COMPLETE: 'gitlab:autofix:batchComplete',
-  GITLAB_AUTOFIX_BATCH_ERROR: 'gitlab:autofix:batchError',
-
-  // GitLab Issue Analysis Preview (proactive batch workflow)
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW: 'gitlab:autofix:analyzePreview',
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW_PROGRESS: 'gitlab:autofix:analyzePreviewProgress',
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW_COMPLETE: 'gitlab:autofix:analyzePreviewComplete',
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW_ERROR: 'gitlab:autofix:analyzePreviewError',
-  GITLAB_AUTOFIX_APPROVE_BATCHES: 'gitlab:autofix:approveBatches',
-
-  // GitLab Issue Triage operations
-  GITLAB_TRIAGE_RUN: 'gitlab:triage:run',
-  GITLAB_TRIAGE_GET_RESULTS: 'gitlab:triage:getResults',
-  GITLAB_TRIAGE_APPLY_LABELS: 'gitlab:triage:applyLabels',
-  GITLAB_TRIAGE_GET_CONFIG: 'gitlab:triage:getConfig',
-  GITLAB_TRIAGE_SAVE_CONFIG: 'gitlab:triage:saveConfig',
-
-  // GitLab Issue Triage events (main -> renderer)
-  GITLAB_TRIAGE_PROGRESS: 'gitlab:triage:progress',
-  GITLAB_TRIAGE_COMPLETE: 'gitlab:triage:complete',
-  GITLAB_TRIAGE_ERROR: 'gitlab:triage:error',
 
   // GitHub Auto-Fix operations
   GITHUB_AUTOFIX_START: 'github:autofix:start',
-  GITHUB_AUTOFIX_STOP: 'github:autofix:stop',
   GITHUB_AUTOFIX_GET_QUEUE: 'github:autofix:getQueue',
   GITHUB_AUTOFIX_CHECK_LABELS: 'github:autofix:checkLabels',
   GITHUB_AUTOFIX_CHECK_NEW: 'github:autofix:checkNew',
@@ -475,7 +420,6 @@ export const IPC_CHANNELS = {
   GITHUB_PR_LIST: 'github:pr:list',
   GITHUB_PR_LIST_MORE: 'github:pr:listMore',  // Load more PRs (pagination)
   GITHUB_PR_GET: 'github:pr:get',
-  GITHUB_PR_GET_DIFF: 'github:pr:getDiff',
   GITHUB_PR_REVIEW: 'github:pr:review',
   GITHUB_PR_REVIEW_CANCEL: 'github:pr:reviewCancel',
   GITHUB_PR_GET_REVIEW: 'github:pr:getReview',
@@ -485,7 +429,6 @@ export const IPC_CHANNELS = {
   GITHUB_PR_MERGE: 'github:pr:merge',
   GITHUB_PR_ASSIGN: 'github:pr:assign',
   GITHUB_PR_POST_COMMENT: 'github:pr:postComment',
-  GITHUB_PR_FIX: 'github:pr:fix',
   GITHUB_PR_FOLLOWUP_REVIEW: 'github:pr:followupReview',
   GITHUB_PR_CHECK_NEW_COMMITS: 'github:pr:checkNewCommits',
   GITHUB_PR_CHECK_MERGE_READINESS: 'github:pr:checkMergeReadiness',
@@ -508,25 +451,9 @@ export const IPC_CHANNELS = {
   GITHUB_PR_STATUS_POLL_STOP: 'github:pr:statusPollStop',     // Stop polling PR status
   GITHUB_PR_STATUS_UPDATE: 'github:pr:statusUpdate',          // Event: PR status updated (main -> renderer)
 
-  // GitHub PR Memory operations (saves review insights to memory layer)
-  GITHUB_PR_MEMORY_GET: 'github:pr:memory:get',        // Get PR review memories
-  GITHUB_PR_MEMORY_SEARCH: 'github:pr:memory:search',  // Search PR review memories
-
   // GitHub Workflow Approval (for fork PRs)
   GITHUB_WORKFLOWS_AWAITING_APPROVAL: 'github:workflows:awaitingApproval',
   GITHUB_WORKFLOW_APPROVE: 'github:workflow:approve',
-
-  // GitHub Issue Triage operations
-  GITHUB_TRIAGE_RUN: 'github:triage:run',
-  GITHUB_TRIAGE_GET_RESULTS: 'github:triage:getResults',
-  GITHUB_TRIAGE_APPLY_LABELS: 'github:triage:applyLabels',
-  GITHUB_TRIAGE_GET_CONFIG: 'github:triage:getConfig',
-  GITHUB_TRIAGE_SAVE_CONFIG: 'github:triage:saveConfig',
-
-  // GitHub Issue Triage events (main -> renderer)
-  GITHUB_TRIAGE_PROGRESS: 'github:triage:progress',
-  GITHUB_TRIAGE_COMPLETE: 'github:triage:complete',
-  GITHUB_TRIAGE_ERROR: 'github:triage:error',
 
   // Ollama model detection and management
   OLLAMA_CHECK_STATUS: 'ollama:checkStatus',
@@ -626,7 +553,6 @@ export const IPC_CHANNELS = {
   DEBUG_COPY_DEBUG_INFO: 'debug:copyDebugInfo',
   DEBUG_GET_RECENT_ERRORS: 'debug:getRecentErrors',
   DEBUG_LIST_LOG_FILES: 'debug:listLogFiles',
-  DEBUG_SIMULATE_RATE_LIMIT: 'debug:simulateRateLimit',  // Simulate rate limit for testing auto-swap
 
   // Claude Code CLI operations
   CLAUDE_CODE_CHECK_VERSION: 'claudeCode:checkVersion',
@@ -667,7 +593,6 @@ export const IPC_CHANNELS = {
 
   // Azure DevOps integration
   AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection',
-  AZURE_DEVOPS_GET_PROJECTS: 'azureDevOps:getProjects',
   AZURE_DEVOPS_DETECT_REPO: 'azureDevOps:detectRepo',
   AZURE_DEVOPS_GET_BRANCHES: 'azureDevOps:getBranches',
 
@@ -711,9 +636,7 @@ export const IPC_CHANNELS = {
   TESTS_DISCOVER: 'tests:discover',
   TESTS_RUN: 'tests:run',
   TESTS_RUN_CATEGORY: 'tests:runCategory',
-  TESTS_RUN_SINGLE: 'tests:runSingle',
   TESTS_STOP: 'tests:stop',
-  TESTS_GET_CONFIG: 'tests:getConfig',
   TESTS_RUN_STATUS: 'tests:runStatus',
   TESTS_RESULT: 'tests:result',
   TESTS_COMPLETE: 'tests:complete',

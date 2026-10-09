@@ -53,14 +53,14 @@ describe('AgentTools - Agent Profile Resolution', () => {
   });
 
   describe('Auto Profile Phase Configuration', () => {
-    it('should have Opus for all phases in auto profile', () => {
+    it('should use Opus for spec, planning and QA and Sonnet for coding in auto profile', () => {
       const profile = DEFAULT_AGENT_PROFILES.find(p => p.id === 'auto');
       const phaseModels = profile?.phaseModels;
 
       expect(phaseModels).toBeDefined();
       expect(phaseModels?.spec).toBe('opus');
       expect(phaseModels?.planning).toBe('opus');
-      expect(phaseModels?.coding).toBe('opus');
+      expect(phaseModels?.coding).toBe('sonnet');
       expect(phaseModels?.qa).toBe('opus');
     });
 
@@ -70,9 +70,9 @@ describe('AgentTools - Agent Profile Resolution', () => {
 
       expect(phaseThinking).toBeDefined();
       expect(phaseThinking?.spec).toBe('high');
-      expect(phaseThinking?.planning).toBe('high');
-      expect(phaseThinking?.coding).toBe('low');
-      expect(phaseThinking?.qa).toBe('low');
+      expect(phaseThinking?.planning).toBe('medium');
+      expect(phaseThinking?.coding).toBe('medium');
+      expect(phaseThinking?.qa).toBe('medium');
     });
   });
 
@@ -110,10 +110,10 @@ describe('AgentTools - Agent Profile Resolution', () => {
       const profilePhaseModels = profile.phaseModels || DEFAULT_PHASE_MODELS;
       const phaseModels = customPhaseModels || profilePhaseModels;
 
-      // Should resolve to auto profile's opus models
+      // Should resolve to auto profile's models
       expect(phaseModels.spec).toBe('opus');
       expect(phaseModels.planning).toBe('opus');
-      expect(phaseModels.coding).toBe('opus');
+      expect(phaseModels.coding).toBe('sonnet');
       expect(phaseModels.qa).toBe('opus');
     });
 
@@ -182,15 +182,15 @@ describe('AgentTools - Agent Profile Resolution', () => {
         resolvedSettings
       );
       expect(planningAgent.model).toBe('opus');
-      expect(planningAgent.thinking).toBe('high');
+      expect(planningAgent.thinking).toBe('medium');
 
       // Coding phase agent
       const codingAgent = resolveAgentSettings(
         { type: 'phase', phase: 'coding' },
         resolvedSettings
       );
-      expect(codingAgent.model).toBe('opus');
-      expect(codingAgent.thinking).toBe('low');
+      expect(codingAgent.model).toBe('sonnet');
+      expect(codingAgent.thinking).toBe('medium');
 
       // QA phase agent
       const qaAgent = resolveAgentSettings(
@@ -198,7 +198,7 @@ describe('AgentTools - Agent Profile Resolution', () => {
         resolvedSettings
       );
       expect(qaAgent.model).toBe('opus');
-      expect(qaAgent.thinking).toBe('low');
+      expect(qaAgent.thinking).toBe('medium');
     });
 
     it('should resolve feature-based agent settings correctly', () => {
@@ -290,10 +290,10 @@ describe('AgentTools - Agent Profile Resolution', () => {
       const profilePhaseModels = profile.phaseModels || DEFAULT_PHASE_MODELS;
       const phaseModels = customPhaseModels || profilePhaseModels;
 
-      // Should be opus (from auto profile), NOT sonnet (from DEFAULT_PHASE_MODELS)
+      // Should be the auto profile's models (opus outside coding), NOT sonnet everywhere (DEFAULT_PHASE_MODELS)
       expect(phaseModels.spec).toBe('opus');
       expect(phaseModels.planning).toBe('opus');
-      expect(phaseModels.coding).toBe('opus');
+      expect(phaseModels.coding).toBe('sonnet');
       expect(phaseModels.qa).toBe('opus');
     });
 

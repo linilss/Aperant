@@ -269,9 +269,6 @@ export function registerProjectHandlers(
   ipcMain.handle(
     IPC_CHANNELS.PROJECT_REMOVE,
     async (_, projectId: string): Promise<IPCResult> => {
-      // Clear GitLab MR polling for this project to prevent memory leaks
-      const { clearPollingForProject } = await import('./gitlab/mr-review-handlers');
-      clearPollingForProject(projectId);
       const success = projectStore.removeProject(projectId);
       return { success };
     }

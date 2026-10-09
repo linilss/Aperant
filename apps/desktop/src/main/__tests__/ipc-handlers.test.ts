@@ -644,7 +644,8 @@ describe("IPC Handlers", { timeout: 30000 }, () => {
         "task-1",
         "human_review",
         expect.any(String), // projectId for multi-project filtering
-        "errors"
+        "errors",
+        undefined // errorMessage: the worker exited without reporting one
       );
     });
   });

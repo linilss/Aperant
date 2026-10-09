@@ -297,10 +297,9 @@ export function registerTaskExecutionHandlers(
       // Check if this task needs spec creation first (no spec file = not yet created)
       // OR if it has a spec but no implementation plan subtasks (spec created, needs planning/building)
       const needsSpecCreation = !hasSpec;
-      // FIX (#1562): Check actual plan file for subtasks, not just task.subtasks.length.
-      // When a task crashes during planning, it may have spec.md but an empty/missing
-      // implementation_plan.json. Previously, this path would call startTaskExecution
-      // (run.py) which expects subtasks to exist. Now we check the actual plan file.
+      // Fix for upstream issue #1562: check the actual plan file for subtasks, not just
+      // task.subtasks.length. When a task crashes during planning, it may have spec.md
+      // but an empty/missing implementation_plan.json.
       const needsImplementation = hasSpec && !planHasSubtasks;
 
       console.warn('[TASK_START] hasSpec:', hasSpec, 'planHasSubtasks:', planHasSubtasks, 'needsSpecCreation:', needsSpecCreation, 'needsImplementation:', needsImplementation);
@@ -309,20 +308,19 @@ export function registerTaskExecutionHandlers(
       const baseBranch = task.metadata?.baseBranch || project.settings?.mainBranch;
 
       if (needsSpecCreation) {
-        // No spec file - need to run spec_runner.py to create the spec
+        // No spec file - run the spec creation pipeline first
         const taskDescription = task.description || task.title;
         console.warn('[TASK_START] Starting spec creation for:', task.specId, 'in:', specDir, 'baseBranch:', baseBranch);
 
-        // Start spec creation process - pass the existing spec directory
-        // so spec_runner uses it instead of creating a new one
+        // Start spec creation - pass the existing spec directory
+        // so it is reused instead of creating a new one
         // Also pass baseBranch so worktrees are created from the correct branch
         agentManager.startSpecCreation(taskId, project.path, taskDescription, specDir, task.metadata, baseBranch, project.id);
       } else if (needsImplementation) {
         // Spec exists but no valid subtasks in implementation plan
-        // FIX (#1562): Use startTaskExecution (run.py) which will create the planner
-        // agent session to generate the implementation plan. run.py handles the case
-        // where implementation_plan.json is missing or has no subtasks - the planner
-        // agent will generate the plan before the coder starts.
+        // Upstream issue #1562: startTaskExecution runs the build orchestrator, which
+        // runs the planner first when implementation_plan.json is missing or has no
+        // subtasks, then the coder.
         console.warn('[TASK_START] Starting task execution (no valid subtasks in plan) for:', task.specId);
         agentManager.startTaskExecution(
           taskId,
@@ -825,12 +823,12 @@ export function registerTaskExecutionHandlers(
           const baseBranchForUpdate = task.metadata?.baseBranch || project.settings?.mainBranch;
 
           if (needsSpecCreation) {
-            // No spec file - need to run spec_runner.py to create the spec
+            // No spec file - run the spec creation pipeline first
             const taskDescription = task.description || task.title;
             console.warn('[TASK_UPDATE_STATUS] Starting spec creation for:', task.specId);
             agentManager.startSpecCreation(taskId, project.path, taskDescription, specDir, task.metadata, baseBranchForUpdate, project.id);
           } else if (needsImplementation) {
-            // Spec exists but no subtasks - run run.py to create implementation plan and execute
+            // Spec exists but no subtasks - the build orchestrator plans first, then executes
             console.warn('[TASK_UPDATE_STATUS] Starting task execution (no subtasks) for:', task.specId);
             agentManager.startTaskExecution(
               taskId,
@@ -1145,7 +1143,7 @@ export function registerTaskExecutionHandlers(
           }
 
           // Task is not complete - reset only stuck subtasks for retry
-          // Keep completed subtasks as-is so run.py can resume from where it left off
+          // Keep completed subtasks as-is so the build can resume from where it left off
           // Use shared utility to reset stuck subtasks in ALL plan file locations
           let totalResetCount = 0;
           let resetSucceeded = false;
@@ -1180,52 +1178,6 @@ export function registerTaskExecutionHandlers(
           }
 
           console.log(`[Recovery] Total ${totalResetCount} subtask(s) reset across all locations`);
-
-          // Clear attempt_history.json to break infinite recovery loops.
-          // Without this, the backend re-reads stuck markers from attempt_history
-          // and immediately re-stucks the same subtasks after recovery.
-          const specDirsToClean = new Set<string>([specDir]);
-          if (mainSpecDir !== specDir) specDirsToClean.add(mainSpecDir);
-          if (worktreeSpecDir && worktreeSpecDir !== specDir) specDirsToClean.add(worktreeSpecDir);
-
-          for (const dir of specDirsToClean) {
-            const attemptHistoryPath = path.join(dir, 'memory', 'attempt_history.json');
-            const historyContent = safeReadFileSync(attemptHistoryPath);
-            if (!historyContent) continue;
-
-            try {
-              const history = JSON.parse(historyContent);
-
-              // Collect stuck subtask IDs before clearing
-              const stuckIds = new Set<string>(
-                (history.stuck_subtasks || [])
-                  .map((s: { subtask_id?: string }) => s.subtask_id)
-                  .filter((id: string | undefined): id is string => Boolean(id))
-              );
-
-              // Clear stuck_subtasks array
-              history.stuck_subtasks = [];
-
-              // Reset attempt entries for previously-stuck subtasks
-              if (history.subtasks && stuckIds.size > 0) {
-                for (const stuckId of stuckIds) {
-                  if (history.subtasks[stuckId]) {
-                    history.subtasks[stuckId] = { attempts: [], status: 'pending' };
-                  }
-                }
-              }
-
-              history.metadata = {
-                ...history.metadata,
-                last_updated: new Date().toISOString()
-              };
-
-              writeFileAtomicSync(attemptHistoryPath, JSON.stringify(history, null, 2));
-              console.log(`[Recovery] Cleared attempt_history.json at: ${dir} (reset ${stuckIds.size} stuck entries)`);
-            } catch (historyErr) {
-              console.warn(`[Recovery] Could not parse attempt_history at ${dir}:`, historyErr);
-            }
-          }
         }
 
         // Stop file watcher if it was watching this task
@@ -1335,7 +1287,7 @@ export function registerTaskExecutionHandlers(
             const baseBranchForRecovery = task.metadata?.baseBranch || project.settings?.mainBranch;
 
             if (needsSpecCreation) {
-              // No spec file - need to run spec_runner.py to create the spec
+              // No spec file - run the spec creation pipeline first
               const taskDescription = task.description || task.title;
               console.warn(`[Recovery] Starting spec creation for: ${task.specId}`);
               agentManager.startSpecCreation(taskId, project.path, taskDescription, mainSpecDir, task.metadata, baseBranchForRecovery, project.id);

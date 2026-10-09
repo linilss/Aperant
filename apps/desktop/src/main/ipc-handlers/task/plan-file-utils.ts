@@ -18,7 +18,7 @@
  */
 
 import path from 'path';
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, mkdirSync } from 'fs';
 import { AUTO_BUILD_PATHS, getSpecsDir } from '../../../shared/constants';
 import type { TaskStatus, Project, Task } from '../../../shared/types';
 import { projectStore } from '../../project-store';
@@ -686,39 +686,6 @@ export function syncPlanPhasesToMainSync(
     console.warn(`[plan-file-utils] Could not sync phases to ${mainPlanPath}:`, err);
     return false;
   }
-}
-
-/**
- * Write a refined description from AI auto-refine back to implementation_plan.json and spec.md.
- * Called from the main process so it works even when the RefineTaskPanel is closed.
- */
-export function persistRefinedDescription(
-  project: Project,
-  task: Task,
-  refinedDescription: string,
-): void {
-  const specsBaseDir = getSpecsDir(project.autoBuildPath);
-  const specDir = path.join(project.path, specsBaseDir, task.specId);
-
-  // Update implementation_plan.json
-  const planPath = path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN);
-  try {
-    const plan = JSON.parse(readFileSync(planPath, 'utf-8'));
-    plan.description = refinedDescription;
-    plan.updated_at = new Date().toISOString();
-    writeFileAtomicSync(planPath, JSON.stringify(plan, null, 2));
-  } catch { /* plan file may not exist yet */ }
-
-  // Update ## Overview section in spec.md
-  const specPath = path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE);
-  try {
-    let content = readFileSync(specPath, 'utf-8');
-    content = content.replace(
-      /(## Overview\n)([\s\S]*?)((?=\n## )|$)/,
-      `$1${refinedDescription}\n\n$3`,
-    );
-    writeFileSync(specPath, content, 'utf-8');
-  } catch { /* spec.md may not exist */ }
 }
 
 /**

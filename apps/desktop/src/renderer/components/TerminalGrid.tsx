@@ -520,14 +520,14 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
         className="flex h-full flex-col"
         style={viewportMaxHeight !== null ? { maxHeight: viewportMaxHeight } : undefined}
       >
-        {/* Toolbar */}
-        <div className="flex h-10 items-center justify-between border-b border-border bg-card/30 px-3 max-md:h-auto max-md:shrink-0 max-md:gap-2 max-md:px-2 max-md:py-1.5">
+        {/* Toolbar — below md the whole row scrolls horizontally instead of clipping */}
+        <div className="flex h-10 items-center justify-between border-b border-border bg-card/30 px-3 max-md:h-auto max-md:w-full max-md:min-w-0 max-md:shrink-0 max-md:justify-start max-md:gap-2 max-md:overflow-x-auto max-md:px-2 max-md:py-1.5">
           <div className="flex items-center gap-2 max-md:shrink-0">
             <span className="text-xs font-medium text-muted-foreground">
               {terminals.length} / 12 terminals
             </span>
           </div>
-          <div className="flex items-center gap-2 max-md:min-w-0 max-md:overflow-x-auto max-md:*:shrink-0">
+          <div className="flex items-center gap-2 max-md:shrink-0 max-md:*:shrink-0">
             {/* Claude Code CLI status */}
             <ClaudeCodeStatusBadge />
             {/* Session history dropdown */}

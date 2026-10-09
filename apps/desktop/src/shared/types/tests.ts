@@ -28,11 +28,6 @@ export interface TestSolution {
   lastDiscoveredAt?: string;
 }
 
-export interface TestConfig {
-  categories: TestCategory[];
-  excludePatterns?: string[];
-}
-
 export interface TestRunStatus {
   phase: 'idle' | 'discovering' | 'running' | 'complete' | 'error';
   message: string;

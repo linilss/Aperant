@@ -25,8 +25,6 @@ interface SectionRouterProps {
   updateEnvConfig: (updates: Partial<ProjectEnvConfig>) => void;
   showLinearKey: boolean;
   setShowLinearKey: React.Dispatch<React.SetStateAction<boolean>>;
-  showOpenAIKey: boolean;
-  setShowOpenAIKey: React.Dispatch<React.SetStateAction<boolean>>;
   showGitHubToken: boolean;
   setShowGitHubToken: React.Dispatch<React.SetStateAction<boolean>>;
   gitHubConnectionStatus: GitHubSyncStatus | null;
@@ -61,8 +59,6 @@ export function SectionRouter({
   updateEnvConfig,
   showLinearKey,
   setShowLinearKey,
-  showOpenAIKey,
-  setShowOpenAIKey,
   showGitHubToken,
   setShowGitHubToken,
   gitHubConnectionStatus,
@@ -216,8 +212,6 @@ export function SectionRouter({
               settings={settings}
               setSettings={setSettings}
               updateEnvConfig={updateEnvConfig}
-              showOpenAIKey={showOpenAIKey}
-              setShowOpenAIKey={setShowOpenAIKey}
               expanded={true}
               onToggle={() => {}}
             />

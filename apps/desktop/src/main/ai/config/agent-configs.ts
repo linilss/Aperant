@@ -113,7 +113,6 @@ export type AgentType =
   | 'spec_discovery'
   | 'spec_context'
   | 'spec_validation'
-  | 'spec_compaction'
   | 'spec_orchestrator'
   | 'build_orchestrator'
   | 'planner'
@@ -121,23 +120,15 @@ export type AgentType =
   | 'qa_reviewer'
   | 'qa_fixer'
   | 'insights'
-  | 'merge_resolver'
   | 'commit_message'
-  | 'pr_template_filler'
   | 'pr_reviewer'
-  | 'pr_orchestrator_parallel'
-  | 'pr_followup_parallel'
-  | 'pr_followup_extraction'
   | 'pr_finding_validator'
   | 'pr_security_specialist'
   | 'pr_quality_specialist'
   | 'pr_logic_specialist'
   | 'pr_codebase_fit_specialist'
   | 'analysis'
-  | 'batch_analysis'
-  | 'batch_validation'
   | 'roadmap_discovery'
-  | 'competitor_analysis'
   | 'ideation';
 
 /** Configuration for a single agent type */
@@ -207,12 +198,6 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     mcpServers: ['context7'],
     autoClaudeTools: [],
     thinkingDefault: 'high',
-  },
-  spec_compaction: {
-    tools: [...SPEC_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'medium',
   },
 
   /**
@@ -310,20 +295,8 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     autoClaudeTools: [],
     thinkingDefault: 'low',
   },
-  merge_resolver: {
-    tools: [],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
   commit_message: {
     tools: [],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
-  pr_template_filler: {
-    tools: [...ALL_BUILTIN_TOOLS],
     mcpServers: [],
     autoClaudeTools: [],
     thinkingDefault: 'low',
@@ -333,24 +306,6 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     mcpServers: ['context7'],
     autoClaudeTools: [],
     thinkingDefault: 'high',
-  },
-  pr_orchestrator_parallel: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'high',
-  },
-  pr_followup_parallel: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'high',
-  },
-  pr_followup_extraction: {
-    tools: [],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
   },
   pr_finding_validator: {
     tools: [...ALL_BUILTIN_TOOLS],
@@ -392,29 +347,11 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     autoClaudeTools: [],
     thinkingDefault: 'medium',
   },
-  batch_analysis: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
-  batch_validation: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // ROADMAP & IDEATION
   // ═══════════════════════════════════════════════════════════════════════
   roadmap_discovery: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'high',
-  },
-  competitor_analysis: {
     tools: [...ALL_BUILTIN_TOOLS],
     mcpServers: ['context7'],
     autoClaudeTools: [],

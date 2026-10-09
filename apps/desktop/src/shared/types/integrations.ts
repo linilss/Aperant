@@ -331,50 +331,8 @@ export interface GitLabNewCommitsCheck {
 }
 
 // ============================================
-// GitLab Auto-Fix Types
+// GitLab Issue Analysis Preview Types
 // ============================================
-
-export interface GitLabAutoFixConfig {
-  enabled: boolean;
-  labels: string[];
-  requireHumanApproval: boolean;
-  model: string;
-  thinkingLevel: string;
-}
-
-export interface GitLabAutoFixQueueItem {
-  issueIid: number;
-  project: string;
-  status: 'pending' | 'analyzing' | 'creating_spec' | 'building' | 'qa_review' | 'mr_created' | 'completed' | 'failed';
-  specId?: string;
-  mrIid?: number;
-  createdAt: string;
-  updatedAt: string;
-  error?: string;
-}
-
-export interface GitLabIssueBatch {
-  id: string;
-  issues: Array<{ iid: number; title: string; similarity: number }>;
-  commonThemes: string[];
-  confidence: number;
-  reasoning: string;
-}
-
-export interface GitLabBatchProgress {
-  phase: 'analyzing' | 'grouping' | 'complete';
-  progress: number;
-  message: string;
-  issuesAnalyzed?: number;
-  totalIssues?: number;
-}
-
-export interface GitLabAutoFixProgress {
-  phase: 'checking' | 'fetching' | 'analyzing' | 'batching' | 'creating_spec' | 'building' | 'qa_review' | 'creating_mr' | 'complete';
-  issueIid: number;
-  progress: number;
-  message: string;
-}
 
 export interface GitLabAnalyzePreviewProgress {
   message: string;
@@ -427,34 +385,6 @@ export interface GitLabAnalyzePreviewResult {
 }
 
 // ============================================
-// GitLab Triage Types
-// ============================================
-
-export type GitLabTriageCategory = 'bug' | 'feature' | 'documentation' | 'question' | 'duplicate' | 'spam' | 'feature_creep';
-
-export interface GitLabTriageConfig {
-  enabled: boolean;
-  duplicateThreshold: number;
-  spamThreshold: number;
-  featureCreepThreshold: number;
-  enableComments: boolean;
-}
-
-export interface GitLabTriageResult {
-  issueIid: number;
-  category: GitLabTriageCategory;
-  confidence: number;
-  labelsToAdd: string[];
-  labelsToRemove: string[];
-  duplicateOf?: number;
-  spamReason?: string;
-  featureCreepReason?: string;
-  priority: 'high' | 'medium' | 'low';
-  comment?: string;
-  triagedAt: string;
-}
-
-// ============================================
 // Roadmap Integration Types (Canny, etc.)
 // ============================================
 
@@ -500,19 +430,3 @@ export interface RoadmapProviderConfig {
  * Canny-specific status values
  */
 export type CannyStatus = 'open' | 'under review' | 'planned' | 'in progress' | 'complete' | 'closed';
-
-/**
- * MR status update event - sent from main process to renderer
- */
-export interface GitLabMRStatusUpdate {
-  /** Project ID */
-  projectId: string;
-  /** Merge request IID */
-  mrIid: number;
-  /** Current state of the MR */
-  state: string;
-  /** Merge status */
-  mergeStatus: string;
-  /** Last update timestamp */
-  updatedAt: string;
-}

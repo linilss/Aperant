@@ -3003,63 +3003,6 @@ export function registerWorktreeHandlers(
   );
 
   /**
-   * Sync all worktrees for a project with their base branches (excluding a specific task).
-   * Used after merging a task to bring other in-progress worktrees up to date.
-   */
-  ipcMain.handle(
-    IPC_CHANNELS.TASK_WORKTREE_SYNC_ALL,
-    async (_, projectId: string, excludeSpecId: string): Promise<IPCResult<import('../../../shared/types/task').WorktreeSyncAllResult>> => {
-      try {
-        const project = projectStore.getProject(projectId);
-        if (!project) return { success: false, error: 'Project not found' };
-
-        const worktreesDir = getTaskWorktreeDir(project.path);
-        if (!existsSync(worktreesDir)) {
-          return { success: true, data: { results: [], totalSynced: 0, totalFailed: 0 } };
-        }
-
-        const dirs = readdirSync(worktreesDir, { withFileTypes: true })
-          .filter(d => d.isDirectory() && d.name !== excludeSpecId);
-
-        const results: import('../../../shared/types/task').WorktreeSyncResult[] = [];
-        const mainWindow = getMainWindow();
-
-        for (let i = 0; i < dirs.length; i++) {
-          const dir = dirs[i];
-          const wtPath = path.join(worktreesDir, dir.name);
-
-          // Emit progress
-          if (mainWindow) {
-            mainWindow.webContents.send(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS,
-              { specId: dir.name, status: 'syncing', index: i, total: dirs.length });
-          }
-
-          if (!isGitWorkTree(wtPath)) {
-            results.push({ specId: dir.name, success: false, message: 'Not a valid worktree', hadConflicts: false });
-            continue;
-          }
-
-          const baseBranch = getEffectiveBaseBranch(project.path, dir.name, project.settings?.mainBranch);
-          const result = await syncWorktreeWithBase(wtPath, baseBranch, project.path);
-          results.push({ specId: dir.name, ...result });
-
-          // Emit completion for this worktree
-          if (mainWindow) {
-            mainWindow.webContents.send(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS,
-              { specId: dir.name, status: result.success ? 'done' : 'failed', index: i, total: dirs.length });
-          }
-        }
-
-        const totalSynced = results.filter(r => r.success).length;
-        const totalFailed = results.filter(r => !r.success).length;
-        return { success: true, data: { results, totalSynced, totalFailed } };
-      } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Sync all failed' };
-      }
-    }
-  );
-
-  /**
    * Reset a task: delete its worktree/branch and move it back to backlog.
    * Lets the user start the task from scratch without losing the spec.
    */
@@ -3259,7 +3202,7 @@ export function registerWorktreeHandlers(
    *
    * Note: Uses the shared cleanupWorktree utility which handles Windows-specific issues
    * where `git worktree remove --force` fails when the directory contains untracked files.
-   * See: https://github.com/AndyMik90/Auto-Claude/issues/1539
+   * See upstream issue #1539.
    */
   ipcMain.handle(
     IPC_CHANNELS.TASK_WORKTREE_DISCARD,

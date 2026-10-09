@@ -1,4 +1,4 @@
-# Contributing to Auto Claude UI
+# Contributing to the Malvy desktop app
 
 Thank you for your interest in contributing! This document provides guidelines for contributing to the frontend application.
 
@@ -12,8 +12,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ```bash
 # Clone the repository
-git clone https://github.com/AndyMik90/Auto-Claude.git
-cd Auto-Claude/apps/desktop
+git clone https://github.com/linilss/Aperant.git
+cd Aperant/apps/desktop
 
 # Install dependencies
 npm install

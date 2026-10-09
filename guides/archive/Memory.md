@@ -1,3 +1,5 @@
+> **Status:** Partly implemented — see apps/desktop/src/main/ai/CLAUDE.md
+
 # Memory System V5 — Definitive Architecture
 
 > Built on: V4 Draft + Hackathon Teams 1–5 + Infrastructure Research (Turso/Convex/Retrieval Pipeline)

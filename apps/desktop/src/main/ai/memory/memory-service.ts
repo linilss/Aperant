@@ -19,7 +19,6 @@ import type {
 } from './types';
 import type { EmbeddingService } from './embedding-service';
 import { buildMemoryContextualText } from './embedding-service';
-import { searchBM25 } from './retrieval/bm25-search';
 import type { RetrievalPipeline } from './retrieval/pipeline';
 
 // ============================================================
@@ -279,30 +278,6 @@ export class MemoryServiceImpl implements MemoryService {
   }
 
   /**
-   * Quick BM25-only pattern search.
-   * Returns the single best match or null.
-   * Used for fast lookups (e.g., StepInjectionDecider).
-   */
-  async searchByPattern(pattern: string): Promise<Memory | null> {
-    try {
-      const results = await searchBM25(this.db, pattern, '', 1);
-      if (results.length === 0) return null;
-
-      const memoryId = results[0].memoryId;
-      const row = await this.db.execute({
-        sql: 'SELECT * FROM memories WHERE id = ? AND deprecated = 0',
-        args: [memoryId],
-      });
-
-      if (row.rows.length === 0) return null;
-      return rowToMemory(row.rows[0] as Record<string, unknown>);
-    } catch (error) {
-      console.error('[MemoryService] searchByPattern failed:', error);
-      return null;
-    }
-  }
-
-  /**
    * Convenience method for /remember command and Teach panel.
    * Stores a user-taught preference with full confidence.
    */
@@ -316,31 +291,6 @@ export class MemoryServiceImpl implements MemoryService {
       confidence: 1.0,
       scope: 'global',
     });
-  }
-
-  /**
-   * Search for workflow_recipe memories matching a task description.
-   * Uses the retrieval pipeline with a type filter applied post-search.
-   */
-  async searchWorkflowRecipe(
-    taskDescription: string,
-    opts?: { limit?: number },
-  ): Promise<Memory[]> {
-    try {
-      const limit = opts?.limit ?? 5;
-      const result = await this.retrievalPipeline.search(taskDescription, {
-        phase: 'implement',
-        projectId: '',
-        maxResults: limit * 3, // Fetch extra to allow for type filtering
-      });
-
-      // Filter to workflow_recipe type
-      const recipes = result.memories.filter((m) => m.type === 'workflow_recipe');
-      return recipes.slice(0, limit);
-    } catch (error) {
-      console.error('[MemoryService] searchWorkflowRecipe failed:', error);
-      return [];
-    }
   }
 
   /**

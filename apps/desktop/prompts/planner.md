@@ -500,14 +500,6 @@ For high or critical risk, add security steps:
 {
   "verification_steps": [
     {
-      "name": "Secrets Scan",
-      "command": "python malvy/scan_secrets.py --all-files --json",
-      "expected_outcome": "No secrets detected",
-      "type": "security",
-      "required": true,
-      "blocking": true
-    },
-    {
       "name": "SAST Scan (Python)",
       "command": "bandit -r src/ -f json",
       "expected_outcome": "No high severity issues",
@@ -572,8 +564,7 @@ Include parallelism analysis, verification strategy, and QA configuration in the
       ],
       "recommended_workers": 2,
       "speedup_estimate": "1.5x faster than sequential"
-    },
-    "startup_command": "source malvy/.venv/bin/activate && python malvy/run.py --spec 001 --parallel 2"
+    }
   },
   "verification_strategy": {
     "risk_level": "medium",
@@ -785,14 +776,10 @@ Parallelism Analysis:
 - Recommended workers: [N]
 - Parallel groups: [List phases that can run together]
 
-=== STARTUP COMMAND ===
+=== NEXT STEP ===
 
-To continue building this spec, run:
-
-  source malvy/.venv/bin/activate && python malvy/run.py --spec [SPEC_NUMBER] --parallel [RECOMMENDED_WORKERS]
-
-Example:
-  source malvy/.venv/bin/activate && python malvy/run.py --spec 001 --parallel 2
+The Malvy app starts the coding phase from this plan (automatically, or when
+the user approves the plan on the task card). No command needs to be run.
 
 === END SESSION 1 ===
 ```

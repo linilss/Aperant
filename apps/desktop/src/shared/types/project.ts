@@ -212,40 +212,6 @@ export interface MemoryConnectionTestResult {
 // Note: LLM provider removed - Claude SDK handles RAG queries
 export type MemoryEmbeddingProvider = 'openai' | 'voyage' | 'azure_openai' | 'ollama' | 'google' | 'openrouter';
 
-export interface MemoryProviderConfig {
-  // Embedding Provider (LLM provider removed - Claude SDK handles RAG)
-  embeddingProvider: MemoryEmbeddingProvider;
-  embeddingModel?: string;  // Embedding model, uses provider default if not specified
-
-  // OpenAI Embeddings
-  openaiApiKey?: string;
-  openaiEmbeddingModel?: string;
-
-  // Azure OpenAI Embeddings
-  azureOpenaiApiKey?: string;
-  azureOpenaiBaseUrl?: string;
-  azureOpenaiEmbeddingDeployment?: string;
-
-  // Voyage AI Embeddings
-  voyageApiKey?: string;
-  voyageEmbeddingModel?: string;
-
-  // Google AI Embeddings
-  googleApiKey?: string;
-  googleEmbeddingModel?: string;
-
-  // OpenRouter (multi-provider aggregator)
-  openrouterApiKey?: string;
-  openrouterBaseUrl?: string;  // Default: https://openrouter.ai/api/v1
-  openrouterLlmModel?: string;  // LLM model selection (e.g., 'anthropic/claude-sonnet-5.5')
-  openrouterEmbeddingModel?: string;
-
-  // Ollama Embeddings (local, no API key required)
-  ollamaBaseUrl?: string;  // Default: http://localhost:11434
-  ollamaEmbeddingModel?: string;
-  ollamaEmbeddingDim?: number;
-}
-
 export interface MemoryProviderInfo {
   id: string;
   name: string;
@@ -358,11 +324,6 @@ export interface ProjectEnvConfig {
 
   // Built-in agent memory (libSQL). Project override of the app-wide memoryEnabled setting.
   memoryEnabled: boolean;
-  memoryProviderConfig?: MemoryProviderConfig;  // Provider configuration
-  // Legacy fields (still supported for backward compatibility)
-  openaiApiKey?: string;
-  // Indicates if the OpenAI key is from global settings (not project-specific)
-  openaiKeyIsGlobal?: boolean;
 
   // MCP Server Configuration (per-project overrides)
   mcpServers?: {

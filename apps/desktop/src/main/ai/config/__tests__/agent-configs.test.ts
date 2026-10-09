@@ -14,7 +14,7 @@ import {
 } from '../agent-configs';
 
 // =============================================================================
-// All Agent Types (26 total)
+// All Agent Types
 // =============================================================================
 
 const ALL_AGENT_TYPES: AgentType[] = [
@@ -25,31 +25,22 @@ const ALL_AGENT_TYPES: AgentType[] = [
   'spec_discovery',
   'spec_context',
   'spec_validation',
-  'spec_compaction',
   'planner',
   'coder',
   'qa_reviewer',
   'qa_fixer',
   'insights',
-  'merge_resolver',
   'commit_message',
-  'pr_template_filler',
   'pr_reviewer',
-  'pr_orchestrator_parallel',
-  'pr_followup_parallel',
-  'pr_followup_extraction',
   'pr_finding_validator',
   'analysis',
-  'batch_analysis',
-  'batch_validation',
   'roadmap_discovery',
-  'competitor_analysis',
   'ideation',
 ];
 
 describe('AGENT_CONFIGS', () => {
   it('should have all expected agent types configured', () => {
-    expect(Object.keys(AGENT_CONFIGS).length).toBeGreaterThanOrEqual(26);
+    expect(Object.keys(AGENT_CONFIGS).length).toBeGreaterThanOrEqual(ALL_AGENT_TYPES.length);
   });
 
   it('should contain all expected agent types', () => {
@@ -111,8 +102,8 @@ describe('AGENT_CONFIGS', () => {
     expect(config.mcpServers).toContain('context7');
   });
 
-  it('should configure merge_resolver with no tools', () => {
-    const config = AGENT_CONFIGS.merge_resolver;
+  it('should configure commit_message with no tools', () => {
+    const config = AGENT_CONFIGS.commit_message;
     expect(config.tools).toHaveLength(0);
     expect(config.mcpServers).toHaveLength(0);
   });
@@ -221,7 +212,7 @@ describe('getRequiredMcpServers', () => {
   });
 
   it('should return empty array for agents with no MCP', () => {
-    const servers = getRequiredMcpServers('merge_resolver');
+    const servers = getRequiredMcpServers('commit_message');
     expect(servers).toEqual([]);
   });
 

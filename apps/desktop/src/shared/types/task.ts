@@ -550,12 +550,6 @@ export interface WorktreeSyncResult {
   hadConflicts: boolean;
 }
 
-export interface WorktreeSyncAllResult {
-  results: WorktreeSyncResult[];
-  totalSynced: number;
-  totalFailed: number;
-}
-
 // Stuck task recovery types
 export interface StuckTaskInfo {
   taskId: string;

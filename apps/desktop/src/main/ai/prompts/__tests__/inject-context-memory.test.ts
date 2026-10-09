@@ -40,3 +40,24 @@ describe('injectContext — project memory', () => {
     }
   });
 });
+
+describe('injectContext — human input', () => {
+  it('adds HUMAN_INPUT.md content before project instructions and the base prompt', () => {
+    const prompt = injectContext(base, {
+      specDir: '',
+      projectDir: '/p',
+      projectInstructions: 'Team rules',
+      humanInput: 'Skip the migration subtask.',
+    });
+
+    const human = prompt.indexOf('## HUMAN INPUT (READ THIS FIRST!)');
+    expect(human).toBeGreaterThanOrEqual(0);
+    expect(prompt.indexOf('Skip the migration subtask.')).toBeGreaterThan(human);
+    expect(prompt.indexOf('## PROJECT INSTRUCTIONS')).toBeGreaterThan(human);
+    expect(prompt.indexOf('# PLANNER PROMPT')).toBeGreaterThan(human);
+  });
+
+  it('omits the section when there is no human input', () => {
+    expect(injectContext(base, { specDir: '', projectDir: '/p', humanInput: null })).toBe(base);
+  });
+});

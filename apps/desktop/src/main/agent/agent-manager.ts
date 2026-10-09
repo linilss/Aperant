@@ -384,8 +384,9 @@ export class AgentManager extends EventEmitter {
       specModelId = resolveModelId(specModelShorthand);
     }
 
-    // Load system prompt from prompts directory
-    const systemPrompt = this.loadPrompt('spec_orchestrator') ?? this.buildDefaultSpecPrompt(taskDescription, specDir);
+    // Load system prompt from prompts directory (the worker's spec orchestrators
+    // assemble their own per-phase prompts; this is the single-session fallback)
+    const systemPrompt = this.loadPrompt('spec_orchestrator_agentic') ?? this.buildDefaultSpecPrompt(taskDescription, specDir);
 
     // Resolve auth from provider accounts priority queue (falls back to legacy profile)
     const resolved = await this.resolveAuthFromProviderQueue(specModelId, preferredProvider);

@@ -2,13 +2,13 @@
 
 Malvy (formerly Auto Claude) is an autonomous multi-agent coding framework — a TypeScript Electron desktop app with a self-contained AI agent layer (Vercel AI SDK v6). Users describe a goal and AI agents handle planning, implementation, and QA in isolated git worktrees.
 
-> **Deep-dive:** [ARCHITECTURE.md](shared_docs/ARCHITECTURE.md) | **Frontend:** [apps/desktop/CONTRIBUTING.md](apps/desktop/CONTRIBUTING.md)
+> **Deep-dive:** [src/main/CLAUDE.md](apps/desktop/src/main/CLAUDE.md) | [src/main/ai/CLAUDE.md](apps/desktop/src/main/ai/CLAUDE.md) | **Frontend:** [apps/desktop/CONTRIBUTING.md](apps/desktop/CONTRIBUTING.md)
 
 ## Critical Rules
 
 **Vercel AI SDK only** — All AI interactions use `ai` package via `apps/desktop/src/main/ai/`. NEVER use `@anthropic-ai/sdk` directly. Use `createProvider()` and `streamText()`/`generateText()`.
 
-**i18n required** — All frontend text uses `react-i18next`. Hardcoded strings break localization. Add keys to `en/*.json` (English is the only locale).
+**i18n required** — All frontend text uses `react-i18next`. Hardcoded strings break localization. Add keys to `en/*.json` only — English is the only locale; don't add other languages.
 
 **Platform abstraction** — Never use `process.platform` directly. Import from `apps/desktop/src/main/platform/`.
 
@@ -41,7 +41,7 @@ Context auto-compacts — don't stop tasks early. Use git commits and task lists
 
 **Electron path resolution** — Check `app.isPackaged` and `process.resourcesPath` differences between dev and production builds.
 
-**Resetting PR Review State** — Clear `.auto-claude/github/`: `rm pr/logs_*.json pr/review_*.json`, reset `pr/index.json` to `{"reviews": [], "last_updated": null}`, reset `bot_detection_state.json` to `{"reviewed_commits": {}}`.
+**Resetting PR Review State** — In the project's `.malvy/github/`: `rm pr/logs_*.json pr/review_*.json`.
 
 ## Project Structure
 

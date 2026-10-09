@@ -500,8 +500,8 @@ Update `implementation_plan.json`:
 - Large subtasks that can be logically divided
 
 **How to spawn subagents:**
+Coder sessions run in the Claude Code CLI, so use its subagent tool (`Agent`; called `Task` in older CLI versions):
 ```
-Use the Task tool to spawn a subagent:
 "Implement the database schema changes in models.py"
 "Research how authentication is handled in the existing codebase"
 "Run tests for the API endpoints while I work on the frontend"
@@ -854,9 +854,6 @@ These are internal tracking files that must stay local.
 
 **IMPORTANT**: Do NOT run `git push`. All work stays local until the user reviews and approves.
 The user will push to remote after reviewing your changes in the isolated workspace.
-
-**Note**: Memory files (attempt_history.json, build_commits.json) are automatically
-updated by the orchestrator after each session. You don't need to update them manually.
 
 ---
 

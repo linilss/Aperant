@@ -1,6 +1,6 @@
 /**
  * Azure DevOps repository handlers
- * Handles connection status, project discovery, repo detection, and branch listing
+ * Handles connection status, repo detection, and branch listing
  */
 
 import { ipcMain } from 'electron';
@@ -108,47 +108,6 @@ export function registerCheckConnection(): void {
             connected: false,
             error: errorMessage
           }
-        };
-      }
-    }
-  );
-}
-
-/**
- * List accessible projects at the org level
- */
-export function registerGetProjects(): void {
-  ipcMain.handle(
-    IPC_CHANNELS.AZURE_DEVOPS_GET_PROJECTS,
-    async (_event, projectId: string): Promise<IPCResult<ADOAPIProject[]>> => {
-      debugLog('getProjects handler called');
-
-      const project = projectStore.getProject(projectId);
-      if (!project) {
-        return { success: false, error: 'Project not found' };
-      }
-
-      const config = await getAzureDevOpsConfig(project);
-      if (!config) {
-        return { success: false, error: 'Azure DevOps not configured' };
-      }
-
-      try {
-        // Org-level projects endpoint — no project prefix in URL
-        const response = await adoOrgFetch(
-          config,
-          '/projects'
-        ) as { value: ADOAPIProject[]; count: number };
-
-        const projects = Array.isArray(response?.value) ? response.value : [];
-        debugLog('Found projects:', projects.length);
-
-        return { success: true, data: projects };
-      } catch (error) {
-        debugLog('Failed to get projects:', error instanceof Error ? error.message : error);
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Failed to get projects'
         };
       }
     }
@@ -265,7 +224,6 @@ export function registerGetBranches(): void {
 export function registerRepositoryHandlers(): void {
   debugLog('Registering Azure DevOps repository handlers');
   registerCheckConnection();
-  registerGetProjects();
   registerDetectRepo();
   registerGetBranches();
   debugLog('Azure DevOps repository handlers registered');

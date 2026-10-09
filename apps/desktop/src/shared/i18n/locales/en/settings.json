@@ -412,8 +412,8 @@
       "enableLabel": "Enable Memory",
       "enableDescription": "Agents get relevant notes from earlier tasks in this project and save what they learn for you to review in Context → Memories. Overrides the app-wide setting.",
       "disabledNote": "Agents in this project start without project memory and don't save new memories. Pointers and memories already saved stay in Context → Memories.",
-      "embeddingProviderLabel": "Embedding Provider",
-      "embeddingProviderDescription": "Provider for semantic search (optional - keyword search works without)"
+      "enabledBadge": "Enabled",
+      "disabledBadge": "Disabled"
     }
   },
   "agentProfile": {

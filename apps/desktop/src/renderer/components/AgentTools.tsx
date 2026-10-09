@@ -203,14 +203,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     mcp_servers: [],
     settingsSource: { type: 'feature', feature: 'utility' },
   },
-  merge_resolver: {
-    label: 'Merge Resolver',
-    description: 'Resolves merge conflicts',
-    category: 'utility',
-    tools: [],
-    mcp_servers: [],
-    settingsSource: { type: 'feature', feature: 'utility' },
-  },
   insights: {
     label: 'Insights',
     description: 'Extracts code insights',
@@ -227,15 +219,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     mcp_servers: ['context7'],
     // Analysis uses same as insights
     settingsSource: { type: 'feature', feature: 'insights' },
-  },
-  batch_analysis: {
-    label: 'Batch Analysis',
-    description: 'Batch processing of issues or items',
-    category: 'utility',
-    tools: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'],
-    mcp_servers: [],
-    // Batch uses same as GitHub Issues
-    settingsSource: { type: 'feature', feature: 'githubIssues' },
   },
 
   // Ideation & Roadmap - use feature settings
@@ -254,14 +237,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     tools: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'],
     mcp_servers: ['context7'],
     settingsSource: { type: 'feature', feature: 'roadmap' },
-  },
-  pr_template_filler: {
-    label: 'PR Template Filler',
-    description: 'Generates AI-powered PR descriptions from templates',
-    category: 'utility',
-    tools: ['Read', 'Glob', 'Grep'],
-    mcp_servers: [],
-    settingsSource: { type: 'feature', feature: 'utility' },
   },
 };
 

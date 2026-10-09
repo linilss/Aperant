@@ -68,8 +68,6 @@ export interface TaskAPI {
   postMergePush: (taskId: string, targetBranch: string) => Promise<IPCResult<{ pushed: boolean }>>;
   postMergeCleanup: (taskId: string) => Promise<IPCResult<{ cleaned: boolean }>>;
   syncWorktree: (taskId: string, targetBranch?: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>>;
-  syncAllWorktrees: (projectId: string, excludeSpecId: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncAllResult>>;
-  onWorktreeSyncProgress: (callback: (progress: { specId: string; status: string; index: number; total: number }) => void) => () => void;
   resetTask: (taskId: string) => Promise<IPCResult<{ reset: boolean }>>;
   discardWorktree: (taskId: string, skipStatusChange?: boolean) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
   discardOrphanedWorktree: (projectId: string, specName: string) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
@@ -108,14 +106,7 @@ export interface TaskAPI {
   // Merge Progress Events
   onMergeProgress: (callback: (taskId: string, progress: MergeProgress) => void) => () => void;
 
-  // Task Refine (grill-me AI session)
-  taskRefineStart: (taskId: string, autoMode?: boolean) => void;
-  taskRefineSend: (taskId: string, message: string) => void;
-  taskRefineStop: (taskId: string) => void;
-  onTaskRefineChunk: (callback: (taskId: string, chunk: string) => void) => () => void;
-  onTaskRefineToolUse: (callback: (taskId: string, toolName: string) => void) => () => void;
-  onTaskRefineComplete: (callback: (taskId: string, refinedDescription?: string) => void) => () => void;
-  onTaskRefineError: (callback: (taskId: string, error: string) => void) => () => void;
+  // Task Refine: refined description written to the task
   onTaskRefineApplied: (callback: (taskId: string, projectId: string) => void) => () => void;
 
   // Task Refine Terminal (mega-groom pipeline)
@@ -213,21 +204,6 @@ export const createTaskAPI = (): TaskAPI => ({
 
   syncWorktree: (taskId: string, targetBranch?: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC, taskId, targetBranch),
-
-  syncAllWorktrees: (projectId: string, excludeSpecId: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncAllResult>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC_ALL, projectId, excludeSpecId),
-
-  onWorktreeSyncProgress: (
-    callback: (progress: { specId: string; status: string; index: number; total: number }) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { specId: string; status: string; index: number; total: number }): void => {
-      callback(progress);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS, handler);
-    return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.TASK_WORKTREE_SYNC_PROGRESS, handler);
-    };
-  },
 
   resetTask: (taskId: string): Promise<IPCResult<{ reset: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_RESET, taskId),
@@ -448,56 +424,7 @@ export const createTaskAPI = (): TaskAPI => ({
     };
   },
 
-  // Task Refine (grill-me AI session)
-  taskRefineStart: (taskId: string, autoMode?: boolean): void =>
-    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_START, taskId, autoMode),
-
-  taskRefineSend: (taskId: string, message: string): void =>
-    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_SEND, taskId, message),
-
-  taskRefineStop: (taskId: string): void =>
-    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_STOP, taskId),
-
-  onTaskRefineChunk: (
-    callback: (taskId: string, chunk: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, chunk: string): void => {
-      callback(taskId, chunk);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_CHUNK, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_CHUNK, handler); };
-  },
-
-  onTaskRefineToolUse: (
-    callback: (taskId: string, toolName: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, toolName: string): void => {
-      callback(taskId, toolName);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_TOOL_USE, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_TOOL_USE, handler); };
-  },
-
-  onTaskRefineComplete: (
-    callback: (taskId: string, refinedDescription?: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, refinedDescription?: string): void => {
-      callback(taskId, refinedDescription);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_COMPLETE, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_COMPLETE, handler); };
-  },
-
-  onTaskRefineError: (
-    callback: (taskId: string, error: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, error: string): void => {
-      callback(taskId, error);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_ERROR, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_ERROR, handler); };
-  },
-
+  // Task Refine: refined description written to the task
   onTaskRefineApplied: (callback) => {
     const handler = (_: unknown, taskId: string, projectId: string) => callback(taskId, projectId);
     ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);

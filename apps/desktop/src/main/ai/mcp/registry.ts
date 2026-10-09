@@ -3,7 +3,6 @@
  * ====================
  *
  * Defines MCP server configurations for all supported integrations.
- * See apps/desktop/src/main/ai/mcp/registry.ts for the TypeScript implementation.
  *
  * Each server config defines how to connect (stdio or StreamableHTTP),
  * and whether it's enabled by default.
@@ -85,14 +84,14 @@ const PUPPETEER_SERVER: McpServerConfig = {
 };
 
 /**
- * Auto-Claude MCP server - custom build management tools.
+ * Malvy MCP server - custom build management tools.
  * Used by planner, coder, and QA agents for build progress tracking.
  *
  * Returns null when the server script doesn't exist (dev mode, or not yet built).
  * In that case the equivalent TypeScript tools registered directly in buildToolRegistry()
- * are used instead — the agent still has full access to all auto-claude tools.
+ * are used instead — the agent still has full access to all malvy build tools.
  */
-function createAutoClaudeServer(specDir: string): McpServerConfig | null {
+function createMalvyServer(specDir: string): McpServerConfig | null {
   // In dev mode this file isn't built yet; tools are provided via build-registry.ts instead.
   const serverScript = join(__dirname, 'malvy-mcp-server.js');
   if (!existsSync(serverScript)) {
@@ -118,7 +117,7 @@ function createAutoClaudeServer(specDir: string): McpServerConfig | null {
 
 /** Options for resolving MCP server configurations */
 export interface McpRegistryOptions {
-  /** Spec directory for auto-claude MCP server */
+  /** Spec directory for the malvy MCP server */
   specDir?: string;
   /** Linear API key (if available) */
   linearApiKey?: string;
@@ -163,7 +162,7 @@ export function getMcpServerConfig(
 
     case 'malvy': {
       const specDir = options.specDir ?? '';
-      return createAutoClaudeServer(specDir);
+      return createMalvyServer(specDir);
     }
 
     default:

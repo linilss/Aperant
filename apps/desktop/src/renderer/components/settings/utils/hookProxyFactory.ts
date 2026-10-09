@@ -30,8 +30,6 @@ export function createHookProxy(
     get setShowClaudeToken() { return hookRef.current.setShowClaudeToken; },
     get showLinearKey() { return hookRef.current.showLinearKey; },
     get setShowLinearKey() { return hookRef.current.setShowLinearKey; },
-    get showOpenAIKey() { return hookRef.current.showOpenAIKey; },
-    get setShowOpenAIKey() { return hookRef.current.setShowOpenAIKey; },
     get showGitHubToken() { return hookRef.current.showGitHubToken; },
     get setShowGitHubToken() { return hookRef.current.setShowGitHubToken; },
     get expandedSections() { return hookRef.current.expandedSections; },

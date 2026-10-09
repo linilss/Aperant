@@ -74,7 +74,7 @@ describe('tool constants', () => {
 
 describe('AGENT_CONFIGS (registry)', () => {
   it('should have all expected agent types', () => {
-    expect(Object.keys(AGENT_CONFIGS).length).toBeGreaterThanOrEqual(26);
+    expect(Object.keys(AGENT_CONFIGS).length).toBeGreaterThanOrEqual(24);
   });
 
   it('should match tool assignments between config and registry', () => {
@@ -158,11 +158,11 @@ describe('ToolRegistry', () => {
 
   it('should return empty record for agents with no tools', () => {
     const registry = new ToolRegistry();
-    // Register tools but merge_resolver has no tools
+    // Register tools but commit_message has no tools
     registry.registerTool('Read', createMockDefinedTool('Read'));
 
     const context = createMockContext();
-    const tools = registry.getToolsForAgent('merge_resolver', context);
+    const tools = registry.getToolsForAgent('commit_message', context);
     expect(Object.keys(tools)).toHaveLength(0);
   });
 });

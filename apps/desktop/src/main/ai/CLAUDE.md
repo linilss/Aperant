@@ -7,10 +7,10 @@ All AI agent logic uses the Vercel AI SDK v6 (`ai` package). Never use `@anthrop
 - **Provider Layer** (`providers/`) — Multi-provider via `createProviderRegistry()`. Supports Anthropic, OpenAI, Google, Bedrock, Azure, Mistral, Groq, xAI, Ollama. Provider-specific transforms handle thinking token normalization and prompt caching.
 - **Session Runtime** (`session/`) — `runAgentSession()` uses `streamText()` with `stopWhen: stepCountIs(N)`. Error classification (429/401/400), progress tracking.
 - **Worker Threads** (`agent/`) — Sessions run in `worker_threads` to avoid blocking main process. `WorkerBridge` relays events to `AgentManagerEvents`.
-- **Build Orchestration** (`orchestration/`) — Planner → coder → QA pipeline. Parallel subagent execution via `Promise.allSettled()`. `RefineOrchestrator` handles the mega-groom pipeline.
+- **Build Orchestration** (`orchestration/`) — Planner → coder → QA pipeline (build/QA/spec sessions run through the `claude` CLI). `SpawnSubagent` for orchestrator agents (SDK path). `RefineOrchestrator` handles the mega-groom pipeline. A spec dir's `HUMAN_INPUT.md` is injected into every prompt.
 - **Tools** (`tools/`) — 8 builtin tools (Read, Write, Edit, Bash, Glob, Grep, WebFetch, WebSearch) defined with Zod schemas via `tool()`.
 - **Security** (`security/`) — Bash validator, command parser, path containment with identical allowlist behavior.
-- **Config** (`config/`) — `AGENT_CONFIGS` registry (25+ agent types), phase-aware model resolution, thinking budgets.
+- **Config** (`config/`) — `AGENT_CONFIGS` registry (24 agent types), phase-aware model resolution, thinking budgets.
 
 ## Key Patterns
 
@@ -34,7 +34,7 @@ const result = streamText({
 | Prompt | Purpose |
 |--------|---------|
 | planner.md | Implementation plan with subtasks |
-| coder.md / coder_recovery.md | Subtask implementation / recovery |
+| coder.md | Subtask implementation |
 | qa_reviewer.md / qa_fixer.md | Acceptance validation / issue fixes |
 | spec_gatherer/researcher/writer/critic.md | Spec creation pipeline |
 | refine/ | Mega-groom pipeline (understand, prd, grill, plan, proofread) |

@@ -3,7 +3,7 @@
  * =============
  *
  * Loads .md prompt files from the bundled prompts directory and performs
- * dynamic context injection. Mirrors apps/desktop/prompts_pkg/prompts.py.
+ * dynamic context injection.
  *
  * Path resolution:
  * - Dev:        apps/desktop/prompts/ (relative to project root via __dirname traversal)
@@ -14,7 +14,7 @@ import { readFileSync, existsSync, readFile as readFileAsync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 
-import type { ProjectCapabilities, PromptContext, PromptValidationResult } from './types';
+import type { ProjectCapabilities, PromptContext } from './types';
 import {
   findClaudeDocs,
   MALVY_DOCS_DIR,
@@ -22,25 +22,6 @@ import {
   resolveMalvyRoot,
   stripPointersTitle,
 } from '../../claude-docs';
-
-// =============================================================================
-// Expected prompt files (used for startup validation)
-// =============================================================================
-
-const EXPECTED_PROMPT_FILES = [
-  'planner.md',
-  'coder.md',
-  'coder_recovery.md',
-  'followup_planner.md',
-  'qa_reviewer.md',
-  'qa_fixer.md',
-  'spec_gatherer.md',
-  'spec_researcher.md',
-  'spec_writer.md',
-  'spec_critic.md',
-  'complexity_assessor.md',
-  'validation_fixer.md',
-] as const;
 
 // =============================================================================
 // Path Resolution
@@ -274,8 +255,7 @@ export const PROJECT_MEMORY_HEADING = '## PROJECT MEMORY (from previous work —
  * - SPEC LOCATION header with file paths
  * - CLAUDE.md injection if provided
  * - Project memory (built-in memory system) if provided
- * - Human input injection
- * - Recovery context injection
+ * - Human input (HUMAN_INPUT.md) injection
  *
  * @param promptTemplate - Base prompt content from .md file
  * @param context - Dynamic context to inject
@@ -290,12 +270,7 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     sections.push(specContext);
   }
 
-  // 2. Recovery context (before human input)
-  if (context.recoveryContext) {
-    sections.push(context.recoveryContext);
-  }
-
-  // 3. Human input
+  // 2. Human input
   if (context.humanInput) {
     sections.push(
       `## HUMAN INPUT (READ THIS FIRST!)\n\n` +
@@ -306,7 +281,7 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 4. Project instructions (AGENTS.md or CLAUDE.md fallback)
+  // 3. Project instructions (AGENTS.md or CLAUDE.md fallback)
   if (context.projectInstructions) {
     sections.push(
       `## PROJECT INSTRUCTIONS\n\n` +
@@ -315,7 +290,7 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 5. Project memory (learned from previous tasks)
+  // 4. Project memory (learned from previous tasks)
   if (context.memoryContext) {
     sections.push(
       `${PROJECT_MEMORY_HEADING}\n\n` +
@@ -326,7 +301,7 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 6. Base prompt
+  // 5. Base prompt
   sections.push(promptTemplate);
 
   return sections.join('');
@@ -589,31 +564,4 @@ export function detectProjectCapabilities(projectIndex: Record<string, unknown>)
   }
 
   return capabilities;
-}
-
-// =============================================================================
-// Startup Validation
-// =============================================================================
-
-/**
- * Validate that all expected prompt files exist at startup.
- *
- * @returns Validation result with missing files and resolved directory
- */
-export function validatePromptFiles(): PromptValidationResult {
-  const promptsDir = resolvePromptsDir();
-  const missingFiles: string[] = [];
-
-  for (const filename of EXPECTED_PROMPT_FILES) {
-    const fullPath = join(promptsDir, filename);
-    if (!existsSync(fullPath)) {
-      missingFiles.push(filename);
-    }
-  }
-
-  return {
-    valid: missingFiles.length === 0,
-    missingFiles,
-    promptsDir,
-  };
 }
