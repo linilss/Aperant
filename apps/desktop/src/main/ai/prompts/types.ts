@@ -18,6 +18,8 @@ export interface PromptContext {
   projectDir: string;
   /** Project instructions from AGENTS.md (preferred) or CLAUDE.md (fallback) */
   projectInstructions?: string | null;
+  /** Relevant project memories (built in the main process), injected after project instructions */
+  memoryContext?: string | null;
   /** Base branch name for git comparisons (e.g., "main", "develop") */
   baseBranch?: string;
   /** Human input from HUMAN_INPUT.md (for coder prompts) */

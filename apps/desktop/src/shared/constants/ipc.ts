@@ -537,7 +537,7 @@ export const IPC_CHANNELS = {
   OLLAMA_PULL_MODEL: 'ollama:pullModel',
   OLLAMA_PULL_PROGRESS: 'ollama:pullProgress',
 
-  // Memory Infrastructure operations (LadybugDB - libSQL)
+  // Memory Infrastructure operations (built-in memory, libSQL)
   INFRASTRUCTURE_GET_STATUS: 'infrastructure:getStatus',
   INFRASTRUCTURE_LIST_DATABASES: 'infrastructure:listDatabases',
   INFRASTRUCTURE_TEST_CONNECTION: 'infrastructure:testConnection',

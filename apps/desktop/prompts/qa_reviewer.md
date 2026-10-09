@@ -42,6 +42,8 @@ git diff {{BASE_BRANCH}}...HEAD --name-status
 grep -A 100 "## QA Acceptance Criteria" spec.md
 ```
 
+**Project memory:** if your system prompt has a `## PROJECT MEMORY` section, it lists notes learned from earlier tasks in this project (gotchas, patterns, decisions). Use them to target known failure modes, check them against the current code before relying on them, and treat `[unverified]` items with extra care.
+
 ---
 
 ## PHASE 1: VERIFY ALL SUBTASKS COMPLETED

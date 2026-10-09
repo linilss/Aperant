@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest';
+import { PROJECT_MEMORY_HEADING, injectContext } from '../prompt-loader';
+
+// The worker builds every system prompt (CLI path: piped to `claude --print`;
+// SDK path: SessionConfig.systemPrompt for streamText) through
+// assemblePrompt() → injectContext(base, { ..., memoryContext: session.memoryContext }).
+const base = '# PLANNER PROMPT\nDo the planning.';
+const memoryContext = '- [gotcha] Run migrations before seeding (files: db/seed.ts)\n- [pattern] [unverified] Use zod for input';
+
+describe('injectContext — project memory', () => {
+  it('adds the PROJECT MEMORY section after project instructions and before the base prompt', () => {
+    const prompt = injectContext(base, {
+      specDir: '/p/.malvy/specs/001',
+      projectDir: '/p',
+      projectInstructions: 'Team rules',
+      memoryContext,
+    });
+
+    const instructions = prompt.indexOf('## PROJECT INSTRUCTIONS');
+    const memory = prompt.indexOf(PROJECT_MEMORY_HEADING);
+    const basePos = prompt.indexOf('# PLANNER PROMPT');
+    expect(PROJECT_MEMORY_HEADING).toBe('## PROJECT MEMORY (from previous work — verify before relying on it)');
+    expect(instructions).toBeGreaterThanOrEqual(0);
+    expect(memory).toBeGreaterThan(instructions);
+    expect(basePos).toBeGreaterThan(memory);
+    expect(prompt).toContain(memoryContext);
+    expect(prompt).toContain('[unverified]');
+  });
+
+  it('adds the section even without project instructions', () => {
+    const prompt = injectContext(base, { specDir: '', projectDir: '/p', memoryContext });
+    expect(prompt.startsWith(PROJECT_MEMORY_HEADING)).toBe(true);
+  });
+
+  it('omits the section when there is no memory context (memory off or nothing relevant)', () => {
+    for (const mc of [undefined, null, '']) {
+      const prompt = injectContext(base, { specDir: '', projectDir: '/p', memoryContext: mc });
+      expect(prompt).not.toContain('PROJECT MEMORY');
+      expect(prompt).toBe(base);
+    }
+  });
+});

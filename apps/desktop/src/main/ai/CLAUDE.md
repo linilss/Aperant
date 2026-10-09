@@ -43,9 +43,9 @@ const result = streamText({
 
 Each spec in `.malvy/specs/XXX-name/` contains: `spec.md`, `implementation_plan.json`, `task_metadata.json`, `refine_session.json`, `context.json`, `qa_report.md`
 
-## Memory System (Graphiti)
+## Memory System (built-in, libSQL)
 
-Graph-based semantic memory via Python MCP sidecar. AI layer connects via `createMCPClient` from `@ai-sdk/mcp`. See [ARCHITECTURE.md](../../../../shared_docs/ARCHITECTURE.md#memory-system).
+`memory/` holds the store (`MemoryServiceImpl`, singleton via `ipc-handlers/context/memory-service-factory.ts`, main process only — workers can't open `memory.db`). Agents use it through `agent/agent-memory.ts`: before a spec/build/QA worker starts, `buildTaskMemoryContext()` (pinned → verified → relevant, ~1.5k tokens) becomes `SerializableSessionConfig.memoryContext`, which `injectContext()` adds as the `## PROJECT MEMORY` section (CLI and SDK paths). After a successful build/QA, `learnFromCompletedTask()` stores distilled insights as `needsReview` memories (`memory/task-learning.ts`). Gate: app `memoryEnabled`, overridable per project (`memory/memory-enabled.ts`). No memory MCP server.
 
 ## E2E Testing (Electron MCP)
 

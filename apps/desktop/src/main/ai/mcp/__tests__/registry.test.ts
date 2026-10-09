@@ -57,23 +57,8 @@ describe('getMcpServerConfig', () => {
   });
 
   describe('memory', () => {
-    it('returns null when no memory URL provided', () => {
-      const config = getMcpServerConfig('memory', {});
-      expect(config).toBeNull();
-    });
-
-    it('returns config with streamable-http transport when URL is provided', () => {
-      const config = getMcpServerConfig('memory', { memoryMcpUrl: 'http://localhost:8080/mcp' });
-      expect(config).not.toBeNull();
-      expect(config?.transport.type).toBe('streamable-http');
-      if (config?.transport.type === 'streamable-http') {
-        expect(config.transport.url).toBe('http://localhost:8080/mcp');
-      }
-    });
-
-    it('reads URL from env.GRAPHITI_MCP_URL option', () => {
-      const config = getMcpServerConfig('memory', { env: { GRAPHITI_MCP_URL: 'http://graphiti.local' } });
-      expect(config?.transport.type).toBe('streamable-http');
+    it('is not an MCP server (built-in memory is injected into prompts instead)', () => {
+      expect(getMcpServerConfig('memory', { env: { GRAPHITI_MCP_URL: 'http://graphiti.local' } })).toBeNull();
     });
   });
 
@@ -166,12 +151,6 @@ describe('resolveMcpServers', () => {
     const configs = resolveMcpServers(['context7', 'bogus-server-id']);
     expect(configs).toHaveLength(1);
     expect(configs[0].id).toBe('context7');
-  });
-
-  it('includes memory server when memoryMcpUrl is provided', () => {
-    const configs = resolveMcpServers(['memory'], { memoryMcpUrl: 'http://memory.local' });
-    expect(configs).toHaveLength(1);
-    expect(configs[0].id).toBe('memory');
   });
 
   it('passes specDir through to auto-claude config', () => {

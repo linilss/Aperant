@@ -396,15 +396,6 @@ export function sanitizeThinkingLevel(val: string): string {
 export const PHASE_KEYS: readonly (keyof PhaseModelConfig)[] = ['spec', 'planning', 'coding', 'qa'] as const;
 
 // ============================================
-// Memory Backends
-// ============================================
-
-export const MEMORY_BACKENDS = [
-  { value: 'file', label: 'File-based (default)' },
-  { value: 'memory', label: 'Memory (LadybugDB)' }
-] as const;
-
-// ============================================
 // Reasoning Configuration Types
 // ============================================
 

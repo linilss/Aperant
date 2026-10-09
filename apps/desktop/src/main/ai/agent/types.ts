@@ -64,7 +64,6 @@ export interface SerializableSessionConfig {
   /** MCP options resolved from project settings (serialized for worker) */
   mcpOptions?: {
     context7Enabled?: boolean;
-    memoryEnabled?: boolean;
     linearEnabled?: boolean;
     electronMcpEnabled?: boolean;
     puppeteerMcpEnabled?: boolean;
@@ -82,6 +81,12 @@ export interface SerializableSessionConfig {
    * Defaults to true. Malvy's own layer (.malvy/docs, pointers) is always included.
    */
   useClaudeMd?: boolean;
+  /**
+   * Relevant project memories, built in the main process (the worker can't open the
+   * memory database). Injected into every system prompt as the PROJECT MEMORY section.
+   * Absent when memory is disabled or nothing relevant was found.
+   */
+  memoryContext?: string;
   /** Tool context serialized fields */
   toolContext: {
     cwd: string;

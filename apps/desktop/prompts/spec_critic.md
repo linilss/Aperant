@@ -133,8 +133,8 @@ Create a list of all issues found:
 ISSUES FOUND:
 
 1. [SEVERITY: HIGH] Package name incorrect
-   - Spec says: "graphiti-core real_ladybug"
-   - Research says: "graphiti-core" with separate "real_ladybug" dependency
+   - Spec says: "npm install stripe-node"
+   - Research says: the package is "stripe" (stripe-node is only the repository name)
    - Location: Line 45, Requirements section
 
 2. [SEVERITY: MEDIUM] Missing edge case

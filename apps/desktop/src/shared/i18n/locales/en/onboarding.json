@@ -20,7 +20,7 @@
       },
       "memory": {
         "title": "Memory & Context",
-        "description": "Persistent memory across sessions with Graphiti"
+        "description": "Agents remember what they learn about your project across tasks"
       },
       "parallel": {
         "title": "Parallel Execution",

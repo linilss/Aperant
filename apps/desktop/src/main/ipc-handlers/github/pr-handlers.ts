@@ -380,7 +380,7 @@ export interface PRReviewMemory {
 }
 
 /**
- * Save PR review insights to the Electron memory layer (LadybugDB)
+ * Save PR review insights to the built-in memory (libSQL)
  *
  * Called after a PR review completes to persist learnings for cross-session context.
  * Extracts key findings, patterns, and gotchas from the review result.

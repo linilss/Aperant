@@ -62,6 +62,8 @@ Before creating the implementation plan, explicitly document:
 
 **If you skip this phase, your plan will be wrong.**
 
+**Project memory:** if your system prompt has a `## PROJECT MEMORY` section, it lists notes learned from earlier tasks in this project (gotchas, patterns, decisions). Use them as leads, check them against the current code before relying on them, and treat `[unverified]` items with extra care.
+
 ---
 
 ## PHASE 1: READ AND CREATE CONTEXT FILES

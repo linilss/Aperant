@@ -244,10 +244,6 @@ export interface MemoryProviderConfig {
   ollamaBaseUrl?: string;  // Default: http://localhost:11434
   ollamaEmbeddingModel?: string;
   ollamaEmbeddingDim?: number;
-
-  // LadybugDB settings (embedded database - no Docker required)
-  database?: string;  // Database name (default: auto_claude_memory)
-  dbPath?: string;    // Database storage path (default: ~/.malvy/memories)
 }
 
 export interface MemoryProviderInfo {
@@ -360,23 +356,18 @@ export interface ProjectEnvConfig {
   // Git/Worktree Settings
   defaultBranch?: string; // Base branch for worktree creation (e.g., 'main', 'develop')
 
-  // Memory Integration (V2 - Multi-provider support)
-  // Uses LadybugDB embedded database (no Docker required)
+  // Built-in agent memory (libSQL). Project override of the app-wide memoryEnabled setting.
   memoryEnabled: boolean;
   memoryProviderConfig?: MemoryProviderConfig;  // Provider configuration
   // Legacy fields (still supported for backward compatibility)
   openaiApiKey?: string;
   // Indicates if the OpenAI key is from global settings (not project-specific)
   openaiKeyIsGlobal?: boolean;
-  memoryDatabase?: string;
-  memoryDbPath?: string;
 
   // MCP Server Configuration (per-project overrides)
   mcpServers?: {
     /** Context7 documentation lookup - default: true */
     context7Enabled?: boolean;
-    /** Memory knowledge graph - default: true (if memoryProviderConfig set) */
-    memoryEnabled?: boolean;
     /** Linear MCP integration - default: follows linearEnabled */
     linearMcpEnabled?: boolean;
     /** Electron desktop automation (QA only) - default: false */

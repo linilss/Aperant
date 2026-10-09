@@ -16,14 +16,10 @@ Shared utility functions for environment configuration and parsing.
 - `parseEnvFile(content)` - Parse .env file content into key-value pairs
 - `loadProjectEnvVars(projectPath, autoBuildPath)` - Load project-specific environment variables
 - `loadGlobalSettings()` - Load global application settings
-- `isGraphitiEnabled(projectEnvVars)` - Check if Graphiti memory system is enabled
-- `hasOpenAIKey(projectEnvVars, globalSettings)` - Check if OpenAI API key is available
-- `getGraphitiConnectionDetails(projectEnvVars)` - Get LadybugDB connection configuration
 
 **Types:**
 - `EnvironmentVars` - Environment variable dictionary
 - `GlobalSettings` - Global application settings
-- `GraphitiConnectionDetails` - LadybugDB connection details
 
 #### `memory-status-handlers.ts` (130 lines)
 Handlers for checking Graphiti/memory system configuration status.

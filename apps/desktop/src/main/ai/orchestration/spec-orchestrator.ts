@@ -55,7 +55,6 @@ export type SpecPhase =
   | 'discovery'
   | 'requirements'
   | 'complexity_assessment'
-  | 'historical_context'
   | 'research'
   | 'context'
   | 'spec_writing'
@@ -69,7 +68,6 @@ const PHASE_AGENT_MAP: Record<SpecPhase, AgentType> = {
   discovery: 'spec_discovery',
   requirements: 'spec_gatherer',
   complexity_assessment: 'spec_gatherer',
-  historical_context: 'spec_context',
   research: 'spec_researcher',
   context: 'spec_context',
   spec_writing: 'spec_writer',

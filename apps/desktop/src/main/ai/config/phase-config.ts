@@ -43,7 +43,6 @@ export const SPEC_PHASE_THINKING_LEVELS: Record<string, ThinkingLevel> = {
   planning: 'medium',
   validation: 'medium',
   quick_spec: 'medium',
-  historical_context: 'medium',
   complexity_assessment: 'medium',
 };
 

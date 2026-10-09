@@ -52,24 +52,6 @@ const LINEAR_SERVER: McpServerConfig = {
 };
 
 /**
- * Memory MCP server - knowledge graph memory.
- * Conditionally enabled when GRAPHITI_MCP_URL is set.
- * Connects via StreamableHTTP to the running memory sidecar.
- */
-function createMemoryServer(url: string): McpServerConfig {
-  return {
-    id: 'memory',
-    name: 'Memory',
-    description: 'Knowledge graph memory for cross-session insights',
-    enabledByDefault: false,
-    transport: {
-      type: 'streamable-http',
-      url,
-    },
-  };
-}
-
-/**
  * Electron MCP server - desktop app automation.
  * Only available to QA agents. Requires ELECTRON_MCP_ENABLED=true.
  * Uses Chrome DevTools Protocol to connect to Electron apps.
@@ -138,8 +120,6 @@ function createAutoClaudeServer(specDir: string): McpServerConfig | null {
 export interface McpRegistryOptions {
   /** Spec directory for auto-claude MCP server */
   specDir?: string;
-  /** Memory MCP server URL (if enabled) */
-  memoryMcpUrl?: string;
   /** Linear API key (if available) */
   linearApiKey?: string;
   /** Environment variables for server processes */
@@ -173,12 +153,6 @@ export function getMcpServerConfig(
         };
       }
       return server;
-    }
-
-    case 'memory': {
-      const url = options.memoryMcpUrl ?? options.env?.GRAPHITI_MCP_URL;
-      if (!url) return null;
-      return createMemoryServer(url);
     }
 
     case 'electron':

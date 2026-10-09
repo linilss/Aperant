@@ -232,12 +232,16 @@ async function assemblePrompt(
     } else {
       postLog('No project instructions found (checked AGENTS.md, CLAUDE.md, .malvy/docs, .malvy/pointers.md)');
     }
+    if (session.memoryContext) {
+      postLog(`Project memory injected (${session.memoryContext.split('\n').length} items)`);
+    }
   }
 
   return injectContext(basePrompt, {
     specDir: session.specDir,
     projectDir: session.projectDir,
     projectInstructions: cachedProjectInstructions,
+    memoryContext: session.memoryContext,
   });
 }
 
@@ -601,7 +605,6 @@ async function run(): Promise<void> {
     try {
       mcpClients = await createMcpClientsForAgent(session.agentType, {
         context7Enabled: session.mcpOptions?.context7Enabled ?? true,
-        memoryEnabled: session.mcpOptions?.memoryEnabled ?? false,
         linearEnabled: session.mcpOptions?.linearEnabled ?? false,
         electronMcpEnabled: session.mcpOptions?.electronMcpEnabled ?? false,
         puppeteerMcpEnabled: session.mcpOptions?.puppeteerMcpEnabled ?? false,
@@ -1268,7 +1271,6 @@ function specPhaseToPromptName(phase: SpecPhase): string {
     case 'complexity_assessment': return 'complexity_assessor';
     case 'research': return 'spec_researcher';
     case 'context': return 'spec_writer';
-    case 'historical_context': return 'spec_writer';
     case 'spec_writing': return 'spec_writer';
     case 'self_critique': return 'spec_critic';
     case 'planning': return 'planner';

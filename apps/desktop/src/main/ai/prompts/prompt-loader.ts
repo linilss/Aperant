@@ -265,12 +265,15 @@ export async function loadAgentsMd(projectDir: string): Promise<string | null> {
 // Context Injection
 // =============================================================================
 
+export const PROJECT_MEMORY_HEADING = '## PROJECT MEMORY (from previous work — verify before relying on it)';
+
 /**
  * Inject dynamic sections into a prompt template.
  *
  * Handles:
  * - SPEC LOCATION header with file paths
  * - CLAUDE.md injection if provided
+ * - Project memory (built-in memory system) if provided
  * - Human input injection
  * - Recovery context injection
  *
@@ -312,7 +315,18 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 5. Base prompt
+  // 5. Project memory (learned from previous tasks)
+  if (context.memoryContext) {
+    sections.push(
+      `${PROJECT_MEMORY_HEADING}\n\n` +
+      `Notes learned from earlier work in this project. They may be outdated: check them against ` +
+      `the current code before relying on them. Items marked [unverified] have not been reviewed by a developer.\n\n` +
+      `${context.memoryContext}\n\n` +
+      `---\n\n`
+    );
+  }
+
+  // 6. Base prompt
   sections.push(promptTemplate);
 
   return sections.join('');

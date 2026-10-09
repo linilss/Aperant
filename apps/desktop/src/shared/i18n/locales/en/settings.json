@@ -405,10 +405,15 @@
     },
     "memory": {
       "title": "Memory",
-      "description": "Graphiti memory backend",
+      "description": "Built-in agent memory",
       "integrationTitle": "Memory",
       "integrationDescription": "Configure persistent cross-session memory for agents",
-      "syncDescription": "Configure persistent memory"
+      "syncDescription": "Configure persistent memory",
+      "enableLabel": "Enable Memory",
+      "enableDescription": "Agents get relevant notes from earlier tasks in this project and save what they learn for you to review in Context → Memories. Overrides the app-wide setting.",
+      "disabledNote": "Agents in this project start without project memory and don't save new memories. Pointers and memories already saved stay in Context → Memories.",
+      "embeddingProviderLabel": "Embedding Provider",
+      "embeddingProviderDescription": "Provider for semantic search (optional - keyword search works without)"
     }
   },
   "agentProfile": {
@@ -572,7 +577,7 @@
     "apiKeys": "API Keys",
     "apiKeysInfo": "Keys set here are used as defaults. Individual projects can override these in their settings.",
     "openaiKey": "OpenAI API Key",
-    "openaiKeyDescription": "Required for Graphiti memory backend (embeddings)",
+    "openaiKeyDescription": "Used for memory embeddings when OpenAI is the embedding provider",
     "toast": {
       "authSuccess": "Profile Authenticated",
       "authSuccessWithEmail": "Connected as {{email}}",
@@ -913,10 +918,10 @@
         "name": "Context7",
         "description": "Documentation lookup for libraries"
       },
-      "graphiti": {
-        "name": "Graphiti Memory",
-        "description": "Knowledge graph for cross-session context",
-        "notConfigured": "Requires memory configuration (see Memory settings)"
+      "memory": {
+        "name": "Memory (built-in)",
+        "description": "Relevant project memories are added to agent prompts. Not an MCP server; turn it on or off in Memory settings.",
+        "disabled": "Off for this project (see Memory settings)"
       },
       "linear": {
         "name": "Linear",

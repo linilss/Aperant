@@ -205,6 +205,8 @@ fi
 echo "=== END SESSION MEMORY ==="
 ```
 
+**Project memory:** if your system prompt has a `## PROJECT MEMORY` section, it lists notes learned from earlier tasks in this project (gotchas, patterns, decisions). Use them as leads, check them against the current code before relying on them, and treat `[unverified]` items with extra care.
+
 ---
 
 ## STEP 2: UNDERSTAND THE PLAN STRUCTURE

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Database,
   Eye,
@@ -17,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '../ui/select';
-import { Separator } from '../ui/separator';
 import { OllamaModelSelector } from '../onboarding/OllamaModelSelector';
 import type { ProjectEnvConfig, ProjectSettings as ProjectSettingsType, MemoryEmbeddingProvider } from '../../../shared/types';
 
@@ -46,6 +46,7 @@ export function SecuritySettings({
   expanded,
   onToggle
 }: SecuritySettingsProps) {
+  const { t } = useTranslation('settings');
   // Password visibility for multiple providers
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({
     openai: showOpenAIKey,
@@ -359,9 +360,9 @@ export function SecuritySettings({
         <div className="space-y-4 pl-6 pt-2">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label className="font-normal text-foreground">Enable Memory</Label>
+              <Label className="font-normal text-foreground">{t('projectSections.memory.enableLabel')}</Label>
               <p className="text-xs text-muted-foreground">
-                Persistent cross-session memory using LadybugDB (embedded database)
+                {t('projectSections.memory.enableDescription')}
               </p>
             </div>
             <Switch
@@ -373,8 +374,7 @@ export function SecuritySettings({
           {!envConfig.memoryEnabled && (
             <div className="rounded-lg border border-border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">
-                Using file-based memory. Session insights are stored locally in JSON files.
-                Enable Memory for persistent cross-session context with semantic search.
+                {t('projectSections.memory.disabledNote')}
               </p>
             </div>
           )}
@@ -383,9 +383,9 @@ export function SecuritySettings({
             <>
               {/* Embedding Provider Selection */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">Embedding Provider</Label>
+                <Label className="text-sm font-medium text-foreground">{t('projectSections.memory.embeddingProviderLabel')}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Provider for semantic search (optional - keyword search works without)
+                  {t('projectSections.memory.embeddingProviderDescription')}
                 </p>
                 <Select
                   value={embeddingProvider}
@@ -413,33 +413,6 @@ export function SecuritySettings({
 
               {/* Provider-specific fields */}
               {renderProviderFields()}
-
-              <Separator />
-
-              {/* Database Settings */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">Database Name</Label>
-                <p className="text-xs text-muted-foreground">
-                  Stored in ~/.malvy/memories/
-                </p>
-                <Input
-                  placeholder="auto_claude_memory"
-                  value={envConfig.memoryDatabase || ''}
-                  onChange={(e) => updateEnvConfig({ memoryDatabase: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground">Database Path (Optional)</Label>
-                <p className="text-xs text-muted-foreground">
-                  Custom storage location. Default: ~/.malvy/memories/
-                </p>
-                <Input
-                  placeholder="~/.malvy/memories"
-                  value={envConfig.memoryDbPath || ''}
-                  onChange={(e) => updateEnvConfig({ memoryDbPath: e.target.value || undefined })}
-                />
-              </div>
             </>
           )}
         </div>

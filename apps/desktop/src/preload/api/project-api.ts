@@ -74,7 +74,7 @@ export interface ProjectAPI {
   onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => () => void;
   onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => () => void;
 
-  // Memory Infrastructure operations (LadybugDB - no Docker required)
+  // Memory Infrastructure operations (built-in memory, libSQL)
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
   listMemoryDatabases: (dbPath?: string) => Promise<IPCResult<string[]>>;
   testMemoryConnection: (dbPath?: string, database?: string) => Promise<IPCResult<MemoryValidationResult>>;
@@ -394,7 +394,7 @@ export const createProjectAPI = (): ProjectAPI => ({
   pullOllamaModel: (modelName: string, baseUrl?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.OLLAMA_PULL_MODEL, modelName, baseUrl),
 
-  // Memory Infrastructure operations (LadybugDB - no Docker required)
+  // Memory Infrastructure operations (built-in memory, libSQL)
   getMemoryInfrastructureStatus: (dbPath?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.INFRASTRUCTURE_GET_STATUS, dbPath),
 

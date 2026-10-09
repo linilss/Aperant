@@ -29,6 +29,7 @@ import { findTaskWorktree } from '../worktree-paths';
 import { readSettingsFile } from '../settings-utils';
 import type { ProviderAccount } from '../../shared/types/provider-account';
 import { tryLoadPrompt } from '../ai/prompts/prompt-loader';
+import { buildMemoryContextForTask, buildTaskMemoryQuery, learnFromCompletedTask } from './agent-memory';
 
 /**
  * Main AgentManager - orchestrates agent process lifecycle
@@ -53,6 +54,8 @@ export class AgentManager extends EventEmitter {
     /** Generation counter to prevent stale cleanup after restart */
     generation: number;
   }> = new Map();
+  /** Successful build/QA runs to learn memories from, keyed by taskId */
+  private memoryLearningTargets: Map<string, Parameters<typeof learnFromCompletedTask>[0]> = new Map();
 
   constructor() {
     super();
@@ -72,6 +75,13 @@ export class AgentManager extends EventEmitter {
 
     // Listen for task completion to clean up context (prevent memory leak)
     this.on('exit', (taskId: string, code: number | null, _processType?: string, _projectId?: string) => {
+      // Learn project memories from a successful build / QA run (fire-and-forget)
+      const learningTarget = this.memoryLearningTargets.get(taskId);
+      if (learningTarget) {
+        this.memoryLearningTargets.delete(taskId);
+        if (code === 0) void learnFromCompletedTask(learningTarget);
+      }
+
       // Clean up context when:
       // 1. Task completed successfully (code === 0), or
       // 2. Task failed and won't be restarted (handled by auto-swap logic)
@@ -382,6 +392,13 @@ export class AgentManager extends EventEmitter {
 
     // Build the serializable session config for the worker
     const resolvedSpecDir = specDir ?? path.join(projectPath, '.malvy', 'specs', taskId);
+    const specProject = projectStore.getProjects().find((p) => p.id === projectId || p.path === projectPath);
+    const memoryContext = await buildMemoryContextForTask({
+      projectId: specProject?.id ?? projectId,
+      projectPath,
+      autoBuildPath: specProject?.autoBuildPath,
+      query: buildTaskMemoryQuery(resolvedSpecDir, taskDescription),
+    });
     const sessionConfig: SerializableSessionConfig = {
       agentType: 'spec_orchestrator' as const,
       systemPrompt,
@@ -403,10 +420,10 @@ export class AgentManager extends EventEmitter {
       oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
-        memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
         linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       useClaudeMd: this.getUseClaudeMd(projectId, projectPath),
+      memoryContext,
       toolContext: {
         cwd: projectPath,
         projectDir: projectPath,
@@ -510,6 +527,14 @@ export class AgentManager extends EventEmitter {
     // Load initial context from spec directory
     const initialMessages = this.buildTaskExecutionMessages(worktreeSpecDir, specId, effectiveProjectDir);
 
+    const memoryProjectId = project?.id ?? projectId;
+    const memoryContext = await buildMemoryContextForTask({
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      query: buildTaskMemoryQuery(specDir),
+    });
+
     // Build the serializable session config for the worker
     const sessionConfig: SerializableSessionConfig = {
       agentType: 'build_orchestrator' as const,
@@ -529,10 +554,10 @@ export class AgentManager extends EventEmitter {
       oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
-        memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
         linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       useClaudeMd: project?.settings?.useClaudeMd !== false,
+      memoryContext,
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,
@@ -553,6 +578,15 @@ export class AgentManager extends EventEmitter {
 
     // Register with unified OperationRegistry for proactive swap support
     this.registerTaskWithOperationRegistry(taskId, 'task-execution', { projectPath, specId, options });
+
+    this.memoryLearningTargets.set(taskId, {
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      specId,
+      workDir: effectiveProjectDir,
+      specDir: worktreeSpecDir,
+    });
 
     await this.processManager.spawnWorkerProcess(taskId, executorConfig, {}, 'task-execution', projectId);
 
@@ -617,6 +651,14 @@ export class AgentManager extends EventEmitter {
     // Load initial context from spec directory
     const qaInitialMessages = this.buildQAInitialMessages(effectiveSpecDir, specId, effectiveProjectDir);
 
+    const memoryProjectId = project?.id ?? projectId;
+    const memoryContext = await buildMemoryContextForTask({
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      query: buildTaskMemoryQuery(specDir),
+    });
+
     // Build the serializable session config for the worker
     const sessionConfig: SerializableSessionConfig = {
       agentType: 'qa_reviewer',
@@ -633,10 +675,10 @@ export class AgentManager extends EventEmitter {
       oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
-        memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
         linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       useClaudeMd: project?.settings?.useClaudeMd !== false,
+      memoryContext,
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,
@@ -651,6 +693,15 @@ export class AgentManager extends EventEmitter {
       processType: 'qa-process',
       session: sessionConfig,
     };
+
+    this.memoryLearningTargets.set(taskId, {
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      specId,
+      workDir: effectiveProjectDir,
+      specDir: effectiveSpecDir,
+    });
 
     await this.processManager.spawnWorkerProcess(taskId, executorConfig, {}, 'qa-process', projectId);
 
