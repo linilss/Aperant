@@ -22,7 +22,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, Loader2, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Sparkles, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue
 } from './ui/select';
-import { useRoadmapStore } from '../stores/roadmap-store';
+import { refineFeatureWithAI, useRoadmapStore } from '../stores/roadmap-store';
 import {
   ROADMAP_PRIORITY_LABELS
 } from '../../shared/constants';
@@ -166,6 +166,10 @@ export function AddFeatureDialog({
         if (!result.success) {
           throw new Error(result.error || 'Failed to save roadmap');
         }
+        // Quick add: AI turns the line into a proper feature in the background
+        if (!showDetails) {
+          void refineFeatureWithAI(roadmap.projectId, newFeatureId, title.trim(), { suggestPriority: true });
+        }
       }
 
       onFeatureAdded?.(newFeatureId);
@@ -234,10 +238,7 @@ export function AddFeatureDialog({
             {added.length > 0 && (
               <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
                 {added.map((feature) => (
-                  <li key={feature.id} className="flex items-center gap-1.5">
-                    <Check className="h-3.5 w-3.5 text-success" />
-                    <span className="truncate">{feature.title}</span>
-                  </li>
+                  <AddedFeatureRow key={feature.id} featureId={feature.id} typedTitle={feature.title} />
                 ))}
               </ul>
             )}
@@ -413,5 +414,39 @@ export function AddFeatureDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One quick-added feature: spinner while AI refines it, then the refined title */
+function AddedFeatureRow({ featureId, typedTitle }: { featureId: string; typedTitle: string }) {
+  const { t } = useTranslation('dialogs');
+  const feature = useRoadmapStore((state) => state.roadmap?.features.find((f) => f.id === featureId));
+  const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[featureId]);
+  const duplicateTitle = useRoadmapStore((state) =>
+    feature?.duplicateOf ? state.roadmap?.features.find((f) => f.id === feature.duplicateOf)?.title : undefined
+  );
+
+  return (
+    <li className="min-w-0">
+      <div className="flex items-center gap-1.5 min-w-0">
+        {refining ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-label={t('addFeature.refining')} />
+        ) : (
+          <Check className="h-3.5 w-3.5 shrink-0 text-success" />
+        )}
+        <span className="truncate">{feature?.title ?? typedTitle}</span>
+        {!refining && feature?.refinedAt && (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded border border-primary/30 px-1 text-[10px] text-primary">
+            <Sparkles className="h-2.5 w-2.5" />
+            {t('addFeature.aiRefined')}
+          </span>
+        )}
+      </div>
+      {!refining && duplicateTitle && (
+        <p className="pl-5 text-[11px] text-warning truncate">
+          {t('addFeature.possibleDuplicate', { title: duplicateTitle })}
+        </p>
+      )}
+    </li>
   );
 }

@@ -8,6 +8,7 @@ import type {
   ManualCompetitorInput,
   Roadmap,
   RoadmapFeature,
+  RoadmapFeatureRefineOptions,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   TaskOutcome,
@@ -175,6 +176,8 @@ interface RoadmapState {
   competitorAnalysis: CompetitorAnalysis | null;
   generationStatus: RoadmapGenerationStatus;
   currentProjectId: string | null;  // Track which project we're viewing/generating for
+  /** Feature ids with an AI refinement in progress */
+  refiningFeatureIds: Record<string, true>;
 
   // Actions
   setRoadmap: (roadmap: Roadmap | null) => void;
@@ -192,6 +195,9 @@ interface RoadmapState {
   addFeature: (feature: Omit<RoadmapFeature, 'id'>) => string;
   updateFeature: (featureId: string, updates: Partial<Omit<RoadmapFeature, 'id'>>) => void;
   addCompetitor: (input: ManualCompetitorInput) => string;
+  setFeatureRefining: (featureId: string, refining: boolean) => void;
+  /** Replace a feature with the refined version main wrote to roadmap.json */
+  applyRefinedFeature: (feature: RoadmapFeature) => void;
 }
 
 const initialGenerationStatus: RoadmapGenerationStatus = {
@@ -223,6 +229,7 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
   competitorAnalysis: null,
   generationStatus: initialGenerationStatus,
   currentProjectId: null,
+  refiningFeatureIds: {},
 
   // Actions
   setRoadmap: (roadmap) => {
@@ -623,6 +630,29 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
     });
   },
 
+  setFeatureRefining: (featureId, refining) =>
+    set((state) => {
+      if (!!state.refiningFeatureIds[featureId] === refining) return state;
+      const next = { ...state.refiningFeatureIds };
+      if (refining) next[featureId] = true;
+      else delete next[featureId];
+      return { refiningFeatureIds: next };
+    }),
+
+  applyRefinedFeature: (feature) =>
+    set((state) => {
+      const { [feature.id]: _done, ...refiningFeatureIds } = state.refiningFeatureIds;
+      if (!state.roadmap?.features.some((f) => f.id === feature.id)) return { refiningFeatureIds };
+      return {
+        refiningFeatureIds,
+        roadmap: {
+          ...state.roadmap,
+          features: state.roadmap.features.map((f) => (f.id === feature.id ? feature : f)),
+          updatedAt: new Date(),
+        },
+      };
+    }),
+
   // Add a manual competitor to the competitor analysis
   addCompetitor: (input) => {
     const newId = `competitor-manual-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -741,6 +771,36 @@ async function reconcileLinkedFeatures(projectId: string, roadmap: Roadmap): Pro
         console.error('[Roadmap] Failed to save reconciled roadmap:', err);
       });
     }
+  }
+}
+
+/**
+ * Ask main to refine a feature with AI in the background. The roadmap.json patch
+ * happens in main; the store is updated from the result (and the refined event).
+ * Failures are non-fatal: the feature stays as it is.
+ */
+export async function refineFeatureWithAI(
+  projectId: string,
+  featureId: string,
+  line: string,
+  options: RoadmapFeatureRefineOptions
+): Promise<{ success: boolean; error?: string }> {
+  const store = useRoadmapStore.getState();
+  if (store.refiningFeatureIds[featureId]) return { success: false };
+  store.setFeatureRefining(featureId, true);
+  try {
+    const result = await window.electronAPI.refineRoadmapFeature(projectId, featureId, line, options);
+    if (result.success && result.data) {
+      if (useRoadmapStore.getState().roadmap?.projectId === projectId) {
+        useRoadmapStore.getState().applyRefinedFeature(result.data);
+      }
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    useRoadmapStore.getState().setFeatureRefining(featureId, false);
   }
 }
 

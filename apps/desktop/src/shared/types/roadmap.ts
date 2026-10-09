@@ -154,6 +154,18 @@ export interface RoadmapFeature {
   votes?: number;         // Vote count from external system
   /** Ideation idea this feature was created from ("Add to roadmap") */
   sourceIdeaId?: string;
+  /** When AI refinement last rewrote this feature (ISO timestamp) */
+  refinedAt?: string;
+  /** Existing feature id this one likely duplicates (set by AI refinement) */
+  duplicateOf?: string;
+}
+
+/** Options for AI refinement of a single roadmap feature */
+export interface RoadmapFeatureRefineOptions {
+  /** Let the AI move priority/phase (only while they are still the values from when refinement started) */
+  suggestPriority: boolean;
+  /** User explicitly asked for a refine: title/description and other content fields may be overwritten */
+  explicit?: boolean;
 }
 
 export interface Roadmap {

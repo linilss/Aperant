@@ -5,7 +5,7 @@ import { useRoadmapStore } from '../stores/roadmap-store';
 import { useRateLimitStore } from '../stores/rate-limit-store';
 import { useAuthFailureStore } from '../stores/auth-failure-store';
 import { useProjectStore } from '../stores/project-store';
-import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
+import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, RoadmapFeature, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
 
 /** Maximum log entries to buffer in the batch queue between flushes (OOM prevention) */
 const MAX_BATCH_QUEUE_LOGS = 100;
@@ -355,6 +355,31 @@ export function useIpcListeners(): void {
       }
     );
 
+    // AI feature refinement (quick add → proper feature). Main already wrote
+    // roadmap.json; only the store is updated here.
+    const cleanupFeatureRefineStarted = window.electronAPI.onRoadmapFeatureRefineStarted(
+      (projectId: string, featureId: string) => {
+        if (isCurrentProject(projectId)) {
+          useRoadmapStore.getState().setFeatureRefining(featureId, true);
+        }
+      }
+    );
+    const cleanupFeatureRefined = window.electronAPI.onRoadmapFeatureRefined(
+      (projectId: string, feature: RoadmapFeature) => {
+        const store = useRoadmapStore.getState();
+        if (isCurrentProject(projectId) && store.roadmap?.projectId === projectId) {
+          store.applyRefinedFeature(feature);
+        } else {
+          store.setFeatureRefining(feature.id, false);
+        }
+      }
+    );
+    const cleanupFeatureRefineFailed = window.electronAPI.onRoadmapFeatureRefineFailed(
+      (_projectId: string, featureId: string) => {
+        useRoadmapStore.getState().setFeatureRefining(featureId, false);
+      }
+    );
+
     // Terminal rate limit listener
     const showRateLimitModal = useRateLimitStore.getState().showRateLimitModal;
     const cleanupRateLimit = window.electronAPI.onTerminalRateLimit(
@@ -416,6 +441,9 @@ export function useIpcListeners(): void {
       cleanupRoadmapComplete();
       cleanupRoadmapError();
       cleanupRoadmapStopped();
+      cleanupFeatureRefineStarted();
+      cleanupFeatureRefined();
+      cleanupFeatureRefineFailed();
       cleanupRateLimit();
       cleanupSDKRateLimit();
       cleanupAuthFailure();

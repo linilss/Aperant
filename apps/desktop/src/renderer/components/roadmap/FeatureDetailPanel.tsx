@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronRight,
@@ -13,6 +13,8 @@ import {
   Trash2,
   Archive,
   Wand2,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { TaskOutcomeBadge } from './TaskOutcomeBadge';
 import { Badge } from '../ui/badge';
@@ -26,9 +28,10 @@ import {
   ROADMAP_IMPACT_COLORS,
 } from '../../../shared/constants';
 import type { FeatureDetailPanelProps } from './types';
+import { refineFeatureWithAI, useRoadmapStore } from '../../stores/roadmap-store';
 
 export function FeatureDetailPanel({
-  feature,
+  feature: selectedFeature,
   onClose,
   onConvertToSpec,
   onGoToTask,
@@ -39,6 +42,27 @@ export function FeatureDetailPanel({
 }: FeatureDetailPanelProps) {
   const { t } = useTranslation('common');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Live copy from the store so an AI refinement shows up in place
+  const feature =
+    useRoadmapStore((state) => state.roadmap?.features.find((f) => f.id === selectedFeature.id)) ??
+    selectedFeature;
+  const projectId = useRoadmapStore((state) => state.roadmap?.projectId);
+  const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[selectedFeature.id]);
+  const [refineError, setRefineError] = useState<string | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset when another feature is shown
+  useEffect(() => setRefineError(null), [selectedFeature.id]);
+
+  const handleRefineWithAI = async () => {
+    if (!projectId) return;
+    setRefineError(null);
+    const line =
+      feature.description && feature.description !== feature.title
+        ? `${feature.title}\n\n${feature.description}`
+        : feature.title;
+    // Explicit request: title/description may be rewritten; priority/phase stay
+    const result = await refineFeatureWithAI(projectId, feature.id, line, { suggestPriority: false, explicit: true });
+    if (!result.success && result.error) setRefineError(result.error);
+  };
 
   const handleArchive = () => {
     onArchive?.(feature.id);
@@ -69,8 +93,28 @@ export function FeatureDetailPanel({
               </Badge>
             </div>
             <h2 className="font-semibold truncate">{feature.title}</h2>
+            {refineError && (
+              <p className="mt-1 text-xs text-destructive" role="alert">
+                {t('roadmap.refineFailed', { error: refineError })}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0 relative z-10 pointer-events-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
+              disabled={refining || !projectId}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleRefineWithAI();
+              }}
+              title={refining ? t('roadmap.refining') : t('roadmap.refineWithAI')}
+              aria-label={refining ? t('roadmap.refining') : t('roadmap.refineWithAI')}
+            >
+              {refining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            </Button>
             <Button
               type="button"
               variant="ghost"

@@ -8,7 +8,9 @@ import {
 import type {
   IPCResult,
   Roadmap,
+  RoadmapFeature,
   RoadmapFeaturePriority,
+  RoadmapFeatureRefineOptions,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress,
@@ -25,13 +27,16 @@ import { debugLog, debugError } from "../../shared/utils/debug-logger";
 import { safeSendToRenderer } from "./utils";
 import { writeFileWithRetry, readFileWithRetry } from "../utils/atomic-file";
 import { withFileLock } from "../utils/file-lock";
-import { getActiveProviderFeatureSettings } from "./feature-settings-helper";
+import { getActiveProviderFeatureSettings, resolveClaudeCliFeatureModel } from "./feature-settings-helper";
 import {
   applyFeaturePriorityPatch,
-  directionIdsFromRaw,
-  externalFieldsFromSnakeCase,
+  featureFromSnakeCase,
   featureToSnakeCase,
+  keepNewerRefinements,
 } from "./roadmap/feature-persistence";
+import { createFeatureRefineService } from "./roadmap/feature-refine-service";
+import { runRoadmapFeatureRefine } from "../ai/runners/roadmap-feature-refine";
+import { loadKnownDirectionIds } from "../ai/runners/competitors/guidance";
 
 /**
  * Read roadmap feature settings using per-provider resolution
@@ -169,26 +174,7 @@ export function registerRoadmapHandlers(
               targetDate: m.target_date ? new Date(m.target_date as string) : undefined,
             })),
           })),
-          features: (rawRoadmap.features || []).map((feature: Record<string, unknown>) => ({
-            id: feature.id,
-            title: feature.title,
-            description: feature.description,
-            rationale: feature.rationale || "",
-            priority: feature.priority || "should",
-            complexity: feature.complexity || "medium",
-            impact: feature.impact || "medium",
-            phaseId: feature.phase_id,
-            dependencies: feature.dependencies || [],
-            status: feature.status || "under_review",
-            acceptanceCriteria: feature.acceptance_criteria || [],
-            userStories: feature.user_stories || [],
-            linkedSpecId: feature.linked_spec_id,
-            taskOutcome: feature.task_outcome,
-            previousStatus: feature.previous_status,
-            competitorInsightIds: (feature.competitor_insight_ids as string[]) || undefined,
-            directionIds: directionIdsFromRaw(feature),
-            ...externalFieldsFromSnakeCase(feature),
-          })),
+          features: (rawRoadmap.features || []).map(featureFromSnakeCase),
           status: rawRoadmap.status || "draft",
           competitorAnalysis,
           createdAt: rawRoadmap.metadata?.created_at
@@ -386,7 +372,10 @@ export function registerRoadmapHandlers(
           const existingRoadmap = JSON.parse(content);
 
           // Transform camelCase features back to snake_case for JSON file
-          existingRoadmap.features = roadmapData.features.map(featureToSnakeCase);
+          const incomingFeatures = roadmapData.features.map(featureToSnakeCase);
+          // Don't roll back an AI refinement the renderer hasn't received yet
+          keepNewerRefinements(existingRoadmap.features, incomingFeatures);
+          existingRoadmap.features = incomingFeatures;
 
           // Update metadata timestamp
           existingRoadmap.metadata = existingRoadmap.metadata || {};
@@ -511,6 +500,36 @@ export function registerRoadmapHandlers(
           error: error instanceof Error ? error.message : "Failed to update feature priority",
         };
       }
+    }
+  );
+
+  // One-shot AI refinement of a feature (quick add → proper feature). Resolves when
+  // done; progress/result also go out as events so every open view updates.
+  const refineService = createFeatureRefineService({
+    getProjectPath: (projectId) => projectStore.getProject(projectId)?.path ?? null,
+    runRefine: runRoadmapFeatureRefine,
+    resolveModelId: () => resolveClaudeCliFeatureModel('roadmap'),
+    loadKnownDirectionIds,
+    emit: (channel, ...args) => safeSendToRenderer(getMainWindow, channel, ...args),
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.ROADMAP_REFINE_FEATURE,
+    async (
+      _,
+      projectId: string,
+      featureId: string,
+      line: string,
+      options?: RoadmapFeatureRefineOptions
+    ): Promise<IPCResult<RoadmapFeature>> => {
+      const result = await refineService.refineFeature(projectId, featureId, String(line ?? ""), {
+        suggestPriority: options?.suggestPriority === true,
+        explicit: options?.explicit === true,
+      });
+      if (!result.success) {
+        debugError("[Roadmap Handler] Feature refinement failed:", { projectId, featureId, error: result.error });
+      }
+      return result;
     }
   );
 

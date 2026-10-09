@@ -727,6 +727,10 @@
     "build": "Build",
     "task": "Task",
     "viewTask": "View Task",
+    "refining": "Refining…",
+    "refiningTooltip": "AI is turning this into a full feature",
+    "refineWithAI": "Refine with AI",
+    "refineFailed": "AI refinement failed: {{error}}",
     "moscow": {
       "title": "MoSCoW Prioritization",
       "subtitle": "Drag roadmap features between quadrants to set their priority",

@@ -9,9 +9,10 @@ import {
   TooltipContent,
   TooltipTrigger
 } from './ui/tooltip';
-import { Play, ExternalLink, TrendingUp, Layers, ThumbsUp, Archive } from 'lucide-react';
+import { Play, ExternalLink, TrendingUp, Layers, ThumbsUp, Archive, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DirectionTagChips } from './competitors/DirectionTagChips';
+import { useRoadmapStore } from '../stores/roadmap-store';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './roadmap/TaskOutcomeBadge';
 import {
   ROADMAP_PRIORITY_COLORS,
@@ -48,6 +49,7 @@ export function SortableFeatureCard({
     isDragging,
     isOver
   } = useSortable({ id: feature.id });
+  const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -106,6 +108,16 @@ export function SortableFeatureCard({
                     Phase: {phaseName}
                   </TooltipContent>
                 </Tooltip>
+              )}
+              {refining && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
+                  title={t('roadmap.refiningTooltip')}
+                >
+                  <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />
+                  {t('roadmap.refining')}
+                </Badge>
               )}
               {hasCompetitorInsight && (
                 <Tooltip>

@@ -112,10 +112,13 @@
     "addFeature": "Add Feature",
     "failedToAdd": "Failed to add feature. Please try again.",
     "quickPlaceholder": "Describe the feature in one line, then press Enter",
-    "quickHint": "Adds to {{phase}} as {{priority}} — refine it later, or open more details.",
+    "quickHint": "Adds to {{phase}} as {{priority}} — AI fills in the details in the background, or open more details.",
     "moreDetails": "More details",
     "fewerDetails": "Fewer details",
-    "done": "Done"
+    "done": "Done",
+    "refining": "Refining…",
+    "aiRefined": "AI refined",
+    "possibleDuplicate": "Possible duplicate of {{title}}"
   },
   "addProject": {
     "title": "Add Project",

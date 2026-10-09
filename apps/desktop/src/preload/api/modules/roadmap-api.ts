@@ -3,6 +3,7 @@ import type {
   Roadmap,
   RoadmapFeature,
   RoadmapFeaturePriority,
+  RoadmapFeatureRefineOptions,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress,
@@ -47,6 +48,22 @@ export interface RoadmapAPI {
     projectId: string,
     featureId: string
   ) => Promise<IPCResult<Task>>;
+  /** One-shot AI refinement of a feature; resolves with the updated feature when done */
+  refineRoadmapFeature: (
+    projectId: string,
+    featureId: string,
+    line: string,
+    options: RoadmapFeatureRefineOptions
+  ) => Promise<IPCResult<RoadmapFeature>>;
+  onRoadmapFeatureRefineStarted: (
+    callback: (projectId: string, featureId: string) => void
+  ) => IpcListenerCleanup;
+  onRoadmapFeatureRefined: (
+    callback: (projectId: string, feature: RoadmapFeature) => void
+  ) => IpcListenerCleanup;
+  onRoadmapFeatureRefineFailed: (
+    callback: (projectId: string, featureId: string, error: string) => void
+  ) => IpcListenerCleanup;
 
   // Competitor analysis
   saveCompetitorAnalysis: (projectId: string, competitorAnalysis: CompetitorAnalysis) => Promise<IPCResult>;
@@ -130,6 +147,29 @@ export const createRoadmapAPI = (): RoadmapAPI => ({
     featureId: string
   ): Promise<IPCResult<Task>> =>
     invokeIpc(IPC_CHANNELS.ROADMAP_CONVERT_TO_SPEC, projectId, featureId),
+
+  refineRoadmapFeature: (
+    projectId: string,
+    featureId: string,
+    line: string,
+    options: RoadmapFeatureRefineOptions
+  ): Promise<IPCResult<RoadmapFeature>> =>
+    invokeIpc(IPC_CHANNELS.ROADMAP_REFINE_FEATURE, projectId, featureId, line, options),
+
+  onRoadmapFeatureRefineStarted: (
+    callback: (projectId: string, featureId: string) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_FEATURE_REFINE_STARTED, callback),
+
+  onRoadmapFeatureRefined: (
+    callback: (projectId: string, feature: RoadmapFeature) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_FEATURE_REFINED, callback),
+
+  onRoadmapFeatureRefineFailed: (
+    callback: (projectId: string, featureId: string, error: string) => void
+  ): IpcListenerCleanup =>
+    createIpcListener(IPC_CHANNELS.ROADMAP_FEATURE_REFINE_FAILED, callback),
 
   // Competitor analysis
   saveCompetitorAnalysis: (projectId: string, competitorAnalysis: CompetitorAnalysis): Promise<IPCResult> =>

@@ -1,6 +1,7 @@
-import { Archive, ExternalLink, Play, TrendingUp } from 'lucide-react';
+import { Archive, ExternalLink, Loader2, Play, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './TaskOutcomeBadge';
+import { useRoadmapStore } from '../../stores/roadmap-store';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
@@ -22,6 +23,7 @@ export function FeatureCard({
   hasCompetitorInsight = false,
 }: FeatureCardProps) {
   const { t } = useTranslation('common');
+  const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
 
   return (
     <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={onClick}>
@@ -43,6 +45,16 @@ export function FeatureCard({
             >
               {feature.impact} impact
             </Badge>
+            {refining && (
+              <Badge
+                variant="outline"
+                className="text-xs text-muted-foreground border-muted-foreground/30"
+                title={t('roadmap.refiningTooltip')}
+              >
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                {t('roadmap.refining')}
+              </Badge>
+            )}
             {hasCompetitorInsight && (
               <Tooltip>
                 <TooltipTrigger asChild>

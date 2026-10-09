@@ -24,7 +24,6 @@ import type {
 } from '../../shared/types';
 import { debugError } from '../../shared/utils/debug-logger';
 import { projectStore } from '../project-store';
-import { resolveModelId } from '../ai/config/phase-config';
 import {
   type CompetitorRunContext,
   type CompetitorRunOutcome,
@@ -40,7 +39,7 @@ import {
   saveCompetitorState,
   synthesizeDirections,
 } from '../ai/runners/competitors';
-import { getActiveProviderFeatureSettings } from './feature-settings-helper';
+import { resolveClaudeCliFeatureModel } from './feature-settings-helper';
 import { safeSendToRenderer } from './utils';
 
 interface Session {
@@ -80,11 +79,7 @@ function getSession(projectId: string, projectPath: string): Session {
 }
 
 /** Claude model for the CLI: the roadmap feature model when it is a Claude model, else sonnet */
-function resolveCliModel(): string {
-  const { model } = getActiveProviderFeatureSettings('roadmap');
-  const id = resolveModelId(model || 'sonnet');
-  return /claude|sonnet|opus|haiku|fable/i.test(id) ? id : resolveModelId('sonnet');
-}
+const resolveCliModel = (): string => resolveClaudeCliFeatureModel('roadmap');
 
 /** Validate renderer-supplied analyze options (the pipeline clamps count to 3–10) */
 function sanitizeAnalyzeOptions(raw: unknown): CompetitorAnalyzeOptions {

@@ -254,6 +254,13 @@ export const IPC_CHANNELS = {
   ROADMAP_REFINE_COMPLETE: 'roadmap:refine:complete',
   ROADMAP_REFINE_ERROR: 'roadmap:refine:error',
 
+  // One-shot AI refinement of a single feature (quick add → proper feature)
+  ROADMAP_REFINE_FEATURE: 'roadmap:refineFeature',
+  // One-shot refinement events (main -> renderer)
+  ROADMAP_FEATURE_REFINE_STARTED: 'roadmap:featureRefineStarted',
+  ROADMAP_FEATURE_REFINED: 'roadmap:featureRefined',
+  ROADMAP_FEATURE_REFINE_FAILED: 'roadmap:featureRefineFailed',
+
   // Context operations
   CONTEXT_GET: 'context:get',
   CONTEXT_REFRESH_INDEX: 'context:refreshIndex',
