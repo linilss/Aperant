@@ -788,12 +788,20 @@ describe('invokeCLIAsync', () => {
 
       const { invokeCLIAsync } = await import('../cli-integration-handler');
 
-      await expect(invokeCLIAsync(terminal, '/tmp/project', undefined, () => null, vi.fn()))
-        .rejects.toThrow('CLI invocation timeout after 10s');
+      // Fake timers: the 10s timeout must not depend on machine load
+      vi.useFakeTimers();
+      try {
+        const assertion = expect(invokeCLIAsync(terminal, '/tmp/project', undefined, () => null, vi.fn()))
+          .rejects.toThrow('CLI invocation timeout after 10s');
+        await vi.advanceTimersByTimeAsync(10_001);
+        await assertion;
+      } finally {
+        vi.useRealTimers();
+      }
 
       // Terminal state should be rolled back
       expect(terminal.isCLIMode).toBe(false);
-    }, 12000); // Allow 12 seconds for test (10s timeout + 2s buffer)
+    });
 
     it('should reset terminal state on async error', async () => {
       mockGetClaudeCliInvocationAsync.mockRejectedValue(new Error('Async CLI error'));
