@@ -2373,8 +2373,11 @@ export class UsageMonitor extends EventEmitter {
    *   "seven_day": {
    *     "utilization": 45,  // integer 0-100
    *     "resets_at": "2025-01-20T12:00:00Z"
-   *   }
+   *   },
+   *   // Also present (may be null), currently ignored:
+   *   "seven_day_opus": {...}, "seven_day_sonnet": {...}, "seven_day_overage_included": {...}
    * }
+   * Only five_hour / seven_day are read; unknown or null fields are tolerated.
    */
   private normalizeAnthropicResponse(
     data: any,

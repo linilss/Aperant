@@ -6,12 +6,11 @@
 import { getClaudeProfileManager } from './claude-profile-manager';
 import { getUsageMonitor } from './claude-profile/usage-monitor';
 import { debugLog } from '../shared/utils/debug-logger';
+import { parseClaudeLimitMessage } from './claude-limit-message';
 
-/**
- * Regex pattern to detect Claude Code rate limit messages
- * Matches: "Limit reached · resets Dec 17 at 6am (Europe/Oslo)"
- */
-const RATE_LIMIT_PATTERN = /Limit reached\s*[·•]\s*resets\s+(.+?)(?:\s*$|\n)/im;
+// Claude Code limit messages ("You've hit your session limit · resets 3pm (Europe/Stockholm)"
+// and the older "Limit reached · resets Dec 17 at 6am (Europe/Oslo)") are parsed by
+// parseClaudeLimitMessage() in ./claude-limit-message.
 
 /**
  * Regex pattern to detect Codex/OpenAI rate limit messages
@@ -26,6 +25,7 @@ const RATE_LIMIT_INDICATORS = [
   /rate\s*limit/i,
   /usage\s*limit/i,
   /limit\s*reached/i,
+  /hit\s+your\s+[^\n]*?(?:limit|budget)/i,
   /exceeded.*limit/i,
   /too\s*many\s*requests/i,
   // Codex-specific rate limit patterns
@@ -194,19 +194,20 @@ export function detectRateLimit(
   output: string,
   profileId?: string
 ): RateLimitDetectionResult {
-  // Check for the primary rate limit pattern
-  const match = output.match(RATE_LIMIT_PATTERN);
+  // Check for the primary Claude Code limit message (new and old formats).
+  // Without a printed reset time we fall through to the generic indicators below.
+  const limitMessage = parseClaudeLimitMessage(output);
 
-  if (match) {
-    const resetTime = match[1].trim();
-    const limitType = classifyLimitType(resetTime);
+  if (limitMessage?.resetTime) {
+    const resetTime = limitMessage.resetTime;
+    const limitType = limitMessage.window ?? classifyLimitType(resetTime);
 
     // Record the rate limit event in the profile manager
     const profileManager = getClaudeProfileManager();
     const effectiveProfileId = profileId || profileManager.getActiveProfile().id;
 
     try {
-      profileManager.recordRateLimitEvent(effectiveProfileId, resetTime);
+      profileManager.recordRateLimitEvent(effectiveProfileId, resetTime, limitType);
     } catch (err) {
       console.error('[RateLimitDetector] Failed to record rate limit event:', err);
     }
@@ -292,8 +293,7 @@ export function isRateLimitError(output: string): boolean {
  * Extract reset time from rate limit message
  */
 export function extractResetTime(output: string): string | null {
-  const match = output.match(RATE_LIMIT_PATTERN);
-  return match ? match[1].trim() : null;
+  return parseClaudeLimitMessage(output)?.resetTime ?? null;
 }
 
 /**

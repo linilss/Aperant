@@ -12,6 +12,8 @@ import {
   refreshOAuthToken,
   ensureValidToken,
   reactiveTokenRefresh,
+  ANTHROPIC_TOKEN_ENDPOINT,
+  LEGACY_ANTHROPIC_TOKEN_ENDPOINT,
 } from './token-refresh';
 
 // Mock credential-utils
@@ -139,6 +141,55 @@ describe('token-refresh', () => {
       expect(result.refreshToken).toBe('new-refresh-token');
       expect(result.expiresIn).toBe(28800);
       expect(result.expiresAt).toBeDefined();
+    });
+
+    it('should POST to the platform.claude.com token endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 28800 })
+      });
+
+      await refreshOAuthToken('old-refresh-token');
+
+      expect(ANTHROPIC_TOKEN_ENDPOINT).toBe('https://platform.claude.com/v1/oauth/token');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0][0]).toBe(ANTHROPIC_TOKEN_ENDPOINT);
+      const body = new URLSearchParams(mockFetch.mock.calls[0][1].body);
+      expect(body.get('client_id')).toBe('9d1c250a-e61b-44d9-88ed-5944d1962f5e');
+      expect(body.get('grant_type')).toBe('refresh_token');
+    });
+
+    it.each([404, 410])('should fall back to the legacy endpoint on HTTP %i', async (status) => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: false, status, statusText: 'Gone', json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: 'legacy-a', refresh_token: 'legacy-r', expires_in: 28800 })
+        });
+
+      const result = await refreshOAuthToken('old-refresh-token');
+
+      expect(result.success).toBe(true);
+      expect(result.accessToken).toBe('legacy-a');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls[0][0]).toBe(ANTHROPIC_TOKEN_ENDPOINT);
+      expect(mockFetch.mock.calls[1][0]).toBe(LEGACY_ANTHROPIC_TOKEN_ENDPOINT);
+    });
+
+    it('should not fall back to the legacy endpoint on invalid_grant', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => ({ error: 'invalid_grant', error_description: 'nope' })
+      });
+
+      await refreshOAuthToken('old-refresh-token');
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0][0]).toBe(ANTHROPIC_TOKEN_ENDPOINT);
     });
 
     it('should handle invalid_grant error without retry', async () => {

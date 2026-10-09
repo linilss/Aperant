@@ -442,7 +442,8 @@ export function handleRateLimit(
   getWindow: WindowGetter,
   switchProfileCallback: (terminalId: string, profileId: string) => Promise<void>
 ): void {
-  const resetTime = OutputParser.extractRateLimitReset(data);
+  const limitInfo = OutputParser.extractRateLimitInfo(data);
+  const resetTime = limitInfo?.resetTime;
   if (!resetTime) {
     return;
   }
@@ -459,7 +460,7 @@ export function handleRateLimit(
   const currentProfileId = terminal.claudeProfileId || 'default';
 
   try {
-    const rateLimitEvent = profileManager.recordRateLimitEvent(currentProfileId, resetTime);
+    const rateLimitEvent = profileManager.recordRateLimitEvent(currentProfileId, resetTime, limitInfo?.window);
     console.warn('[ClaudeIntegration] Recorded rate limit event:', rateLimitEvent.type);
   } catch (err) {
     console.error('[ClaudeIntegration] Failed to record rate limit event:', err);
@@ -1123,19 +1124,42 @@ export function invokeClaude(
 }
 
 /**
+ * Session IDs captured from ~/.claude/projects/<slug>/<id>.jsonl are UUIDs.
+ * Only accept a conservative character set so the ID is safe to splice into a shell command.
+ */
+const RESUMABLE_SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
+
+/**
+ * Build the CLI resume arguments for a terminal.
+ *
+ * `claude --resume <session-id>` resumes that exact conversation (the CLI help documents
+ * `-r, --resume [value]` as "Resume a conversation by session ID"). We use it whenever a
+ * session ID is known for the terminal (explicitly passed, or captured earlier by
+ * SessionHandler.captureClaudeSessionId and restored from the session store). Only when
+ * no usable ID is known do we fall back to `--continue`, which picks the most recent
+ * conversation in the current directory and can land on the wrong session when several
+ * terminals share a cwd.
+ */
+export function buildResumeArgs(
+  explicitSessionId: string | undefined,
+  knownSessionId: string | undefined
+): { args: string; sessionId: string | undefined } {
+  const candidate = explicitSessionId || knownSessionId;
+  if (candidate && RESUMABLE_SESSION_ID_PATTERN.test(candidate)) {
+    return { args: ` --resume ${candidate}`, sessionId: candidate };
+  }
+  return { args: ' --continue', sessionId: undefined };
+}
+
+/**
  * Resume Claude session in the current directory
  *
- * Uses `claude --continue` which resumes the most recent conversation in the
- * current directory. This is simpler and more reliable than tracking session IDs,
- * since Auto Claude already restores terminals to their correct cwd/projectPath.
- *
- * Note: The sessionId parameter is kept for backwards compatibility but is ignored.
- * Claude Code's --resume flag expects user-named sessions (set via /rename), not
- * internal session file IDs.
+ * Uses `claude --resume <id>` when a session ID is known for the terminal,
+ * otherwise `claude --continue` (most recent conversation in the cwd).
  */
 export function resumeClaude(
   terminal: TerminalProcess,
-  _sessionId: string | undefined,
+  sessionId: string | undefined,
   getWindow: WindowGetter
 ): void {
   // Track terminal state for cleanup on error
@@ -1151,23 +1175,19 @@ export function resumeClaude(
       ? ''
       : buildPathPrefix(claudeEnv.PATH || '');
 
-    // Always use --continue which resumes the most recent session in the current directory.
-    // This is more reliable than --resume with session IDs since Auto Claude already restores
-    // terminals to their correct cwd/projectPath.
-    //
-    // Note: We clear claudeSessionId because --continue doesn't track specific sessions,
-    // and we don't want stale IDs persisting through SessionHandler.persistSession().
-    terminal.claudeSessionId = undefined;
-
-    // Deprecation warning for callers still passing sessionId
-    if (_sessionId) {
-      console.warn('[ClaudeIntegration:resumeClaude] sessionId parameter is deprecated and ignored; using claude --continue instead');
+    // Resume the known session by ID; fall back to --continue only when none is known.
+    // With --continue we clear claudeSessionId so a stale ID doesn't persist through
+    // SessionHandler.persistSession(). With --resume the CLI keeps the same session ID.
+    const resume = buildResumeArgs(sessionId, terminal.claudeSessionId);
+    terminal.claudeSessionId = resume.sessionId;
+    if (resume.sessionId) {
+      SessionHandler.claimSessionId(resume.sessionId, terminal.id);
     }
 
     // Preserve YOLO mode flag from terminal's stored state
     const extraFlags = terminal.dangerouslySkipPermissions ? YOLO_MODE_FLAG : '';
 
-    const command = `${pathPrefix}${escapedClaudeCmd} --continue${extraFlags}`;
+    const command = `${pathPrefix}${escapedClaudeCmd}${resume.args}${extraFlags}`;
 
     // Use PtyManager.writeToPty for safer write with error handling
     PtyManager.writeToPty(terminal, `${command}\r`);
@@ -1186,7 +1206,6 @@ export function resumeClaude(
   } catch (error) {
     // Reset terminal state on error to prevent inconsistent state
     terminal.isCLIMode = wasClaudeMode;
-    // Note: Don't restore claudeSessionId since --continue doesn't use session IDs
     debugError('[ClaudeIntegration:resumeClaude] Resume failed:', error);
     throw error; // Re-throw to allow caller to handle
   }
@@ -1386,17 +1405,13 @@ export async function resumeClaudeAsync(
       ? ''
       : buildPathPrefix(claudeEnv.PATH || '');
 
-    // Always use --continue which resumes the most recent session in the current directory.
-    // This is more reliable than --resume with session IDs since Auto Claude already restores
-    // terminals to their correct cwd/projectPath.
-    //
-    // Note: We clear claudeSessionId because --continue doesn't track specific sessions,
-    // and we don't want stale IDs persisting through SessionHandler.persistSessionAsync().
-    terminal.claudeSessionId = undefined;
-
-    // Deprecation warning for callers still passing sessionId (skip for migrated sessions)
-    if (sessionId && !options?.migratedSession) {
-      console.warn('[ClaudeIntegration:resumeClaudeAsync] sessionId parameter is deprecated and ignored; using claude --continue instead');
+    // Resume the known session by ID; fall back to --continue only when none is known.
+    // With --continue we clear claudeSessionId so a stale ID doesn't persist through
+    // SessionHandler.persistSessionAsync(). With --resume the CLI keeps the same session ID.
+    const resume = buildResumeArgs(sessionId, terminal.claudeSessionId);
+    terminal.claudeSessionId = resume.sessionId;
+    if (resume.sessionId) {
+      SessionHandler.claimSessionId(resume.sessionId, terminal.id);
     }
 
     if (options?.migratedSession) {
@@ -1406,7 +1421,7 @@ export async function resumeClaudeAsync(
     // Preserve YOLO mode flag from terminal's stored state
     const extraFlags = terminal.dangerouslySkipPermissions ? YOLO_MODE_FLAG : '';
 
-    const command = `${pathPrefix}${escapedClaudeCmd} --continue${extraFlags}`;
+    const command = `${pathPrefix}${escapedClaudeCmd}${resume.args}${extraFlags}`;
 
     // Use PtyManager.writeToPty for safer write with error handling
     PtyManager.writeToPty(terminal, `${command}\r`);
@@ -1425,7 +1440,6 @@ export async function resumeClaudeAsync(
   } catch (error) {
     // Reset terminal state on error to prevent inconsistent state
     terminal.isCLIMode = wasClaudeMode;
-    // Note: Don't restore claudeSessionId since --continue doesn't use session IDs
     debugError('[ClaudeIntegration:resumeClaudeAsync] Resume failed:', error);
     throw error; // Re-throw to allow caller to handle
   }

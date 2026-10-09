@@ -26,6 +26,7 @@ const mockGetClaudeProfileManager = vi.fn();
 const mockInitializeClaudeProfileManager = vi.fn();
 const mockPersistSession = vi.fn();
 const mockReleaseSessionId = vi.fn();
+const mockClaimSessionId = vi.fn(() => true);
 
 const createMockDisposable = (): pty.IDisposable => ({ dispose: vi.fn() });
 
@@ -82,6 +83,7 @@ vi.mock('fs', async (importOriginal) => {
 vi.mock('../session-handler', () => ({
   persistSession: mockPersistSession,
   releaseSessionId: mockReleaseSessionId,
+  claimSessionId: mockClaimSessionId,
 }));
 
 // Mock PtyManager.writeToPty - the implementation now uses this instead of terminal.pty.write
@@ -240,6 +242,7 @@ describe('cli-integration-handler', () => {
     mockGetClaudeProfileManager.mockClear();
     mockPersistSession.mockClear();
     mockReleaseSessionId.mockClear();
+    mockClaimSessionId.mockClear();
     mockWriteToPty.mockClear();
     vi.mocked(writeFileSync).mockClear();
   });
@@ -470,7 +473,7 @@ describe('cli-integration-handler', () => {
       expect(mockPersistSession).toHaveBeenCalledWith(terminal);
     });
 
-    it('uses --continue regardless of sessionId (sessionId is deprecated)', async () => {
+    it('uses --resume <id> when a session ID is passed', async () => {
       mockGetClaudeCliInvocation.mockReturnValue({
         command: '/opt/claude/bin/claude',
         env: { PATH: '/opt/claude/bin:/usr/bin' },
@@ -483,29 +486,69 @@ describe('cli-integration-handler', () => {
       });
 
       const { resumeClaude } = await import('../cli-integration-handler');
+      const sessionId = '0f8e2c4a-9b1d-4e6f-8a3c-2d5b7e9f1a4c';
 
-      // Even when sessionId is passed, it should be ignored and --continue used
-      resumeClaude(terminal, 'abc123', () => null);
+      resumeClaude(terminal, sessionId, () => null);
 
       const resumeCall = mockWriteToPty.mock.calls[0][1] as string;
       expectPathPrefix(resumeCall, platform, '/opt/claude/bin:/usr/bin', '/opt/claude/bin/claude');
-      expect(resumeCall).toContain(getQuotedCommand(platform, '/opt/claude/bin/claude') + ' --continue');
-      expect(resumeCall).not.toContain('--resume');
-      // sessionId is cleared because --continue doesn't track specific sessions
-      expect(terminal.claudeSessionId).toBeUndefined();
+      expect(resumeCall).toContain(`${getQuotedCommand(platform, '/opt/claude/bin/claude')} --resume ${sessionId}`);
+      expect(resumeCall).not.toContain('--continue');
+      // --resume keeps the same session ID, so the terminal keeps tracking it
+      expect(terminal.claudeSessionId).toBe(sessionId);
+      expect(mockClaimSessionId).toHaveBeenCalledWith(sessionId, 'term-2');
       expect(terminal.isCLIMode).toBe(true);
       expect(mockPersistSession).toHaveBeenCalledWith(terminal);
+    });
 
-      mockWriteToPty.mockClear();
-      mockPersistSession.mockClear();
-      terminal.projectPath = undefined;
-      terminal.isCLIMode = false;
+    it('uses the captured terminal session ID when none is passed', async () => {
+      mockGetClaudeCliInvocation.mockReturnValue({
+        command: '/opt/claude/bin/claude',
+        env: { PATH: '/opt/claude/bin:/usr/bin' },
+      });
+      const sessionId = '7c1d3e5f-2a4b-4c6d-8e0f-1a2b3c4d5e6f';
+      const terminal = createMockTerminal({ id: 'term-3', claudeSessionId: sessionId });
+
+      const { resumeClaude } = await import('../cli-integration-handler');
       resumeClaude(terminal, undefined, () => null);
+
+      const resumeCall = mockWriteToPty.mock.calls[0][1] as string;
+      expect(resumeCall).toContain(` --resume ${sessionId}`);
+      expect(terminal.claudeSessionId).toBe(sessionId);
+    });
+
+    it('falls back to --continue when no session ID is known', async () => {
+      mockGetClaudeCliInvocation.mockReturnValue({
+        command: '/opt/claude/bin/claude',
+        env: { PATH: '/opt/claude/bin:/usr/bin' },
+      });
+      const terminal = createMockTerminal({ id: 'term-4', projectPath: undefined, isCLIMode: false });
+
+      const { resumeClaude } = await import('../cli-integration-handler');
+      resumeClaude(terminal, undefined, () => null);
+
       const continueCall = mockWriteToPty.mock.calls[0][1] as string;
       expect(continueCall).toContain(getQuotedCommand(platform, '/opt/claude/bin/claude') + ' --continue');
+      expect(continueCall).not.toContain('--resume');
       expect(terminal.isCLIMode).toBe(true);
       expect(terminal.claudeSessionId).toBeUndefined();
       expect(mockPersistSession).not.toHaveBeenCalled();
+    });
+
+    it('falls back to --continue when the session ID is not shell-safe', async () => {
+      mockGetClaudeCliInvocation.mockReturnValue({
+        command: '/opt/claude/bin/claude',
+        env: { PATH: '/opt/claude/bin:/usr/bin' },
+      });
+      const terminal = createMockTerminal({ id: 'term-6' });
+
+      const { resumeClaude } = await import('../cli-integration-handler');
+      resumeClaude(terminal, 'abc; rm -rf ~', () => null);
+
+      const call = mockWriteToPty.mock.calls[0][1] as string;
+      expect(call).toContain(' --continue');
+      expect(call).not.toContain('rm -rf');
+      expect(terminal.claudeSessionId).toBeUndefined();
     });
   });
 

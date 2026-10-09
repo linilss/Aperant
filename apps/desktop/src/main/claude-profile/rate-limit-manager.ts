@@ -7,14 +7,17 @@ import type { ClaudeProfile, ClaudeRateLimitEvent } from '../../shared/types';
 import { parseResetTime, classifyRateLimitType } from './usage-parser';
 
 /**
- * Record a rate limit event for a profile
+ * Record a rate limit event for a profile.
+ * `limitType` comes from the limit message label when known (e.g. "weekly limit");
+ * otherwise it's inferred from the reset string.
  */
 export function recordRateLimitEvent(
   profile: ClaudeProfile,
-  resetTimeStr: string
+  resetTimeStr: string,
+  limitType?: 'session' | 'weekly'
 ): ClaudeRateLimitEvent {
   const event: ClaudeRateLimitEvent = {
-    type: classifyRateLimitType(resetTimeStr),
+    type: limitType ?? classifyRateLimitType(resetTimeStr),
     hitAt: new Date(),
     resetAt: parseResetTime(resetTimeStr),
     resetTimeString: resetTimeStr

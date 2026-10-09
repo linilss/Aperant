@@ -56,6 +56,16 @@ describe('isRateLimitError', () => {
     expect(isRateLimitError('limit reached for this billing period')).toBe(true);
   });
 
+  it('should detect Claude Code "You\'ve hit your … limit" messages', () => {
+    expect(isRateLimitError("You've hit your session limit · resets 3pm (Europe/Stockholm)")).toBe(true);
+    expect(isRateLimitError("You've hit your weekly limit · resets Oct 12, 3pm (Europe/Stockholm)")).toBe(true);
+    expect(isRateLimitError("You've hit your Opus limit · resets Oct 12, 3pm (Europe/Stockholm)")).toBe(true);
+    expect(isRateLimitError("You've hit your Sonnet limit · resets Oct 12, 3pm (Europe/Stockholm) · progress saved")).toBe(true);
+    expect(isRateLimitError("You've hit your Fable limit · resets Oct 12, 3pm (Europe/Stockholm)")).toBe(true);
+    expect(isRateLimitError(new Error("Claude Code process exited: You've hit your limit · resets 3pm"))).toBe(true);
+    expect(isRateLimitError("You've hit your team's shared budget · ask your admin to raise it")).toBe(true);
+  });
+
   it('should not match billing errors that use 429', () => {
     expect(isRateLimitError('429 Insufficient balance or no resource package')).toBe(false);
     expect(isRateLimitError('429 please recharge')).toBe(false);

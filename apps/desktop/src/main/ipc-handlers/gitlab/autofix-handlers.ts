@@ -23,6 +23,13 @@ import type {
   GitLabIssueBatch,
   GitLabAnalyzePreviewResult,
 } from './types';
+import type { ModelShorthand } from '../../ai/config/types';
+
+/**
+ * Default auto-fix model. Stored as a shorthand so it tracks the current Sonnet via
+ * resolveModelId() (ai/config/phase-config) instead of pinning a dated model ID.
+ */
+const DEFAULT_AUTOFIX_MODEL: ModelShorthand = 'sonnet';
 
 // Debug logging
 function debugLog(message: string, ...args: unknown[]): void {
@@ -86,7 +93,7 @@ function getAutoFixConfig(project: Project): GitLabAutoFixConfig {
         enabled: data.auto_fix_enabled ?? false,
         labels: data.auto_fix_labels ?? ['auto-fix'],
         requireHumanApproval: data.require_human_approval ?? true,
-        model: data.model ?? 'claude-sonnet-4-6',
+        model: data.model ?? DEFAULT_AUTOFIX_MODEL,
         thinkingLevel: data.thinking_level ?? 'medium',
       };
     } catch {
@@ -98,7 +105,7 @@ function getAutoFixConfig(project: Project): GitLabAutoFixConfig {
     enabled: false,
     labels: ['auto-fix'],
     requireHumanApproval: true,
-    model: 'claude-sonnet-4-6',
+    model: DEFAULT_AUTOFIX_MODEL,
     thinkingLevel: 'medium',
   };
 }

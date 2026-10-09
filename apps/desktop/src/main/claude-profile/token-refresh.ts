@@ -7,8 +7,9 @@
  * CRITICAL: When a token is refreshed, the old token is IMMEDIATELY REVOKED by Anthropic.
  * Therefore, new tokens must be written back to the credential store immediately.
  *
- * Verified endpoint:
- * POST https://console.anthropic.com/v1/oauth/token
+ * Endpoint (TOKEN_URL in Claude Code CLI 2.1.x):
+ * POST https://platform.claude.com/v1/oauth/token
+ * (legacy https://console.anthropic.com/v1/oauth/token is used as a fallback on 404/410)
  * Content-Type: application/x-www-form-urlencoded
  * Body: grant_type=refresh_token&refresh_token=sk-ant-ort01-...&client_id=<CLIENT_ID>
  * Response: { access_token, refresh_token, expires_in: 28800, token_type: "Bearer" }
@@ -26,9 +27,33 @@ import {
 // =============================================================================
 
 /**
- * Anthropic OAuth token endpoint
+ * Anthropic OAuth token endpoint (matches TOKEN_URL in the Claude Code CLI)
  */
-const ANTHROPIC_TOKEN_ENDPOINT = 'https://console.anthropic.com/v1/oauth/token';
+export const ANTHROPIC_TOKEN_ENDPOINT = 'https://platform.claude.com/v1/oauth/token';
+
+/**
+ * Legacy token endpoint, only tried when the primary returns 404/410
+ */
+export const LEGACY_ANTHROPIC_TOKEN_ENDPOINT = 'https://console.anthropic.com/v1/oauth/token';
+
+/**
+ * POST the token request to the primary endpoint, falling back to the legacy
+ * endpoint if the primary reports the route as gone (404/410).
+ */
+async function postTokenRequest(body: string): Promise<Response> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  };
+  const response = await fetch(ANTHROPIC_TOKEN_ENDPOINT, init);
+  if (response.status === 404 || response.status === 410) {
+    return fetch(LEGACY_ANTHROPIC_TOKEN_ENDPOINT, init);
+  }
+  return response;
+}
 
 /**
  * Claude Code OAuth client ID (public - same for all Claude Code installations)
@@ -207,13 +232,7 @@ export async function refreshOAuthToken(
         client_id: CLAUDE_CODE_CLIENT_ID
       });
 
-      const response = await fetch(ANTHROPIC_TOKEN_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: body.toString()
-      });
+      const response = await postTokenRequest(body.toString());
 
       if (!response.ok) {
         let errorData: Record<string, string> = {};
