@@ -4,7 +4,6 @@ import { Archive } from 'lucide-react';
 import { RoadmapGenerationProgress } from './RoadmapGenerationProgress';
 import { CompetitorAnalysisDialog } from './CompetitorAnalysisDialog';
 import { RegenerateGuidanceDialog } from './roadmap/RegenerateGuidanceDialog';
-import { ExistingCompetitorAnalysisDialog } from './ExistingCompetitorAnalysisDialog';
 import { CompetitorAnalysisViewer } from './CompetitorAnalysisViewer';
 import { AddFeatureDialog } from './AddFeatureDialog';
 import { RoadmapHeader } from './roadmap/RoadmapHeader';
@@ -51,14 +50,6 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
   const { saveRoadmap } = useRoadmapSave(projectId);
   const { deleteFeature } = useFeatureDelete(projectId);
   const {
-    competitorAnalysisDate,
-    // New dialog for existing analysis
-    showExistingAnalysisDialog,
-    setShowExistingAnalysisDialog,
-    handleUseExistingAnalysis,
-    handleRunNewAnalysis,
-    handleSkipAnalysis,
-    // Original dialog for no existing analysis
     showCompetitorDialog,
     setShowCompetitorDialog,
     handleGenerate,
@@ -70,7 +61,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
     handleCompetitorDialogAccept,
     handleCompetitorDialogDecline,
     handleStop,
-  } = useRoadmapGeneration(projectId);
+  } = useRoadmapGeneration(projectId, onGoToCompetitors);
 
   // Event handlers
   const handleConvertToSpec = async (feature: RoadmapFeature) => {
@@ -181,17 +172,6 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
           onOpenChange={setShowCompetitorDialog}
           onAccept={handleCompetitorDialogAccept}
           onDecline={handleCompetitorDialogDecline}
-          projectId={projectId}
-        />
-        {/* Dialog for projects WITH existing competitor analysis */}
-        <ExistingCompetitorAnalysisDialog
-          open={showExistingAnalysisDialog}
-          onOpenChange={setShowExistingAnalysisDialog}
-          onUseExisting={handleUseExistingAnalysis}
-          onRunNew={handleRunNewAnalysis}
-          onSkip={handleSkipAnalysis}
-          analysisDate={competitorAnalysisDate}
-          projectId={projectId}
         />
       </>
     );
@@ -264,18 +244,6 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
         onOpenChange={setShowCompetitorDialog}
         onAccept={handleCompetitorDialogAccept}
         onDecline={handleCompetitorDialogDecline}
-        projectId={projectId}
-      />
-
-      {/* Competitor Analysis Options Dialog (existing analysis) */}
-      <ExistingCompetitorAnalysisDialog
-        open={showExistingAnalysisDialog}
-        onOpenChange={setShowExistingAnalysisDialog}
-        onUseExisting={handleUseExistingAnalysis}
-        onRunNew={handleRunNewAnalysis}
-        onSkip={handleSkipAnalysis}
-        analysisDate={competitorAnalysisDate}
-        projectId={projectId}
       />
 
       {/* Competitor Analysis Viewer */}
