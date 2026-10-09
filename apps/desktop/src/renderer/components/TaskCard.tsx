@@ -847,7 +847,7 @@ export const TaskCard = memo(function TaskCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0"
+                    className="h-7 w-7 p-0 max-md:h-9 max-md:w-9"
                     onClick={(e) => e.stopPropagation()}
                     aria-label={t('actions.taskActions')}
                   >

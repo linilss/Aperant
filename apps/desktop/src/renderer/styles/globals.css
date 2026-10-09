@@ -1727,3 +1727,19 @@ body {
 [data-ui-scale="190"] { font-size: 30.4px; }
 [data-ui-scale="195"] { font-size: 31.2px; }
 [data-ui-scale="200"] { font-size: 32px; }
+
+/* Phone layout (LAN web UI). Never matches in the desktop window (minWidth 800px). */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+  /* iOS Safari zooms the page when focusing an input under 16px */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

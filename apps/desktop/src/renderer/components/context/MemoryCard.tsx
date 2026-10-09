@@ -346,17 +346,17 @@ export function MemoryCard({ memory, onVerify, onPin, onDeprecate }: MemoryCardP
               variant="ghost"
               size="sm"
               onClick={() => setExpanded(!expanded)}
-              className="shrink-0 gap-1"
+              className="shrink-0 gap-1 max-md:h-10 max-md:min-w-10"
             >
               {expanded ? (
                 <>
                   <ChevronUp className="h-4 w-4" />
-                  {t('memory.collapse')}
+                  <span className="max-md:sr-only">{t('memory.collapse')}</span>
                 </>
               ) : (
                 <>
                   <ChevronDown className="h-4 w-4" />
-                  {t('memory.expand')}
+                  <span className="max-md:sr-only">{t('memory.expand')}</span>
                 </>
               )}
             </Button>
@@ -365,12 +365,12 @@ export function MemoryCard({ memory, onVerify, onPin, onDeprecate }: MemoryCardP
 
         {/* Actions */}
         {(onVerify || onPin || onDeprecate) && (
-          <div className="flex items-center gap-1 mt-2">
+          <div className="flex items-center gap-1 mt-2 max-md:flex-wrap">
             {!memory.userVerified && onVerify && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1 text-xs text-muted-foreground hover:text-green-400"
+                className="h-7 gap-1 text-xs text-muted-foreground hover:text-green-400 max-md:h-10"
                 onClick={() => onVerify(memory.id)}
                 title={t('memory.actions.verify')}
               >
@@ -383,7 +383,7 @@ export function MemoryCard({ memory, onVerify, onPin, onDeprecate }: MemoryCardP
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'h-7 gap-1 text-xs',
+                  'h-7 gap-1 text-xs max-md:h-10',
                   memory.pinned ? 'text-accent' : 'text-muted-foreground hover:text-accent'
                 )}
                 onClick={() => onPin(memory.id, !memory.pinned)}
@@ -397,7 +397,7 @@ export function MemoryCard({ memory, onVerify, onPin, onDeprecate }: MemoryCardP
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1 text-xs text-muted-foreground hover:text-destructive"
+                className="h-7 gap-1 text-xs text-muted-foreground hover:text-destructive max-md:h-10"
                 onClick={() => onDeprecate(memory.id)}
                 title={t('memory.actions.deprecate')}
               >

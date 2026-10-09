@@ -128,7 +128,7 @@ export function Context({ projectId }: ContextProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <div className="border-b border-border px-6 py-3">
+        <div className="border-b border-border px-6 py-3 max-md:px-4">
           <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="index" className="gap-2">
               <FolderTree className="h-4 w-4" />

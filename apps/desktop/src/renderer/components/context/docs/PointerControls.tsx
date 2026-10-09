@@ -74,7 +74,7 @@ export function AddPointerButton({ onCreate, className }: AddPointerButtonProps)
           aria-label={t('pointers.add')}
           className={cn(
             'ml-2 inline-flex items-center rounded px-1 text-sm align-middle opacity-0 transition-opacity',
-            'group-hover:opacity-100 focus:opacity-100 hover:bg-muted',
+            'group-hover:opacity-100 focus:opacity-100 hover:bg-muted max-md:min-h-10 max-md:min-w-10 max-md:justify-center max-md:opacity-100',
             open && 'opacity-100',
             className
           )}
@@ -161,11 +161,11 @@ export function PointerItem({ pointer, onUpdate, onDelete, onOpen, showAnchor }:
           </div>
         )}
       </div>
-      <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/pointer:opacity-100">
+      <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/pointer:opacity-100 max-md:opacity-100">
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className="h-6 w-6 max-md:h-10 max-md:w-10"
           onClick={() => setEditing(true)}
           aria-label={t('pointers.edit')}
           title={t('pointers.edit')}
@@ -175,7 +175,7 @@ export function PointerItem({ pointer, onUpdate, onDelete, onOpen, showAnchor }:
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-destructive"
+          className="h-6 w-6 text-destructive max-md:h-10 max-md:w-10"
           onClick={() => onDelete(pointer.id)}
           aria-label={t('pointers.delete')}
           title={t('pointers.delete')}

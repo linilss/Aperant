@@ -4,7 +4,7 @@ import {
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -12,6 +12,7 @@ import {
   type DragEndEvent,
   type DragOverEvent
 } from '@dnd-kit/core';
+import { MouseAndPenSensor, TOUCH_DRAG_ACTIVATION } from '../lib/dnd-sensors';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -86,7 +87,7 @@ function DroppableStatusColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex min-w-80 max-w-[32rem] flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
+        'flex min-w-80 max-w-[32rem] flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200 max-md:w-[85vw] max-md:min-w-[85vw] max-md:max-w-[85vw] max-md:flex-none max-md:snap-start',
         column.color,
         'border-t-2',
         isOver && 'drop-zone-highlight'
@@ -187,11 +188,12 @@ export function RoadmapKanbanView({
   const updateFeatureStatus = useRoadmapStore((state) => state.updateFeatureStatus);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseAndPenSensor, {
       activationConstraint: {
         distance: 8 // 8px movement required before drag starts
       }
     }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_DRAG_ACTIVATION }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
@@ -295,7 +297,7 @@ export function RoadmapKanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6">
+        <div className="flex flex-1 gap-4 overflow-x-auto p-6 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:gap-3 max-md:p-3">
           {ROADMAP_STATUS_COLUMNS.map((column) => (
             <DroppableStatusColumn
               key={column.id}

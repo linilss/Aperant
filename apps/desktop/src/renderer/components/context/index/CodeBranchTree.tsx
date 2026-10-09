@@ -83,7 +83,7 @@ export function CodeBranchTree({
             key={path || '(root)'}
             id={branchRowId(path)}
             className={cn(
-              'group flex items-center gap-3 py-1.5 pr-3 transition-colors hover:bg-muted/40',
+              'group flex items-center gap-3 py-1.5 pr-3 transition-colors hover:bg-muted/40 max-md:gap-2 max-md:pr-1',
               highlighted === path && 'bg-primary/10'
             )}
             style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}
@@ -108,10 +108,10 @@ export function CodeBranchTree({
               {t(`index.status.${branch.status}`)}
             </Badge>
 
-            <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+            <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground max-md:hidden">
               {t('index.files', { count: branch.sourceFileCount })}
             </span>
-            <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+            <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted-foreground max-md:hidden">
               {pointerCount > 0 ? t('index.pointers', { count: pointerCount }) : ''}
             </span>
 
@@ -119,7 +119,7 @@ export function CodeBranchTree({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2"
+                className="h-7 px-2 max-md:h-10 max-md:min-w-10"
                 disabled={!docPath}
                 onClick={() => docPath && onOpenDoc(docPath)}
                 title={t('index.openDoc')}
@@ -130,7 +130,7 @@ export function CodeBranchTree({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2"
+                className="h-7 px-2 max-md:h-10 max-md:min-w-10"
                 disabled={optimizerRunning}
                 onClick={() => onDocument(path)}
                 title={t('index.documentBranch')}

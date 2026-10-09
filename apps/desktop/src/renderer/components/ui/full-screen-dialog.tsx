@@ -44,6 +44,9 @@ const FullScreenDialogContent = React.forwardRef<
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98',
         'duration-200',
+        // Phone (LAN web UI): edge to edge, inside the safe area
+        'max-md:inset-x-0 max-md:top-[env(safe-area-inset-top)] max-md:bottom-[env(safe-area-inset-bottom)]',
+        'max-md:rounded-none max-md:border-0',
         className
       )}
       {...props}
@@ -51,7 +54,7 @@ const FullScreenDialogContent = React.forwardRef<
       {children}
       <DialogPrimitive.Close
         className={cn(
-          'absolute right-4 top-4 rounded-lg p-2',
+          'absolute right-4 top-4 rounded-lg p-2 max-md:right-2 max-md:top-2 max-md:p-2.5',
           'text-muted-foreground hover:text-foreground',
           'hover:bg-accent transition-colors',
           'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background',
@@ -72,7 +75,7 @@ const FullScreenDialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col space-y-1.5 p-6 pb-4 border-b border-border',
+      'flex flex-col space-y-1.5 p-6 pb-4 border-b border-border max-md:p-4 max-md:pr-14',
       className
     )}
     {...props}
@@ -84,7 +87,7 @@ const FullScreenDialogBody = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex-1 overflow-hidden', className)} {...props} />
+  <div className={cn('flex-1 overflow-hidden max-md:min-h-0', className)} {...props} />
 );
 FullScreenDialogBody.displayName = 'FullScreenDialogBody';
 
@@ -94,7 +97,7 @@ const FullScreenDialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex items-center justify-end gap-3 p-6 pt-4 border-t border-border',
+      'flex items-center justify-end gap-3 p-6 pt-4 border-t border-border max-md:flex-wrap max-md:gap-2 max-md:p-3',
       className
     )}
     {...props}

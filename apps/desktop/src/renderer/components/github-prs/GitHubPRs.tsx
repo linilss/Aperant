@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GitPullRequest, RefreshCw, ExternalLink, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../stores/project-store";
@@ -6,6 +6,8 @@ import { useGitHubPRs, usePRFiltering } from "./hooks";
 import { PRList, PRDetail, PRFilterBar } from "./components";
 import { Button } from "../ui/button";
 import { ResizablePanels } from "../ui/resizable-panels";
+import { MobileBackBar } from "../MobileNav";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 interface GitHubPRsProps {
   onOpenSettings?: () => void;
@@ -51,6 +53,9 @@ function EmptyState({ message }: { message: string }) {
 
 export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) {
   const { t } = useTranslation("common");
+  // Phone: list and detail are shown one at a time
+  const isMobile = useIsMobile();
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
 
   const {
@@ -199,11 +204,69 @@ export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) 
     return <NotConnectedState error={error} onOpenSettings={onOpenSettings} t={t} />;
   }
 
+  const leftPanel = (
+    <div className="flex flex-col h-full">
+      <PRFilterBar
+        filters={filters}
+        contributors={contributors}
+        hasActiveFilters={hasActiveFilters}
+        onSearchChange={setSearchQuery}
+        onContributorsChange={setContributors}
+        onStatusesChange={setStatuses}
+        onSortChange={setSortBy}
+        onClearFilters={clearFilters}
+      />
+      <PRList
+        prs={filteredPRs}
+        selectedPRNumber={selectedPRNumber}
+        isLoading={isLoading}
+        hasMore={hasMore}
+        error={error}
+        getReviewStateForPR={getReviewStateForPR}
+        onSelectPR={(prNumber) => {
+          selectPR(prNumber);
+          setShowMobileDetail(true);
+        }}
+        onLoadMore={loadMore}
+        isLoadingMore={isLoadingMore}
+      />
+    </div>
+  );
+
+  const rightPanel = selectedPR ? (
+      <PRDetail
+        pr={selectedPR}
+        projectId={selectedProjectId || ""}
+        reviewResult={reviewResult}
+        previousReviewResult={previousReviewResult}
+        reviewProgress={reviewProgress}
+        startedAt={startedAt}
+        isReviewing={isReviewing}
+        isExternalReview={isExternalReview}
+        reviewError={reviewError}
+        initialNewCommitsCheck={storedNewCommitsCheck}
+        isActive={isActive}
+        isLoadingFiles={isLoadingPRDetails}
+        onRunReview={handleRunReview}
+        onRunFollowupReview={handleRunFollowupReview}
+        onCheckNewCommits={handleCheckNewCommits}
+        onCancelReview={handleCancelReview}
+        onPostReview={handlePostReview}
+        onPostComment={handlePostComment}
+        onMergePR={handleMergePR}
+        onAssignPR={handleAssignPR}
+        onGetLogs={handleGetLogs}
+        onMarkReviewPosted={handleMarkReviewPosted}
+      />
+    ) : (
+      <EmptyState message={t("prReview.selectPRToView")} />
+    );
+
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border max-md:gap-2 max-md:px-3">
+        <div className="flex items-center gap-3 max-md:min-w-0 max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-1">
           <h2 className="text-sm font-medium flex items-center gap-2">
             <GitPullRequest className="h-4 w-4" />
             {t("prReview.pullRequests")}
@@ -228,68 +291,26 @@ export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) 
         </Button>
       </div>
 
-      {/* Content - Resizable split panels */}
-      <ResizablePanels
-        defaultLeftWidth={50}
-        minLeftWidth={30}
-        maxLeftWidth={70}
-        storageKey="github-prs-panel-width"
-        leftPanel={
-          <div className="flex flex-col h-full">
-            <PRFilterBar
-              filters={filters}
-              contributors={contributors}
-              hasActiveFilters={hasActiveFilters}
-              onSearchChange={setSearchQuery}
-              onContributorsChange={setContributors}
-              onStatusesChange={setStatuses}
-              onSortChange={setSortBy}
-              onClearFilters={clearFilters}
-            />
-            <PRList
-              prs={filteredPRs}
-              selectedPRNumber={selectedPRNumber}
-              isLoading={isLoading}
-              hasMore={hasMore}
-              error={error}
-              getReviewStateForPR={getReviewStateForPR}
-              onSelectPR={selectPR}
-              onLoadMore={loadMore}
-              isLoadingMore={isLoadingMore}
-            />
+      {/* Content - Resizable split panels (phone: list → detail) */}
+      {isMobile ? (
+        showMobileDetail ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <MobileBackBar onBack={() => setShowMobileDetail(false)} />
+            <div className="min-h-0 flex-1">{rightPanel}</div>
           </div>
-        }
-        rightPanel={
-          selectedPR ? (
-            <PRDetail
-              pr={selectedPR}
-              projectId={selectedProjectId || ""}
-              reviewResult={reviewResult}
-              previousReviewResult={previousReviewResult}
-              reviewProgress={reviewProgress}
-              startedAt={startedAt}
-              isReviewing={isReviewing}
-              isExternalReview={isExternalReview}
-              reviewError={reviewError}
-              initialNewCommitsCheck={storedNewCommitsCheck}
-              isActive={isActive}
-              isLoadingFiles={isLoadingPRDetails}
-              onRunReview={handleRunReview}
-              onRunFollowupReview={handleRunFollowupReview}
-              onCheckNewCommits={handleCheckNewCommits}
-              onCancelReview={handleCancelReview}
-              onPostReview={handlePostReview}
-              onPostComment={handlePostComment}
-              onMergePR={handleMergePR}
-              onAssignPR={handleAssignPR}
-              onGetLogs={handleGetLogs}
-              onMarkReviewPosted={handleMarkReviewPosted}
-            />
-          ) : (
-            <EmptyState message={t("prReview.selectPRToView")} />
-          )
-        }
-      />
+        ) : (
+          <div className="min-h-0 flex-1">{leftPanel}</div>
+        )
+      ) : (
+        <ResizablePanels
+          defaultLeftWidth={50}
+          minLeftWidth={30}
+          maxLeftWidth={70}
+          storageKey="github-prs-panel-width"
+          leftPanel={leftPanel}
+          rightPanel={rightPanel}
+        />
+      )}
     </div>
   );
 }

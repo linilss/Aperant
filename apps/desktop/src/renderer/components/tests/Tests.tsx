@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTestsStore, loadSavedSolution, discoverProjects, runTests, stopTests, setupTestsListeners } from '../../stores/tests-store';
 import { ScrollArea } from '../ui/scroll-area';
+import { MobileBackBar } from '../MobileNav';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { TestsHeader } from './TestsHeader';
 import { TestsTree } from './TestsTree';
 import { TestsResults } from './TestsResults';
@@ -22,6 +24,10 @@ export function Tests({ projectId }: TestsProps) {
   const setSelectedCategory = useTestsStore((state) => state.setSelectedCategory);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+
+  // Phone: tree and results are shown one at a time (list → detail)
+  const isMobile = useIsMobile();
+  const [showMobileResults, setShowMobileResults] = useState(false);
 
   // Set up IPC listeners and load persisted results (without re-discovering)
   useEffect(() => {
@@ -47,6 +53,7 @@ export function Tests({ projectId }: TestsProps) {
 
   const handleSelectCategory = (cat: TestCategory | 'all') => {
     setSelectedCategory(cat);
+    setShowMobileResults(true);
   };
 
   return (
@@ -66,7 +73,7 @@ export function Tests({ projectId }: TestsProps) {
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {/* Left panel: project tree */}
-          <div className="w-64 shrink-0 border-r border-border">
+          <div className={isMobile ? (showMobileResults ? 'hidden' : 'flex-1') : 'w-64 shrink-0 border-r border-border'}>
             <ScrollArea className="h-full">
               <TestsTree
                 projects={projects}
@@ -79,12 +86,15 @@ export function Tests({ projectId }: TestsProps) {
           </div>
 
           {/* Right panel: results */}
-          <div className="flex-1 overflow-hidden">
-            <TestsResults
-              project={selectedProject}
-              selectedCategory={selectedCategory}
-              runningTestId={runningTestId}
-            />
+          <div className={isMobile ? (showMobileResults ? 'flex flex-1 flex-col overflow-hidden' : 'hidden') : 'flex-1 overflow-hidden'}>
+            {isMobile && <MobileBackBar onBack={() => setShowMobileResults(false)} title={selectedProject?.name} />}
+            <div className={isMobile ? 'min-h-0 flex-1' : 'h-full'}>
+              <TestsResults
+                project={selectedProject}
+                selectedCategory={selectedCategory}
+                runningTestId={runningTestId}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -13,9 +13,9 @@ export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRef
 
   return (
     <div className="shrink-0 border-b border-border p-4 bg-card/50">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-start justify-between max-md:flex-col max-md:gap-3">
+        <div className="max-md:min-w-0">
+          <div className="flex items-center gap-2 mb-1 max-md:flex-wrap">
             <Target className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">{roadmap.projectName}</h2>
             <Badge variant="outline">{roadmap.status}</Badge>
@@ -45,7 +45,7 @@ export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRef
           </div>
           <p className="text-sm text-muted-foreground max-w-xl">{roadmap.vision}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-md:flex-wrap">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="sm" onClick={onRefineFeature}>

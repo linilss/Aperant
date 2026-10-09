@@ -65,7 +65,7 @@ function ProposalCard({
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 max-md:flex-wrap max-md:px-3">
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             <Badge variant={proposal.action === 'delete' ? 'destructive' : 'outline'} className="text-xs">
@@ -141,8 +141,8 @@ export function ProposalReview({ proposals, onApprove, onReject, onClose, error 
   };
 
   return (
-    <div className="space-y-4 p-6">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-4 p-6 max-md:p-4">
+      <div className="flex items-center justify-between gap-3 max-md:flex-wrap">
         <div>
           <h3 className="text-base font-semibold text-foreground">{t('review.title')}</h3>
           <p className="text-xs text-muted-foreground">{t('review.subtitle')}</p>

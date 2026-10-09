@@ -197,7 +197,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border shadow-xl flex flex-col z-[60]">
+    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border shadow-xl flex flex-col z-[60] max-md:inset-x-0 max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border electron-no-drag">
         <div className="flex items-center gap-2 min-w-0">

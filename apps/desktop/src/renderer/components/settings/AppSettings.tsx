@@ -20,7 +20,9 @@ import {
   Terminal,
   Users,
   CheckSquare,
-  Smartphone
+  Smartphone,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 // GitLab icon component (lucide-react doesn't have one)
@@ -57,6 +59,7 @@ import { AccountSettings } from './AccountSettings';
 import { ProjectSelector } from './ProjectSelector';
 import { ProjectSettingsContent, ProjectSettingsSection } from './ProjectSettingsContent';
 import { useProjectStore } from '../../stores/project-store';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { UseProjectSettingsReturn } from '../project-settings/hooks/useProjectSettings';
 
 interface AppSettingsDialogProps {
@@ -115,9 +118,14 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
   const [appSection, setAppSection] = useState<AppSection>(initialSection || 'appearance');
   const [projectSection, setProjectSection] = useState<ProjectSettingsSection>('general');
 
+  // Mobile (below md): nav and content are separate screens (list -> detail)
+  const isMobile = useIsMobile();
+  const [mobileShowContent, setMobileShowContent] = useState(false);
+
   // Navigate to initial section when dialog opens with a specific section
   useEffect(() => {
     if (open) {
+      setMobileShowContent(Boolean(initialProjectSection || initialSection));
       if (initialProjectSection) {
         setActiveTopLevel('project');
         setProjectSection(initialProjectSection);
@@ -252,8 +260,9 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
         <FullScreenDialogBody>
           <div className="flex h-full">
             {/* Navigation sidebar */}
-            <nav className="w-80 border-r border-border bg-muted/30 p-4">
-              <ScrollArea className="h-full">
+            {(!isMobile || !mobileShowContent) && (
+            <nav className="w-80 border-r border-border bg-muted/30 p-4 max-md:w-full max-md:border-r-0">
+              <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:block!">
                 <div className="space-y-6">
                   {/* APPLICATION Section */}
                   <div>
@@ -270,6 +279,7 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
                             onClick={() => {
                               setActiveTopLevel('app');
                               setAppSection(item.id);
+                              setMobileShowContent(true);
                             }}
                             className={cn(
                               'w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all',
@@ -279,10 +289,11 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
                             )}
                           >
                             <Icon className="h-5 w-5 mt-0.5 shrink-0" />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="font-medium text-sm">{t(`sections.${item.id}.title`)}</div>
                               <div className="text-xs text-muted-foreground truncate">{t(`sections.${item.id}.description`)}</div>
                             </div>
+                            {isMobile && <ChevronRight className="ml-auto h-5 w-5 mt-0.5 shrink-0 self-center" />}
                           </button>
                         );
                       })}
@@ -335,6 +346,7 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
                             onClick={() => {
                               setActiveTopLevel('project');
                               setProjectSection(item.id);
+                              setMobileShowContent(true);
                             }}
                             disabled={projectNavDisabled}
                             className={cn(
@@ -347,10 +359,11 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
                             )}
                           >
                             <Icon className="h-5 w-5 mt-0.5 shrink-0" />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="font-medium text-sm">{t(`projectSections.${item.id}.title`)}</div>
                               <div className="text-xs text-muted-foreground truncate">{t(`projectSections.${item.id}.description`)}</div>
                             </div>
+                            {isMobile && <ChevronRight className="ml-auto h-5 w-5 mt-0.5 shrink-0 self-center" />}
                           </button>
                         );
                       })}
@@ -368,15 +381,26 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
                 )}
               </ScrollArea>
             </nav>
+            )}
 
             {/* Main content */}
-            <div className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
-                <div className={appSection === 'terminal-fonts' ? 'p-8' : 'p-8 max-w-2xl'}>
+            {(!isMobile || mobileShowContent) && (
+            <div className="flex-1 overflow-hidden max-md:flex max-md:flex-col max-md:min-w-0">
+              {isMobile && (
+                <div className="shrink-0 border-b border-border px-2 py-1">
+                  <Button variant="ghost" className="h-10 gap-1 px-2" onClick={() => setMobileShowContent(false)}>
+                    <ChevronLeft className="h-5 w-5" />
+                    {t('common:buttons.back')}
+                  </Button>
+                </div>
+              )}
+              <ScrollArea className="h-full max-md:min-h-0 max-md:flex-1" viewportClassName="max-md:[&>div]:block!">
+                <div className={cn(appSection === 'terminal-fonts' ? 'p-8' : 'p-8 max-w-2xl', 'max-md:p-4 max-md:min-w-0')}>
                   {renderContent()}
                 </div>
               </ScrollArea>
             </div>
+            )}
           </div>
         </FullScreenDialogBody>
 

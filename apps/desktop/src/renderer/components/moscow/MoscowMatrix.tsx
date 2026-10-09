@@ -5,13 +5,14 @@ import {
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core';
+import { MouseAndPenSensor, TOUCH_DRAG_ACTIVATION } from '../../lib/dnd-sensors';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Grid2x2, Map as MapIcon } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -83,7 +84,8 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
     projectRoadmap?.features.find((f) => f.id === selectedFeatureId) ?? null;
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseAndPenSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_DRAG_ACTIVATION }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -157,7 +159,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
   };
 
   const header = (
-    <div className="flex items-center justify-between border-b border-border px-6 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-4 max-md:px-3 max-md:py-3">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
           <Grid2x2 className="h-5 w-5 text-primary" />
@@ -205,7 +207,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask }: MoscowMat
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-4 p-6">
+        <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-4 p-6 max-md:grid-cols-1 max-md:grid-rows-none max-md:auto-rows-[minmax(16rem,auto)] max-md:gap-3 max-md:overflow-y-auto max-md:p-3">
           {MOSCOW_QUADRANTS.map((quadrant) => (
             <MoscowQuadrant
               key={quadrant.id}

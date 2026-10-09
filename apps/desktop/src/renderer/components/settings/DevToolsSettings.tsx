@@ -337,19 +337,21 @@ export function DevToolsSettings({ settings, onSettingsChange }: DevToolsSetting
                   placeholder="/path/to/your/ide"
                   className="flex-1"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={async () => {
-                    const result = await window.electronAPI.selectDirectory();
-                    if (result) {
-                      handleCustomIDEPathChange(result);
-                    }
-                  }}
-                  aria-label={t('common:accessibility.browseFilesAriaLabel')}
-                >
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
+                {!window.isRemote && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      const result = await window.electronAPI.selectDirectory();
+                      if (result) {
+                        handleCustomIDEPathChange(result);
+                      }
+                    }}
+                    aria-label={t('common:accessibility.browseFilesAriaLabel')}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -399,19 +401,21 @@ export function DevToolsSettings({ settings, onSettingsChange }: DevToolsSetting
                   placeholder="/path/to/your/terminal"
                   className="flex-1"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={async () => {
-                    const result = await window.electronAPI.selectDirectory();
-                    if (result) {
-                      handleCustomTerminalPathChange(result);
-                    }
-                  }}
-                  aria-label={t('common:accessibility.browseFilesAriaLabel')}
-                >
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
+                {!window.isRemote && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      const result = await window.electronAPI.selectDirectory();
+                      if (result) {
+                        handleCustomTerminalPathChange(result);
+                      }
+                    }}
+                    aria-label={t('common:accessibility.browseFilesAriaLabel')}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -461,19 +465,21 @@ export function DevToolsSettings({ settings, onSettingsChange }: DevToolsSetting
                   placeholder="/path/to/your/cli"
                   className="flex-1"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={async () => {
-                    const result = await window.electronAPI.selectDirectory();
-                    if (result) {
-                      handleCustomCLIPathChange(result);
-                    }
-                  }}
-                  aria-label={t('common:accessibility.browseFilesAriaLabel')}
-                >
-                  <FolderOpen className="h-4 w-4" />
-                </Button>
+                {!window.isRemote && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      const result = await window.electronAPI.selectDirectory();
+                      if (result) {
+                        handleCustomCLIPathChange(result);
+                      }
+                    }}
+                    aria-label={t('common:accessibility.browseFilesAriaLabel')}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           )}

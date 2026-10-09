@@ -49,6 +49,8 @@ import { createThumbnail, generateImageId } from './ImageUpload';
 import { loadTasks } from '../stores/task-store';
 import { ChatHistorySidebar } from './ChatHistorySidebar';
 import { InsightsModelSelector } from './InsightsModelSelector';
+import { MobileBackBar } from './MobileNav';
+import { useIsMobile } from '../hooks/useIsMobile';
 import type { InsightsChatMessage, InsightsModelConfig, TaskMetadata, ImageAttachment } from '../../shared/types';
 import {
   TASK_CATEGORY_LABELS,
@@ -117,6 +119,11 @@ export function Insights({ projectId }: InsightsProps) {
   const [creatingTask, setCreatingTask] = useState<Set<string>>(new Set());
   const [taskCreated, setTaskCreated] = useState<Set<string>>(new Set());
   const [showSidebar, setShowSidebar] = useState(true);
+  // Phone: chat history is an overlay, closed by default
+  const isMobile = useIsMobile();
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const isSidebarVisible = isMobile ? showMobileSidebar : showSidebar;
+  const toggleSidebar = () => (isMobile ? setShowMobileSidebar((v) => !v) : setShowSidebar(!showSidebar));
   const showArchived = useInsightsStore((state) => state.showArchived);
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
@@ -269,11 +276,13 @@ export function Insights({ projectId }: InsightsProps) {
 
   const handleNewSession = async () => {
     await newSession(projectId);
+    setShowMobileSidebar(false);
     setTaskCreated(new Set());
     textareaRef.current?.focus();
   };
 
   const handleSelectSession = async (sessionId: string) => {
+    setShowMobileSidebar(false);
     if (sessionId !== session?.id) {
       await switchSession(projectId, sessionId);
     }
@@ -384,9 +393,9 @@ export function Insights({ projectId }: InsightsProps) {
   const messages = session?.messages || [];
 
   return (
-    <div className="flex h-full">
-      {/* Chat History Sidebar */}
-      {showSidebar && (
+    <div className="flex h-full max-md:relative">
+      {/* Chat History Sidebar (phone: full-size overlay with a back row) */}
+      {isSidebarVisible && !isMobile && (
         <ChatHistorySidebar
           sessions={sessions}
           currentSessionId={session?.id || null}
@@ -403,36 +412,58 @@ export function Insights({ projectId }: InsightsProps) {
           onToggleShowArchived={handleToggleShowArchived}
         />
       )}
+      {isSidebarVisible && isMobile && (
+        <div className="absolute inset-0 z-20 flex flex-col bg-background">
+          <MobileBackBar onBack={() => setShowMobileSidebar(false)} />
+          <div className="min-h-0 flex-1 [&>div]:w-full [&>div]:border-r-0">
+            <ChatHistorySidebar
+              sessions={sessions}
+              currentSessionId={session?.id || null}
+              isLoading={isLoadingSessions}
+              onNewSession={handleNewSession}
+              onSelectSession={handleSelectSession}
+              onDeleteSession={handleDeleteSession}
+              onRenameSession={handleRenameSession}
+              onArchiveSession={handleArchiveSession}
+              onUnarchiveSession={handleUnarchiveSession}
+              onDeleteSessions={handleDeleteSessions}
+              onArchiveSessions={handleArchiveSessions}
+              showArchived={showArchived}
+              onToggleShowArchived={handleToggleShowArchived}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col max-md:min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 max-md:gap-2 max-md:px-3 max-md:py-2">
+          <div className="flex items-center gap-3 max-md:min-w-0 max-md:gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
-              onClick={() => setShowSidebar(!showSidebar)}
-              title={showSidebar ? 'Hide sidebar' : 'Show sidebar'}
+              className="h-8 w-8 max-md:h-10 max-md:w-10"
+              onClick={toggleSidebar}
+              title={isSidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
             >
-              {showSidebar ? (
+              {isSidebarVisible ? (
                 <PanelLeftClose className="h-4 w-4" />
               ) : (
                 <PanelLeft className="h-4 w-4" />
               )}
             </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 max-md:hidden">
               <Sparkles className="h-5 w-5 text-primary" />
             </div>
-            <div>
+            <div className="max-md:hidden">
               <h2 className="font-semibold text-foreground">Insights</h2>
               <p className="text-sm text-muted-foreground">
                 Ask questions about your codebase
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:min-w-0">
             <InsightsModelSelector
               currentConfig={session?.modelConfig}
               onConfigChange={handleModelConfigChange}
@@ -451,7 +482,7 @@ export function Insights({ projectId }: InsightsProps) {
 
       {/* Messages */}
       <ScrollArea
-        className="flex-1 px-6 py-4"
+        className="flex-1 px-6 py-4 max-md:px-3"
         onViewportRef={setViewportEl}
       >
         {messages.length === 0 && !streamingContent ? (
@@ -635,7 +666,7 @@ export function Insights({ projectId }: InsightsProps) {
                 <button
                   type="button"
                   onClick={() => removeImage(image.id)}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100"
                   title={t('insights.images.removeImage')}
                 >
                   <X className="h-3 w-3" />

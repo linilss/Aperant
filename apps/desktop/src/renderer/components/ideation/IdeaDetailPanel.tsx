@@ -39,7 +39,7 @@ export function IdeaDetailPanel({ idea, onClose, onConvert, onGoToTask, onDismis
   const isConverted = idea.status === 'converted';
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-lg flex flex-col z-50">
+    <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-lg flex flex-col z-50 max-md:inset-x-0 max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
       <div className="shrink-0 p-4 border-b border-border electron-no-drag">
         <div className="flex items-start justify-between">

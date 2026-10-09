@@ -51,6 +51,10 @@ const DialogContent = React.forwardRef<
         'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]',
         'data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
         'duration-200 overflow-hidden flex flex-col',
+        // Phone (LAN web UI): full-screen sheet, whole content scrolls, footer sticks to the bottom
+        'max-md:inset-x-0 max-md:top-[env(safe-area-inset-top)] max-md:bottom-[env(safe-area-inset-bottom)]',
+        'max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:h-auto max-md:max-h-none',
+        'max-md:rounded-none max-md:border-0 max-md:overflow-y-auto max-md:overscroll-contain max-md:p-4',
         className
       )}
       {...props}
@@ -59,7 +63,7 @@ const DialogContent = React.forwardRef<
       {!hideCloseButton && (
         <DialogPrimitive.Close
           className={cn(
-            'absolute right-4 top-4 rounded-lg p-1 z-10',
+            'absolute right-4 top-4 rounded-lg p-1 z-10 max-md:right-2 max-md:top-2 max-md:p-2.5',
             'text-muted-foreground hover:text-foreground',
             'hover:bg-accent transition-colors',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background',
@@ -82,7 +86,11 @@ DialogHeader.displayName = 'DialogHeader';
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 mt-6', className)}
+    className={cn(
+      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 mt-6',
+      'max-md:sticky max-md:bottom-0 max-md:mt-auto max-md:gap-2 max-md:bg-card max-md:pt-3',
+      className
+    )}
     {...props}
   />
 );

@@ -122,9 +122,9 @@ export function PreviewPanel({
   }), [projectPath]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden max-md:flex-none max-md:overflow-visible">
       {/* Preview Header */}
-      <div className="flex items-center justify-between border-b border-border px-6 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-3 max-md:px-4">
         <div className="flex items-center gap-3">
           <h2 className="font-medium">Preview</h2>
           <div className="flex items-center gap-1 rounded-md border border-border p-1">
@@ -146,7 +146,7 @@ export function PreviewPanel({
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -190,7 +190,7 @@ export function PreviewPanel({
 
       {/* Preview Content */}
       <div
-        className={`flex-1 overflow-hidden p-6 ${isDragOver ? 'bg-muted/50' : ''}`}
+        className={`flex-1 overflow-hidden p-6 max-md:flex-none max-md:p-4 ${isDragOver ? 'bg-muted/50' : ''}`}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
@@ -209,7 +209,7 @@ export function PreviewPanel({
               </div>
             )}
             {viewMode === 'markdown' ? (
-              <div className="flex h-full flex-col gap-2">
+              <div className="flex h-full flex-col gap-2 max-md:h-[70vh]">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <ImageIcon className="h-3.5 w-3.5" />
                   <span>Paste images into the description to save them to the changelog</span>

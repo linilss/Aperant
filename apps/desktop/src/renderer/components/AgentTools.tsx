@@ -513,7 +513,7 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onRemoveMcp(id, server); }}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                          className="opacity-0 group-hover:opacity-100 max-md:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
                           title={t('mcp.remove')}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -541,7 +541,7 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onAddMcp(id, server); }}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all"
+                        className="opacity-0 group-hover:opacity-100 max-md:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all"
                         title={t('mcp.restore')}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -1285,7 +1285,7 @@ export function AgentTools() {
                                 <span className="ml-1">Test</span>
                               </Button>
                               {/* Edit/Delete - show on hover */}
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity">
                                 <button
                                   type="button"
                                   onClick={() => { setEditingCustomServer(server); setShowCustomMcpDialog(true); }}

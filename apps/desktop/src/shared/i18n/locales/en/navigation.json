@@ -1,4 +1,10 @@
 {
+  "mobile": {
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "projects": "Projects",
+    "noProject": "No project"
+  },
   "sections": {
     "understand": "Understand",
     "plan": "Plan",

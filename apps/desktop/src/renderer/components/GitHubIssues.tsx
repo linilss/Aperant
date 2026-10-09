@@ -20,6 +20,8 @@ import {
 import { GitHubSetupModal } from "./GitHubSetupModal";
 import type { GitHubIssue } from "../../shared/types";
 import type { GitHubIssuesProps } from "./github-issues/types";
+import { MobileBackBar } from './MobileNav';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesProps) {
   const projects = useProjectStore((state) => state.projects);
@@ -88,6 +90,9 @@ export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesP
   const [selectedIssueForInvestigation, setSelectedIssueForInvestigation] =
     useState<GitHubIssue | null>(null);
   const [showGitHubSetup, setShowGitHubSetup] = useState(false);
+  // Phone: list and detail are shown one at a time
+  const isMobile = useIsMobile();
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Show GitHub setup modal when module is not installed
   useEffect(() => {
@@ -163,7 +168,7 @@ export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesP
       {/* Content */}
       <div className="flex-1 flex min-h-0">
         {/* Issue List */}
-        <div className="w-1/2 border-r border-border flex flex-col">
+        <div className={`w-1/2 border-r border-border flex flex-col max-md:w-full max-md:border-r-0${isMobile && showMobileDetail ? " hidden" : ""}`}>
           <IssueList
             issues={filteredIssues}
             selectedIssueNumber={selectedIssueNumber}
@@ -171,7 +176,10 @@ export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesP
             isLoadingMore={isLoadingMore}
             hasMore={hasMore && !isSearchActive}
             error={error}
-            onSelectIssue={selectIssue}
+            onSelectIssue={(issueNumber) => {
+              selectIssue(issueNumber);
+              setShowMobileDetail(true);
+            }}
             onInvestigate={handleInvestigate}
             onLoadMore={!isSearchActive ? handleLoadMore : undefined}
             onRetry={handleRefresh}
@@ -180,7 +188,8 @@ export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesP
         </div>
 
         {/* Issue Detail */}
-        <div className="w-1/2 flex flex-col">
+        <div className={`w-1/2 flex flex-col max-md:w-full${isMobile && !showMobileDetail ? " hidden" : ""}`}>
+          {isMobile && <MobileBackBar onBack={() => setShowMobileDetail(false)} />}
           {selectedIssue ? (
             <IssueDetail
               issue={selectedIssue}

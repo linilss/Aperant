@@ -20,14 +20,14 @@ export function PointersSection({ projectId, pointers, onOpenPointer }: Pointers
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             {t('pointers.title')}
           </h3>
           <p className="text-xs text-muted-foreground">{t('pointers.description')}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setCreating(true)} disabled={creating}>
+        <Button variant="outline" size="sm" className="shrink-0 max-md:h-10" onClick={() => setCreating(true)} disabled={creating}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           {t('pointers.new')}
         </Button>

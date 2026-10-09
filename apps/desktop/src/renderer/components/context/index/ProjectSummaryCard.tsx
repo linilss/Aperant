@@ -21,7 +21,7 @@ function CopyableCommand({ command, description }: { command: string; descriptio
   };
 
   return (
-    <li className="flex items-center gap-2">
+    <li className="flex items-center gap-2 max-md:flex-wrap max-md:gap-1">
       <button
         type="button"
         onClick={copy}
@@ -32,7 +32,7 @@ function CopyableCommand({ command, description }: { command: string; descriptio
         {copied ? (
           <Check className="h-3 w-3 shrink-0 text-success" />
         ) : (
-          <Copy className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
+          <Copy className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 max-md:opacity-100" />
         )}
       </button>
       {description && <span className="truncate text-xs text-muted-foreground">{description}</span>}

@@ -24,14 +24,14 @@ export function TestsHeader({
   const { t } = useTranslation('tests');
 
   return (
-    <div className="flex items-center justify-between border-b border-border px-6 py-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+    <div className="flex items-center justify-between border-b border-border px-6 py-4 max-md:flex-wrap max-md:gap-3 max-md:px-4 max-md:py-3">
+      <div className="flex items-center gap-3 max-md:min-w-0 max-md:flex-1 max-md:basis-full">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <FlaskConical className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="min-w-0">
           <h2 className="font-semibold text-foreground">{t('title')}</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-md:text-xs">
             {hasProjects
               ? t('results.noResults')
               : t('empty.description')}
@@ -42,6 +42,7 @@ export function TestsHeader({
         <Button
           variant="outline"
           size="sm"
+          className="max-md:h-10"
           onClick={onDiscover}
           disabled={isLoading || isRunning}
         >
@@ -56,6 +57,7 @@ export function TestsHeader({
           <Button
             variant="destructive"
             size="sm"
+            className="max-md:h-10"
             onClick={onStop}
             disabled={!selectedProjectId}
           >
@@ -65,6 +67,7 @@ export function TestsHeader({
         ) : (
           <Button
             size="sm"
+            className="max-md:h-10"
             onClick={onRunAll}
             disabled={!hasProjects || isLoading || !selectedProjectId}
           >

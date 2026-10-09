@@ -73,6 +73,7 @@ interface SidebarProps {
   onNewTaskClick: () => void;
   activeView?: SidebarView;
   onViewChange?: (view: SidebarView) => void;
+  className?: string;
 }
 
 interface NavItem {
@@ -150,11 +151,21 @@ const navSections: NavSection[] = [
   }
 ];
 
+/** i18n key of a nav item's label (used by the mobile top bar title). */
+export function getNavItemLabelKey(view: SidebarView): string | undefined {
+  for (const section of navSections) {
+    const item = section.items.find((i) => i.id === view);
+    if (item) return item.labelKey;
+  }
+  return undefined;
+}
+
 export function Sidebar({
   onSettingsClick,
   onNewTaskClick,
   activeView = 'kanban',
-  onViewChange
+  onViewChange,
+  className
 }: SidebarProps) {
   const { t } = useTranslation(['navigation', 'dialogs', 'common']);
   const projects = useProjectStore((state) => state.projects);
@@ -378,9 +389,9 @@ export function Sidebar({
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-64 flex-col bg-sidebar border-r border-border">
+      <div className={cn('flex h-full w-64 flex-col bg-sidebar border-r border-border', className)}>
         {/* Header with drag area - extra top padding for macOS traffic lights */}
-        <div className="electron-drag flex h-14 items-center px-4 pt-6">
+        <div className="electron-drag flex h-14 items-center px-4 pt-6 max-md:h-12 max-md:pt-0">
           <span className="electron-no-drag text-lg font-bold text-primary">malvy</span>
         </div>
 

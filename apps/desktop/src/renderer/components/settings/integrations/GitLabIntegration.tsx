@@ -435,25 +435,28 @@ export function GitLabIntegration({
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleInstallGlab}
-                            disabled={isInstallingGlab}
-                            className="gap-2"
-                          >
-                            {isInstallingGlab ? (
-                              <>
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                {t('settings.cli.installing')}
-                              </>
-                            ) : (
-                              <>
-                                <Terminal className="h-3 w-3" />
-                                {t('settings.cli.installButton')}
-                              </>
-                            )}
-                          </Button>
+                          {/* Installer opens a terminal on the desktop — not available from the LAN web UI */}
+                          {!window.isRemote && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleInstallGlab}
+                              disabled={isInstallingGlab}
+                              className="gap-2"
+                            >
+                              {isInstallingGlab ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  {t('settings.cli.installing')}
+                                </>
+                              ) : (
+                                <>
+                                  <Terminal className="h-3 w-3" />
+                                  {t('settings.cli.installButton')}
+                                </>
+                              )}
+                            </Button>
+                          )}
                           <a
                             href="https://gitlab.com/gitlab-org/cli#installation"
                             target="_blank"

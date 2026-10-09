@@ -85,9 +85,9 @@ function SkillCard({
             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm text-foreground">{skill.name}</span>
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-sm text-foreground break-words min-w-0">{skill.name}</span>
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono break-all">
                 {skill.filename}
               </span>
             </div>
@@ -106,7 +106,7 @@ function SkillCard({
                 size="sm"
                 onClick={save}
                 disabled={isSaving}
-                className="h-7 w-7 p-0 text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                className="h-7 w-7 p-0 max-md:h-10 max-md:w-10 text-green-500 hover:text-green-400 hover:bg-green-500/10"
                 title="Save (⌘Enter)"
               >
                 <Check className="h-3.5 w-3.5" />
@@ -116,7 +116,7 @@ function SkillCard({
                 size="sm"
                 onClick={cancelEdit}
                 disabled={isSaving}
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                className="h-7 w-7 p-0 max-md:h-10 max-md:w-10 text-muted-foreground hover:text-foreground"
                 title="Cancel (Esc)"
               >
                 <X className="h-3.5 w-3.5" />
@@ -127,7 +127,7 @@ function SkillCard({
               variant="ghost"
               size="sm"
               onClick={startEdit}
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 p-0 max-md:h-10 max-md:w-10 text-muted-foreground hover:text-foreground"
               title="Edit"
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -184,16 +184,16 @@ function SkillSection({
     <div className="mb-6">
       <div className="mb-3 flex items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
-        <div>
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          <p className="text-xs text-muted-foreground break-all">{subtitle}</p>
         </div>
-        <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
           {skills.length}
         </span>
       </div>
       {skills.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic px-1">{emptyMessage}</p>
+        <p className="text-xs text-muted-foreground italic px-1 break-words">{emptyMessage}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {skills.map((skill) => (
@@ -264,14 +264,14 @@ export function ClaudeSkillsView() {
           size="sm"
           onClick={loadSkills}
           disabled={isLoading}
-          className="h-7 w-7 p-0"
+          className="h-7 w-7 p-0 max-md:h-10 max-md:w-10"
           title="Refresh"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" viewportClassName="max-md:[&>div]:block!">
         <div className="p-4">
           {error && (
             <p className="mb-4 text-xs text-destructive">{error}</p>

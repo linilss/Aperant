@@ -1,4 +1,22 @@
 {
+  "mobile": {
+    "switcherLabel": "Terminals",
+    "keyBarLabel": "Terminal keys",
+    "keys": {
+      "esc": "Esc",
+      "tab": "Tab",
+      "ctrl": "Ctrl",
+      "enter": "Enter",
+      "up": "Arrow up",
+      "down": "Arrow down",
+      "left": "Arrow left",
+      "right": "Arrow right"
+    },
+    "escAria": "Send Escape",
+    "tabAria": "Send Tab",
+    "ctrlAria": "Ctrl modifier: the next key is sent as a control character",
+    "enterAria": "Send Enter"
+  },
   "expand": {
     "expand": "Expand terminal",
     "collapse": "Collapse terminal"

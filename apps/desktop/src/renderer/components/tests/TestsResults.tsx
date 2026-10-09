@@ -38,7 +38,7 @@ function TestRow({ result, isRunning }: TestRowProps) {
         )}
         onClick={() => hasError && setExpanded((e) => !e)}
       >
-        <td className="px-4 py-2.5">
+        <td className="px-4 py-2.5 max-md:px-3">
           <div className="flex items-center gap-2">
             {hasError && (
               <span className="text-muted-foreground">
@@ -49,21 +49,21 @@ function TestRow({ result, isRunning }: TestRowProps) {
                 )}
               </span>
             )}
-            <span className="text-sm text-foreground">{result.name}</span>
+            <span className="text-sm text-foreground max-md:break-all">{result.name}</span>
           </div>
         </td>
-        <td className="px-4 py-2.5 text-xs text-muted-foreground">{result.category}</td>
-        <td className="px-4 py-2.5">
+        <td className="px-4 py-2.5 text-xs text-muted-foreground max-md:hidden">{result.category}</td>
+        <td className="px-4 py-2.5 max-md:px-2">
           <TestStatusBadge status={status} />
         </td>
-        <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
+        <td className="px-4 py-2.5 text-right text-xs text-muted-foreground max-md:whitespace-nowrap max-md:px-3">
           {result.durationMs !== undefined ? formatDuration(result.durationMs) : '—'}
         </td>
       </tr>
       {expanded && hasError && (
         <tr className="border-b border-border bg-destructive/5">
-          <td colSpan={4} className="px-6 py-3">
-            <div className="space-y-2">
+          <td colSpan={4} className="px-6 py-3 max-md:px-3">
+            <div className="space-y-2 max-md:min-w-0">
               {result.errorMessage && (
                 <div className="flex items-start gap-2 text-sm text-destructive">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -110,7 +110,7 @@ export function TestsResults({ project, selectedCategory, runningTestId }: Tests
     <div className="flex h-full flex-col">
       {/* Summary bar */}
       {filtered.length > 0 && (
-        <div className="flex items-center gap-4 border-b border-border px-6 py-2 text-xs">
+        <div className="flex items-center gap-4 border-b border-border px-6 py-2 text-xs max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-1 max-md:px-4">
           {passed > 0 && (
             <span className="text-green-600 dark:text-green-400">
               {t('results.passed', { count: passed })}
@@ -130,7 +130,7 @@ export function TestsResults({ project, selectedCategory, runningTestId }: Tests
         </div>
       )}
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" viewportClassName="max-md:[&>div]:!block">
         {filtered.length === 0 ? (
           <div className="flex h-full items-center justify-center p-8">
             <p className="text-sm text-muted-foreground">{t('results.noResults')}</p>
@@ -139,10 +139,10 @@ export function TestsResults({ project, selectedCategory, runningTestId }: Tests
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
-                <th className="px-4 py-2.5">Test</th>
-                <th className="px-4 py-2.5">Category</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5 text-right">{t('results.duration')}</th>
+                <th className="px-4 py-2.5 max-md:px-3">Test</th>
+                <th className="px-4 py-2.5 max-md:hidden">Category</th>
+                <th className="px-4 py-2.5 max-md:px-2">Status</th>
+                <th className="px-4 py-2.5 text-right max-md:px-3">{t('results.duration')}</th>
               </tr>
             </thead>
             <tbody>

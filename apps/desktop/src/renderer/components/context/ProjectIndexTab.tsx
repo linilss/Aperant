@@ -72,8 +72,8 @@ export function ProjectIndexTab({
   );
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-6 p-6">
+    <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:!block">
+      <div className="space-y-6 p-6 max-md:p-4">
         <p className="text-xs text-muted-foreground">{docsSummary}</p>
 
         <ProjectSummaryCard
@@ -86,10 +86,10 @@ export function ProjectIndexTab({
 
         {/* Code branches */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 max-md:flex-wrap max-md:gap-2">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-foreground">{t('index.title')}</h2>
-              <p className="truncate text-xs text-muted-foreground">
+              <p className="truncate text-xs text-muted-foreground max-md:whitespace-normal">
                 {t('index.coverage', { documented, total: branches.length })} · {t('index.subtitle')}
               </p>
             </div>
@@ -97,6 +97,7 @@ export function ProjectIndexTab({
               <Button
                 variant="ghost"
                 size="sm"
+                className="max-md:h-10 max-md:min-w-10"
                 onClick={() => loadBranches(projectId)}
                 disabled={branchesLoading}
                 title={t('index.rescan')}
@@ -105,12 +106,12 @@ export function ProjectIndexTab({
                 <RefreshCw className={cn('h-3.5 w-3.5', branchesLoading && 'animate-spin')} />
               </Button>
               {optimizerRunning ? (
-                <Button variant="outline" size="sm" onClick={() => stopDocsOptimizer(projectId)}>
+                <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => stopDocsOptimizer(projectId)}>
                   <Square className="mr-1.5 h-3.5 w-3.5" />
                   {t('index.stop')}
                 </Button>
               ) : (
-                <Button size="sm" onClick={optimizeAll}>
+                <Button size="sm" className="max-md:h-10" onClick={optimizeAll}>
                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                   {t('index.optimizeAll')}
                 </Button>
@@ -126,7 +127,7 @@ export function ProjectIndexTab({
           )}
 
           {proposals && proposals.length > 0 && !optimizerRunning && (
-            <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+            <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
               <span className="text-foreground">{t('index.reviewReady', { count: proposals.length })}</span>
               <Button size="sm" onClick={onReview}>
                 {t('index.review')}

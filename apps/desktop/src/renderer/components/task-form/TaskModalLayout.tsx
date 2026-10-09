@@ -79,14 +79,17 @@ export function TaskModalLayout({
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
             'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-            'duration-200'
+            'duration-200',
+            // Phone (LAN web UI): full-screen inside the safe area
+            'max-md:inset-x-0 max-md:top-[env(safe-area-inset-top)] max-md:bottom-[env(safe-area-inset-bottom)]',
+            'max-md:translate-x-0 max-md:w-full max-md:max-w-none max-md:h-auto max-md:rounded-none max-md:border-0'
           )}
         >
           <div className="flex h-full min-h-0 overflow-hidden">
             {/* Main content area */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
               {/* Header */}
-              <div className="px-6 py-5 border-b border-border shrink-0">
+              <div className="px-6 py-5 border-b border-border shrink-0 max-md:px-4 max-md:py-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <DialogPrimitive.Title className="text-xl font-semibold leading-tight text-foreground">
@@ -114,20 +117,20 @@ export function TaskModalLayout({
 
               {/* Scrollable body */}
               <ScrollArea className="flex-1 min-h-0">
-                <div className="p-6">
+                <div className="p-6 max-md:p-4">
                   {children}
                 </div>
               </ScrollArea>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-border shrink-0 bg-muted/30">
+              <div className="px-6 py-4 border-t border-border shrink-0 bg-muted/30 max-md:px-3 max-md:py-3">
                 {footer}
               </div>
             </div>
 
             {/* Optional sidebar */}
             {sidebar && sidebarOpen && (
-              <div className="w-80 border-l border-border flex-shrink-0 overflow-hidden">
+              <div className="w-80 border-l border-border flex-shrink-0 overflow-hidden max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-full max-md:border-l-0 max-md:bg-card">
                 {sidebar}
               </div>
             )}

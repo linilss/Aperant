@@ -6,6 +6,8 @@ import { MRDetail } from './components/MRDetail';
 import { CreateMergeRequestDialog } from './components/CreateMergeRequestDialog';
 import { useGitLabMRs } from './hooks/useGitLabMRs';
 import { initializeMRReviewListeners } from '../../stores/gitlab';
+import { MobileBackBar } from '../MobileNav';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface GitLabMergeRequestsProps {
   projectId: string;
@@ -15,6 +17,9 @@ interface GitLabMergeRequestsProps {
 export function GitLabMergeRequests({ projectId, onOpenSettings }: GitLabMergeRequestsProps) {
   const [stateFilter, setStateFilter] = useState<'opened' | 'closed' | 'merged' | 'all'>('opened');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // Phone: list and detail are shown one at a time
+  const isMobile = useIsMobile();
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Initialize MR review listeners on mount
   useEffect(() => {
@@ -65,12 +70,15 @@ export function GitLabMergeRequests({ projectId, onOpenSettings }: GitLabMergeRe
   return (
     <div className="flex h-full">
       {/* List Panel */}
-      <div className="w-1/2 border-r border-border flex flex-col">
+      <div className={`w-1/2 border-r border-border flex flex-col max-md:w-full max-md:border-r-0${isMobile && showMobileDetail ? " hidden" : ""}`}>
         <MergeRequestList
           mergeRequests={mergeRequests}
           isLoading={isLoading}
           selectedMrIid={selectedMRIid}
-          onSelectMr={(mr) => selectMR(mr.iid)}
+          onSelectMr={(mr) => {
+            selectMR(mr.iid);
+            setShowMobileDetail(true);
+          }}
           onRefresh={refresh}
           stateFilter={stateFilter}
           onStateFilterChange={setStateFilter}
@@ -88,7 +96,8 @@ export function GitLabMergeRequests({ projectId, onOpenSettings }: GitLabMergeRe
       </div>
 
       {/* Detail Panel */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col${isMobile && !showMobileDetail ? " hidden" : ""}`}>
+        {isMobile && <MobileBackBar onBack={() => setShowMobileDetail(false)} />}
         {selectedMR ? (
           <MRDetail
             mr={selectedMR}

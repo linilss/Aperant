@@ -586,14 +586,17 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
               'data-[state=open]:animate-in data-[state=closed]:animate-out',
               'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
               'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-              'duration-200'
+              'duration-200',
+              // Phone (LAN web UI): full-screen inside the safe area
+              'max-md:inset-x-0 max-md:top-[env(safe-area-inset-top)] max-md:bottom-[env(safe-area-inset-bottom)]',
+              'max-md:translate-x-0 max-md:w-full max-md:max-w-none max-md:h-auto max-md:rounded-none max-md:border-0'
             )}
           >
             {/* Header */}
-            <div className="p-5 pb-4 border-b border-border shrink-0">
+            <div className="p-5 pb-4 border-b border-border shrink-0 max-md:p-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0 overflow-hidden">
-                  <DialogPrimitive.Title className="text-xl font-semibold leading-tight text-foreground truncate">
+                  <DialogPrimitive.Title className="text-xl font-semibold leading-tight text-foreground truncate max-md:text-lg max-md:whitespace-normal max-md:line-clamp-2">
                     {task.title}
                   </DialogPrimitive.Title>
                   <DialogPrimitive.Description asChild>
@@ -705,29 +708,29 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             {/* Body - Single Column with Tabs */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <Tabs value={state.activeTab} onValueChange={state.setActiveTab} className="flex flex-col h-full">
-                <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-5 h-auto shrink-0">
+                <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-5 h-auto shrink-0 max-md:overflow-x-auto max-md:px-2 max-md:[scrollbar-width:none]">
                   <TabsTrigger
                     value="overview"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                   >
                     Overview
                   </TabsTrigger>
                   <TabsTrigger
                     value="subtasks"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                   >
                     Subtasks ({task.subtasks.length})
                   </TabsTrigger>
                   <TabsTrigger
                     value="logs"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                   >
                     Logs
                   </TabsTrigger>
                   {showFilesTab && (
                     <TabsTrigger
                       value="files"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                     >
                       {t('tasks:files.tab')}
                     </TabsTrigger>
@@ -735,7 +738,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                   {refineTerminalMode && (
                     <TabsTrigger
                       value="refine"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                     >
                       Refine
                     </TabsTrigger>
@@ -840,7 +843,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             </div>
 
             {/* Footer - Actions */}
-            <div className="flex items-center gap-3 px-5 py-3 border-t border-border shrink-0">
+            <div className="flex items-center gap-3 px-5 py-3 border-t border-border shrink-0 max-md:flex-wrap max-md:gap-2 max-md:px-3">
               <Button
                 variant="ghost"
                 size="sm"

@@ -49,7 +49,7 @@ export function DocTree({ docs, pointers, selectedPath, onSelect }: DocTreeProps
                       onClick={() => onSelect(doc.relativePath)}
                       title={doc.firstLine || doc.relativePath}
                       className={cn(
-                        'flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors',
+                        'flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors max-md:min-h-10 max-md:text-sm',
                         selectedPath === doc.relativePath
                           ? 'bg-primary/10 text-primary'
                           : 'text-foreground hover:bg-muted'

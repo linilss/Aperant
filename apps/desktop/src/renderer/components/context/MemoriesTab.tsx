@@ -151,8 +151,8 @@ export function MemoriesTab({
   };
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6 space-y-6">
+    <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:!block">
+      <div className="p-6 space-y-6 max-md:p-4">
         <PointersSection projectId={projectId} pointers={pointers} onOpenPointer={onOpenPointer} />
 
         {/* Memory Status */}
@@ -357,7 +357,7 @@ export function MemoriesTab({
                   variant={isActive ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
-                    'gap-1.5 h-8',
+                    'gap-1.5 h-8 max-md:h-10',
                     isActive && 'bg-accent text-accent-foreground',
                     !isActive && count === 0 && 'opacity-50'
                   )}

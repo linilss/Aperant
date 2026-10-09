@@ -13,6 +13,8 @@ import {
 } from "./gitlab-issues/components";
 import type { GitLabIssue } from "../../shared/types";
 import type { GitLabIssuesProps } from "./gitlab-issues/types";
+import { MobileBackBar } from './MobileNav';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 export function GitLabIssues({ onOpenSettings, onNavigateToTask }: GitLabIssuesProps) {
   const { t } = useTranslation("gitlab");
@@ -45,6 +47,9 @@ export function GitLabIssues({ onOpenSettings, onNavigateToTask }: GitLabIssuesP
   const { searchQuery, setSearchQuery, filteredIssues } = useIssueFiltering(getFilteredIssues());
 
   const [showInvestigateDialog, setShowInvestigateDialog] = useState(false);
+  // Phone: list and detail are shown one at a time
+  const isMobile = useIsMobile();
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [selectedIssueForInvestigation, setSelectedIssueForInvestigation] =
     useState<GitLabIssue | null>(null);
 
@@ -100,19 +105,23 @@ export function GitLabIssues({ onOpenSettings, onNavigateToTask }: GitLabIssuesP
       {/* Content */}
       <div className="flex-1 flex min-h-0">
         {/* Issue List */}
-        <div className="w-1/2 border-r border-border flex flex-col">
+        <div className={`w-1/2 border-r border-border flex flex-col max-md:w-full max-md:border-r-0${isMobile && showMobileDetail ? " hidden" : ""}`}>
           <IssueList
             issues={filteredIssues}
             selectedIssueIid={selectedIssueIid}
             isLoading={isLoading}
             error={error}
-            onSelectIssue={selectIssue}
+            onSelectIssue={(issueIid) => {
+              selectIssue(issueIid);
+              setShowMobileDetail(true);
+            }}
             onInvestigate={handleInvestigate}
           />
         </div>
 
         {/* Issue Detail */}
-        <div className="w-1/2 flex flex-col">
+        <div className={`w-1/2 flex flex-col max-md:w-full${isMobile && !showMobileDetail ? " hidden" : ""}`}>
+          {isMobile && <MobileBackBar onBack={() => setShowMobileDetail(false)} />}
           {selectedIssue ? (
             <IssueDetail
               issue={selectedIssue}

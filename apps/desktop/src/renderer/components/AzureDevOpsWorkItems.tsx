@@ -106,7 +106,7 @@ export function AzureDevOpsWorkItems({ onOpenSettings, onNavigateToTask: _onNavi
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0 max-md:flex-wrap max-md:gap-2 max-md:px-3">
         <div className="flex items-center gap-3">
           <CheckSquare className="h-5 w-5 text-muted-foreground" />
           <div>
@@ -153,7 +153,7 @@ export function AzureDevOpsWorkItems({ onOpenSettings, onNavigateToTask: _onNavi
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0 max-md:overflow-x-auto max-md:px-3 max-md:*:shrink-0">
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.value}

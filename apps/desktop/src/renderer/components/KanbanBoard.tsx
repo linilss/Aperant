@@ -6,7 +6,7 @@ import {
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -14,6 +14,7 @@ import {
   type DragEndEvent,
   type DragOverEvent
 } from '@dnd-kit/core';
+import { MouseAndPenSensor, TOUCH_DRAG_ACTIVATION } from '../lib/dnd-sensors';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -350,7 +351,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
       <div
         ref={setNodeRef}
         className={cn(
-          'flex flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
+          'flex flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200 max-md:shrink-0 max-md:snap-start',
           getColumnBorderColor(),
           'border-t-2',
           isOver && 'drop-zone-highlight'
@@ -364,7 +365,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 hover:bg-primary/10 hover:text-primary transition-colors"
+                className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-primary/10 hover:text-primary transition-colors"
                 onClick={onToggleCollapsed}
                 aria-label={t('kanban.expandColumn')}
               >
@@ -397,7 +398,8 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
 
   return (
     <div
-      className="relative flex"
+      // Phone: fixed ~85vw columns in a scroll-snapping row (!important beats the inline width)
+      className="relative flex max-md:w-[85vw]! max-md:min-w-[85vw]! max-md:max-w-[85vw]! max-md:snap-start"
       style={{ width: columnWidth ? pxToRem(columnWidth) : DEFAULT_COLUMN_WIDTH_REM, minWidth: MIN_COLUMN_WIDTH_REM, maxWidth: MAX_COLUMN_WIDTH_REM, flexShrink: 0 }}
     >
       <div
@@ -419,7 +421,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
+                  className="h-6 w-6 max-md:h-9 max-md:w-9 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
                   onClick={onToggleCollapsed}
                   aria-label={t('kanban.collapseColumn')}
                 >
@@ -490,7 +492,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    'h-7 w-7 transition-colors',
+                    'h-7 w-7 max-md:h-9 max-md:w-9 transition-colors',
                     isLocked
                       ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20'
                       : 'hover:bg-muted-foreground/10 hover:text-muted-foreground'
@@ -513,7 +515,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
+                  className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
                   onClick={onQueueAll}
                   title={t('queue.queueAll')}
                 >
@@ -524,7 +526,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary transition-colors"
+                  className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-primary/10 hover:text-primary transition-colors"
                   onClick={onAddClick}
                   aria-label={t('kanban.addTaskAriaLabel')}
                 >
@@ -537,7 +539,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
+              className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
               onClick={onQueueSettings}
               title={t('kanban.queueSettings')}
             >
@@ -548,7 +550,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
+              className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
               onClick={onArchiveAll}
               aria-label={t('tooltips.archiveAllDone')}
             >
@@ -562,7 +564,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    'h-7 w-7 transition-colors relative',
+                    'h-7 w-7 max-md:h-9 max-md:w-9 transition-colors relative',
                     showArchived
                       ? 'text-primary bg-primary/10 hover:bg-primary/20'
                       : 'hover:bg-muted-foreground/10 hover:text-muted-foreground'
@@ -643,7 +645,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
       {onResizeStart && onResizeEnd && (
         <div
           className={cn(
-            "absolute right-0 top-0 bottom-0 w-1 touch-none z-10",
+            "absolute right-0 top-0 bottom-0 w-1 touch-none z-10 max-md:hidden",
             "transition-colors duration-150",
             isLocked
               ? "cursor-not-allowed bg-transparent"
@@ -763,11 +765,12 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   }, [tasks, showArchived]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseAndPenSensor, {
       activationConstraint: {
         distance: 8 // 8px movement required before drag starts
       }
     }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_DRAG_ACTIVATION }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
@@ -1497,7 +1500,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     <div className="flex h-full flex-col">
       {/* Kanban header with refresh button and expand all */}
       {(onRefresh || collapsedColumnCount >= 3) && (
-        <div className="flex items-center justify-between px-6 pt-4 pb-2">
+        <div className="flex items-center justify-between px-6 pt-4 pb-2 max-md:px-3 max-md:pt-2 max-md:pb-0">
           <div className="flex items-center gap-2">
             {/* Expand All button - appears when 3+ columns are collapsed */}
             {collapsedColumnCount >= 3 && (
@@ -1536,7 +1539,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6">
+        <div className="flex flex-1 gap-4 overflow-x-auto p-6 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:gap-3 max-md:p-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {TASK_STATUS_COLUMNS.map((status) => (
             <DroppableColumn
               key={status}
@@ -1585,8 +1588,8 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
       </DndContext>
 
       {selectedTaskIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-border bg-card shadow-lg backdrop-blur-sm">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-md:bottom-[max(1rem,env(safe-area-inset-bottom))] max-md:w-[calc(100vw-1.5rem)]">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-border bg-card shadow-lg backdrop-blur-sm max-md:flex-wrap max-md:justify-center max-md:gap-2 max-md:px-3">
             <span className="text-sm font-medium text-foreground">
               {t('kanban.selectedCountOther', { count: selectedTaskIds.size })}
             </span>

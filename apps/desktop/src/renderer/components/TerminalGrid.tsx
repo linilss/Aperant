@@ -34,6 +34,7 @@ import { useTaskStore } from '../stores/task-store';
 import { useFileExplorerStore } from '../stores/file-explorer-store';
 import { TERMINAL_DOM_UPDATE_DELAY_MS, PANEL_CLEANUP_GRACE_PERIOD_MS } from '../../shared/constants';
 import type { SessionDateInfo } from '../../shared/types';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface TerminalGridProps {
   projectPath?: string;
@@ -42,7 +43,8 @@ interface TerminalGridProps {
 }
 
 export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: TerminalGridProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation(['common', 'terminal']);
+  const isMobile = useIsMobile();
   const allTerminals = useTerminalStore((state) => state.terminals);
 
   // Track terminals that are in the grace period before being filtered out
@@ -437,6 +439,51 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
   // Terminal IDs for SortableContext
   const terminalIds = useMemo(() => terminals.map(t => t.id), [terminals]);
 
+  // Mobile: one terminal visible at a time (the active one, else the first)
+  const mobileVisibleId = terminals.some(t => t.id === activeTerminalId)
+    ? activeTerminalId
+    : terminals[0]?.id ?? null;
+
+  // Keep the store's active terminal in sync with the visible one, and refit after switching
+  useEffect(() => {
+    if (!isMobile || !mobileVisibleId) return;
+    if (mobileVisibleId !== useTerminalStore.getState().activeTerminalId) {
+      setActiveTerminal(mobileVisibleId);
+    }
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('terminal-refit-all'));
+    }, TERMINAL_DOM_UPDATE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isMobile, mobileVisibleId, setActiveTerminal]);
+
+  // Mobile: iOS keeps the layout viewport when the soft keyboard opens, so cap the
+  // grid height at the visual viewport bottom to keep the key bar above the keyboard.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [viewportMaxHeight, setViewportMaxHeight] = useState<number | null>(null);
+  const hasTerminals = terminals.length > 0;
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!isMobile || !viewport || !hasTerminals) {
+      setViewportMaxHeight(null);
+      return;
+    }
+    const update = () => {
+      const el = rootRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setViewportMaxHeight(Math.max(0, Math.floor(viewport.pageTop + viewport.height - top)));
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [isMobile, hasTerminals]);
+
   // Empty state
   if (terminals.length === 0) {
     return (
@@ -468,15 +515,19 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-full flex-col">
+      <div
+        ref={rootRef}
+        className="flex h-full flex-col"
+        style={viewportMaxHeight !== null ? { maxHeight: viewportMaxHeight } : undefined}
+      >
         {/* Toolbar */}
-        <div className="flex h-10 items-center justify-between border-b border-border bg-card/30 px-3">
-          <div className="flex items-center gap-2">
+        <div className="flex h-10 items-center justify-between border-b border-border bg-card/30 px-3 max-md:h-auto max-md:shrink-0 max-md:gap-2 max-md:px-2 max-md:py-1.5">
+          <div className="flex items-center gap-2 max-md:shrink-0">
             <span className="text-xs font-medium text-muted-foreground">
               {terminals.length} / 12 terminals
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:min-w-0 max-md:overflow-x-auto max-md:*:shrink-0">
             {/* Claude Code CLI status */}
             <ClaudeCodeStatusBadge />
             {/* Session history dropdown */}
@@ -549,7 +600,7 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
             >
               <Plus className="h-3 w-3" />
               New Terminal
-              <kbd className="ml-1 text-[10px] text-muted-foreground">
+              <kbd className="ml-1 text-[10px] text-muted-foreground max-md:hidden">
                 {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+T
               </kbd>
             </Button>
@@ -568,14 +619,78 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
           </div>
         </div>
 
+        {/* Mobile terminal switcher */}
+        {isMobile && (
+          <div
+            role="tablist"
+            aria-label={t('terminal:mobile.switcherLabel')}
+            className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-card/30 px-2 py-1.5"
+          >
+            {terminals.map((terminal) => {
+              const selected = terminal.id === mobileVisibleId;
+              return (
+                <button
+                  key={terminal.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setActiveTerminal(terminal.id)}
+                  className={cn(
+                    'flex h-10 max-w-48 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium',
+                    selected
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border bg-card text-muted-foreground'
+                  )}
+                >
+                  {terminal.isCLIMode ? (
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  ) : (
+                    <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="truncate">{terminal.title || 'Terminal'}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Main content area with terminal grid and file explorer sidebar */}
         <div className="flex flex-1 overflow-hidden">
           {/* Terminal grid using resizable panels */}
           <div className={cn(
-            "flex-1 overflow-hidden p-2 transition-all duration-300 ease-out",
+            "flex-1 overflow-hidden p-2 transition-all duration-300 ease-out max-md:p-1",
             fileExplorerOpen && "pr-0"
           )}>
-            {expandedTerminalId ? (
+            {isMobile ? (
+              // Mobile: all terminals stay mounted and stacked (sessions keep running and
+              // keep their size); only the selected one is visible.
+              <SortableContext items={terminalIds} strategy={rectSortingStrategy}>
+              <div className="relative h-full">
+                {terminals.map((terminal) => {
+                  const visible = terminal.id === mobileVisibleId;
+                  return (
+                    <div
+                      key={terminal.id}
+                      className={cn('absolute inset-0', !visible && 'invisible pointer-events-none')}
+                      aria-hidden={!visible}
+                    >
+                      <SortableTerminalWrapper
+                        id={terminal.id}
+                        cwd={terminal.cwd || projectPath}
+                        projectPath={projectPath}
+                        isActive={visible && terminal.id === activeTerminalId}
+                        onClose={() => handleCloseTerminal(terminal.id)}
+                        onActivate={() => setActiveTerminal(terminal.id)}
+                        tasks={tasks}
+                        onNewTaskClick={onNewTaskClick}
+                        terminalCount={1}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              </SortableContext>
+            ) : expandedTerminalId ? (
               // Show only the expanded terminal
               (() => {
                 const expandedTerminal = terminals.find(t => t.id === expandedTerminalId);
