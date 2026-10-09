@@ -18,6 +18,8 @@
 
 import { generateText } from 'ai';
 
+import { createClaudeCliModel } from '../cli/claude-cli-model';
+import { isOAuthToken } from '../providers/oauth-token';
 import { runAgentSession } from './runner';
 import type { RunnerOptions } from './runner';
 import type { SessionConfig, SessionResult, SessionMessage, TokenUsage } from './types';
@@ -34,6 +36,9 @@ const MAX_SUMMARY_INPUT_CHARS = 30_000;
 
 /** Target summary length in words */
 const SUMMARY_TARGET_WORDS = 800;
+
+/** Fast, cheap model used to summarize conversations */
+const SUMMARIZER_MODEL_ID = 'claude-haiku-4-5-20251001';
 
 /** Fallback: raw truncation length if summarization fails */
 const RAW_TRUNCATION_CHARS = 3000;
@@ -62,6 +67,8 @@ export interface ContinuationConfig {
   baseURL?: string;
   /** OAuth token file path (for token refresh) */
   oauthTokenFilePath?: string;
+  /** Claude profile config dir — selects the account when summarizing via the claude CLI */
+  configDir?: string;
 }
 
 /**
@@ -223,11 +230,20 @@ async function compactSessionMessages(
   try {
     // Use Haiku for summarization — fast and cheap
     const { createProviderFromModelId } = await import('../providers/factory');
-    const summarizerModel = createProviderFromModelId('claude-haiku-4-5-20251001', {
+    const directModel = createProviderFromModelId(SUMMARIZER_MODEL_ID, {
       apiKey: continuationConfig.apiKey,
       baseURL: continuationConfig.baseURL,
       oauthTokenFilePath: continuationConfig.oauthTokenFilePath,
     });
+    // Claude subscription tokens get HTTP 429 on direct API calls — summarize via the
+    // claude CLI instead. Explicit env: this runs in a worker thread.
+    const summarizerModel = isOAuthToken(continuationConfig.apiKey)
+      ? createClaudeCliModel({
+          modelId: SUMMARIZER_MODEL_ID,
+          env: continuationConfig.configDir ? { CLAUDE_CONFIG_DIR: continuationConfig.configDir } : {},
+          fallbackModel: directModel,
+        })
+      : directModel;
 
     const prompt =
       `Summarize this AI agent conversation in approximately ${SUMMARY_TARGET_WORDS} words.\n\n` +

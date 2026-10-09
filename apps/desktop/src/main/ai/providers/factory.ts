@@ -22,21 +22,8 @@ import type { LanguageModel } from 'ai';
 
 import { MODEL_PROVIDER_MAP } from '../config/types';
 import { createOAuthProviderFetch } from './oauth-fetch';
+import { isOAuthToken } from './oauth-token';
 import { type ProviderConfig, SupportedProvider } from './types';
-
-// =============================================================================
-// OAuth Token Detection
-// =============================================================================
-
-/**
- * Detects if a credential is an Anthropic OAuth token vs an API key.
- * OAuth access tokens start with 'sk-ant-oa' prefix.
- * API keys start with 'sk-ant-api' prefix.
- */
-function isOAuthToken(token: string | undefined): boolean {
-  if (!token) return false;
-  return token.startsWith('sk-ant-oa') || token.startsWith('sk-ant-ort');
-}
 
 // =============================================================================
 // Provider Instance Creators

@@ -56,7 +56,8 @@ import { resolveModelId } from '../../config/phase-config';
 import { getDefaultThinkingLevel, getRequiredMcpServers } from '../../config/agent-configs';
 import { createMcpClientsForAgent, closeAllMcpClients, mergeMcpTools } from '../../mcp/client';
 import { buildToolRegistry } from '../../tools/build-registry';
-import { createSimpleClient, createAgentClient } from '../factory';
+import { createSimpleClient, createAgentClient, shouldRouteViaClaudeCli } from '../factory';
+import { isClaudeCliModel } from '../../cli/claude-cli-model';
 import type { LanguageModel, Tool } from 'ai';
 import type { ToolContext } from '../../tools/types';
 import type { AgentClientConfig } from '../types';
@@ -199,6 +200,108 @@ describe('createSimpleClient', () => {
     await expect(
       createSimpleClient({ systemPrompt: 'Test', queueConfig }),
     ).rejects.toThrow('No available account in priority queue');
+  });
+});
+
+// =============================================================================
+// createSimpleClient — Claude subscription routing via the claude CLI
+// =============================================================================
+
+describe('createSimpleClient — claude CLI routing', () => {
+  const DIRECT_V3_MODEL = {
+    specificationVersion: 'v3',
+    provider: 'anthropic.messages',
+    modelId: 'claude-haiku-4-5',
+    supportedUrls: {},
+    doGenerate: vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'direct' }],
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: {
+        inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+        outputTokens: { total: 1, text: 1, reasoning: 0 },
+      },
+      warnings: [],
+    }),
+    doStream: vi.fn(),
+  };
+
+  it('returns the CLI-backed model for a Claude subscription OAuth token', async () => {
+    mockResolveAuth.mockResolvedValueOnce({ apiKey: 'sk-ant-oat01-abc', source: 'profile-oauth' });
+
+    const result = await createSimpleClient({ systemPrompt: 'Test', cwd: '/project' });
+
+    expect(isClaudeCliModel(result.model)).toBe(true);
+    expect(typeof result.model === 'object' && result.model.modelId).toBe('claude-haiku-4-5');
+    expect(result.resolvedModelId).toBe('claude-haiku-4-5');
+  });
+
+  it('returns the CLI-backed model for a queue-resolved Anthropic OAuth account', async () => {
+    mockResolveAuthFromQueue.mockResolvedValueOnce({
+      apiKey: 'sk-ant-oat01-queue',
+      source: 'profile-oauth',
+      accountId: 'acc-1',
+      resolvedProvider: 'anthropic',
+      resolvedModelId: 'claude-sonnet-5',
+      reasoningConfig: { type: 'none' },
+    });
+
+    const result = await createSimpleClient({
+      systemPrompt: 'Test',
+      queueConfig: { queue: [{ id: 'acc-1' } as unknown as ProviderAccount], requestedModel: 'sonnet' },
+    });
+
+    expect(isClaudeCliModel(result.model)).toBe(true);
+  });
+
+  it('keeps the direct provider model for an Anthropic API key', async () => {
+    mockResolveAuth.mockResolvedValueOnce({ apiKey: 'sk-ant-api03-key', source: 'profile-api-key' });
+
+    const result = await createSimpleClient({ systemPrompt: 'Test' });
+
+    expect(result.model).toBe(FAKE_MODEL);
+  });
+
+  it('keeps the direct provider model for non-Anthropic providers', async () => {
+    mockResolveAuthFromQueue.mockResolvedValueOnce({
+      apiKey: 'codex-oauth-placeholder',
+      source: 'codex-oauth',
+      accountId: 'acc-2',
+      resolvedProvider: 'openai',
+      resolvedModelId: 'gpt-5.3-codex',
+      reasoningConfig: { type: 'none' },
+    });
+
+    const result = await createSimpleClient({
+      systemPrompt: 'Test',
+      queueConfig: { queue: [{ id: 'acc-2' } as unknown as ProviderAccount], requestedModel: 'sonnet' },
+    });
+
+    expect(result.model).toBe(FAKE_MODEL);
+  });
+
+  it('delegates calls with custom (non-CLI) tools to the direct model', async () => {
+    mockResolveAuth.mockResolvedValueOnce({ apiKey: 'sk-ant-oat01-abc', source: 'profile-oauth' });
+    mockCreateProvider.mockReturnValueOnce(DIRECT_V3_MODEL as unknown as LanguageModel);
+
+    const result = await createSimpleClient({ systemPrompt: 'Test' });
+    const model = result.model as unknown as typeof DIRECT_V3_MODEL;
+    const generated = await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'x' }] }],
+      tools: [{ type: 'function', name: 'update_subtask_status', inputSchema: {} }],
+    });
+
+    expect(generated.content).toEqual([{ type: 'text', text: 'direct' }]);
+    expect(DIRECT_V3_MODEL.doGenerate).toHaveBeenCalled();
+  });
+});
+
+describe('shouldRouteViaClaudeCli', () => {
+  it('routes only Anthropic subscription credentials', () => {
+    expect(shouldRouteViaClaudeCli('anthropic', { apiKey: 'sk-ant-oat01-x', source: 'environment' })).toBe(true);
+    expect(shouldRouteViaClaudeCli('anthropic', { apiKey: 'tok', source: 'profile-oauth' })).toBe(true);
+    expect(shouldRouteViaClaudeCli('anthropic', { apiKey: 'sk-ant-api03-x', source: 'environment' })).toBe(false);
+    expect(shouldRouteViaClaudeCli('openai', { apiKey: 'sk-ant-oat01-x', source: 'profile-oauth' })).toBe(false);
+    expect(shouldRouteViaClaudeCli('anthropic', null)).toBe(false);
   });
 });
 

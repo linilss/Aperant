@@ -82,6 +82,11 @@ export interface SimpleClientConfig {
     excludeAccountIds?: string[];
     userModelOverrides?: Record<string, Partial<Record<string, ProviderModelSpec>>>;
   };
+  /**
+   * Working directory for calls routed through the claude CLI (Claude subscription
+   * auth); the CLI's file tools resolve against it. Defaults to the home directory.
+   */
+  cwd?: string;
 }
 
 // =============================================================================

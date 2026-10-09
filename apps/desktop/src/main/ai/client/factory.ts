@@ -15,6 +15,7 @@
 import type { Tool as AITool } from 'ai';
 
 import { resolveAuth, resolveAuthFromQueue, buildDefaultQueueConfig } from '../auth/resolver';
+import { createClaudeCliModel } from '../cli/claude-cli-model';
 import {
   getDefaultThinkingLevel,
   getRequiredMcpServers,
@@ -26,8 +27,10 @@ import { resolveReasoningParams } from '../config/types';
 import { createMcpClientsForAgent, closeAllMcpClients, mergeMcpTools } from '../mcp/client';
 import type { McpClientResult } from '../mcp/types';
 import { createProvider, detectProviderFromModel } from '../providers/factory';
+import { isOAuthToken } from '../providers/oauth-token';
+import type { SupportedProvider } from '../providers/types';
 import { buildToolRegistry } from '../tools/build-registry';
-import type { QueueResolvedAuth } from '../auth/types';
+import type { QueueResolvedAuth, ResolvedAuth } from '../auth/types';
 import type {
   AgentClientConfig,
   AgentClientResult,
@@ -193,6 +196,23 @@ export async function createAgentClient(
 }
 
 // =============================================================================
+// Claude subscription routing
+// =============================================================================
+
+/**
+ * True when a call would hit api.anthropic.com with a Claude subscription (OAuth)
+ * credential. Those calls share the subscription quota with Claude Code and get
+ * HTTP 429, so they are routed through the `claude` CLI instead.
+ */
+export function shouldRouteViaClaudeCli(
+  provider: SupportedProvider | string,
+  auth: Pick<ResolvedAuth, 'apiKey' | 'source'> | null | undefined,
+): boolean {
+  if (provider !== 'anthropic' || !auth) return false;
+  return auth.source === 'profile-oauth' || isOAuthToken(auth.apiKey);
+}
+
+// =============================================================================
 // createSimpleClient
 // =============================================================================
 
@@ -219,6 +239,7 @@ export async function createSimpleClient(
     maxSteps = DEFAULT_SIMPLE_MAX_STEPS,
     tools = {},
     queueConfig: explicitQueueConfig,
+    cwd,
   } = config;
 
   // Auto-build queue config from settings if none was explicitly provided.
@@ -229,6 +250,8 @@ export async function createSimpleClient(
   let resolvedModelId: string;
   let resolvedThinkingLevel: ThinkingLevel = thinkingLevel;
   let queueAuth: QueueResolvedAuth | null = null;
+  let resolvedProvider: SupportedProvider;
+  let resolvedAuth: ResolvedAuth | null;
 
   if (queueConfig) {
     // Queue-based resolution: use global priority queue
@@ -248,6 +271,8 @@ export async function createSimpleClient(
     }
 
     resolvedModelId = queueAuth.resolvedModelId;
+    resolvedProvider = queueAuth.resolvedProvider;
+    resolvedAuth = queueAuth;
     // Use createProvider() with the queue-resolved provider to avoid re-detecting
     // from model ID prefix. This is critical for providers like Ollama whose models
     // (e.g., 'llama3.1:8b') don't follow predictable prefix conventions.
@@ -272,6 +297,8 @@ export async function createSimpleClient(
       provider: detectedProvider,
       profileId,
     });
+    resolvedProvider = detectedProvider;
+    resolvedAuth = auth;
 
     model = createProvider({
       config: {
@@ -282,6 +309,17 @@ export async function createSimpleClient(
         oauthTokenFilePath: auth?.oauthTokenFilePath,
       },
       modelId: resolvedModelId,
+    });
+  }
+
+  // Claude subscription → run through the claude CLI. The direct model stays as the
+  // fallback for calls whose tools have no CLI equivalent (and for a missing CLI).
+  if (shouldRouteViaClaudeCli(resolvedProvider, resolvedAuth)) {
+    model = createClaudeCliModel({
+      modelId: resolvedModelId,
+      cwd,
+      maxTurns: maxSteps > 1 ? maxSteps : undefined,
+      fallbackModel: model,
     });
   }
 

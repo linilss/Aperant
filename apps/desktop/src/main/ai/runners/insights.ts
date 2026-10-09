@@ -262,6 +262,7 @@ export async function runInsightsQuery(
     thinkingLevel,
     maxSteps: 30, // Allow sufficient turns for codebase exploration
     tools,
+    cwd: projectDir,
   });
 
   const toolCalls: ToolCallInfo[] = [];
