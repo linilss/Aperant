@@ -22,7 +22,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -103,6 +103,9 @@ export function AddFeatureDialog({
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Quick add: one line per feature; the full form is opt-in
+  const [showDetails, setShowDetails] = useState(false);
+  const [added, setAdded] = useState<Array<{ id: string; title: string }>>([]);
 
   // Store actions
   const addFeature = useRoadmapStore((state) => state.addFeature);
@@ -118,6 +121,8 @@ export function AddFeatureDialog({
       setComplexity('medium');
       setImpact('medium');
       setError(null);
+      setShowDetails(false);
+      setAdded([]);
     }
   }, [open, defaultPhaseId, phases]);
 
@@ -125,10 +130,6 @@ export function AddFeatureDialog({
     // Validate required fields
     if (!title.trim()) {
       setError(t('addFeature.titleRequired'));
-      return;
-    }
-    if (!description.trim()) {
-      setError(t('addFeature.descriptionRequired'));
       return;
     }
     if (!phaseId) {
@@ -143,7 +144,8 @@ export function AddFeatureDialog({
       // Add feature to store
       const newFeatureId = addFeature({
         title: title.trim(),
-        description: description.trim(),
+        // One-line adds use the line as description too; refine it later in the roadmap
+        description: description.trim() || title.trim(),
         rationale: rationale.trim() || `User-created feature for ${title.trim()}`,
         priority,
         complexity,
@@ -166,9 +168,14 @@ export function AddFeatureDialog({
         }
       }
 
-      // Success - close dialog and notify parent
-      onOpenChange(false);
       onFeatureAdded?.(newFeatureId);
+      if (showDetails) {
+        onOpenChange(false);
+      } else {
+        // Quick add: stay open for the next line
+        setAdded((prev) => [...prev, { id: newFeatureId, title: title.trim() }]);
+        setTitle('');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('addFeature.failedToAdd'));
     } finally {
@@ -183,7 +190,7 @@ export function AddFeatureDialog({
   };
 
   // Form validation
-  const isValid = title.trim().length > 0 && description.trim().length > 0 && phaseId !== '';
+  const isValid = title.trim().length > 0 && phaseId !== '';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -196,25 +203,63 @@ export function AddFeatureDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-4">
-          {/* Title (Required) */}
+          {/* One line is enough; Enter adds and clears for the next */}
           <div className="space-y-2">
             <Label htmlFor="add-feature-title" className="text-sm font-medium text-foreground">
-              {t('addFeature.featureTitle')} <span className="text-destructive">*</span>
+              {t('addFeature.featureTitle')}
             </Label>
             <Input
               id="add-feature-title"
-              placeholder={t('addFeature.featureTitlePlaceholder')}
+              placeholder={t('addFeature.quickPlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && isValid && !isSaving) {
+                  e.preventDefault();
+                  void handleSave();
+                }
+              }}
               disabled={isSaving}
+              autoFocus
               aria-required="true"
             />
+            {!showDetails && (
+              <p className="text-xs text-muted-foreground">
+                {t('addFeature.quickHint', {
+                  phase: phases.find((p) => p.id === phaseId)?.name ?? '—',
+                  priority: ROADMAP_PRIORITY_LABELS[priority],
+                })}
+              </p>
+            )}
+            {added.length > 0 && (
+              <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
+                {added.map((feature) => (
+                  <li key={feature.id} className="flex items-center gap-1.5">
+                    <Check className="h-3.5 w-3.5 text-success" />
+                    <span className="truncate">{feature.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-8 text-xs text-muted-foreground"
+            onClick={() => setShowDetails((v) => !v)}
+          >
+            <ChevronDown className={`mr-1 h-3.5 w-3.5 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+            {showDetails ? t('addFeature.fewerDetails') : t('addFeature.moreDetails')}
+          </Button>
+
+          {showDetails && (
+          <>
           {/* Description (Required) */}
           <div className="space-y-2">
             <Label htmlFor="add-feature-description" className="text-sm font-medium text-foreground">
-              {t('addFeature.featureDescription')} <span className="text-destructive">*</span>
+              {t('addFeature.featureDescription')} <span className="text-muted-foreground font-normal">({t('addFeature.optional')})</span>
             </Label>
             <Textarea
               id="add-feature-description"
@@ -223,7 +268,6 @@ export function AddFeatureDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               disabled={isSaving}
-              aria-required="true"
             />
           </div>
 
@@ -337,6 +381,9 @@ export function AddFeatureDialog({
             </div>
           </div>
 
+          </>
+          )}
+
           {/* Error */}
           {error && (
             <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-sm text-destructive" role="alert">
@@ -348,7 +395,7 @@ export function AddFeatureDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={isSaving}>
-            {t('addFeature.cancel')}
+            {added.length > 0 ? t('addFeature.done') : t('addFeature.cancel')}
           </Button>
           <Button
             onClick={handleSave}

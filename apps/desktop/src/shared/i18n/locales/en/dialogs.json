@@ -110,7 +110,12 @@
     "cancel": "Cancel",
     "adding": "Adding...",
     "addFeature": "Add Feature",
-    "failedToAdd": "Failed to add feature. Please try again."
+    "failedToAdd": "Failed to add feature. Please try again.",
+    "quickPlaceholder": "Describe the feature in one line, then press Enter",
+    "quickHint": "Adds to {{phase}} as {{priority}} — refine it later, or open more details.",
+    "moreDetails": "More details",
+    "fewerDetails": "Fewer details",
+    "done": "Done"
   },
   "addProject": {
     "title": "Add Project",
