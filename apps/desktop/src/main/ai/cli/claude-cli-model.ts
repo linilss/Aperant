@@ -350,6 +350,8 @@ export function createClaudeCliModel(modelOptions: ClaudeCliModelOptions): Langu
         allowedTools: cliTools,
         restrictTools: true,
         minimalContext: true,
+        // Runners that pass a project dir (e.g. insights) get its CLAUDE.md + Malvy docs
+        projectContext: modelOptions.cwd !== undefined,
         maxTurns: cliTools.length > 0 ? (modelOptions.maxTurns ?? DEFAULT_TOOL_MAX_TURNS) : 1,
         abortSignal: options.abortSignal,
         env: modelOptions.env,

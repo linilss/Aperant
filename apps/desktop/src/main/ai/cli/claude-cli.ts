@@ -50,6 +50,11 @@ export interface ClaudeCliOptions {
    */
   minimalContext?: boolean;
   /**
+   * With `minimalContext`: still load the project's CLAUDE.md and CLAUDE.local.md
+   * (team docs + Malvy's .malvy/docs and pointers via imports) from `cwd`.
+   */
+  projectContext?: boolean;
+  /**
    * Stream token-level text deltas (`--include-partial-messages`) instead of one
    * `onText` call per finished text block.
    */
@@ -131,7 +136,7 @@ async function resolveSpawnContext(
 export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
   const {
     prompt, cwd, modelId, allowedTools, maxTurns, abortSignal, onText, onToolUse,
-    systemPrompt, restrictTools, minimalContext, partialMessages, onTextBlockStart,
+    systemPrompt, restrictTools, minimalContext, projectContext, partialMessages, onTextBlockStart,
   } = options;
 
   const { claudePath, spawnEnv } = await resolveSpawnContext(options.env);
@@ -151,7 +156,9 @@ export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<C
     ...(restrictTools ? ['--tools', allowedTools.join(',')] : []),
     '--model', modelId,
     ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
-    ...(minimalContext ? ['--strict-mcp-config', '--setting-sources', '', '--no-session-persistence'] : []),
+    ...(minimalContext
+      ? ['--strict-mcp-config', '--setting-sources', projectContext ? 'project,local' : '', '--no-session-persistence']
+      : []),
     ...(partialMessages ? ['--include-partial-messages'] : []),
   ];
 
