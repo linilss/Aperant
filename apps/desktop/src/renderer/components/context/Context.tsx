@@ -10,7 +10,8 @@ import {
   loadDocs,
   loadPointers,
   loadBranches,
-  loadProjectSummary
+  loadProjectSummary,
+  loadPendingDocsRun
 } from '../../stores/context-store';
 import { useProjectContext, useRefreshIndex, useMemorySearch } from './hooks';
 import { ProjectIndexTab } from './ProjectIndexTab';
@@ -62,6 +63,7 @@ export function Context({ projectId }: ContextProps) {
     void loadPointers(projectId);
     void loadBranches(projectId);
     void loadProjectSummary(projectId);
+    void loadPendingDocsRun(projectId);
   }, [projectId]);
 
   // Docs optimizer events (registered here so they survive tab switches)

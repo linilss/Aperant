@@ -20,6 +20,7 @@ import type {
   ApplyDocProposalsResult,
   CodeBranch,
   ProjectSummary,
+  PendingDocsState,
   DocsOptimizeOptions,
   DocsOptimizerResult,
   BranchProgressEvent
@@ -66,6 +67,8 @@ export interface ProjectAPI {
   readClaudeDoc: (projectId: string, relativePath: string) => Promise<IPCResult<string>>;
   listCodeBranches: (projectId: string) => Promise<IPCResult<CodeBranch[]>>;
   getProjectSummary: (projectId: string) => Promise<IPCResult<ProjectSummary | null>>;
+  getPendingDocsRun: (projectId: string) => Promise<IPCResult<PendingDocsState>>;
+  discardPendingDocsRun: (projectId: string) => Promise<IPCResult>;
   optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) => void;
   stopClaudeDocsOptimizer: (projectId: string) => void;
   applyDocProposals: (projectId: string, proposals: DocProposal[]) => Promise<IPCResult<ApplyDocProposalsResult>>;
@@ -236,6 +239,12 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   getProjectSummary: (projectId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_SUMMARY, projectId),
+
+  getPendingDocsRun: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_PENDING, projectId),
+
+  discardPendingDocsRun: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_DISCARD, projectId),
 
   optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) =>
     ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCS_OPTIMIZE, projectId, options),

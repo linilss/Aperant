@@ -33,6 +33,12 @@ import {
   resolveMalvyDocTarget,
 } from '../../claude-docs';
 import { findCodeBranches } from '../../code-branches';
+import {
+  clearPendingDocsRun,
+  readPendingDocsRun,
+  removeAppliedFromPending,
+  writePendingDocsRun,
+} from '../../docs-optimizer-pending';
 import { ensureClaudeLocalImports } from '../../claude-local';
 import { listPointers, markPointersApplied, syncPointers } from './pointer-sync';
 import { safeSendToRenderer } from '../utils';
@@ -247,6 +253,28 @@ export function registerProjectContextHandlers(
     }
   );
 
+  // Last optimizer outcome (proposals awaiting review or the error) + whether a run is active
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_DOCS_PENDING, async (_, projectId: string) => {
+    const project = projectStore.getProject(projectId);
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+    return {
+      success: true,
+      data: { pending: readPendingDocsRun(project.path), isRunning: optimizerAbortControllers.has(projectId) },
+    };
+  });
+
+  // Discard proposals that weren't applied (closing the review)
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_DOCS_DISCARD, async (_, projectId: string) => {
+    const project = projectStore.getProject(projectId);
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+    clearPendingDocsRun(project.path);
+    return { success: true };
+  });
+
   // Start the docs optimizer (fire-and-forget; streams events to renderer)
   ipcMain.on(IPC_CHANNELS.CONTEXT_DOCS_OPTIMIZE, (_, projectId: string, options?: DocsOptimizeOptions) => {
     const project = projectStore.getProject(projectId);
@@ -279,6 +307,11 @@ export function registerProjectContextHandlers(
       }
 
       const result = applyDocProposals(project.path, proposals);
+      try {
+        removeAppliedFromPending(project.path, result.applied.map((p) => p.path));
+      } catch {
+        // Non-fatal: the review just shows them again
+      }
 
       for (const proposal of result.applied) {
         if (proposal.action !== 'delete' && proposal.appliedPointerIds?.length) {
@@ -344,6 +377,11 @@ async function startDocsOptimizer(
   const sendError = (error: string) => {
     // A user-initiated stop is not an error
     if (controller.signal.aborted) return;
+    try {
+      writePendingDocsRun(projectPath, { proposals: [], projectSummary: null, error });
+    } catch {
+      // Non-fatal: the renderer still gets the error event
+    }
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.CONTEXT_DOCS_ERROR, projectId, error);
     release();
   };
@@ -407,6 +445,13 @@ async function startDocsOptimizer(
             }
           });
           const result: DocsOptimizerResult = { proposals, projectSummary: event.projectSummary };
+          // Survives tab switches and restarts until the user reviews it
+          try {
+            if (proposals.length > 0) writePendingDocsRun(projectPath, result);
+            else clearPendingDocsRun(projectPath);
+          } catch {
+            // Non-fatal: the renderer still gets the complete event
+          }
           safeSendToRenderer(getMainWindow, IPC_CHANNELS.CONTEXT_DOCS_COMPLETE, projectId, result);
           release();
           break;

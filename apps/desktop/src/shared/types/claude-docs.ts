@@ -129,3 +129,19 @@ export interface DocsOptimizerResult {
   proposals: DocProposal[];
   projectSummary: ProjectSummary | null;
 }
+
+/** Outcome of the last docs-optimizer run, persisted until reviewed (`.malvy/docs/.pending.json`) */
+export interface PendingDocsRun {
+  /** When the run finished (ISO) */
+  finishedAt: string;
+  proposals: DocProposal[];
+  projectSummary: ProjectSummary | null;
+  /** Set when the run failed; proposals are then empty */
+  error?: string;
+}
+
+export interface PendingDocsState {
+  pending: PendingDocsRun | null;
+  /** An optimizer run for this project is in progress */
+  isRunning: boolean;
+}

@@ -422,6 +422,38 @@ export async function loadBranches(projectId: string): Promise<void> {
 }
 
 /**
+ * Restore the last optimizer outcome after a tab switch or restart: proposals still
+ * waiting for review, the error of a failed run, or that a run is in progress.
+ */
+export async function loadPendingDocsRun(projectId: string): Promise<void> {
+  try {
+    const result = await window.electronAPI.getPendingDocsRun(projectId);
+    if (!result.success || !result.data) return;
+    const store = useContextStore.getState();
+    const { pending, isRunning } = result.data;
+    store.setOptimizerRunning(isRunning);
+    if (isRunning) return;
+    if (pending?.error) {
+      store.setOptimizerError(pending.error);
+    } else if (pending && pending.proposals.length > 0) {
+      store.setProposals(pending.proposals);
+    }
+  } catch {
+    // Nothing to restore
+  }
+}
+
+/** Close the review: unapplied proposals are dropped for good */
+export async function discardPendingDocsRun(projectId: string): Promise<void> {
+  useContextStore.getState().setProposals(null);
+  try {
+    await window.electronAPI.discardPendingDocsRun(projectId);
+  } catch {
+    // The file is overwritten by the next run anyway
+  }
+}
+
+/**
  * Load `.malvy/docs/project_summary.json`
  */
 export async function loadProjectSummary(projectId: string): Promise<void> {

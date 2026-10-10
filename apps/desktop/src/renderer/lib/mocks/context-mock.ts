@@ -68,6 +68,8 @@ export const contextMock = {
   readClaudeDoc: async () => ({ success: false, error: 'Not available in browser mock' }),
   listCodeBranches: async () => ({ success: true, data: [] }),
   getProjectSummary: async () => ({ success: true, data: null }),
+  getPendingDocsRun: async () => ({ success: true, data: { pending: null, isRunning: false } }),
+  discardPendingDocsRun: async () => ({ success: true }),
   optimizeClaudeDocs: noop,
   stopClaudeDocsOptimizer: noop,
   applyDocProposals: async () => ({ success: true, data: { applied: [], errors: [] } }),

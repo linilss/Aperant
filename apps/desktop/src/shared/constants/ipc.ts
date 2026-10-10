@@ -286,6 +286,8 @@ export const IPC_CHANNELS = {
   CONTEXT_DOCS_APPLY: 'context:docs:apply',
   CONTEXT_DOCS_BRANCHES: 'context:docs:branches',
   CONTEXT_DOCS_SUMMARY: 'context:docs:summary',
+  CONTEXT_DOCS_PENDING: 'context:docs:pending',
+  CONTEXT_DOCS_DISCARD: 'context:docs:discard',
   // Docs optimizer events (main → renderer)
   CONTEXT_DOCS_CHUNK: 'context:docs:chunk',
   CONTEXT_DOCS_BRANCH_PROGRESS: 'context:docs:branchProgress',

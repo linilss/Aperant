@@ -9,6 +9,7 @@ import {
   applyProposals,
   createPointer,
   deletePointer,
+  discardPendingDocsRun,
   loadDocs,
   rejectProposal,
   startDocsOptimizer,
@@ -187,7 +188,7 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
       {proposals && proposals.length === 0 && !optimizerRunning && (
         <div className="mx-6 mt-3 max-md:mx-4 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
           <span>{t('optimizer.noChanges')}</span>
-          <Button variant="ghost" size="sm" onClick={() => setProposals(null)}>
+          <Button variant="ghost" size="sm" onClick={() => void discardPendingDocsRun(projectId)}>
             {t('review.close')}
           </Button>
         </div>
@@ -213,7 +214,7 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
             proposals={proposals}
             onApprove={handleApprove}
             onReject={rejectProposal}
-            onClose={() => setProposals(null)}
+            onClose={() => void discardPendingDocsRun(projectId)}
             error={applyError}
           />
         </ScrollArea>
