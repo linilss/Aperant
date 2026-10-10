@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const cliMock = vi.fn();
 vi.mock('../../cli/claude-cli', () => ({
@@ -75,6 +78,33 @@ describe('buildFeatureRefinePrompt', () => {
 
   it('tells the model priority is fixed when not suggesting', () => {
     expect(buildFeatureRefinePrompt({ ...input, suggestPriority: false })).toContain('already set priority');
+  });
+});
+
+describe('buildFeatureRefinePrompt — core values', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'malvy-refine-values-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('puts the core values first when set', () => {
+    mkdirSync(path.join(dir, '.malvy'), { recursive: true });
+    writeFileSync(path.join(dir, '.malvy', 'core-values.md'), 'No ads or dark patterns.');
+
+    const prompt = buildFeatureRefinePrompt({ ...input, projectDir: dir });
+
+    expect(prompt.startsWith('## CORE VALUES (highest priority')).toBe(true);
+    expect(prompt).toContain('No ads or dark patterns.');
+    expect(prompt.indexOf('No ads or dark patterns.')).toBeLessThan(prompt.indexOf('# roadmap_feature_refine instructions'));
+  });
+
+  it('has no core values section without values', () => {
+    const prompt = buildFeatureRefinePrompt({ ...input, projectDir: dir });
+    expect(prompt).not.toContain('CORE VALUES');
+    expect(prompt.startsWith('# roadmap_feature_refine instructions')).toBe(true);
   });
 });
 

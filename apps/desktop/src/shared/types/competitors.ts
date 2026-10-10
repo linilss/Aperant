@@ -70,6 +70,10 @@ export interface StrategicDirection {
   /** Docs the fit assessment cites (project-relative paths) */
   fitSources: string[];
   risk: string;
+  /** How the direction aligns with the project's core values ('' when none are set) */
+  valuesFit: string;
+  /** The direction conflicts with the core values (sorted last, suggested Avoid) */
+  conflictsWithValues: boolean;
   /** User marked this direction as one to steer away from */
   avoid: boolean;
   /** Short user note */

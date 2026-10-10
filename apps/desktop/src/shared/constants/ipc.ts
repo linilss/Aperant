@@ -288,6 +288,10 @@ export const IPC_CHANNELS = {
   CONTEXT_DOCS_SUMMARY: 'context:docs:summary',
   CONTEXT_DOCS_PENDING: 'context:docs:pending',
   CONTEXT_DOCS_DISCARD: 'context:docs:discard',
+  // Core values (.malvy/core-values.md)
+  CONTEXT_CORE_VALUES_GET: 'context:coreValues:get',
+  CONTEXT_CORE_VALUES_SAVE: 'context:coreValues:save',
+  CONTEXT_CORE_VALUES_DRAFT: 'context:coreValues:draft',
   // Docs optimizer events (main → renderer)
   CONTEXT_DOCS_CHUNK: 'context:docs:chunk',
   CONTEXT_DOCS_BRANCH_PROGRESS: 'context:docs:branchProgress',

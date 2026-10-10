@@ -17,6 +17,8 @@ const dir = (id: string, overrides: Partial<StrategicDirection> = {}): Strategic
   fit: '',
   fitSources: [],
   risk: '',
+  valuesFit: '',
+  conflictsWithValues: false,
   avoid: false,
   note: '',
   ...overrides,

@@ -15,6 +15,8 @@ export interface PromptContext {
   specDir: string;
   /** Absolute path to the project root */
   projectDir: string;
+  /** Core values (`.malvy/core-values.md`), injected first as the highest-priority section */
+  coreValues?: string | null;
   /** Project instructions from AGENTS.md (preferred) or CLAUDE.md (fallback) */
   projectInstructions?: string | null;
   /** Relevant project memories (built in the main process), injected after project instructions */

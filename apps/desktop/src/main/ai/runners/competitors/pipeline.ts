@@ -33,6 +33,7 @@ import {
   clampCompetitorCount,
 } from '../../../../shared/types/competitors';
 import type { CompetitorPainPoint } from '../../../../shared/types/roadmap';
+import { loadCoreValuesSection } from '../../../core-values';
 import { buildProjectBrief } from './project-brief';
 import { str, strList, uniqueId } from './persistence';
 
@@ -242,7 +243,11 @@ export function applyProfile(base: CompetitorProfile, raw: Record<string, unknow
   };
 }
 
-/** Parse `<strategic_directions>`; carries avoid/note over from same-titled old directions */
+/**
+ * Parse `<strategic_directions>`; carries avoid/note over from same-titled old
+ * directions. Directions flagged `conflicts_with_values` are sorted last and
+ * default to Avoid.
+ */
 export function parseDirections(
   text: string,
   previous: StrategicDirection[],
@@ -265,6 +270,7 @@ export function parseDirections(
     .map((d) => {
       const title = str(d.title);
       const old = byTitle.get(title.toLowerCase());
+      const conflictsWithValues = d.conflicts_with_values === true || d.conflicts_with_values === 'true';
       return {
         id: uniqueId('dir', title, taken),
         title,
@@ -274,11 +280,16 @@ export function parseDirections(
         fit: str(d.fit),
         fitSources: strList(d.fit_sources),
         risk: str(d.risk),
-        avoid: old?.avoid ?? false,
+        valuesFit: str(d.values_fit),
+        conflictsWithValues,
+        // A conflict with the core values suggests Avoid unless the user already decided
+        avoid: old?.avoid ?? conflictsWithValues,
         note: old?.note ?? '',
       };
     });
-  return directions.length > 0 ? directions : null;
+  if (directions.length === 0) return null;
+  // Directions that conflict with the core values go last (stable otherwise)
+  return [...directions.filter((d) => !d.conflictsWithValues), ...directions.filter((d) => d.conflictsWithValues)];
 }
 
 /** Move an analyzed competitor back to the pool (keeps its profile) */
@@ -321,9 +332,31 @@ const FALLBACK_DISCOVER =
 const FALLBACK_PROFILE =
   'Profile each competitor below with WebSearch/WebFetch. After EACH one, output <competitor_profile>{"name":"","url":"","positioning":"","target_audience":"","key_features":[],"pricing_model":"","strengths":[],"weaknesses":[],"differentiator":"","relevance":"high|medium|low","pain_points":[]}</competitor_profile>.';
 const FALLBACK_DIRECTIONS =
-  'Synthesize strategic directions from the competitors below. Output <strategic_directions>[{"title":"","description":"","occupied_by":[],"opportunity":"","fit":"","fit_sources":[],"risk":""}]</strategic_directions>.';
+  'Synthesize strategic directions from the competitors below. Output <strategic_directions>[{"title":"","description":"","occupied_by":[],"opportunity":"","fit":"","fit_sources":[],"risk":"","values_fit":"","conflicts_with_values":false}]</strategic_directions>.';
 
 const prompt = (name: string, fallback: string) => tryLoadPrompt(name) ?? fallback;
+
+/** Core values for the research passes, where they inform judgement but don't filter facts */
+function valuesAsContext(projectDir: string, note: string): string {
+  const section = loadCoreValuesSection(projectDir);
+  return section ? `${section}In this research step they are context for what our product stands for. ${note}\n\n` : '';
+}
+
+/** Directions-pass rules that depend on whether core values are set */
+export function directionsValuesRules(hasValues: boolean): string {
+  if (!hasValues) {
+    return '## Core values\nNone set — use "values_fit": "" and "conflicts_with_values": false for every direction.\n\n';
+  }
+  return (
+    '## Core values rules (apply to EVERY direction)\n' +
+    '- Only propose directions consistent with the CORE VALUES at the top. They outweigh market opportunity, ' +
+    'competitor gaps and fit with the current code.\n' +
+    '- "values_fit": one sentence on how the direction serves (or would break) the core values, naming the value.\n' +
+    '- "conflicts_with_values": true when pursuing it would break any core value. Include such a direction only when ' +
+    'a large part of the market goes that way and the user should see it; it is then sorted last and suggested as Avoid.\n' +
+    '- Rank directions that serve the core values best first.\n\n'
+  );
+}
 
 function briefBlock(projectDir: string): string {
   return buildProjectBrief(projectDir) || '(No project docs found — infer the product from the directory name and focus.)';
@@ -340,6 +373,26 @@ function compactProfile(c: CompetitorProfile) {
     weaknesses: c.weaknesses,
     differentiator: c.differentiator,
   };
+}
+
+/** Full directions-synthesis prompt: core values first, then instructions, brief, competitors */
+export function buildDirectionsPrompt(
+  projectDir: string,
+  state: CompetitorStrategyState,
+  analyzed: CompetitorProfile[],
+  min: number,
+  max: number,
+): string {
+  const values = loadCoreValuesSection(projectDir);
+  return (
+    values +
+    `${prompt('competitor_directions', FALLBACK_DIRECTIONS)}\n\n---\n\n` +
+    directionsValuesRules(values !== '') +
+    `## Project brief (cite these sources in fit_sources)\n${briefBlock(projectDir)}\n\n` +
+    (state.focus ? `## Focus from the user\n${state.focus}\n\n` : '') +
+    `## Competitors (${analyzed.length})\n${JSON.stringify(analyzed.map(compactProfile))}\n\n` +
+    `Output between ${min} and ${max} directions.`
+  );
 }
 
 // =============================================================================
@@ -404,6 +457,7 @@ async function profileBatch(ctx: CompetitorRunContext, ids: string[], promote: b
     .join('\n');
   const state = ctx.store.get();
   const fullPrompt =
+    valuesAsContext(ctx.projectDir, 'Where a competitor clashes with them, say so in its weaknesses.') +
     `${prompt('competitor_profile', FALLBACK_PROFILE)}\n\n---\n\n` +
     `## Our project (for relevance only)\n${state.projectName || '(see brief)'}${state.targetAudience ? ` — audience: ${state.targetAudience}` : ''}\n\n` +
     `## Competitors to profile (${batch.length})\n${competitorsList}\n\n` +
@@ -464,6 +518,7 @@ export async function runFullAnalysis(
     ...(ctx.extraManual ?? []).map((m) => ({ name: str(m.name), url: str(m.url) })),
   ].filter((m) => m.name);
   const discoverPrompt =
+    valuesAsContext(ctx.projectDir, 'Still list real competitors that do not share them; rate relevance by overlap in audience and problem.') +
     `${prompt('competitor_discover', FALLBACK_DISCOVER)}\n\n---\n\n` +
     `## Project brief\n${briefBlock(ctx.projectDir)}\n\n` +
     (focus ? `## Focus from the user\n${focus}\n\n` : '') +
@@ -607,12 +662,7 @@ export async function synthesizeDirections(ctx: CompetitorRunContext): Promise<C
     return { success: false, aborted: false, error: 'No analyzed competitors to synthesize from' };
   }
   const { min, max } = directionRange(analyzed.length);
-  const synthPrompt =
-    `${prompt('competitor_directions', FALLBACK_DIRECTIONS)}\n\n---\n\n` +
-    `## Project brief (cite these sources in fit_sources)\n${briefBlock(ctx.projectDir)}\n\n` +
-    (state.focus ? `## Focus from the user\n${state.focus}\n\n` : '') +
-    `## Competitors (${analyzed.length})\n${JSON.stringify(analyzed.map(compactProfile))}\n\n` +
-    `Output between ${min} and ${max} directions.`;
+  const synthPrompt = buildDirectionsPrompt(ctx.projectDir, state, analyzed, min, max);
 
   let error = '';
   for (let attempt = 0; attempt < 2 && !ctx.abortSignal?.aborted; attempt++) {

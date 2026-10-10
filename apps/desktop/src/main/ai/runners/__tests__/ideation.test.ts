@@ -115,7 +115,8 @@ describe('runIdeation', () => {
     spawnCalls.length = 0;
     lastChild = null;
     responder = () => ({ events: [assistantText('ideas')] });
-    mockExistsSync.mockReturnValue(true);
+    // Prompt files exist; core values are not set unless a test says so
+    mockExistsSync.mockImplementation((p: string) => !String(p).endsWith('core-values.md'));
     mockReadFileSync.mockReturnValue('# Ideation prompt');
     mockFindExecutableAsync.mockResolvedValue('/usr/bin/claude');
   });
@@ -173,6 +174,36 @@ describe('runIdeation', () => {
     expect(prompt).toContain('1. Coach-first');
     expect(prompt).toContain('Core bet');
     expect(prompt).toMatch(/Steer away from[\s\S]*Cheapest/);
+  });
+
+  it('opens the prompt with the core values, above the strategy guidance', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.endsWith('core-values.md')) return '- Calm over flashy.';
+      if (p.endsWith('strategy.json')) {
+        return JSON.stringify({
+          directions: [{ id: 'dir-a', title: 'Coach-first', avoid: false }],
+          ranking_saved_at: '2026-10-01T00:00:00.000Z',
+        });
+      }
+      return '# Ideation prompt';
+    });
+
+    await runIdeation(baseConfig());
+
+    const prompt = spawnCalls[0].prompt;
+    expect(prompt.startsWith('## CORE VALUES (highest priority')).toBe(true);
+    expect(prompt).toContain('- Calm over flashy.');
+    expect(prompt.indexOf('- Calm over flashy.')).toBeLessThan(prompt.indexOf('# Ideation prompt'));
+    expect(prompt.indexOf('CORE VALUES')).toBeLessThan(prompt.indexOf('STRATEGIC DIRECTION'));
+    expect(prompt.split('## CORE VALUES')).toHaveLength(2);
+  });
+
+  it('adds no core values section when none are set', async () => {
+    await runIdeation(baseConfig());
+
+    expect(spawnCalls[0].prompt).not.toContain('CORE VALUES');
   });
 
   it('adds no strategy section without a saved ranking', async () => {

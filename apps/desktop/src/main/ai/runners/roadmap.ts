@@ -9,8 +9,9 @@
  * rather than calling api.anthropic.com directly via the Vercel AI SDK.
  *
  * Multi-step process: project discovery → (optional) competitor analysis → feature generation.
- * The user's ranked strategic directions from the Competitors page (strategy.json)
- * are added to the discovery and features prompts as guidance.
+ * The project's core values (.malvy/core-values.md) open both prompts as the
+ * highest-priority section; the user's ranked strategic directions from the
+ * Competitors page (strategy.json) are added as guidance below them.
  */
 
 import { spawn } from 'node:child_process';
@@ -23,6 +24,7 @@ import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { loadCoreValuesSection } from '../../core-values';
 import {
   createMemoryStore,
   emptyCompetitorState,
@@ -283,7 +285,7 @@ async function runDiscoveryPhase(
     `\n\n**Project Directory**: ${projectDir}\n` +
     `**Project Index File**: ${projectIndexFile}\n` +
     buildGuidanceSection(guidance) +
-    loadStrategyGuidance(projectDir) +
+    loadStrategyGuidance(projectDir, { valuesAlreadyShown: true }) +
     `\nRead the project index file first, then explore the codebase. ` +
     `Output your findings wrapped in <roadmap_discovery> tags as instructed above.`;
 
@@ -297,7 +299,10 @@ async function runDiscoveryPhase(
     `After exploring, you MUST output your complete analysis wrapped in <roadmap_discovery> tags as a JSON object. ` +
     `Do the exploration first, then output the <roadmap_discovery> block. Do not stop after tool calls — always finish with the JSON output.`;
 
-  const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+  const values = loadCoreValuesSection(projectDir);
+  const combinedPrompt =
+    `${values}${systemPrompt}\n\n${userPrompt}` +
+    (values ? '\nThe product_vision and constraints must reflect the CORE VALUES at the top.' : '');
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     let fullText = '';
@@ -435,6 +440,12 @@ export function buildGuidanceSection(guidance?: string): string {
   );
 }
 
+/** Features-phase rule added when core values are set */
+export const CORE_VALUES_FEATURE_RULE =
+  'Every feature must respect the CORE VALUES at the top: leave out features that conflict with them, ' +
+  'or keep one only as priority "wont" with the conflicting value named in its rationale. ' +
+  'Prefer "must"/"should" for features that directly serve a core value.';
+
 /**
  * Run the features phase — generate and prioritize roadmap features.
  */
@@ -487,7 +498,7 @@ async function runFeaturesPhase(
     competitorSection +
     preservedSection +
     buildGuidanceSection(guidance) +
-    loadStrategyGuidance(projectDir) +
+    loadStrategyGuidance(projectDir, { valuesAlreadyShown: true }) +
     loadDirectionTaggingSection(projectDir) +
     `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
 
@@ -501,7 +512,8 @@ async function runFeaturesPhase(
     `After reading those files, you MUST output the full roadmap JSON wrapped in <roadmap_features> tags. ` +
     `Do not stop after tool calls — always finish with the JSON output.`;
 
-  const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+  const values = loadCoreValuesSection(projectDir);
+  const combinedPrompt = `${values}${systemPrompt}\n\n${userPrompt}${values ? `\n${CORE_VALUES_FEATURE_RULE}` : ''}`;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     let fullText = '';

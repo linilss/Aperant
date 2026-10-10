@@ -11,6 +11,7 @@
 import { runClaudeCliDetailed } from '../cli/claude-cli';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 import { safeParseJson } from '../../utils/json-repair';
+import { loadCoreValuesSection } from '../../core-values';
 import { buildDirectionTaggingSection } from './competitors/guidance';
 import { loadCompetitorState } from './competitors/persistence';
 import { buildProjectBrief } from './competitors/project-brief';
@@ -59,7 +60,7 @@ const oneLine = (text: string, max: number) => {
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 };
 
-/** Full prompt: instructions + idea + project context */
+/** Full prompt: core values (highest priority) + instructions + idea + project context */
 export function buildFeatureRefinePrompt(input: RoadmapFeatureRefineInput): string {
   const brief = buildProjectBrief(input.projectDir);
   const phases = input.phases
@@ -71,6 +72,7 @@ export function buildFeatureRefinePrompt(input: RoadmapFeatureRefineInput): stri
     .join('\n');
 
   return [
+    loadCoreValuesSection(input.projectDir).trim(),
     tryLoadPrompt('roadmap_feature_refine') ?? FALLBACK_PROMPT,
     '---',
     `## The user's idea\n${input.line.trim()}`,

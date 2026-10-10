@@ -1020,6 +1020,7 @@ export function App() {
                     projectId={activeProjectId || selectedProjectId || ''}
                     onGoToRoadmap={() => setActiveView('roadmap')}
                     onGoToIdeation={() => setActiveView('ideation')}
+                    onGoToContext={() => setActiveView('context')}
                   />
                 )}
                 {activeView === 'moscow' && (activeProjectId || selectedProjectId) && (

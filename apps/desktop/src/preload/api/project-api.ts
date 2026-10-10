@@ -23,7 +23,9 @@ import type {
   PendingDocsState,
   DocsOptimizeOptions,
   DocsOptimizerResult,
-  BranchProgressEvent
+  BranchProgressEvent,
+  CoreValues,
+  SaveCoreValuesResult
 } from '../../shared/types';
 
 // Tab state interface (persisted in main process)
@@ -67,6 +69,10 @@ export interface ProjectAPI {
   readClaudeDoc: (projectId: string, relativePath: string) => Promise<IPCResult<string>>;
   listCodeBranches: (projectId: string) => Promise<IPCResult<CodeBranch[]>>;
   getProjectSummary: (projectId: string) => Promise<IPCResult<ProjectSummary | null>>;
+  getCoreValues: (projectId: string) => Promise<IPCResult<CoreValues>>;
+  saveCoreValues: (projectId: string, text: string) => Promise<IPCResult<SaveCoreValuesResult>>;
+  /** AI first draft from the project summary + root docs (not saved) */
+  draftCoreValues: (projectId: string) => Promise<IPCResult<string>>;
   getPendingDocsRun: (projectId: string) => Promise<IPCResult<PendingDocsState>>;
   discardPendingDocsRun: (projectId: string) => Promise<IPCResult>;
   optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) => void;
@@ -239,6 +245,15 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   getProjectSummary: (projectId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_SUMMARY, projectId),
+
+  getCoreValues: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_GET, projectId),
+
+  saveCoreValues: (projectId: string, text: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_SAVE, projectId, text),
+
+  draftCoreValues: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_DRAFT, projectId),
 
   getPendingDocsRun: (projectId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_PENDING, projectId),

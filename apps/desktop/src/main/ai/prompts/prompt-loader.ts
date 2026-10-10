@@ -22,6 +22,7 @@ import {
   resolveMalvyRoot,
   stripPointersTitle,
 } from '../../claude-docs';
+import { CORE_VALUES_FILE, formatCoreValuesSection } from '../../core-values';
 
 // =============================================================================
 // Path Resolution
@@ -148,6 +149,11 @@ export interface ProjectInstructionsResult {
   content: string;
   /** Which files were loaded, comma-separated (e.g., "CLAUDE.md, .malvy/docs/CLAUDE.md, .malvy/pointers.md") */
   source: string;
+  /**
+   * The project's core values (`.malvy/core-values.md`), kept apart from `content`
+   * so injectContext() can put them first, above PROJECT INSTRUCTIONS. Absent when not set.
+   */
+  coreValues?: string;
 }
 
 /**
@@ -159,6 +165,8 @@ export interface ProjectInstructionsResult {
  *    so the agent knows where to read before touching a directory.
  * 3. `## MALVY DOCS` — the root `.malvy/docs/CLAUDE.md` (Malvy's complementary layer).
  * 4. `## DEVELOPER POINTERS (override docs where they conflict)` — from `.malvy/pointers.md`.
+ *
+ * Core values (`.malvy/core-values.md`) are returned separately as `coreValues`.
  *
  * File reads only (no database) so it is safe to call from the agent worker thread.
  * When `projectDir` is a task worktree, the Malvy layer is read from the owning project.
@@ -228,8 +236,11 @@ export async function loadProjectInstructions(
     sources.push(MALVY_POINTERS_FILE);
   }
 
+  const coreValues = await tryReadFile(join(malvyRoot, CORE_VALUES_FILE));
+  if (coreValues) sources.unshift(CORE_VALUES_FILE);
+
   if (sources.length === 0) return null;
-  return { content: sections.join('\n\n'), source: sources.join(', ') };
+  return { content: sections.join('\n\n'), source: sources.join(', '), ...(coreValues ? { coreValues } : {}) };
 }
 
 /** @deprecated Use loadProjectInstructions() instead */
@@ -252,6 +263,7 @@ export const PROJECT_MEMORY_HEADING = '## PROJECT MEMORY (from previous work —
  * Inject dynamic sections into a prompt template.
  *
  * Handles:
+ * - CORE VALUES first (highest priority, overrides everything below)
  * - SPEC LOCATION header with file paths
  * - CLAUDE.md injection if provided
  * - Project memory (built-in memory system) if provided
@@ -263,6 +275,12 @@ export const PROJECT_MEMORY_HEADING = '## PROJECT MEMORY (from previous work —
  */
 export function injectContext(promptTemplate: string, context: PromptContext): string {
   const sections: string[] = [];
+
+  // 0. Core values — first, they override every other instruction
+  const coreValues = formatCoreValuesSection(context.coreValues ?? '');
+  if (coreValues) {
+    sections.push(`${coreValues}---\n\n`);
+  }
 
   // 1. Spec location header
   const specContext = buildSpecLocationHeader(context);

@@ -12,6 +12,8 @@ function direction(id: string, title: string, avoid = false): StrategicDirection
     fit: '',
     fitSources: [],
     risk: '',
+    valuesFit: '',
+    conflictsWithValues: false,
     avoid,
     note: '',
   };

@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron';
 import { registerProjectContextHandlers } from './project-context-handlers';
 import { registerMemoryStatusHandlers } from './memory-status-handlers';
 import { registerMemoryDataHandlers } from './memory-data-handlers';
+import { registerCoreValuesHandlers } from './core-values-handlers';
 
 /**
  * Register all context-related IPC handlers
@@ -12,6 +13,7 @@ export function registerContextHandlers(
   registerProjectContextHandlers(getMainWindow);
   registerMemoryStatusHandlers(getMainWindow);
   registerMemoryDataHandlers(getMainWindow);
+  registerCoreValuesHandlers();
 }
 
 // Re-export utility functions for testing or external use

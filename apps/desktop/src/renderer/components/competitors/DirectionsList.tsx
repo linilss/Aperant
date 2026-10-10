@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Ban, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { AlertTriangle, Ban, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -112,8 +112,20 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
                 {t('competitors.directions.avoided')}
               </Badge>
             )}
+            {d.conflictsWithValues && (
+              <Badge variant="warning" className="gap-1 text-xs" title={t('competitors.directions.conflictsTooltip')}>
+                <AlertTriangle className="h-3 w-3" />
+                {t('competitors.directions.conflictsWithValues')}
+              </Badge>
+            )}
           </div>
           {d.description && <p className="text-sm">{d.description}</p>}
+          {d.valuesFit && (
+            <p className={cn('text-sm', d.conflictsWithValues ? 'text-warning' : 'text-primary')}>
+              <span className="font-medium">{t('competitors.directions.valuesFit')}: </span>
+              {d.valuesFit}
+            </p>
+          )}
           <Field
             label={t('competitors.directions.occupiedBy')}
             value={d.occupiedBy.length > 0 ? d.occupiedBy.join(', ') : t('competitors.directions.nobody')}

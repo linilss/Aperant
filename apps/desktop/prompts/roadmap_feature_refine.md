@@ -7,7 +7,8 @@ The user typed a one-line feature idea into their product roadmap. Turn it into 
 1. Read the brief, phases, existing features and directions below first — they usually suffice.
 2. Only if needed, take a quick look to ground the feature: the relevant `.malvy/docs/**/CLAUDE.md` or a module's code (Glob/Grep, then Read one or two files). Do not explore broadly. Never write anything.
 3. Keep the user's intent. Sharpen it; do not turn it into a different or bigger feature.
-4. If an existing feature already covers the idea (same goal, even if worded differently), set `duplicate_of` to its id. Otherwise `null`.
+4. If a **CORE VALUES** section is given at the top, it outranks everything else. Shape the feature so it respects them; if the idea itself conflicts with a core value, keep it but set `priority` to `wont` and name the value in `rationale`.
+5. If an existing feature already covers the idea (same goal, even if worded differently), set `duplicate_of` to its id. Otherwise `null`.
 
 ## Output
 

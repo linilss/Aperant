@@ -17,6 +17,7 @@ import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { loadCoreValuesSection } from '../../core-values';
 import { loadIdeaDirectionTaggingSection, loadStrategyGuidance } from './competitors/guidance';
 import {
   buildKanbanContextSection,
@@ -154,12 +155,18 @@ export async function runIdeation(
     };
   }
 
+  // Core values open the prompt as its highest-priority section
+  const values = loadCoreValuesSection(projectDir);
+  if (values) {
+    prompt = `${values}Skip ideas that conflict with these core values, however valuable they look otherwise.\n\n---\n\n${prompt}`;
+  }
+
   // Add context (matches original format)
   prompt += `\n\n---\n\n**Output Directory**: ${outputDir}\n`;
   prompt += `**Project Directory**: ${projectDir}\n`;
   prompt += `**Max Ideas**: ${maxIdeasPerType}\n`;
   // Funnel handoff: the user's ranked directions from the Competitors page
-  const strategy = loadStrategyGuidance(projectDir);
+  const strategy = loadStrategyGuidance(projectDir, { valuesAlreadyShown: true });
   if (strategy) {
     prompt += `${strategy}Favor ideas that serve the pursued directions; skip ideas that mainly serve avoided ones.\n`;
   }

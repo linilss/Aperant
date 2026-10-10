@@ -414,4 +414,40 @@ describe('runRoadmapGeneration', () => {
       expect(features.every((f: Record<string, unknown>) => !('direction_ids' in f))).toBe(true);
     });
   });
+
+  describe('core values', () => {
+    const VALUES_FILE = '/project/.malvy/core-values.md';
+    const HEADING = '## CORE VALUES (highest priority';
+
+    it('opens the discovery and features prompts with the core values, above the strategy guidance', async () => {
+      files.set(VALUES_FILE, '- Kids can never lose.\n- No ads.');
+      files.set(
+        STRATEGY,
+        JSON.stringify({
+          directions: [{ id: 'dir-a', title: 'Calm play', avoid: false }],
+          ranking_saved_at: new Date().toISOString(),
+        }),
+      );
+
+      await runRoadmapGeneration(baseConfig());
+
+      const [discoveryCall, featuresCall] = spawnCalls;
+      for (const call of [discoveryCall, featuresCall]) {
+        expect(call.prompt.startsWith(HEADING)).toBe(true);
+        expect(call.prompt).toContain('- Kids can never lose.');
+        // Shown once, and the directions defer to it
+        expect(call.prompt.split(HEADING)).toHaveLength(2);
+        expect(call.prompt.indexOf(HEADING)).toBeLessThan(call.prompt.indexOf('STRATEGIC DIRECTION'));
+        expect(call.prompt).toContain('subordinate to the CORE VALUES');
+      }
+      expect(featuresCall.prompt).toContain('leave out features that conflict with them');
+      expect(featuresCall.prompt).toContain('"wont"');
+    });
+
+    it('adds no core values section when none are set', async () => {
+      await runRoadmapGeneration(baseConfig());
+
+      expect(spawnCalls.every((c) => !c.prompt.includes('CORE VALUES'))).toBe(true);
+    });
+  });
 });

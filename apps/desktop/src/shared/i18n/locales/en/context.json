@@ -143,6 +143,27 @@
       "gitHooks": "Git hooks",
       "typescript": "TypeScript",
       "enabled": "Enabled"
+    },
+    "coreValues": {
+      "title": "Core values",
+      "badge": "Weighs heaviest",
+      "description": "What this product stands for. Every AI step (competitors, roadmap, MoSCoW, ideation, build tasks) reads these first and treats them as overriding everything else.",
+      "empty": "No core values yet",
+      "emptyHint": "Write a short paragraph or a few bullets. They guide every AI step and weigh heaviest when anything conflicts with them.",
+      "hint": "A few short bullets work best, e.g. \"Kids can never lose. No ads or dark patterns. Calm over flashy.\"",
+      "placeholder": "- Kids can never lose.\n- No ads or dark patterns.\n- Calm over flashy.",
+      "label": "Core values",
+      "add": "Write core values",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "shortcut": "Cmd/Ctrl+Enter to save · Esc to cancel",
+      "draft": "Draft from docs",
+      "drafting": "Drafting…",
+      "draftError": "Could not draft core values: {{error}}",
+      "saveError": "Could not save core values: {{error}}",
+      "updatedAt": "Updated {{date}}",
+      "staleNotice": "Saved. Competitor directions were marked for re-synthesis so they follow the new values."
     }
   }
 }

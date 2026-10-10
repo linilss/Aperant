@@ -26,6 +26,8 @@ From what you've read, determine:
 - What problem does it solve?
 - What is the current maturity level? (idea / prototype / mvp / growth / mature)
 
+If a **CORE VALUES** section is given at the top, the product vision, audience and constraints you write must be consistent with it.
+
 Use Glob to browse the source directory structure. Use Grep to find TODO/FIXME comments.
 
 ## STEP 3 — Assess Current Features and Gaps

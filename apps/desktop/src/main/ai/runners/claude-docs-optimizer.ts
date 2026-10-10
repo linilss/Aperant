@@ -24,6 +24,7 @@ import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
+import { CORE_VALUES_INJECT_MAX_CHARS, loadCoreValues } from '../../core-values';
 import { AUTO_BUILD_PATHS } from '../../../shared/constants';
 import type {
   BranchProgressEvent,
@@ -281,10 +282,22 @@ export function buildRootPrompt(input: {
   existingMalvyDoc: string | null;
   pointers: DocPointer[];
   branchSummaries: Array<{ path: string; summary: string; status: string }>;
+  /** `.malvy/core-values.md`; imported into Claude separately, so the root doc must not restate it */
+  coreValues?: string;
 }): string {
+  const coreValues = input.coreValues?.trim()
+    ? [
+        '<core_values>',
+        input.coreValues.trim().slice(0, CORE_VALUES_INJECT_MAX_CHARS),
+        '</core_values>',
+        'The core values above are loaded for every agent on their own (highest priority). Do not restate or summarize them in the root doc, and never write anything that contradicts them.',
+        '',
+      ]
+    : [];
   return [
     `Write the root agent documentation and project summary for the project at "${input.projectDir}".`,
     '',
+    ...coreValues,
     '<project_index>',
     input.indexText,
     '</project_index>',
@@ -483,6 +496,7 @@ export async function runClaudeDocsOptimizer(
             teamRootDocs: teamDocsFor(projectDir, '', docs),
             existingMalvyDoc: existing,
             pointers: pointerMap.get('') ?? [],
+            coreValues: loadCoreValues(projectDir),
             branchSummaries: allBranches
               .filter((b) => b.relativePath !== '')
               .map((b) => ({

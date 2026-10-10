@@ -56,6 +56,8 @@ const direction = (title: string, overrides: Partial<StrategicDirection> = {}): 
   fit: 'Good',
   fitSources: [],
   risk: 'Some',
+  valuesFit: '',
+  conflictsWithValues: false,
   avoid: false,
   note: '',
   ...overrides,

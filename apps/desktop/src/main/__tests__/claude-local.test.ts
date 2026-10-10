@@ -45,7 +45,9 @@ describe('ensureClaudeLocalImports', () => {
     const added = ensureClaudeLocalImports(repo);
 
     expect(added).toEqual(CLAUDE_LOCAL_IMPORTS);
-    expect(readFileSync(localFile(), 'utf-8')).toBe('@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md\n');
+    expect(readFileSync(localFile(), 'utf-8')).toBe(
+      '@.malvy/core-values.md\n@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md\n'
+    );
 
     const exclude = readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf-8');
     expect(exclude).toContain('.malvy/');
@@ -65,14 +67,43 @@ describe('ensureClaudeLocalImports', () => {
   });
 
   it('appends to an existing file without removing user content', () => {
-    writeFileSync(localFile(), '# My notes\nKeep this\n@.malvy/pointers.md');
+    writeFileSync(localFile(), '# My notes\nKeep this');
 
     const added = ensureClaudeLocalImports(repo);
 
-    expect(added).toEqual(['@.malvy/docs/CLAUDE.md']);
+    expect(added).toEqual(CLAUDE_LOCAL_IMPORTS);
     expect(readFileSync(localFile(), 'utf-8')).toBe(
-      '# My notes\nKeep this\n@.malvy/pointers.md\n\n@.malvy/docs/CLAUDE.md\n'
+      '# My notes\nKeep this\n\n@.malvy/core-values.md\n@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md\n'
     );
+  });
+
+  it('inserts the core values import before existing Malvy imports (core values first)', () => {
+    writeFileSync(localFile(), '# My notes\n\n@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md\n');
+
+    const added = ensureClaudeLocalImports(repo);
+
+    expect(added).toEqual(['@.malvy/core-values.md']);
+    expect(readFileSync(localFile(), 'utf-8')).toBe(
+      '# My notes\n\n@.malvy/core-values.md\n@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md\n'
+    );
+    // Idempotent once complete
+    expect(ensureClaudeLocalImports(repo)).toEqual([]);
+    expect(readFileSync(localFile(), 'utf-8')).toBe(
+      '# My notes\n\n@.malvy/core-values.md\n@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md\n'
+    );
+  });
+
+  it('keeps import order when only a middle import is missing', () => {
+    writeFileSync(localFile(), '@.malvy/core-values.md\n@.malvy/pointers.md');
+
+    expect(ensureClaudeLocalImports(repo)).toEqual(['@.malvy/docs/CLAUDE.md']);
+    expect(readFileSync(localFile(), 'utf-8')).toBe(
+      '@.malvy/core-values.md\n@.malvy/docs/CLAUDE.md\n@.malvy/pointers.md'
+    );
+  });
+
+  it('lists the core values import first', () => {
+    expect(CLAUDE_LOCAL_IMPORTS[0]).toBe('@.malvy/core-values.md');
   });
 
   it('still writes the file outside a git repository', () => {

@@ -18,6 +18,8 @@ const dir = (id: string, avoid = false): StrategicDirection => ({
   fit: '',
   fitSources: [],
   risk: '',
+  valuesFit: '',
+  conflictsWithValues: false,
   avoid,
   note: '',
 });

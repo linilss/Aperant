@@ -206,6 +206,7 @@ let mcpClients: McpClientResult[] = [];
 let cachedFastMode: boolean | undefined;
 
 let cachedProjectInstructions: string | null | undefined;
+let cachedCoreValues: string | null = null;
 let cachedProjectInstructionsSource: string | null = null;
 
 /**
@@ -225,7 +226,8 @@ async function assemblePrompt(
     const result = await loadProjectInstructions(session.projectDir, {
       includeTeamDocs: session.useClaudeMd !== false,
     });
-    cachedProjectInstructions = result?.content ?? null;
+    cachedProjectInstructions = result?.content || null;
+    cachedCoreValues = result?.coreValues ?? null;
     cachedProjectInstructionsSource = result?.source ?? null;
     if (result) {
       postLog(`Project instructions loaded from ${result.source} (${(result.content.length / 1024).toFixed(1)}KB)`);
@@ -247,6 +249,7 @@ async function assemblePrompt(
   return injectContext(basePrompt, {
     specDir: session.specDir,
     projectDir: session.projectDir,
+    coreValues: cachedCoreValues,
     projectInstructions: cachedProjectInstructions,
     memoryContext: session.memoryContext,
     humanInput,

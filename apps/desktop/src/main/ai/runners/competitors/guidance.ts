@@ -4,6 +4,7 @@
  */
 
 import type { CompetitorStrategyState, StrategicDirection } from '../../../../shared/types/competitors';
+import { formatCoreValuesSection, loadCoreValues } from '../../../core-values';
 import { loadCompetitorState } from './persistence';
 
 /** How many top non-avoided directions count as "pursue" */
@@ -26,20 +27,37 @@ export function splitRankedDirections(state: CompetitorStrategyState | null): Ra
   };
 }
 
-const noteSuffix = (d: StrategicDirection) => (d.note ? ` User note: "${d.note}"` : '');
+const noteSuffix = (d: StrategicDirection) =>
+  `${d.conflictsWithValues ? ' (flagged as conflicting with the core values — the values win)' : ''}${d.note ? ` User note: "${d.note}"` : ''}`;
+
+export interface StrategyGuidanceOptions {
+  /** The caller already put the core values section at the top of its prompt: only refer to it */
+  valuesAlreadyShown?: boolean;
+}
 
 /**
- * Prompt section built from a saved ranking; '' when there is none.
- * Pursue = top 3 non-avoided (in order), avoided = steer away, notes included.
+ * Prompt section built from the core values and a saved ranking; '' when neither exists.
+ * Core values come first (unless already shown); then pursue = top 3 non-avoided
+ * (in order), avoided = steer away, notes included.
  */
-export function buildStrategyGuidance(state: CompetitorStrategyState | null): string {
+export function buildStrategyGuidance(
+  state: CompetitorStrategyState | null,
+  coreValues = '',
+  options: StrategyGuidanceOptions = {},
+): string {
   const { pursue, later, avoid } = splitRankedDirections(state);
-  if (pursue.length === 0 && avoid.length === 0) return '';
+  const hasValues = coreValues.trim() !== '';
+  const valuesSection = hasValues && !options.valuesAlreadyShown ? formatCoreValuesSection(coreValues) : '';
+  if (pursue.length === 0 && avoid.length === 0) return valuesSection ? `\n${valuesSection}` : '';
 
   const lines: string[] = [
     '',
+    ...(valuesSection ? [valuesSection.trimEnd(), ''] : []),
     '**STRATEGIC DIRECTION** (ranked by the user from a competitor analysis — align the vision, priorities and features with it):',
   ];
+  if (hasValues) {
+    lines.push('These directions are subordinate to the CORE VALUES: skip any part of a direction that conflicts with them.');
+  }
   if (pursue.length > 0) {
     lines.push('Pursue, in priority order:');
     pursue.forEach((d, i) => {
@@ -61,12 +79,13 @@ export function buildStrategyGuidance(state: CompetitorStrategyState | null): st
   return `${lines.join('\n')}\n`;
 }
 
-/** Load `.malvy/roadmap/strategy.json` and build the guidance section ('' when absent) */
-export function loadStrategyGuidance(projectDir: string): string {
+/** Load the core values + `.malvy/roadmap/strategy.json` and build the guidance section ('' when both absent) */
+export function loadStrategyGuidance(projectDir: string, options: StrategyGuidanceOptions = {}): string {
+  const coreValues = loadCoreValues(projectDir);
   try {
-    return buildStrategyGuidance(loadCompetitorState(projectDir));
+    return buildStrategyGuidance(loadCompetitorState(projectDir), coreValues, options);
   } catch {
-    return '';
+    return buildStrategyGuidance(null, coreValues, options);
   }
 }
 

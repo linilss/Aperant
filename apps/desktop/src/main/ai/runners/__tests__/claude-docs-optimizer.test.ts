@@ -19,6 +19,7 @@ vi.mock('../../../cli-tool-manager', () => ({
 import { runClaudeCli } from '../../cli/claude-cli';
 import {
   assignPointersToBranches,
+  buildRootPrompt,
   type ClaudeDocsOptimizerEvent,
   extractTagBlock,
   normalizeBranchDoc,
@@ -302,5 +303,28 @@ describe('claude-docs-optimizer parsing', () => {
     );
     expect(map.get('')?.map((x) => x.id)).toEqual(['general', 'root']);
     expect(map.get('src/a')?.map((x) => x.id)).toEqual(['team-a', 'malvy-a', 'deep']);
+  });
+});
+
+describe('buildRootPrompt — core values', () => {
+  const input = {
+    projectDir: '/p',
+    indexText: '{}',
+    teamRootDocs: '',
+    existingMalvyDoc: null,
+    pointers: [],
+    branchSummaries: [],
+  };
+
+  it('passes the core values with a do-not-restate, do-not-contradict rule', () => {
+    const prompt = buildRootPrompt({ ...input, coreValues: 'Kids can never lose.' });
+    expect(prompt).toContain('<core_values>\nKids can never lose.\n</core_values>');
+    expect(prompt).toContain('Do not restate or summarize them');
+    expect(prompt).toContain('never write anything that contradicts them');
+  });
+
+  it('omits the block without core values', () => {
+    expect(buildRootPrompt(input)).not.toContain('core_values');
+    expect(buildRootPrompt({ ...input, coreValues: '  ' })).not.toContain('core_values');
   });
 });

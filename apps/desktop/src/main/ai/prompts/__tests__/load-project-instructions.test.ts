@@ -99,4 +99,28 @@ describe('loadProjectInstructions', () => {
     expect(content).toContain(`\`${path.join(root, '.malvy/docs/src/CLAUDE.md')}\` [malvy] — Malvy src`);
     expect(content).toContain('- Pointer from owner');
   });
+
+  it('returns the core values separately (owning project), not inside the instructions', async () => {
+    write(root, 'CLAUDE.md', '# Team root');
+    write(root, '.malvy/core-values.md', '- Kids can never lose.\n');
+    const worktree = path.join(root, '.malvy', 'worktrees', 'tasks', '001-task');
+    write(worktree, 'CLAUDE.md', '# Team root (worktree)');
+
+    const result = await loadProjectInstructions(root);
+    expect(result).toEqual({
+      content: '# Team root',
+      source: '.malvy/core-values.md, CLAUDE.md',
+      coreValues: '- Kids can never lose.',
+    });
+    expect((await loadProjectInstructions(worktree))?.coreValues).toBe('- Kids can never lose.');
+  });
+
+  it('returns core values even when there are no docs', async () => {
+    write(root, '.malvy/core-values.md', 'Calm over flashy.');
+    expect(await loadProjectInstructions(root)).toEqual({
+      content: '',
+      source: '.malvy/core-values.md',
+      coreValues: 'Calm over flashy.',
+    });
+  });
 });

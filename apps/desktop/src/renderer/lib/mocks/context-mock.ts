@@ -68,6 +68,12 @@ export const contextMock = {
   readClaudeDoc: async () => ({ success: false, error: 'Not available in browser mock' }),
   listCodeBranches: async () => ({ success: true, data: [] }),
   getProjectSummary: async () => ({ success: true, data: null }),
+  getCoreValues: async () => ({ success: true, data: { text: '', updatedAt: null } }),
+  saveCoreValues: async (_projectId: string, text: string) => ({
+    success: true,
+    data: { values: { text: text.trim(), updatedAt: text.trim() ? new Date().toISOString() : null }, directionsMarkedStale: false }
+  }),
+  draftCoreValues: async () => ({ success: false, error: 'Not available in browser mock' }),
   getPendingDocsRun: async () => ({ success: true, data: { pending: null, isRunning: false } }),
   discardPendingDocsRun: async () => ({ success: true }),
   optimizeClaudeDocs: noop,

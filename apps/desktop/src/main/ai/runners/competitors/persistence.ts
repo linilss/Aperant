@@ -166,6 +166,8 @@ export function normalizeStoredDirection(raw: Raw, taken: Set<string>): Strategi
     fit: str(raw.fit),
     fitSources: strList(raw.fit_sources ?? raw.fitSources),
     risk: str(raw.risk),
+    valuesFit: str(raw.values_fit ?? raw.valuesFit),
+    conflictsWithValues: (raw.conflicts_with_values ?? raw.conflictsWithValues) === true,
     avoid: raw.avoid === true,
     note: str(raw.note),
   };
@@ -273,6 +275,8 @@ function directionToRaw(d: StrategicDirection): Raw {
     fit: d.fit,
     fit_sources: d.fitSources,
     risk: d.risk,
+    values_fit: d.valuesFit,
+    conflicts_with_values: d.conflictsWithValues,
     avoid: d.avoid,
     note: d.note,
   };
@@ -331,6 +335,20 @@ export function saveCompetitorState(projectDir: string, state: CompetitorStrateg
     directions_stale: state.directionsStale,
     ranking_saved_at: state.rankingSavedAt,
   });
+}
+
+/**
+ * Flag synthesized directions as stale (e.g. the core values changed) so the
+ * Competitors page offers "Re-synthesize directions". Only strategy.json is
+ * touched; false when there are no directions to flag.
+ */
+export function markDirectionsStale(projectDir: string): boolean {
+  const path = strategyFilePath(projectDir);
+  const strategy = readJson(path);
+  if (!strategy || !Array.isArray(strategy.directions) || strategy.directions.length === 0) return false;
+  if (strategy.directions_stale === true) return true;
+  writeJsonAtomic(path, { ...strategy, directions_stale: true });
+  return true;
 }
 
 // =============================================================================

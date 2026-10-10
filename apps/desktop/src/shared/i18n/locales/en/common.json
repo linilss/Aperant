@@ -1116,9 +1116,12 @@
       "saveRanking": "Save ranking",
       "resynthesize": "Re-synthesize directions",
       "synthesize": "Synthesize directions",
-      "stale": "The analyzed competitors changed since these directions were synthesized.",
+      "stale": "The analyzed competitors or the core values changed since these directions were synthesized.",
       "pending": "Directions appear once the competitors are profiled.",
-      "none": "No directions yet."
+      "none": "No directions yet.",
+      "valuesFit": "Core values",
+      "conflictsWithValues": "Conflicts with core values",
+      "conflictsTooltip": "The AI judged this direction to conflict with your core values; it is sorted last and suggested as Avoid."
     },
     "next": {
       "roadmap": "Next: Generate roadmap",
@@ -1136,6 +1139,15 @@
       "step2": "It synthesizes the strategic directions they take, with gaps and fit.",
       "step3": "You rank the directions and mark the ones to avoid.",
       "step4": "Roadmap, MoSCoW and Ideation are generated along your top directions."
+    },
+    "coreValues": {
+      "label": "Core values",
+      "steering": "Core values steer these directions",
+      "none": "No core values set — directions follow market fit only.",
+      "add": "Add core values",
+      "edit": "Edit in Context",
+      "show": "Show core values",
+      "hide": "Hide core values"
     }
   }
 }

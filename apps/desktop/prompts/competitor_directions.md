@@ -13,7 +13,9 @@ From the competitor profiles below, you synthesize the distinct strategic DIRECT
    - `fit`: how well the project's CURRENT state supports it, grounded in the brief (what exists, what's missing). Be honest; a poor fit is useful.
    - `fit_sources`: the brief source paths you relied on (e.g. ".malvy/docs/project_summary.json").
    - `risk`: the main risk of pursuing it (1 sentence).
-3. Order them from most to least promising for THIS project.
+   - `values_fit`: how it aligns with the project's CORE VALUES (1 sentence, naming the value). `""` when no core values are given.
+   - `conflicts_with_values`: `true` when pursuing it would break a core value, else `false`.
+3. Order them from most to least promising for THIS project. When core values are given they weigh heaviest: only propose directions consistent with them, rank the ones that serve them best first, and include a conflicting direction only when the user should see it (it is then sorted last and suggested as Avoid).
 
 Rules: only use competitors from the list; no invented facts about the project; concise phrases.
 
@@ -22,5 +24,5 @@ Rules: only use competitors from the list; no invented facts about the project; 
 Exactly one block, valid JSON array, nothing after it:
 
 <strategic_directions>
-[{"title":"…","description":"…","occupied_by":["Acme"],"opportunity":"…","fit":"…","fit_sources":[".malvy/docs/project_summary.json"],"risk":"…"}]
+[{"title":"…","description":"…","occupied_by":["Acme"],"opportunity":"…","fit":"…","fit_sources":[".malvy/docs/project_summary.json"],"risk":"…","values_fit":"…","conflicts_with_values":false}]
 </strategic_directions>

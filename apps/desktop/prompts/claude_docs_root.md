@@ -17,7 +17,8 @@ Each code branch (directory) has already been documented in its own file; their 
 2. **Nothing derivable from code, nothing the team root doc already says.**
 3. **Verify every name and command** with Glob/Grep/Read. Drop anything you cannot verify.
 4. **Developer pointers are binding.** General pointers (given with ids) go into the root doc as rules; list the ids you used in `appliedPointerIds`.
-5. **Existing Malvy root doc.** When one is given, improve it. Use `skip` if nothing would change.
+5. **Core values.** When `<core_values>` are given, they are imported for every agent separately and override everything. Do not restate them; never write a rule that contradicts them.
+6. **Existing Malvy root doc.** When one is given, improve it. Use `skip` if nothing would change.
 
 ## Project summary
 

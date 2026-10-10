@@ -22,12 +22,15 @@ import {
 } from '../../stores/competitor-store';
 import { CompetitorCard } from './CompetitorCard';
 import { CompetitorPool } from './CompetitorPool';
+import { CoreValuesBar } from './CoreValuesBar';
 import { DirectionsList } from './DirectionsList';
 
 interface CompetitorAnalysisProps {
   projectId: string;
   onGoToRoadmap: () => void;
   onGoToIdeation?: () => void;
+  /** Open Context, where the core values are edited */
+  onGoToContext?: () => void;
 }
 
 function Section({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
@@ -42,7 +45,7 @@ function Section({ title, children, actions }: { title: string; children: ReactN
   );
 }
 
-export function CompetitorAnalysis({ projectId, onGoToRoadmap, onGoToIdeation }: CompetitorAnalysisProps) {
+export function CompetitorAnalysis({ projectId, onGoToRoadmap, onGoToIdeation, onGoToContext }: CompetitorAnalysisProps) {
   const { t, i18n } = useTranslation('common');
   const data = useCompetitorStore((s) => (s.projectId === projectId ? s.data : null));
   const isRunning = useCompetitorStore((s) => s.isRunning);
@@ -107,6 +110,7 @@ export function CompetitorAnalysis({ projectId, onGoToRoadmap, onGoToIdeation }:
           </div>
         )}
       </div>
+      <CoreValuesBar projectId={projectId} onGoToContext={onGoToContext} />
       <div className="flex flex-wrap items-center gap-3">
         <Input
           value={focus}

@@ -26,6 +26,7 @@ export * from './provider-account';
 
 export * from './tests';
 export * from './claude-docs';
+export * from './core-values';
 export * from './remote-access';
 
 // IPC types (must be last to use types from other modules)
