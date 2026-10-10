@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-clear
+# Only clear when attached to a terminal (fails without TERM under set -e)
+[ -t 1 ] && clear || true
 
 cd "$(dirname "$0")"
 
