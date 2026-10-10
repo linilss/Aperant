@@ -6,6 +6,9 @@ set -e
 
 cd "$(dirname "$0")"
 
+# Terminals inside VS Code/Electron export this, which makes `electron .` run as plain Node
+unset ELECTRON_RUN_AS_NODE
+
 echo "Killing existing malvy instances..."
 pkill -f "malvy" 2>/dev/null || true
 pkill -f "electron ." 2>/dev/null || true
