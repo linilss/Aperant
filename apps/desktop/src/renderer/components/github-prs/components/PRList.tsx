@@ -251,7 +251,7 @@ export function PRList({
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 max-md:flex-none">
       <div className="divide-y divide-border">
         {prs.map((pr) => {
           const reviewState = getReviewStateForPR(pr.number);

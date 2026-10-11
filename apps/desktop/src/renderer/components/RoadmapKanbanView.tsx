@@ -135,8 +135,9 @@ function DroppableStatusColumn({
       </div>
 
       {/* Features list */}
-      <div className="flex-1 min-h-0">
-        <ScrollArea className="h-full px-3 pb-3 pt-2">
+      {/* Phones scroll the whole page, so the column grows to its content instead of scrolling */}
+      <div className="flex-1 min-h-0 max-md:flex-none">
+        <ScrollArea className="h-full px-3 pb-3 pt-2 max-md:h-auto">
           <SortableContext
             items={featureIds}
             strategy={verticalListSortingStrategy}
@@ -331,7 +332,7 @@ export function RoadmapKanbanView({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col max-md:h-auto">
       {/* Kanban columns */}
       <DndContext
         sensors={sensors}
@@ -340,7 +341,7 @@ export function RoadmapKanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:gap-3 max-md:p-3">
+        <div className="flex flex-1 gap-4 overflow-x-auto p-6 max-md:items-start max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:gap-3 max-md:p-3">
           {ROADMAP_STATUS_COLUMNS.map((column) => (
             <DroppableStatusColumn
               key={column.id}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sideBySideDiff } from '../line-diff';
+import { sideBySideDiff, unifiedDiff } from '../line-diff';
 
 describe('sideBySideDiff', () => {
   it('pairs changed lines and keeps unchanged ones aligned', () => {
@@ -17,5 +17,12 @@ describe('sideBySideDiff', () => {
     const rows = sideBySideDiff(null, 'x\ny');
     expect(rows.every((r) => r.left === null && r.right?.kind === 'added')).toBe(true);
     expect(rows.map((r) => r.right?.lineNo)).toEqual([1, 2]);
+  });
+});
+
+describe('unifiedDiff', () => {
+  it('lists removed lines before added lines within a changed block', () => {
+    const cells = unifiedDiff(sideBySideDiff('a\nb\nc\nd\n', 'a\nB\nC\nd\ne\n'));
+    expect(cells.map((c) => `${c.kind[0]}${c.text}`)).toEqual(['sa', 'rb', 'rc', 'aB', 'aC', 'sd', 'ae']);
   });
 });

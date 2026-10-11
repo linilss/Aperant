@@ -1,11 +1,14 @@
 import { FileText, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../../lib/utils';
+import { MiddleTruncate } from '../../ui/middle-truncate';
 import type { ClaudeDocFile, ClaudeDocLayer, DocPointer } from '../../../../shared/types';
 
 /** Line budget: root docs load on every task (100), directory docs on demand (60) */
 const ROOT_DOC_LINE_LIMIT = 100;
 const NESTED_DOC_LINE_LIMIT = 60;
+/** Deeper docs stop indenting so long paths keep room in a narrow tree */
+const MAX_INDENT_DEPTH = 3;
 
 export function docLineLimit(doc: ClaudeDocFile): number {
   return doc.layerPath.includes('/') ? NESTED_DOC_LINE_LIMIT : ROOT_DOC_LINE_LIMIT;
@@ -40,14 +43,14 @@ export function DocTree({ docs, pointers, selectedPath, onSelect }: DocTreeProps
               {items.map((doc) => {
                 const limit = docLineLimit(doc);
                 const over = doc.lines > limit;
-                const depth = doc.layerPath.split('/').length - 1;
+                const depth = Math.min(doc.layerPath.split('/').length - 1, MAX_INDENT_DEPTH);
                 const pointerCount = pointers.filter((p) => p.docPath === doc.relativePath).length;
                 return (
                   <li key={doc.relativePath}>
                     <button
                       type="button"
                       onClick={() => onSelect(doc.relativePath)}
-                      title={doc.firstLine || doc.relativePath}
+                      title={doc.firstLine ? `${doc.relativePath}\n${doc.firstLine}` : doc.relativePath}
                       className={cn(
                         'flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs transition-colors max-md:min-h-10 max-md:text-sm',
                         selectedPath === doc.relativePath
@@ -61,7 +64,7 @@ export function DocTree({ docs, pointers, selectedPath, onSelect }: DocTreeProps
                       ) : (
                         <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
                       )}
-                      <span className="min-w-0 flex-1 truncate font-mono">{doc.layerPath}</span>
+                      <MiddleTruncate text={doc.layerPath} title={doc.relativePath} className="flex-1 font-mono" />
                       {pointerCount > 0 && (
                         <span className="shrink-0" aria-hidden>
                           👉{pointerCount}

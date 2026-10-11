@@ -26,9 +26,9 @@ export function FeatureCard({
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
 
   return (
-    <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={onClick}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+    <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors max-md:p-3" onClick={onClick}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Badge variant="outline" className={ROADMAP_PRIORITY_COLORS[feature.priority]}>
               {ROADMAP_PRIORITY_LABELS[feature.priority]}
@@ -43,7 +43,7 @@ export function FeatureCard({
               variant="outline"
               className={`text-xs ${ROADMAP_IMPACT_COLORS[feature.impact]}`}
             >
-              {feature.impact} impact
+              {t('roadmap.card.impact', { level: feature.impact })}
             </Badge>
             {refining && (
               <Badge
@@ -60,17 +60,17 @@ export function FeatureCard({
                 <TooltipTrigger asChild>
                   <Badge variant="outline" className="text-xs text-primary border-primary/50">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    Competitor Insight
+                    {t('roadmap.card.competitorInsight')}
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent>This feature addresses competitor pain points</TooltipContent>
+                <TooltipContent>{t('roadmap.card.competitorTooltip')}</TooltipContent>
               </Tooltip>
             )}
           </div>
-          <h3 className="font-medium">{feature.title}</h3>
+          <h3 className="font-medium break-words">{feature.title}</h3>
           <p className="text-sm text-muted-foreground line-clamp-2">{feature.description}</p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 max-md:[&>button]:h-10">
           {feature.taskOutcome ? (
             <Badge variant="outline" className={`text-xs ${getTaskOutcomeColorClass(feature.taskOutcome)}`}>
               <TaskOutcomeBadge outcome={feature.taskOutcome} size="md" />

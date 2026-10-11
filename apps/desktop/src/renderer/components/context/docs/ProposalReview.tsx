@@ -6,7 +6,8 @@ import { Button } from '../../ui/button';
 import { cn } from '../../../lib/utils';
 import type { DocProposal, ProjectSummary } from '../../../../shared/types';
 import { ProjectSummaryContent } from '../index/ProjectSummaryCard';
-import { sideBySideDiff, type DiffCell } from './line-diff';
+import { MiddleTruncate } from '../../ui/middle-truncate';
+import { sideBySideDiff, unifiedDiff, type DiffCell } from './line-diff';
 
 /** Path of the project summary proposal (relative to .malvy/docs) */
 const PROJECT_SUMMARY_PATH = 'project_summary.json';
@@ -28,7 +29,10 @@ interface ProposalReviewProps {
   error: string | null;
 }
 
-function Cell({ cell }: { cell: DiffCell | null }) {
+const UNIFIED_MARKER: Record<DiffCell['kind'], string> = { same: ' ', removed: '-', added: '+' };
+
+/** One diff line; `unified` adds a +/- marker since both sides share a single column */
+function Cell({ cell, unified = false }: { cell: DiffCell | null; unified?: boolean }) {
   return (
     <div
       className={cn(
@@ -39,6 +43,7 @@ function Cell({ cell }: { cell: DiffCell | null }) {
       )}
     >
       <span className="w-8 shrink-0 select-none text-right text-muted-foreground/60">{cell?.lineNo ?? ''}</span>
+      {unified && cell && <span className="w-2 shrink-0 select-none">{UNIFIED_MARKER[cell.kind]}</span>}
       <span className="whitespace-pre-wrap break-all">{cell?.text ?? ''}</span>
     </div>
   );
@@ -58,6 +63,7 @@ function ProposalCard({
   const { t } = useTranslation('context');
   const after = proposal.action === 'delete' ? '' : proposal.content;
   const rows = useMemo(() => sideBySideDiff(proposal.before, after), [proposal.before, after]);
+  const unifiedRows = useMemo(() => unifiedDiff(rows), [rows]);
   const summary = useMemo(
     () => (proposal.path === PROJECT_SUMMARY_PATH ? parseSummary(proposal.content) : null),
     [proposal.path, proposal.content]
@@ -65,9 +71,9 @@ function ProposalCard({
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 max-md:flex-wrap max-md:px-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 max-lg:flex-wrap max-md:px-3">
+        <div className="min-w-0 flex-1 space-y-1 max-lg:basis-full">
+          <div className="flex min-w-0 items-center gap-2">
             <Badge variant={proposal.action === 'delete' ? 'destructive' : 'outline'} className="text-xs">
               {t(`review.actions.${proposal.action}`)}
             </Badge>
@@ -76,9 +82,9 @@ function ProposalCard({
                 {t('review.summaryItem')}
               </Badge>
             )}
-            <span className="truncate font-mono text-sm">.malvy/docs/{proposal.path}</span>
+            <MiddleTruncate text={`.malvy/docs/${proposal.path}`} className="font-mono text-sm" />
           </div>
-          {proposal.reason && <p className="text-xs text-muted-foreground">{proposal.reason}</p>}
+          {proposal.reason && <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{proposal.reason}</p>}
           {proposal.appliedPointerIds.length > 0 && (
             <p className="text-xs text-primary">
               👉 {t('review.pointersApplied', { count: proposal.appliedPointerIds.length })}
@@ -101,23 +107,33 @@ function ProposalCard({
           <ProjectSummaryContent summary={summary} />
         </div>
       ) : (
+        // Grows with its content (no inner scroller). Side by side from lg; a single unified column below.
         <>
-          <div className="grid grid-cols-2 border-b border-border text-xs font-medium text-muted-foreground">
+          <div className="grid grid-cols-2 border-b border-border text-xs font-medium text-muted-foreground max-lg:hidden">
             <div className="px-4 py-1.5">{t('review.before')}</div>
             <div className="border-l border-border px-4 py-1.5">{t('review.after')}</div>
           </div>
-          <div className="max-h-96 overflow-auto font-mono text-xs leading-5">
+          <div className="font-mono text-xs leading-5">
             {rows.length === 0 ? (
               <p className="px-4 py-2 text-muted-foreground">{t('review.empty')}</p>
             ) : (
-              rows.map((row) => (
-                <div key={`${row.left?.lineNo ?? '-'}:${row.right?.lineNo ?? '-'}`} className="grid grid-cols-2">
-                  <Cell cell={row.left} />
-                  <div className="border-l border-border">
-                    <Cell cell={row.right} />
-                  </div>
+              <>
+                <div className="max-lg:hidden">
+                  {rows.map((row) => (
+                    <div key={`${row.left?.lineNo ?? '-'}:${row.right?.lineNo ?? '-'}`} className="grid grid-cols-2">
+                      <Cell cell={row.left} />
+                      <div className="border-l border-border">
+                        <Cell cell={row.right} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))
+                <div className="lg:hidden">
+                  {unifiedRows.map((cell) => (
+                    <Cell key={`${cell.kind}:${cell.lineNo}`} cell={cell} unified />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </>
@@ -142,8 +158,8 @@ export function ProposalReview({ proposals, onApprove, onReject, onClose, error 
 
   return (
     <div className="space-y-4 p-6 max-md:p-4">
-      <div className="flex items-center justify-between gap-3 max-md:flex-wrap">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-base font-semibold text-foreground">{t('review.title')}</h3>
           <p className="text-xs text-muted-foreground">{t('review.subtitle')}</p>
         </div>

@@ -217,7 +217,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 min-h-0" viewportClassName="[&>div]:!block">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="px-4 py-3 space-y-4">
           {/* Welcome / loading state when session is auto-starting */}
           {messages.length === 0 && !streamingContent && status !== 'thinking' && (

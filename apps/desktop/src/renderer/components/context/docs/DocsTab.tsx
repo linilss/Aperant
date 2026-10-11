@@ -146,7 +146,8 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    // Phone: the Context page root scrolls, so every region here grows to its content (no nested scrollers)
+    <div className="flex h-full flex-col overflow-hidden max-md:h-auto max-md:overflow-visible">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-6 py-3 max-md:gap-2 max-md:px-4">
         <div className="min-w-0">
@@ -196,7 +197,7 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
 
       {/* Body */}
       {optimizerRunning ? (
-        <div className="flex-1 overflow-auto p-6 max-md:p-4">
+        <div className="flex-1 overflow-auto p-6 max-md:flex-none max-md:overflow-visible max-md:p-4">
           <div className="mb-3 flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <span className="text-sm font-medium text-foreground">{t('optimizer.running')}</span>
@@ -209,7 +210,7 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
           <StreamPreview chunk={optimizerStream} />
         </div>
       ) : proposals && proposals.length > 0 ? (
-        <ScrollArea className="flex-1" viewportClassName="max-md:[&>div]:!block">
+        <ScrollArea className="flex-1 max-md:h-auto max-md:flex-none">
           <ProposalReview
             proposals={proposals}
             onApprove={handleApprove}
@@ -225,14 +226,14 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
           <p className="max-w-sm text-sm text-muted-foreground">{t('docs.emptyHint')}</p>
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden max-md:flex-none max-md:overflow-visible">
           {(!isMobile || !mobileShowDoc) && (
-            <ScrollArea className="w-72 shrink-0 border-r border-border max-md:w-full max-md:border-r-0">
+            <ScrollArea className="w-72 shrink-0 border-r border-border max-md:h-auto max-md:w-full max-md:border-r-0">
               <DocTree docs={docs} pointers={pointers} selectedPath={selectedPath} onSelect={select} />
             </ScrollArea>
           )}
           {(!isMobile || mobileShowDoc) && (
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden max-md:overflow-visible">
               {isMobile && (
                 <div className="shrink-0 border-b border-border px-2 py-1">
                   <Button variant="ghost" size="sm" className="h-10" onClick={() => setMobileShowDoc(false)}>
@@ -241,7 +242,7 @@ export function DocsTab({ projectId, focus }: DocsTabProps) {
                   </Button>
                 </div>
               )}
-              <ScrollArea className="flex-1" viewportClassName="max-md:[&>div]:!block">
+              <ScrollArea className="flex-1 max-md:h-auto max-md:flex-none">
                 {selectedDoc && content !== null ? (
                   <DocViewer
                     doc={selectedDoc}

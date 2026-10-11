@@ -1066,8 +1066,8 @@ ${t('prReview.blockedStatusMessageFooter')}`;
   };
 
   return (
-    <ScrollArea className="flex-1">
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <ScrollArea className="flex-1 max-md:flex-none">
+      <div className="p-6 max-w-5xl mx-auto space-y-6 max-md:p-3 max-md:space-y-4">
 
         {/* Refactored Header */}
         <PRHeader pr={pr} isLoadingFiles={isLoadingFiles} />

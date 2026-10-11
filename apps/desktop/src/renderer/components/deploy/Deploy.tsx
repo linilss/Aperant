@@ -4,6 +4,8 @@ import { Rocket, RefreshCw, Play, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
+import { PageHeader, PAGE_BODY, PAGE_ROOT } from '../ui/page-header';
+import { cn } from '../../lib/utils';
 import { buildDeployCommand } from './deploy-command';
 import type { DeployScript } from '../../../shared/types';
 
@@ -43,32 +45,34 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Rocket className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground">{t('title')}</h2>
-            <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={isLoading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          {t('refresh')}
-        </Button>
-      </div>
+    <div className={PAGE_ROOT}>
+      <PageHeader
+        icon={Rocket}
+        title={t('title')}
+        subtitle={t('subtitle')}
+        actions={[
+          {
+            id: 'refresh',
+            label: t('refresh'),
+            icon: RefreshCw,
+            onClick: load,
+            disabled: isLoading,
+            busy: isLoading,
+            primary: true,
+            variant: 'outline',
+          },
+        ]}
+      />
 
       {error && (
-        <div className="mx-6 mt-4 flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="mx-6 mt-4 flex shrink-0 items-center gap-2 rounded-lg max-md:mx-3 max-md:mt-3 border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
+          <span className="min-w-0 break-words">{error}</span>
         </div>
       )}
 
       {!isLoading && scripts.length === 0 && !error ? (
-        <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+        <div className={cn(PAGE_BODY, 'flex flex-col items-center justify-center gap-4 p-8 text-center max-md:p-4')}>
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
             <Rocket className="h-8 w-8 text-muted-foreground" />
           </div>
@@ -77,8 +81,8 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
           <p className="max-w-md text-xs text-muted-foreground">{t('empty.hint')}</p>
         </div>
       ) : (
-        <ScrollArea className="flex-1">
-          <div className="space-y-3 p-6">
+        <ScrollArea className={PAGE_BODY}>
+          <div className="space-y-3 p-6 max-md:p-3">
             {scripts.map((script) => (
               <DeployScriptCard key={script.relativePath} script={script} onRun={run} />
             ))}
@@ -122,9 +126,9 @@ function DeployScriptCard({
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 max-md:flex-col max-md:items-stretch max-md:gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-sm">
+          <p className="break-all font-mono text-sm">
             <span className="text-muted-foreground">{folder}</span>
             <span className="font-semibold text-foreground">{script.name}</span>
           </p>
@@ -132,21 +136,26 @@ function DeployScriptCard({
             {script.description || t('noDescription')}
           </p>
           {script.usage && (
-            <p className="mt-2 font-mono text-xs text-muted-foreground">
+            <p className="mt-2 break-words font-mono text-xs text-muted-foreground">
               {t('usage')}: {script.usage}
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 max-md:flex-col max-md:items-stretch">
           {script.usage && (
             <Input
               value={args}
               onChange={(e) => setArgs(e.target.value)}
               placeholder={t('argsPlaceholder')}
-              className="h-8 w-44 font-mono text-xs"
+              className="h-8 w-44 font-mono text-xs max-md:h-10 max-md:w-full"
             />
           )}
-          <Button size="sm" variant={armed ? 'destructive' : 'default'} onClick={handleClick}>
+          <Button
+            size="sm"
+            variant={armed ? 'destructive' : 'default'}
+            onClick={handleClick}
+            className="max-md:h-10 max-md:w-full"
+          >
             <Play className="mr-2 h-4 w-4" />
             {armed ? t('confirm', { name: script.name }) : t('run')}
           </Button>

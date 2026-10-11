@@ -531,7 +531,7 @@ export const TaskCard = memo(function TaskCard({
             {rateLimitPause && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
                 title={rateLimitPause.error}
               >
                 <PauseCircle className="h-2.5 w-2.5" />
@@ -544,7 +544,7 @@ export const TaskCard = memo(function TaskCard({
             {isStuck && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30 badge-priority-urgent"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30 badge-priority-urgent"
               >
                 <AlertTriangle className="h-2.5 w-2.5" />
                 {t('labels.stuck')}
@@ -554,7 +554,7 @@ export const TaskCard = memo(function TaskCard({
             {isIncomplete && !isStuck && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-orange-500/10 text-orange-400 border-orange-500/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-orange-500/10 text-orange-400 border-orange-500/30"
               >
                 <AlertTriangle className="h-2.5 w-2.5" />
                 {t('labels.incomplete')}
@@ -564,7 +564,7 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.archivedAt && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-muted text-muted-foreground border-border"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-muted text-muted-foreground border-border"
               >
                 <Archive className="h-2.5 w-2.5" />
                 {t('status.archived')}
@@ -574,7 +574,7 @@ export const TaskCard = memo(function TaskCard({
             {lastDeployment && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
                 title={t('deploy:task.deployedTooltip', {
                   time: formatRelativeTime(new Date(lastDeployment.at)),
                   script: lastDeployment.script
@@ -589,7 +589,7 @@ export const TaskCard = memo(function TaskCard({
               <Badge
                 variant="outline"
                 className={cn(
-                  'text-[10px] px-1.5 py-0.5 flex items-center gap-1',
+                  'text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1',
                   EXECUTION_PHASE_BADGE_COLORS[executionPhase]
                 )}
               >
@@ -602,14 +602,14 @@ export const TaskCard = memo(function TaskCard({
                task.status === 'done' ? (
                     <Badge
                       variant={getStatusBadgeVariant(task.status)}
-                      className="text-[10px] px-1.5 py-0.5"
+                      className="text-[11px] max-md:text-xs px-1.5 py-0.5"
                     >
                       {getStatusLabel(task.status)}
                     </Badge>
                   ) : (
                    <Badge
                      variant={isStuck ? 'warning' : isIncomplete ? 'warning' : getStatusBadgeVariant(task.status)}
-                     className="text-[10px] px-1.5 py-0.5"
+                     className="text-[11px] max-md:text-xs px-1.5 py-0.5"
                    >
                      {isStuck ? t('labels.needsRecovery') : isIncomplete ? t('labels.needsResume') : getStatusLabel(task.status)}
                    </Badge>
@@ -619,7 +619,7 @@ export const TaskCard = memo(function TaskCard({
             {reviewReasonInfo && !isStuck && !isIncomplete && (
               <Badge
                 variant={reviewReasonInfo.variant}
-                className="text-[10px] px-1.5 py-0.5"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5"
               >
                 {reviewReasonInfo.label}
               </Badge>
@@ -628,7 +628,7 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.fastMode && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
               >
                 <Zap className="h-2.5 w-2.5" />
                 {t('metadata.fastMode')}
@@ -638,17 +638,17 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.refined && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
               >
                 <Sparkles className="h-2.5 w-2.5" />
-                Refined
+                {t('metadata.refined')}
               </Badge>
             )}
             {/* Category badge with icon */}
-            {task.metadata?.category && (
+            {task.metadata?.category && TASK_CATEGORY_LABELS[task.metadata.category] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_CATEGORY_COLORS[task.metadata.category])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_CATEGORY_COLORS[task.metadata.category])}
               >
                 {CategoryIcon[task.metadata.category] && (
                   (() => {
@@ -660,28 +660,28 @@ export const TaskCard = memo(function TaskCard({
               </Badge>
             )}
             {/* Impact badge - high visibility for important tasks */}
-            {task.metadata?.impact && (task.metadata.impact === 'high' || task.metadata.impact === 'critical') && (
+            {task.metadata?.impact && (task.metadata.impact === 'high' || task.metadata.impact === 'critical') && TASK_IMPACT_LABELS[task.metadata.impact] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.impact])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.impact])}
               >
                 {TASK_IMPACT_LABELS[task.metadata.impact]}
               </Badge>
             )}
             {/* Complexity badge */}
-            {task.metadata?.complexity && (
+            {task.metadata?.complexity && TASK_COMPLEXITY_LABELS[task.metadata.complexity] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_COMPLEXITY_COLORS[task.metadata.complexity])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_COMPLEXITY_COLORS[task.metadata.complexity])}
               >
                 {TASK_COMPLEXITY_LABELS[task.metadata.complexity]}
               </Badge>
             )}
             {/* Priority badge - only show urgent/high */}
-            {task.metadata?.priority && (task.metadata.priority === 'urgent' || task.metadata.priority === 'high') && (
+            {task.metadata?.priority && (task.metadata.priority === 'urgent' || task.metadata.priority === 'high') && TASK_PRIORITY_LABELS[task.metadata.priority] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_PRIORITY_COLORS[task.metadata.priority])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_PRIORITY_COLORS[task.metadata.priority])}
               >
                 {TASK_PRIORITY_LABELS[task.metadata.priority]}
               </Badge>
@@ -690,7 +690,7 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.securitySeverity && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.securitySeverity])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.securitySeverity])}
               >
                 {task.metadata.securitySeverity} {t('metadata.severity')}
               </Badge>

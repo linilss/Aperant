@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   GitBranch,
@@ -19,13 +19,23 @@ import {
   Terminal,
   CheckSquare2,
   CheckSquare,
-  Square
+  Square,
+  MoreHorizontal,
+  type LucideIcon
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
+import { PageHeader, PAGE_ROOT, PAGE_BODY, PAGE_STICKY } from './ui/page-header';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu';
+import { cn } from '../lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +63,68 @@ import { CreatePRDialog } from './task-detail/task-review/CreatePRDialog';
 // Prefix constants for worktree ID parsing
 const TASK_PREFIX = 'task:';
 const TERMINAL_PREFIX = 'terminal:';
+
+interface SecondaryAction {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  onClick: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+}
+
+/**
+ * Card action row: primary buttons always visible (wrapping when tight); secondary actions are
+ * buttons on desktop and fold into a "⋯" menu on phones.
+ */
+function WorktreeCardActions({ primary, secondary }: { primary: ReactNode; secondary: SecondaryAction[] }) {
+  const { t } = useTranslation('common');
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {primary}
+      {secondary.map(({ id, label, icon: Icon, onClick, disabled, destructive }) => (
+        <Button
+          key={id}
+          variant="outline"
+          size="sm"
+          className={cn('max-md:hidden', destructive && 'text-destructive hover:text-destructive hover:bg-destructive/10')}
+          onClick={onClick}
+          disabled={disabled}
+        >
+          <Icon className="h-3.5 w-3.5 mr-1.5" />
+          {label}
+        </Button>
+      ))}
+      {secondary.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="ml-auto h-10 w-10 md:hidden"
+              aria-label={t('accessibility.moreOptionsAriaLabel')}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[12rem]">
+            {secondary.map(({ id, label, icon: Icon, onClick, disabled, destructive }) => (
+              <DropdownMenuItem
+                key={id}
+                disabled={disabled}
+                onSelect={onClick}
+                className={cn('min-h-10 gap-2', destructive && 'text-destructive focus:text-destructive')}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
 
 interface WorktreesProps {
   projectId: string;
@@ -471,49 +543,40 @@ export function Worktrees({ projectId }: WorktreesProps) {
   }
 
   return (
-    <div className="flex h-full flex-col p-6">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <GitBranch className="h-6 w-6" />
-            Worktrees
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage isolated workspaces for your malvy tasks
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={isSelectionMode ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => {
+    <div className={PAGE_ROOT}>
+      <PageHeader
+        icon={GitBranch}
+        title={t('common:worktrees.title')}
+        subtitle={t('common:worktrees.subtitle')}
+        actions={[
+          {
+            id: 'select',
+            label: isSelectionMode ? t('common:selection.done') : t('common:selection.select'),
+            icon: CheckSquare2,
+            variant: isSelectionMode ? 'default' : 'outline',
+            onClick: () => {
               if (isSelectionMode) {
                 setIsSelectionMode(false);
                 setSelectedWorktreeIds(new Set());
               } else {
                 setIsSelectionMode(true);
               }
-            }}
-          >
-            <CheckSquare2 className="h-4 w-4 mr-2" />
-            {isSelectionMode ? t('common:selection.done') : t('common:selection.select')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadWorktrees}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            {t('common:buttons.refresh')}
-          </Button>
-        </div>
-      </div>
+            }
+          },
+          {
+            id: 'refresh',
+            label: t('common:buttons.refresh'),
+            icon: RefreshCw,
+            onClick: loadWorktrees,
+            disabled: isLoading,
+            busy: isLoading
+          }
+        ]}
+      />
 
       {/* Selection controls bar - visible when selection mode is enabled */}
       {isSelectionMode && totalWorktrees > 0 && (
-        <div className="flex items-center justify-between py-2 mb-4 border-b border-border shrink-0">
+        <div className={cn('flex flex-wrap items-center justify-between gap-2 px-6 py-2 border-b border-border shrink-0 max-md:px-3', PAGE_STICKY)}>
           <div className="flex items-center gap-3">
             <button
               onClick={isAllSelected ? deselectAll : selectAll}
@@ -543,7 +606,7 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
       {/* Error message */}
       {error && (
-        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm">
+        <div className="mx-6 mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm max-md:mx-3">
           <div className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
             <div>
@@ -556,14 +619,14 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
       {/* Loading state */}
       {isLoading && worktrees.length === 0 && terminalWorktrees.length === 0 && (
-        <div className="flex h-full items-center justify-center">
+        <div className="flex flex-1 items-center justify-center p-6">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
 
       {/* Empty state */}
       {!isLoading && worktrees.length === 0 && terminalWorktrees.length === 0 && (
-        <div className="flex h-full flex-col items-center justify-center text-center">
+        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
           <div className="rounded-full bg-muted p-4 mb-4">
             <GitBranch className="h-8 w-8 text-muted-foreground" />
           </div>
@@ -577,22 +640,22 @@ export function Worktrees({ projectId }: WorktreesProps) {
 
       {/* Main content area with scroll */}
       {(worktrees.length > 0 || terminalWorktrees.length > 0) && (
-        <ScrollArea className="flex-1 -mx-2">
-          <div className="space-y-6 px-2">
+        <ScrollArea className={PAGE_BODY}>
+          <div className="space-y-6 p-6 max-md:p-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {/* Task Worktrees Section */}
             {worktrees.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <GitBranch className="h-4 w-4" />
-                  Task Worktrees
+                  {t('common:worktrees.taskWorktrees')}
                 </h3>
                 {worktrees.map((worktree) => {
                   const task = findTaskForWorktree(worktree.specName);
                   const taskId = `${TASK_PREFIX}${worktree.specName}`;
                   return (
                     <Card key={worktree.specName} className="overflow-hidden">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
+                      <CardHeader className="pb-3 max-md:p-4 max-md:pb-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             {isSelectionMode && (
                               <Checkbox
@@ -611,94 +674,100 @@ export function Worktrees({ projectId }: WorktreesProps) {
                                   {task.title}
                                 </CardDescription>
                               )}
+                              {/* Stats - stacked under the branch name so they wrap instead of clipping */}
+                              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm max-md:text-xs">
+                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                  <FileCode className="h-3.5 w-3.5" />
+                                  <span>{t('common:worktrees.filesChanged', { count: worktree.filesChanged ?? 0 })}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                  <span>{t('common:worktrees.commitsAhead', { count: worktree.commitCount ?? 0 })}</span>
+                                </div>
+                                <div className="flex items-center gap-3 tabular-nums">
+                                  <span className="flex items-center gap-1 text-success">
+                                    <Plus className="h-3.5 w-3.5" />
+                                    {worktree.additions ?? 0}
+                                  </span>
+                                  <span className="flex items-center gap-1 text-destructive">
+                                    <Minus className="h-3.5 w-3.5" />
+                                    {worktree.deletions ?? 0}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <Badge variant="outline" className="shrink-0 ml-2">
+                          <Badge variant="outline" className="max-w-[40%] shrink truncate max-md:hidden">
                             {worktree.specName}
                           </Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="pt-0">
-                        {/* Stats */}
-                        <div className="flex flex-wrap gap-4 text-sm mb-4">
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <FileCode className="h-3.5 w-3.5" />
-                            <span>{worktree.filesChanged ?? 0} files changed</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <ChevronRight className="h-3.5 w-3.5" />
-                            <span>{worktree.commitCount ?? 0} commits ahead</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-success">
-                            <Plus className="h-3.5 w-3.5" />
-                            <span>{worktree.additions ?? 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-destructive">
-                            <Minus className="h-3.5 w-3.5" />
-                            <span>{worktree.deletions ?? 0}</span>
-                          </div>
-                        </div>
-
+                      <CardContent className="pt-0 max-md:px-4 max-md:pb-4">
                         {/* Branch info */}
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 bg-muted/50 rounded-md p-2">
-                          <span className="font-mono">{worktree.baseBranch || t('common:labels.orphaned')}</span>
-                          <ChevronRight className="h-3 w-3" />
-                          <span className="font-mono text-info">{worktree.isOrphaned ? t('common:labels.orphaned') : worktree.branch}</span>
+                        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground mb-4 bg-muted/50 rounded-md p-2">
+                          <span className="shrink-0 font-mono">{worktree.baseBranch || t('common:labels.orphaned')}</span>
+                          <ChevronRight className="h-3 w-3 shrink-0" />
+                          <span className="min-w-0 truncate font-mono text-info">{worktree.isOrphaned ? t('common:labels.orphaned') : worktree.branch}</span>
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => openMergeDialog(worktree)}
-                            disabled={!task}
-                          >
-                            <GitMerge className="h-3.5 w-3.5 mr-1.5" />
-                            Merge to {worktree.baseBranch}
-                          </Button>
-                          {task && (
-                            <Button
-                              variant="info"
-                              size="sm"
-                              onClick={() => openCreatePRDialog(worktree, task)}
-                            >
-                              <GitPullRequest className="h-3.5 w-3.5 mr-1.5" />
-                              {t('common:buttons.createPR')}
-                            </Button>
-                          )}
-                          {task?.status === 'done' && task.metadata?.prUrl && (
-                            <Button
-                              variant="info"
-                              size="sm"
-                              onClick={() => window.electronAPI?.openExternal(task.metadata?.prUrl ?? '')}
-                            >
-                              <GitPullRequest className="h-3.5 w-3.5 mr-1.5" />
-                              {t('common:buttons.openPR')}
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              // Copy worktree path to clipboard
-                              navigator.clipboard.writeText(worktree.path);
-                            }}
-                          >
-                            <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-                            Copy Path
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => confirmDelete(worktree)}
-                            disabled={!task && !worktree.isOrphaned}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                            Delete
-                          </Button>
-                        </div>
+                        <WorktreeCardActions
+                          primary={
+                            <>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="max-md:h-10"
+                                onClick={() => openMergeDialog(worktree)}
+                                disabled={!task}
+                              >
+                                <GitMerge className="h-3.5 w-3.5 mr-1.5" />
+                                {t('common:worktrees.mergeTo', { branch: worktree.baseBranch })}
+                              </Button>
+                              {task && (
+                                <Button
+                                  variant="info"
+                                  size="sm"
+                                  className="max-md:h-10"
+                                  onClick={() => openCreatePRDialog(worktree, task)}
+                                >
+                                  <GitPullRequest className="h-3.5 w-3.5 mr-1.5" />
+                                  {t('common:buttons.createPR')}
+                                </Button>
+                              )}
+                              {task?.status === 'done' && task.metadata?.prUrl && (
+                                <Button
+                                  variant="info"
+                                  size="sm"
+                                  className="max-md:h-10"
+                                  onClick={() => window.electronAPI?.openExternal(task.metadata?.prUrl ?? '')}
+                                >
+                                  <GitPullRequest className="h-3.5 w-3.5 mr-1.5" />
+                                  {t('common:buttons.openPR')}
+                                </Button>
+                              )}
+                            </>
+                          }
+                          secondary={[
+                            {
+                              id: 'copy-path',
+                              label: t('common:worktrees.copyPath'),
+                              icon: FolderOpen,
+                              onClick: () => {
+                                // Copy worktree path to clipboard
+                                navigator.clipboard.writeText(worktree.path);
+                              }
+                            },
+                            {
+                              id: 'delete',
+                              label: t('common:buttons.delete'),
+                              icon: Trash2,
+                              onClick: () => confirmDelete(worktree),
+                              disabled: !task && !worktree.isOrphaned,
+                              destructive: true
+                            }
+                          ]}
+                        />
                       </CardContent>
                     </Card>
                   );
@@ -711,14 +780,14 @@ export function Worktrees({ projectId }: WorktreesProps) {
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Terminal className="h-4 w-4" />
-                  Terminal Worktrees
+                  {t('common:worktrees.terminalWorktrees')}
                 </h3>
                 {terminalWorktrees.map((wt) => {
                   const terminalId = `${TERMINAL_PREFIX}${wt.name}`;
                   return (
                     <Card key={wt.name} className="overflow-hidden">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
+                      <CardHeader className="pb-3 max-md:p-4 max-md:pb-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             {isSelectionMode && (
                               <Checkbox
@@ -740,50 +809,51 @@ export function Worktrees({ projectId }: WorktreesProps) {
                             </div>
                           </div>
                           {wt.taskId && (
-                            <Badge variant="outline" className="shrink-0 ml-2">
+                            <Badge variant="outline" className="max-w-[40%] shrink truncate max-md:hidden">
                               {wt.taskId}
                             </Badge>
                           )}
                         </div>
                       </CardHeader>
-                    <CardContent className="pt-0">
+                    <CardContent className="pt-0 max-md:px-4 max-md:pb-4">
                       {/* Branch info */}
                       {wt.baseBranch && wt.branchName && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 bg-muted/50 rounded-md p-2">
-                          <span className="font-mono">{wt.baseBranch}</span>
-                          <ChevronRight className="h-3 w-3" />
-                          <span className="font-mono text-amber-500">{wt.branchName}</span>
+                        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground mb-4 bg-muted/50 rounded-md p-2">
+                          <span className="shrink-0 font-mono">{wt.baseBranch}</span>
+                          <ChevronRight className="h-3 w-3 shrink-0" />
+                          <span className="min-w-0 truncate font-mono text-amber-500">{wt.branchName}</span>
                         </div>
                       )}
 
                       {/* Created at */}
                       {wt.createdAt && (
                         <div className="text-xs text-muted-foreground mb-4">
-                          Created {new Date(wt.createdAt).toLocaleDateString()}
+                          {t('common:worktrees.created', { date: new Date(wt.createdAt).toLocaleDateString() })}
                         </div>
                       )}
 
-                      {/* Actions */}
+                      {/* Actions - terminal worktrees only have secondary actions, so keep them as buttons */}
                       <div className="flex flex-wrap gap-2">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="max-md:h-10"
                           onClick={() => {
                             // Copy worktree path to clipboard
                             navigator.clipboard.writeText(wt.worktreePath);
                           }}
                         >
                           <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-                          Copy Path
+                          {t('common:worktrees.copyPath')}
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 max-md:h-10"
                           onClick={() => setTerminalWorktreeToDelete(wt)}
                         >
                           <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                          Delete
+                          {t('common:buttons.delete')}
                         </Button>
                       </div>
                     </CardContent>

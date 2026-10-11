@@ -19,8 +19,6 @@ interface ProjectIndexTabProps {
   indexLoading: boolean;
   indexError: string | null;
   onRefresh: () => void;
-  /** "N doc files · M pointers · last optimized <date>" line */
-  docsSummary: string;
   /** Open a doc file (project-relative path) in the Docs tab */
   onOpenDoc: (docPath: string) => void;
   /** Switch to the Docs tab to review optimizer proposals */
@@ -33,7 +31,6 @@ export function ProjectIndexTab({
   indexLoading,
   indexError,
   onRefresh,
-  docsSummary,
   onOpenDoc,
   onReview,
 }: ProjectIndexTabProps) {
@@ -78,10 +75,8 @@ export function ProjectIndexTab({
   );
 
   return (
-    <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:!block">
+    <ScrollArea className="h-full max-md:h-auto">
       <div className="space-y-6 p-6 max-md:p-4">
-        <p className="text-xs text-muted-foreground">{docsSummary}</p>
-
         {/* Optimizer status — kept above the summary card so it is visible without scrolling */}
         {optimizerRunning && (
           <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm">

@@ -150,7 +150,7 @@ export function DocViewer({
         </div>
       )}
 
-      <div className="prose prose-sm dark:prose-invert max-w-none max-md:break-words max-md:[&_pre]:overflow-x-auto max-md:[&_table]:block max-md:[&_table]:overflow-x-auto">
+      <div className="prose prose-sm dark:prose-invert min-w-0 max-w-none [&_pre_code]:text-xs [&_table]:block [&_table]:overflow-x-auto">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
           {content}
         </ReactMarkdown>

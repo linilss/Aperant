@@ -26,9 +26,11 @@ import { useRoadmapData, useFeatureActions, useRoadmapGeneration, useRoadmapSave
 import { getCompetitorInsightsForFeature } from './roadmap/utils';
 import { useFeatureRefineStore } from '../stores/feature-refine-store';
 import { useRoadmapStore } from '../stores/roadmap-store';
+import { cn } from '../lib/utils';
 import type { FeatureRefineResult } from '../stores/feature-refine-store';
 import type { RoadmapFeature } from '../../shared/types';
 import type { RoadmapProps } from './roadmap/types';
+import { PAGE_ROOT, PAGE_BODY } from './ui/page-header';
 
 export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapProps) {
   const { t } = useTranslation('common');
@@ -182,7 +184,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
 
   // Main roadmap view
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className={PAGE_ROOT}>
       {/* Funnel handoff from Plan → Competitors */}
       <StrategyGuidanceBar projectId={projectId} onClick={onGoToCompetitors} />
 
@@ -196,8 +198,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
         onRefineFeature={() => openRefine(projectId)}
       />
 
-      {/* Content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      {/* Content: tab row stays pinned on phones, the rest scrolls with the page */}
+      <div className={cn(PAGE_BODY, 'flex flex-col overflow-hidden max-md:overflow-visible')}>
         <RoadmapTabs
           roadmap={roadmap}
           activeTab={activeTab}
@@ -219,8 +221,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
         />
       )}
 
-      {/* Feature Detail Panel */}
-      {selectedFeature && (
+      {/* Feature Detail Panel (modal; hidden while the non-modal Refine panel is open so that stays usable) */}
+      {selectedFeature && !isRefineOpen && (
         <FeatureDetailPanel
           feature={selectedFeature}
           onClose={() => setSelectedFeature(null)}

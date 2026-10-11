@@ -63,14 +63,14 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined }}
     >
-      <Card className={cn('flex gap-2 p-3', d.avoid && 'opacity-60', isDragging && 'shadow-2xl')}>
-        <div className="flex flex-col items-center gap-1">
+      <Card className={cn('flex gap-2 p-3 max-md:gap-1.5 max-md:pl-1.5', d.avoid && 'opacity-60', isDragging && 'shadow-2xl')}>
+        <div className="flex shrink-0 flex-col items-center gap-1 max-md:gap-0.5">
           <button
             type="button"
             ref={setActivatorNodeRef}
             {...attributes}
             {...listeners}
-            className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed"
+            className="cursor-grab touch-none rounded p-1 text-muted-foreground max-md:p-3 hover:bg-accent disabled:cursor-not-allowed"
             aria-label={t('competitors.directions.dragHandle', { title: d.title })}
             disabled={disabled}
           >
@@ -80,7 +80,7 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 max-md:h-10 max-md:w-10"
             onClick={() => onMove(index, index - 1)}
             disabled={disabled || index === 0}
             aria-label={t('competitors.directions.moveUp', { title: d.title })}
@@ -90,7 +90,7 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 max-md:h-10 max-md:w-10"
             onClick={() => onMove(index, index + 1)}
             disabled={disabled || index === count - 1}
             aria-label={t('competitors.directions.moveDown', { title: d.title })}
@@ -101,7 +101,7 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
 
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className={cn('font-semibold', d.avoid && 'line-through')}>{d.title}</h4>
+            <h4 className={cn('min-w-0 break-words font-semibold', d.avoid && 'line-through')}>{d.title}</h4>
             {pursueRank !== null && (
               <Badge variant="success" className="text-xs">
                 {t('competitors.directions.pursue')}
@@ -142,7 +142,7 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
               onChange={(e) => onNote(d.id, e.target.value)}
               placeholder={t('competitors.directions.notePlaceholder')}
               aria-label={t('competitors.directions.noteLabel', { title: d.title })}
-              className="h-8 min-w-0 flex-1 basis-48 text-sm"
+              className="h-8 min-w-0 flex-1 basis-48 text-sm max-md:h-10"
               maxLength={500}
               disabled={disabled}
             />
@@ -152,6 +152,7 @@ function DirectionRow({ direction: d, index, count, pursueRank, disabled, onMove
               onClick={() => onToggleAvoid(d.id)}
               aria-pressed={d.avoid}
               disabled={disabled}
+              className="max-md:h-10"
             >
               <Ban className="mr-1 h-3.5 w-3.5" />
               {t('competitors.directions.avoid')}

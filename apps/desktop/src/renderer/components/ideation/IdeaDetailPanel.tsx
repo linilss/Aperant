@@ -64,8 +64,8 @@ export function IdeaDetailPanel({
     <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-lg flex flex-col z-50 max-md:inset-x-0 max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
       <div className="shrink-0 p-4 border-b border-border electron-no-drag">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge variant="outline" className={IDEATION_TYPE_COLORS[idea.type]}>
                 <TypeIcon type={idea.type} />
@@ -77,17 +77,17 @@ export function IdeaDetailPanel({
                 </Badge>
               )}
             </div>
-            <h2 className="font-semibold">{idea.title}</h2>
+            <h2 className="font-semibold break-words">{idea.title}</h2>
             <DirectionTagChips feature={idea} projectId={projectId} />
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label={t('accessibility.closePanelAriaLabel')}>
+          <Button variant="ghost" size="icon" className="shrink-0 max-md:h-10 max-md:w-10" onClick={onClose} aria-label={t('accessibility.closePanelAriaLabel')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 space-y-6">
+      <div className="min-w-0 flex-1 overflow-auto p-4 space-y-6 break-words">
         {/* Description */}
         <div>
           <h3 className="text-sm font-medium mb-2">{t('common:ideation.description')}</h3>

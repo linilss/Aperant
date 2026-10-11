@@ -114,6 +114,10 @@
     "title": "GitLab Merge Requests",
     "newMR": "New Merge Request",
     "selectMR": "Select a merge request to view details",
+    "listTitle": "Merge Requests",
+    "searchPlaceholder": "Search merge requests...",
+    "noMatching": "No matching merge requests",
+    "noneFound": "No merge requests found",
     "states": {
       "opened": "Open",
       "closed": "Closed",

@@ -167,6 +167,15 @@
     "configureProviderFirst": "Please add a provider account in Settings to use AI features."
   },
   "worktrees": {
+    "title": "Worktrees",
+    "subtitle": "Manage isolated workspaces for your malvy tasks",
+    "taskWorktrees": "Task Worktrees",
+    "terminalWorktrees": "Terminal Worktrees",
+    "filesChanged": "{{count}} files changed",
+    "commitsAhead": "{{count}} commits ahead",
+    "mergeTo": "Merge to {{branch}}",
+    "copyPath": "Copy Path",
+    "created": "Created {{date}}",
     "deleteSuccess": "Worktree '{{branch}}' deleted successfully",
     "bulkDeleteSuccess": "{{count}} worktree deleted successfully",
     "bulkDeleteSuccess_plural": "{{count}} worktrees deleted successfully"
@@ -458,6 +467,32 @@
     "starting": "Starting..."
   },
   "insights": {
+    "title": "Insights",
+    "subtitle": "Ask questions about your codebase",
+    "newChat": "New Chat",
+    "showHistory": "Show chat history",
+    "hideHistory": "Hide chat history",
+    "emptyTitle": "Start a Conversation",
+    "emptyDescription": "Ask questions about your codebase, get suggestions for improvements, or discuss features you'd like to implement.",
+    "suggestions": {
+      "architecture": "What is the architecture of this project?",
+      "quality": "Suggest improvements for code quality",
+      "features": "What features could I add next?",
+      "security": "Are there any security concerns?"
+    },
+    "you": "You",
+    "assistant": "Assistant",
+    "thinking": "Thinking...",
+    "inputPlaceholder": "Ask about your codebase...",
+    "sendHint": "Press Enter to send, Shift+Enter for new line",
+    "send": "Send",
+    "toolsUsed": "{{count}} tool used",
+    "toolsUsed_other": "{{count}} tools used",
+    "tools": {
+      "reading": "Reading file",
+      "searchingFiles": "Searching files",
+      "searchingCode": "Searching code"
+    },
     "suggestedTask": "Suggested Task",
     "creating": "Creating...",
     "taskCreated": "Task Created",
@@ -520,6 +555,16 @@
     "addToRoadmapFailed": "Could not add to roadmap",
     "viewInMoscow": "View in MoSCoW",
     "noIdeasToDisplay": "No ideas to display",
+    "header": {
+      "title": "Ideation",
+      "subtitle": "AI-generated feature ideas for your project",
+      "ideaCount": "{{count}} ideas",
+      "ideaCount_one": "{{count}} idea",
+      "selectedCount": "{{count}} selected",
+      "deleteSelected": "Delete selected",
+      "addMore": "Add more"
+    },
+    "ideaActions": "Idea actions",
     "directions": {
       "filterLabel": "Filter ideas by strategic direction",
       "untaggedHint": "Regenerate ideas to tag them with your strategic directions"
@@ -566,7 +611,22 @@
   "issues": {
     "loadingMore": "Loading more...",
     "scrollForMore": "Scroll for more",
-    "allLoaded": "All issues loaded"
+    "allLoaded": "All issues loaded",
+    "title": "GitHub Issues",
+    "openCount": "{{count}} open",
+    "analyzeAndGroup": "Analyze & Group Issues",
+    "analyzeTooltip": "Analyze up to 200 open issues, group similar ones, and review proposed batches before creating tasks.",
+    "autoFixNew": "Auto-Fix New",
+    "autoFixTooltip": "Automatically fix new issues as they come in.",
+    "autoFixProcessing_one": "Processing {{count}} issue...",
+    "autoFixProcessing_other": "Processing {{count}} issues...",
+    "searchPlaceholder": "Search issues...",
+    "filterOpen": "Open",
+    "filterClosed": "Closed",
+    "filterAll": "All",
+    "selectIssue": "Select an issue to view details",
+    "noIssues": "No issues found",
+    "investigate": "Investigate issue"
   },
   "usage": {
     "dataUnavailable": "Usage data unavailable",
@@ -771,6 +831,58 @@
     "refineFailed": "AI refinement failed: {{error}}",
     "moveTo": "Move to…",
     "moveToAriaLabel": "Move “{{title}}” to…",
+    "header": {
+      "competitorAnalysis": "Competitor Analysis",
+      "competitorAnalysisTooltipTitle": "Click to view detailed analysis",
+      "competitorAnalysisTooltip": "Analyzed {{competitors}} competitors with {{painPoints}} pain points identified",
+      "refine": "Refine",
+      "refineTooltip": "AI-guided feature refinement (grill → PRD → plan)",
+      "addFeature": "Add Feature",
+      "addFeatureTooltip": "Add a new feature to the roadmap",
+      "regenerate": "Regenerate Roadmap",
+      "target": "Target:",
+      "morePersonas": "+{{count}} more personas",
+      "secondaryPersonas": "Secondary Personas:",
+      "features": "features",
+      "phases": "phases"
+    },
+    "tabs": {
+      "kanban": "Kanban",
+      "phases": "Phases",
+      "allFeatures": "All Features"
+    },
+    "phase": {
+      "progress": "Progress",
+      "featuresProgress": "{{done}}/{{total}} features",
+      "milestones": "Milestones",
+      "features": "Features ({{count}})"
+    },
+    "card": {
+      "phaseTooltip": "Phase: {{name}}",
+      "competitorTooltip": "This feature addresses competitor pain points",
+      "votesTooltip": "{{count}} votes from user feedback",
+      "importedFrom": "Imported from {{provider}}",
+      "external": "External",
+      "impact": "{{level}} impact",
+      "competitorInsight": "Competitor Insight"
+    },
+    "detail": {
+      "back": "Back",
+      "description": "Description",
+      "rationale": "Rationale",
+      "complexity": "Complexity",
+      "impact": "Impact",
+      "dependencies": "Dependencies",
+      "userStories": "User Stories",
+      "acceptanceCriteria": "Acceptance Criteria",
+      "competitorPainPoints": "Addresses Competitor Pain Points",
+      "severity": "{{severity}} severity",
+      "refine": "Refine",
+      "deleteTitle": "Delete Feature?",
+      "deleteDescription": "This will permanently remove \"{{title}}\" from your roadmap.",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
     "moscow": {
       "title": "MoSCoW Prioritization",
       "subtitle": "Drag roadmap features between quadrants to set their priority",

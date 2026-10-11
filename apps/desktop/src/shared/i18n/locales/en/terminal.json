@@ -1,4 +1,16 @@
 {
+  "toolbar": {
+    "count": "{{count}} / {{max}} terminals",
+    "countShort": "{{count}}/{{max}}",
+    "history": "History",
+    "restoreFrom": "Restore sessions from...",
+    "sessionCount_one": "{{count}} session",
+    "sessionCount_other": "{{count}} sessions",
+    "invokeClaudeAll": "Invoke Claude All",
+    "newTerminal": "New Terminal",
+    "files": "Files",
+    "moreActions": "More terminal actions"
+  },
   "mobile": {
     "switcherLabel": "Terminals",
     "keyBarLabel": "Terminal keys",

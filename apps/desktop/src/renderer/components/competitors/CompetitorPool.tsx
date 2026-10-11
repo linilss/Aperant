@@ -86,7 +86,7 @@ export function CompetitorPool({ pool, disabled, onDeepDive, onAdd }: Competitor
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9 shrink-0"
+                  className="h-9 w-9 shrink-0 max-md:h-10 max-md:w-10"
                   onClick={() => onDeepDive(c.id)}
                   disabled={disabled || running}
                   aria-label={t('competitors.pool.deepDive', { name: c.name })}
@@ -106,7 +106,7 @@ export function CompetitorPool({ pool, disabled, onDeepDive, onAdd }: Competitor
           onChange={(e) => setName(e.target.value)}
           placeholder={t('competitors.pool.namePlaceholder')}
           aria-label={t('competitors.pool.namePlaceholder')}
-          className="h-9 min-w-0 flex-1 basis-40"
+          className="h-9 min-w-0 flex-1 basis-40 max-md:h-10"
           maxLength={120}
         />
         <Input
@@ -114,10 +114,10 @@ export function CompetitorPool({ pool, disabled, onDeepDive, onAdd }: Competitor
           onChange={(e) => setUrl(e.target.value)}
           placeholder={t('competitors.pool.urlPlaceholder')}
           aria-label={t('competitors.pool.urlPlaceholder')}
-          className="h-9 min-w-0 flex-1 basis-40"
+          className="h-9 min-w-0 flex-1 basis-40 max-md:h-10"
           maxLength={500}
         />
-        <Button type="submit" variant="outline" size="sm" className="h-9" disabled={!name.trim() || adding}>
+        <Button type="submit" variant="outline" size="sm" className="h-9 max-md:h-10" disabled={!name.trim() || adding}>
           <Plus className="mr-1 h-4 w-4" />
           {t('competitors.pool.add')}
         </Button>

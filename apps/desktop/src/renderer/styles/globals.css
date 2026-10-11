@@ -1743,3 +1743,28 @@ body {
     font-size: 16px !important;
   }
 }
+
+/* Markdown (typography plugin): long words/paths wrap instead of widening the column,
+ * code blocks scroll inside their own <pre>, and inline code renders as a chip
+ * rather than with the plugin's literal backticks. */
+.prose {
+  overflow-wrap: anywhere;
+}
+
+.prose :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: normal;
+}
+
+.prose :where(code):not(:where(pre code))::before,
+.prose :where(code):not(:where(pre code))::after {
+  content: none;
+}
+
+.prose :where(code):not(:where(pre code)) {
+  border-radius: 0.25rem;
+  background-color: var(--muted);
+  padding: 0.1em 0.35em;
+  font-weight: 500;
+}

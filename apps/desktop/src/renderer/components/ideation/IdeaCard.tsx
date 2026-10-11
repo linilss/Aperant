@@ -1,10 +1,17 @@
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, Grid2x2, MapPlus, Play, X } from 'lucide-react';
+import { ExternalLink, Grid2x2, MapPlus, MoreHorizontal, Play, X, type LucideIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Checkbox } from '../ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
+import { cn } from '../../lib/utils';
 import {
   IDEATION_TYPE_LABELS,
   IDEATION_TYPE_COLORS,
@@ -26,6 +33,7 @@ import type {
   CodeQualityIdea
 } from '../../../shared/types';
 import { TypeIcon } from './TypeIcon';
+import { categoryLabel } from './constants';
 import { DirectionTagChips } from '../competitors/DirectionTagChips';
 import {
   isFeatureIdea,
@@ -36,6 +44,14 @@ import {
   isPerformanceOptimizationIdea,
   isCodeQualityIdea
 } from './type-guards';
+
+interface CardAction {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  onSelect: () => void;
+  className?: string;
+}
 
 interface IdeaCardProps {
   idea: Idea;
@@ -71,17 +87,118 @@ export function IdeaCard({
   const isConverted = idea.status === 'converted';
   const isInactive = isDismissed || isArchived;
 
+  const actions: CardAction[] = [];
+  if (!isInactive && !isConverted) {
+    actions.push({
+      id: 'convert',
+      label: t('accessibility.convertToTaskAriaLabel'),
+      icon: Play,
+      onSelect: () => onConvert(idea)
+    });
+    if (onAddToRoadmap) {
+      actions.push({
+        id: 'roadmap',
+        label: t('ideation.addToRoadmap'),
+        icon: MapPlus,
+        onSelect: () => onAddToRoadmap(idea)
+      });
+    }
+    actions.push({
+      id: 'dismiss',
+      label: t('accessibility.dismissAriaLabel'),
+      icon: X,
+      onSelect: () => onDismiss(idea),
+      className: 'text-muted-foreground hover:text-destructive'
+    });
+  } else if (idea.taskId && onGoToTask && (isArchived || isConverted)) {
+    // Archived / legacy converted ideas link to their task
+    const taskId = idea.taskId;
+    actions.push({
+      id: 'go-to-task',
+      label: t('accessibility.goToTaskAriaLabel'),
+      icon: ExternalLink,
+      onSelect: () => onGoToTask(taskId),
+      className: 'text-primary'
+    });
+  } else if (isConverted && !idea.taskId && idea.roadmapFeatureId && onGoToMoscow) {
+    // Added to the roadmap: link to MoSCoW
+    actions.push({
+      id: 'moscow',
+      label: t('ideation.viewInMoscow'),
+      icon: Grid2x2,
+      onSelect: onGoToMoscow,
+      className: 'text-primary'
+    });
+  }
+
+  const uiuxCategory = isUIUXIdea(idea)
+    ? categoryLabel(UIUX_CATEGORY_LABELS, (idea as UIUXImprovementIdea).category)
+    : null;
+  const docsCategory = isDocumentationGapIdea(idea)
+    ? categoryLabel(DOCUMENTATION_CATEGORY_LABELS, (idea as DocumentationGapIdea).category)
+    : null;
+
+  const iconButton = (action: CardAction, className?: string) => (
+    <Tooltip key={action.id}>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('h-8 w-8 p-0', action.className, className)}
+          onClick={(e) => {
+            e.stopPropagation();
+            action.onSelect();
+          }}
+          aria-label={action.label}
+        >
+          <action.icon className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{action.label}</TooltipContent>
+    </Tooltip>
+  );
+
+  // Phone: one action stays an icon button, several fold into a "..." menu next to the badges
+  const phoneActions =
+    actions.length === 1 ? (
+      iconButton(actions[0], 'h-10 w-10 shrink-0 -my-2 -mr-2')
+    ) : actions.length > 1 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-my-2 -mr-2 h-10 w-10 shrink-0 p-0"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={t('ideation.ideaActions')}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[12rem]" onClick={(e) => e.stopPropagation()}>
+          {actions.map((action) => (
+            <DropdownMenuItem key={action.id} onSelect={action.onSelect} className="min-h-10 gap-2">
+              <action.icon className="h-4 w-4" />
+              {action.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+
   return (
     <Card
-      className={`p-4 hover:bg-muted/50 cursor-pointer transition-colors ${
-        isInactive ? 'opacity-50' : ''
-      } ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+      className={cn(
+        'p-4 hover:bg-muted/50 cursor-pointer transition-colors max-md:p-3',
+        isInactive && 'opacity-50',
+        isSelected && 'ring-2 ring-primary bg-primary/5'
+      )}
       onClick={onClick}
     >
       <div className="flex items-start gap-3">
-        {/* Selection checkbox */}
+        {/* Selection checkbox (padded hit area on touch) */}
         <div
-          className="pt-0.5"
+          className="pt-0.5 max-md:-m-2 max-md:p-2"
           onClick={(e) => {
             e.stopPropagation();
             onToggleSelect(idea.id);
@@ -95,185 +212,59 @@ export function IdeaCard({
           />
         </div>
 
-        <div className="flex-1 flex items-start justify-between">
-          <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <Badge variant="outline" className={IDEATION_TYPE_COLORS[idea.type]}>
-              <TypeIcon type={idea.type} />
-              <span className="ml-1">{IDEATION_TYPE_LABELS[idea.type]}</span>
-            </Badge>
-            {idea.status !== 'draft' && (
-              <Badge variant="outline" className={IDEATION_STATUS_COLORS[idea.status]}>
-                {idea.status}
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-start gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <Badge variant="outline" className={IDEATION_TYPE_COLORS[idea.type]}>
+                <TypeIcon type={idea.type} />
+                <span className="ml-1">{IDEATION_TYPE_LABELS[idea.type]}</span>
               </Badge>
-            )}
-            {isFeatureIdea(idea) && typeof idea.impact === 'string' && (
-              <Badge variant="outline" className={IDEATION_IMPACT_COLORS[idea.impact]}>
-                {t(`ideation.feature.impactBadge.${idea.impact}`)}
-              </Badge>
-            )}
-            {isCodeImprovementIdea(idea) && typeof (idea as CodeImprovementIdea).estimatedEffort === 'string' && (
-              <Badge variant="outline" className={IDEATION_EFFORT_COLORS[(idea as CodeImprovementIdea).estimatedEffort]}>
-                {(idea as CodeImprovementIdea).estimatedEffort}
-              </Badge>
-            )}
-            {isUIUXIdea(idea) && typeof (idea as UIUXImprovementIdea).category === 'string' && (
-              <Badge variant="outline">
-                {UIUX_CATEGORY_LABELS[(idea as UIUXImprovementIdea).category]}
-              </Badge>
-            )}
-            {isDocumentationGapIdea(idea) && typeof (idea as DocumentationGapIdea).category === 'string' && (
-              <Badge variant="outline">
-                {DOCUMENTATION_CATEGORY_LABELS[(idea as DocumentationGapIdea).category]}
-              </Badge>
-            )}
-            {isSecurityHardeningIdea(idea) && typeof (idea as SecurityHardeningIdea).severity === 'string' && (
-              <Badge variant="outline" className={SECURITY_SEVERITY_COLORS[(idea as SecurityHardeningIdea).severity]}>
-                {(idea as SecurityHardeningIdea).severity}
-              </Badge>
-            )}
-            {isPerformanceOptimizationIdea(idea) && typeof (idea as PerformanceOptimizationIdea).impact === 'string' && (
-              <Badge variant="outline" className={IDEATION_IMPACT_COLORS[(idea as PerformanceOptimizationIdea).impact]}>
-                {(idea as PerformanceOptimizationIdea).impact} impact
-              </Badge>
-            )}
-            {isCodeQualityIdea(idea) && typeof (idea as CodeQualityIdea).severity === 'string' && (
-              <Badge variant="outline" className={CODE_QUALITY_SEVERITY_COLORS[(idea as CodeQualityIdea).severity]}>
-                {(idea as CodeQualityIdea).severity}
-              </Badge>
-            )}
+              {idea.status !== 'draft' && (
+                <Badge variant="outline" className={IDEATION_STATUS_COLORS[idea.status]}>
+                  {idea.status}
+                </Badge>
+              )}
+              {isFeatureIdea(idea) && typeof idea.impact === 'string' && (
+                <Badge variant="outline" className={IDEATION_IMPACT_COLORS[idea.impact]}>
+                  {t(`ideation.feature.impactBadge.${idea.impact}`)}
+                </Badge>
+              )}
+              {isCodeImprovementIdea(idea) && typeof (idea as CodeImprovementIdea).estimatedEffort === 'string' && (
+                <Badge variant="outline" className={IDEATION_EFFORT_COLORS[(idea as CodeImprovementIdea).estimatedEffort]}>
+                  {(idea as CodeImprovementIdea).estimatedEffort}
+                </Badge>
+              )}
+              {uiuxCategory && <Badge variant="outline">{uiuxCategory}</Badge>}
+              {docsCategory && <Badge variant="outline">{docsCategory}</Badge>}
+              {isSecurityHardeningIdea(idea) && typeof (idea as SecurityHardeningIdea).severity === 'string' && (
+                <Badge variant="outline" className={SECURITY_SEVERITY_COLORS[(idea as SecurityHardeningIdea).severity]}>
+                  {(idea as SecurityHardeningIdea).severity}
+                </Badge>
+              )}
+              {isPerformanceOptimizationIdea(idea) && typeof (idea as PerformanceOptimizationIdea).impact === 'string' && (
+                <Badge variant="outline" className={IDEATION_IMPACT_COLORS[(idea as PerformanceOptimizationIdea).impact]}>
+                  {(idea as PerformanceOptimizationIdea).impact} impact
+                </Badge>
+              )}
+              {isCodeQualityIdea(idea) && typeof (idea as CodeQualityIdea).severity === 'string' && (
+                <Badge variant="outline" className={CODE_QUALITY_SEVERITY_COLORS[(idea as CodeQualityIdea).severity]}>
+                  {(idea as CodeQualityIdea).severity}
+                </Badge>
+              )}
+            </div>
+            {phoneActions && <div className="md:hidden">{phoneActions}</div>}
           </div>
-          <h3 className={`font-medium ${isInactive ? 'line-through' : ''}`}>
-            {idea.title}
-          </h3>
+          <h3 className={cn('font-medium break-words', isInactive && 'line-through')}>{idea.title}</h3>
           <p className="text-sm text-muted-foreground line-clamp-2">{idea.description}</p>
           <DirectionTagChips feature={idea} projectId={projectId} />
-          </div>
-          {/* Action buttons */}
-          {!isInactive && !isConverted && (
-            <div className="flex items-center gap-1 ml-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onConvert(idea);
-                    }}
-                    aria-label={t('accessibility.convertToTaskAriaLabel')}
-                  >
-                    <Play className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('accessibility.convertToTaskAriaLabel')}</TooltipContent>
-              </Tooltip>
-              {onAddToRoadmap && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAddToRoadmap(idea);
-                      }}
-                      aria-label={t('ideation.addToRoadmap')}
-                    >
-                      <MapPlus className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t('ideation.addToRoadmap')}</TooltipContent>
-                </Tooltip>
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDismiss(idea);
-                    }}
-                    aria-label={t('accessibility.dismissAriaLabel')}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('accessibility.dismissAriaLabel')}</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-          {/* Archived ideas show link to task */}
-          {isArchived && idea.taskId && onGoToTask && (
-            <div className="flex items-center gap-1 ml-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onGoToTask(idea.taskId!);
-                    }}
-                    aria-label={t('accessibility.goToTaskAriaLabel')}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('accessibility.goToTaskAriaLabel')}</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-          {/* Added to the roadmap: link to MoSCoW */}
-          {isConverted && !idea.taskId && idea.roadmapFeatureId && onGoToMoscow && (
-            <div className="flex items-center gap-1 ml-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onGoToMoscow();
-                    }}
-                    aria-label={t('ideation.viewInMoscow')}
-                  >
-                    <Grid2x2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('ideation.viewInMoscow')}</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-          {/* Legacy: converted status also shows link to task */}
-          {isConverted && idea.taskId && onGoToTask && (
-            <div className="flex items-center gap-1 ml-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onGoToTask(idea.taskId!);
-                    }}
-                    aria-label={t('accessibility.goToTaskAriaLabel')}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('accessibility.goToTaskAriaLabel')}</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
         </div>
+
+        {/* Desktop: icon buttons beside the content */}
+        {actions.length > 0 && (
+          <div className="ml-2 flex shrink-0 items-center gap-1 max-md:hidden">
+            {actions.map((action) => iconButton(action))}
+          </div>
+        )}
       </div>
     </Card>
   );

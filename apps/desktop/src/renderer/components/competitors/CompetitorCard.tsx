@@ -75,7 +75,7 @@ export function CompetitorCard({ competitor: c, disabled, onRefresh, onMoveToPoo
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 max-md:h-10 max-md:w-10"
             onClick={onRefresh}
             disabled={disabled || busy}
             aria-label={t('competitors.card.refresh')}
@@ -86,7 +86,7 @@ export function CompetitorCard({ competitor: c, disabled, onRefresh, onMoveToPoo
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 max-md:h-10 max-md:w-10"
             onClick={onMoveToPool}
             disabled={disabled || busy}
             aria-label={t('competitors.card.moveToPool')}
@@ -145,7 +145,7 @@ export function CompetitorCard({ competitor: c, disabled, onRefresh, onMoveToPoo
           <Button
             variant="ghost"
             size="sm"
-            className="self-start px-1"
+            className="self-start px-1 max-md:h-10 max-md:px-2"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
           >

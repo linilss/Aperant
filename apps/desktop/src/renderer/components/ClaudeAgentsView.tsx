@@ -271,7 +271,7 @@ export function ClaudeAgentsView() {
         </Button>
       </div>
 
-      <ScrollArea className="flex-1" viewportClassName="max-md:[&>div]:block!">
+      <ScrollArea className="flex-1">
         <div className="p-4">
           {error && (
             <p className="mb-4 text-xs text-destructive">{error}</p>

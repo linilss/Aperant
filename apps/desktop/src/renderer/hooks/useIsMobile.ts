@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 /**
  * Matches Tailwind's `max-md` range. The desktop Electron window has a
@@ -7,23 +7,37 @@ import { useSyncExternalStore } from 'react';
  */
 export const MOBILE_MEDIA_QUERY = '(max-width: 767px)';
 
-function getMediaQueryList(): MediaQueryList | null {
+/**
+ * Matches Tailwind's `max-lg` range: phones plus narrow desktop windows (800–1023px),
+ * where the sidebar collapses to an icon rail and two-pane views show one pane at a time.
+ */
+export const COMPACT_MEDIA_QUERY = '(max-width: 1023px)';
+
+function getMediaQueryList(query: string): MediaQueryList | null {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
-  return window.matchMedia(MOBILE_MEDIA_QUERY);
+  return window.matchMedia(query);
 }
 
-function subscribe(onChange: () => void): () => void {
-  const mql = getMediaQueryList();
-  if (!mql) return () => {};
-  mql.addEventListener('change', onChange);
-  return () => mql.removeEventListener('change', onChange);
-}
-
-function getSnapshot(): boolean {
-  return getMediaQueryList()?.matches ?? false;
+function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const mql = getMediaQueryList(query);
+      if (!mql) return () => {};
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    },
+    [query]
+  );
+  const getSnapshot = useCallback(() => getMediaQueryList(query)?.matches ?? false, [query]);
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
 /** True below Tailwind's `md` breakpoint (phone portrait). Use for structural layout changes. */
 export function useIsMobile(): boolean {
-  return useSyncExternalStore(subscribe, getSnapshot, () => false);
+  return useMediaQuery(MOBILE_MEDIA_QUERY);
+}
+
+/** True below Tailwind's `lg` breakpoint (phones and narrow desktop windows). */
+export function useIsCompact(): boolean {
+  return useMediaQuery(COMPACT_MEDIA_QUERY);
 }

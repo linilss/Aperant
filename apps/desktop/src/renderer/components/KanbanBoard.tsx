@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, memo, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useViewState } from '../contexts/ViewStateContext';
 import {
@@ -34,6 +34,7 @@ import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTas
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
 import { useKanbanSettingsStore, DEFAULT_COLUMN_WIDTH, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, COLLAPSED_COLUMN_WIDTH_REM, MIN_COLUMN_WIDTH_REM, MAX_COLUMN_WIDTH_REM, DEFAULT_COLUMN_WIDTH_REM, BASE_FONT_SIZE, pxToRem } from '../stores/kanban-settings-store';
 import { useToast } from '../hooks/use-toast';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { WorktreeCleanupDialog } from './WorktreeCleanupDialog';
 import { BulkPRDialog } from './BulkPRDialog';
 import {
@@ -105,6 +106,8 @@ interface DroppableColumnProps {
   // Lock props
   isLocked?: boolean;
   onToggleLocked?: () => void;
+  /** Phone layout: full-width column whose list grows with the page (no inner scroller) */
+  flat?: boolean;
 }
 
 /**
@@ -162,6 +165,7 @@ function droppableColumnPropsAreEqual(
   if (prevProps.onResizeEnd !== nextProps.onResizeEnd) return false;
   if (prevProps.isLocked !== nextProps.isLocked) return false;
   if (prevProps.onToggleLocked !== nextProps.onToggleLocked) return false;
+  if (prevProps.flat !== nextProps.flat) return false;
 
   // Compare selection props
   const prevSelected = prevProps.selectedTaskIds;
@@ -183,6 +187,40 @@ function droppableColumnPropsAreEqual(
   }
 
   return tasksEqual;
+}
+
+/** Desktop: the column list scrolls inside the column. Phone (flat): it grows and the page scrolls. */
+function ColumnListScroller({ flat, children }: { flat?: boolean; children: ReactNode }) {
+  if (flat) return <div className="px-3 pb-3 pt-2">{children}</div>;
+  return <ScrollArea className="h-full px-3 pb-3 pt-2">{children}</ScrollArea>;
+}
+
+/** Horizontal swipe distance (px) that switches the phone column tab */
+const SWIPE_THRESHOLD = 60;
+
+type StatusColumn = typeof TASK_STATUS_COLUMNS[number];
+
+const mobileTabStorageKey = (projectId: string) => `kanban-mobile-tab:${projectId}`;
+
+function readStoredMobileTab(projectId: string | undefined): StatusColumn {
+  if (projectId) {
+    try {
+      const stored = localStorage.getItem(mobileTabStorageKey(projectId));
+      if (stored && isValidDropColumn(stored)) return stored;
+    } catch {
+      // Storage unavailable (private mode etc.) — fall back to the first column
+    }
+  }
+  return TASK_STATUS_COLUMNS[0];
+}
+
+function storeMobileTab(projectId: string | undefined, tab: StatusColumn) {
+  if (!projectId) return;
+  try {
+    localStorage.setItem(mobileTabStorageKey(projectId), tab);
+  } catch {
+    // Best effort only
+  }
 }
 
 // Empty state content for each column
@@ -238,7 +276,7 @@ const getEmptyStateContent = (status: TaskStatus, t: (key: string) => string): {
   }
 };
 
-const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskClick, onStatusChange, isOver, onAddClick, onArchiveAll, onQueueSettings, onQueueAll, maxParallelTasks, archivedCount, showArchived, onToggleArchived, selectedTaskIds, onSelectAll, onDeselectAll, onToggleSelect, isCollapsed, onToggleCollapsed, columnWidth, isResizing, onResizeStart, onResizeEnd, isLocked, onToggleLocked }: DroppableColumnProps) {
+const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskClick, onStatusChange, isOver, onAddClick, onArchiveAll, onQueueSettings, onQueueAll, maxParallelTasks, archivedCount, showArchived, onToggleArchived, selectedTaskIds, onSelectAll, onDeselectAll, onToggleSelect, isCollapsed, onToggleCollapsed, columnWidth, isResizing, onResizeStart, onResizeEnd, isLocked, onToggleLocked, flat }: DroppableColumnProps) {
   const { t } = useTranslation(['tasks', 'common']);
   const { setNodeRef } = useDroppable({
     id: status
@@ -346,12 +384,12 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
   const emptyState = getEmptyStateContent(status, t);
 
   // Collapsed state: show narrow vertical strip with rotated title and task count
-  if (isCollapsed) {
+  if (isCollapsed && !flat) {
     return (
       <div
         ref={setNodeRef}
         className={cn(
-          'flex flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200 max-md:shrink-0 max-md:snap-start',
+          'flex flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
           getColumnBorderColor(),
           'border-t-2',
           isOver && 'drop-zone-highlight'
@@ -398,9 +436,8 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
 
   return (
     <div
-      // Phone: fixed ~85vw columns in a scroll-snapping row (!important beats the inline width)
-      className="relative flex max-md:w-[85vw]! max-md:min-w-[85vw]! max-md:max-w-[85vw]! max-md:snap-start"
-      style={{ width: columnWidth ? pxToRem(columnWidth) : DEFAULT_COLUMN_WIDTH_REM, minWidth: MIN_COLUMN_WIDTH_REM, maxWidth: MAX_COLUMN_WIDTH_REM, flexShrink: 0 }}
+      className={flat ? 'relative flex w-full' : 'relative flex'}
+      style={flat ? undefined : { width: columnWidth ? pxToRem(columnWidth) : DEFAULT_COLUMN_WIDTH_REM, minWidth: MIN_COLUMN_WIDTH_REM, maxWidth: MAX_COLUMN_WIDTH_REM, flexShrink: 0 }}
     >
       <div
         ref={setNodeRef}
@@ -412,10 +449,10 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
         )}
       >
         {/* Column header - enhanced styling */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between p-4 border-b border-white/5 max-md:px-3 max-md:py-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           {/* Collapse button */}
-          {onToggleCollapsed && (
+          {onToggleCollapsed && !flat && (
             <Tooltip delayDuration={200}>
               <TooltipTrigger asChild>
                 <Button
@@ -485,7 +522,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
         </div>
         <div className="flex items-center gap-1">
           {/* Lock toggle button - available for all columns */}
-          {onToggleLocked && (
+          {onToggleLocked && !flat && (
             <Tooltip delayDuration={200}>
               <TooltipTrigger asChild>
                 <Button
@@ -589,7 +626,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
 
       {/* Task list */}
       <div className="flex-1 min-h-0">
-        <ScrollArea className="h-full px-3 pb-3 pt-2">
+        <ColumnListScroller flat={flat}>
           <SortableContext
             items={taskIds}
             strategy={verticalListSortingStrategy}
@@ -637,12 +674,12 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
               )}
             </div>
           </SortableContext>
-        </ScrollArea>
+        </ColumnListScroller>
       </div>
       </div>
 
       {/* Resize handle on right edge */}
-      {onResizeStart && onResizeEnd && (
+      {onResizeStart && onResizeEnd && !flat && (
         <div
           className={cn(
             "absolute right-0 top-0 bottom-0 w-1 touch-none z-10 max-md:hidden",
@@ -706,6 +743,55 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   const projectId = tasks[0]?.projectId;
   const project = projectId ? projects.find((p) => p.id === projectId) : undefined;
   const maxParallelTasks = project?.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
+
+  // Phone layout: one column at a time, picked via sticky segmented tabs (remembered per project)
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState<StatusColumn>(() => readStoredMobileTab(projectId));
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileToolbarRef = useRef<HTMLDivElement>(null);
+  const mobileTabListRef = useRef<HTMLDivElement>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    setMobileTab(readStoredMobileTab(projectId));
+  }, [projectId]);
+
+  // Keep the selected tab visible in the horizontally scrolling tab row
+  useEffect(() => {
+    if (!isMobile) return;
+    const list = mobileTabListRef.current;
+    const tab = list?.querySelector<HTMLElement>(`[data-tab="${mobileTab}"]`);
+    if (!list || !tab) return;
+    list.scrollLeft = tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2;
+  }, [isMobile, mobileTab]);
+
+  const selectMobileTab = (tab: StatusColumn) => {
+    if (tab === mobileTab) return;
+    setMobileTab(tab);
+    storeMobileTab(projectId, tab);
+    // Show the new list from its top (just below the sticky tabs) if scrolled past it
+    const scroller = mobileScrollRef.current;
+    const toolbarHeight = mobileToolbarRef.current?.offsetHeight ?? 0;
+    if (scroller && scroller.scrollTop > toolbarHeight) scroller.scrollTop = toolbarHeight;
+  };
+
+  const handleSwipeStart = (e: ReactTouchEvent) => {
+    const touch = e.touches[0];
+    swipeStart.current = e.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const handleSwipeEnd = (e: ReactTouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const touch = e.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    // Mostly-horizontal gestures only, so vertical scrolling never switches columns
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const next = TASK_STATUS_COLUMNS[TASK_STATUS_COLUMNS.indexOf(mobileTab) + (dx < 0 ? 1 : -1)];
+    if (next) selectMobileTab(next);
+  };
 
   // Queue settings modal state
   const [showQueueSettings, setShowQueueSettings] = useState(false);
@@ -958,6 +1044,8 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    // A long-press drag on the phone must not also count as a column swipe
+    swipeStart.current = null;
     const { active } = event;
     const task = tasks.find((t) => t.id === active.id);
     if (task) {
@@ -1496,11 +1584,67 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     await handleStatusChange(activeTaskId, newStatus, task);
   };
 
+  const renderColumn = (status: StatusColumn, flat = false) => (
+    <DroppableColumn
+      key={status}
+      status={status}
+      tasks={tasksByStatus[status]}
+      onTaskClick={onTaskClick}
+      onStatusChange={handleStatusChange}
+      isOver={overColumnId === status}
+      onAddClick={status === 'backlog' ? onNewTaskClick : undefined}
+      onQueueAll={status === 'backlog' ? handleQueueAll : undefined}
+      onQueueSettings={status === 'queue' ? () => {
+        // Only open modal if we have a valid projectId
+        if (!projectId) return;
+        queueSettingsProjectIdRef.current = projectId;
+        setShowQueueSettings(true);
+      } : undefined}
+      onArchiveAll={status === 'done' ? handleArchiveAll : undefined}
+      maxParallelTasks={status === 'in_progress' ? maxParallelTasks : undefined}
+      archivedCount={status === 'done' ? archivedCount : undefined}
+      showArchived={status === 'done' ? showArchived : undefined}
+      onToggleArchived={status === 'done' ? toggleShowArchived : undefined}
+      selectedTaskIds={selectedTaskIds}
+      onSelectAll={() => selectAllTasks(status)}
+      onDeselectAll={deselectAllTasks}
+      onToggleSelect={toggleTaskSelection}
+      isCollapsed={columnPreferences?.[status]?.isCollapsed}
+      onToggleCollapsed={() => handleToggleColumnCollapsed(status)}
+      columnWidth={columnPreferences?.[status]?.width}
+      isResizing={resizingColumn === status}
+      onResizeStart={(startX) => handleResizeStart(status, startX)}
+      onResizeEnd={handleResizeEnd}
+      isLocked={columnPreferences?.[status]?.isLocked}
+      onToggleLocked={() => handleToggleColumnLocked(status)}
+      flat={flat}
+    />
+  );
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      ref={mobileScrollRef}
+      // Phone: the page itself scrolls (toolbar scrolls away, tabs stay pinned)
+      className={isMobile ? 'h-full overflow-y-auto overscroll-contain' : 'flex h-full flex-col'}
+    >
       {/* Kanban header with refresh button and expand all */}
-      {(onRefresh || collapsedColumnCount >= 3) && (
-        <div className="flex items-center justify-between px-6 pt-4 pb-2 max-md:px-3 max-md:pt-2 max-md:pb-0">
+      {isMobile ? (
+        onRefresh && (
+          <div ref={mobileToolbarRef} className="flex items-center justify-end px-3 pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="h-9 gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+              {isRefreshing ? t('common:buttons.refreshing') : t('tasks:refreshTasks')}
+            </Button>
+          </div>
+        )
+      ) : (onRefresh || collapsedColumnCount >= 3) && (
+        <div className="flex items-center justify-between px-6 pt-4 pb-2">
           <div className="flex items-center gap-2">
             {/* Expand All button - appears when 3+ columns are collapsed */}
             {collapsedColumnCount >= 3 && (
@@ -1539,43 +1683,54 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:gap-3 max-md:p-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {TASK_STATUS_COLUMNS.map((status) => (
-            <DroppableColumn
-              key={status}
-              status={status}
-              tasks={tasksByStatus[status]}
-              onTaskClick={onTaskClick}
-              onStatusChange={handleStatusChange}
-              isOver={overColumnId === status}
-              onAddClick={status === 'backlog' ? onNewTaskClick : undefined}
-              onQueueAll={status === 'backlog' ? handleQueueAll : undefined}
-              onQueueSettings={status === 'queue' ? () => {
-                // Only open modal if we have a valid projectId
-                if (!projectId) return;
-                queueSettingsProjectIdRef.current = projectId;
-                setShowQueueSettings(true);
-              } : undefined}
-              onArchiveAll={status === 'done' ? handleArchiveAll : undefined}
-              maxParallelTasks={status === 'in_progress' ? maxParallelTasks : undefined}
-              archivedCount={status === 'done' ? archivedCount : undefined}
-              showArchived={status === 'done' ? showArchived : undefined}
-              onToggleArchived={status === 'done' ? toggleShowArchived : undefined}
-              selectedTaskIds={selectedTaskIds}
-              onSelectAll={() => selectAllTasks(status)}
-              onDeselectAll={deselectAllTasks}
-              onToggleSelect={toggleTaskSelection}
-              isCollapsed={columnPreferences?.[status]?.isCollapsed}
-              onToggleCollapsed={() => handleToggleColumnCollapsed(status)}
-              columnWidth={columnPreferences?.[status]?.width}
-              isResizing={resizingColumn === status}
-              onResizeStart={(startX) => handleResizeStart(status, startX)}
-              onResizeEnd={handleResizeEnd}
-              isLocked={columnPreferences?.[status]?.isLocked}
-              onToggleLocked={() => handleToggleColumnLocked(status)}
-            />
-          ))}
-        </div>
+        {isMobile ? (
+          <>
+            {/* Sticky segmented column tabs with counts; the row scrolls sideways */}
+            <div className="sticky top-0 z-10 border-b border-border bg-background">
+              <div
+                ref={mobileTabListRef}
+                role="tablist"
+                aria-label={t('tasks:kanban.columnTabsLabel')}
+                className="mx-3 my-2 flex gap-0.5 overflow-x-auto rounded-lg bg-secondary/60 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {TASK_STATUS_COLUMNS.map((status) => {
+                  const selected = status === mobileTab;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      role="tab"
+                      data-tab={status}
+                      aria-selected={selected}
+                      onClick={() => selectMobileTab(status)}
+                      className={cn(
+                        'flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                        selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {t(TASK_STATUS_LABELS[status])}
+                      <span className="tabular-nums text-muted-foreground">{tasksByStatus[status].length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div
+              className="min-h-[60vh] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              onTouchStart={handleSwipeStart}
+              onTouchEnd={handleSwipeEnd}
+              onTouchCancel={() => {
+                swipeStart.current = null;
+              }}
+            >
+              {renderColumn(mobileTab, true)}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-1 gap-4 overflow-x-auto p-6">
+            {TASK_STATUS_COLUMNS.map((status) => renderColumn(status))}
+          </div>
+        )}
 
         {/* Drag overlay - enhanced visual feedback */}
         <DragOverlay>

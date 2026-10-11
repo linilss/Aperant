@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, type BadgeProps } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { cn } from '../../../lib/utils';
+import { MiddleTruncate } from '../../ui/middle-truncate';
 import type {
   BranchProgressEvent,
   ClaudeDocFile,
@@ -20,6 +21,9 @@ const STATUS_VARIANT: Record<CodeBranchStatus, BadgeProps['variant']> = {
   stale: 'warning',
   over_budget: 'warning',
 };
+
+/** Deeper branches stop indenting so names keep room on narrow screens */
+const MAX_INDENT_DEPTH = 4;
 
 export function branchRowId(branch: string): string {
   return `code-branch-${branch || 'root'}`;
@@ -73,8 +77,9 @@ export function CodeBranchTree({
 
   return (
     <ul className="divide-y divide-border">
-      {rows.map(({ branch, depth, label }) => {
+      {rows.map(({ branch, depth }) => {
         const path = branch.relativePath;
+        const name = path.slice(path.lastIndexOf('/') + 1);
         const rowProgress = progress[path];
         const docPath = docPathForBranch(branch, docs);
         const pointerCount = pointerCountForBranch(path, pointers);
@@ -86,7 +91,7 @@ export function CodeBranchTree({
               'group flex items-center gap-3 py-1.5 pr-3 transition-colors hover:bg-muted/40 max-md:gap-2 max-md:pr-1',
               highlighted === path && 'bg-primary/10'
             )}
-            style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}
+            style={{ paddingLeft: `${0.75 + Math.min(depth, MAX_INDENT_DEPTH) * 1}rem` }}
           >
             <span className="flex w-4 shrink-0 justify-center">
               {rowProgress ? (
@@ -96,13 +101,20 @@ export function CodeBranchTree({
               ) : null}
             </span>
 
-            <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground" title={path || undefined}>
-              {path ? label : <span className="font-sans font-medium">{t('index.root')}</span>}
-            </span>
+            {path ? (
+              <span className="min-w-0 flex-1" title={path}>
+                <span className="block truncate font-mono text-sm font-medium text-foreground">{name}</span>
+                {path !== name && (
+                  <MiddleTruncate text={path} title={path} className="font-mono text-xs text-muted-foreground" />
+                )}
+              </span>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{t('index.root')}</span>
+            )}
 
             <Badge
               variant={STATUS_VARIANT[branch.status]}
-              className="shrink-0 text-[10px]"
+              className="shrink-0 text-[11px] max-md:text-xs"
               title={t(`index.statusHint.${branch.status}`)}
             >
               {t(`index.status.${branch.status}`)}

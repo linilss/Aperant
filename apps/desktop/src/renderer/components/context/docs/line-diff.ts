@@ -89,3 +89,28 @@ export function sideBySideDiff(before: string | null | undefined, after: string 
   }
   return rows;
 }
+
+/**
+ * Single-column (unified) diff for narrow screens, derived from the side-by-side rows:
+ * within each changed block all removed lines come first, then the added lines.
+ * Each cell keeps its own side's line number (old for same/removed, new for added).
+ */
+export function unifiedDiff(rows: DiffRow[]): DiffCell[] {
+  const out: DiffCell[] = [];
+  let added: DiffCell[] = [];
+  const flush = () => {
+    out.push(...added);
+    added = [];
+  };
+  for (const row of rows) {
+    if (row.left?.kind === 'same') {
+      flush();
+      out.push(row.left);
+      continue;
+    }
+    if (row.left) out.push(row.left);
+    if (row.right) added.push(row.right);
+  }
+  flush();
+  return out;
+}

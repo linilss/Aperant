@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue
 } from './ui/select';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { refineFeatureWithAI, useRoadmapStore } from '../stores/roadmap-store';
 import {
   ROADMAP_PRIORITY_LABELS
@@ -90,6 +91,7 @@ export function AddFeatureDialog({
   defaultPhaseId
 }: AddFeatureDialogProps) {
   const { t } = useTranslation('dialogs');
+  const isMobile = useIsMobile();
 
   // Form state
   const [title, setTitle] = useState('');
@@ -214,7 +216,7 @@ export function AddFeatureDialog({
             </Label>
             <Input
               id="add-feature-title"
-              placeholder={t('addFeature.quickPlaceholder')}
+              placeholder={t(isMobile ? 'addFeature.quickPlaceholderShort' : 'addFeature.quickPlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => {
@@ -248,7 +250,7 @@ export function AddFeatureDialog({
             type="button"
             variant="ghost"
             size="sm"
-            className="-ml-2 h-8 text-xs text-muted-foreground"
+            className="-ml-2 h-8 text-xs text-muted-foreground max-md:h-10 max-md:text-sm"
             onClick={() => setShowDetails((v) => !v)}
           >
             <ChevronDown className={`mr-1 h-3.5 w-3.5 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
@@ -288,7 +290,7 @@ export function AddFeatureDialog({
           </div>
 
           {/* Classification Fields */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-md:gap-3">
             {/* Phase */}
             <div className="space-y-2">
               <Label htmlFor="add-feature-phase" className="text-sm font-medium text-foreground">
@@ -436,7 +438,7 @@ function AddedFeatureRow({ featureId, typedTitle }: { featureId: string; typedTi
         )}
         <span className="truncate">{feature?.title ?? typedTitle}</span>
         {!refining && feature?.refinedAt && (
-          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded border border-primary/30 px-1 text-[10px] text-primary">
+          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded border border-primary/30 px-1 text-[11px] text-primary max-md:text-xs">
             <Sparkles className="h-2.5 w-2.5" />
             {t('addFeature.aiRefined')}
           </span>

@@ -262,7 +262,7 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
             {/* Navigation sidebar */}
             {(!isMobile || !mobileShowContent) && (
             <nav className="w-80 border-r border-border bg-muted/30 p-4 max-md:w-full max-md:border-r-0">
-              <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:block!">
+              <ScrollArea className="h-full">
                 <div className="space-y-6">
                   {/* APPLICATION Section */}
                   <div>
@@ -394,7 +394,7 @@ export function AppSettingsDialog({ open, onOpenChange, initialSection, initialP
                   </Button>
                 </div>
               )}
-              <ScrollArea className="h-full max-md:min-h-0 max-md:flex-1" viewportClassName="max-md:[&>div]:block!">
+              <ScrollArea className="h-full max-md:min-h-0 max-md:flex-1">
                 <div className={cn(appSection === 'terminal-fonts' ? 'p-8' : 'p-8 max-w-2xl', 'max-md:p-4 max-md:min-w-0')}>
                   {renderContent()}
                 </div>

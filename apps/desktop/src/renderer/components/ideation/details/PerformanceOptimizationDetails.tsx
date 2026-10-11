@@ -18,6 +18,7 @@ import {
   PERFORMANCE_CATEGORY_LABELS
 } from '../../../../shared/constants';
 import type { PerformanceOptimizationIdea } from '../../../../shared/types';
+import { categoryLabel } from '../constants';
 
 interface PerformanceOptimizationDetailsProps {
   idea: PerformanceOptimizationIdea;
@@ -40,6 +41,7 @@ function getCategoryIcon(category: string) {
 }
 
 export function PerformanceOptimizationDetails({ idea }: PerformanceOptimizationDetailsProps) {
+  const category = categoryLabel(PERFORMANCE_CATEGORY_LABELS, idea.category);
   return (
     <>
       {/* Metrics */}
@@ -59,15 +61,17 @@ export function PerformanceOptimizationDetails({ idea }: PerformanceOptimization
       </div>
 
       {/* Category */}
-      <div>
-        <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-          {getCategoryIcon(idea.category)}
-          Category
-        </h3>
-        <Badge variant="outline">
-          {PERFORMANCE_CATEGORY_LABELS[idea.category]}
-        </Badge>
-      </div>
+      {category && (
+        <div>
+          <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+            {getCategoryIcon(idea.category)}
+            Category
+          </h3>
+          <Badge variant="outline">
+            {category}
+          </Badge>
+        </div>
+      )}
 
       {/* Current Metric */}
       {idea.currentMetric && (

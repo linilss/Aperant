@@ -72,6 +72,7 @@
     "error": "Error"
   },
   "kanban": {
+    "columnTabsLabel": "Board columns",
     "emptyBacklog": "No tasks planned",
     "emptyBacklogHint": "Add a task to get started",
     "emptyQueue": "Queue is empty",
@@ -197,6 +198,7 @@
   },
   "metadata": {
     "fastMode": "Fast",
+    "refined": "Refined",
     "severity": "severity",
     "pullRequest": "Pull Request",
     "showMore": "Show more",

@@ -4,6 +4,8 @@ import { ArrowRight, Lightbulb, Loader2, RefreshCw, Save, Search, Sparkles, Squa
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
+import { PageHeader, PAGE_BODY, PAGE_ROOT } from '../ui/page-header';
+import { cn } from '../../lib/utils';
 import {
   COMPETITOR_COUNT_MAX,
   COMPETITOR_COUNT_MIN,
@@ -92,36 +94,43 @@ export function CompetitorAnalysis({ projectId, onGoToRoadmap, onGoToIdeation, o
     : null;
 
   const header = (
-    <div className="shrink-0 space-y-3 border-b border-border px-6 py-4 max-md:px-3 max-md:py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <Swords className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="font-semibold text-foreground">{t('competitors.title')}</h2>
-            <p className="text-sm text-muted-foreground">{analyzedAtText ?? t('competitors.subtitle')}</p>
-          </div>
-        </div>
-        {statusText && (
+    <PageHeader
+      icon={Swords}
+      title={t('competitors.title')}
+      subtitle={analyzedAtText ?? t('competitors.subtitle')}
+      extra={
+        statusText && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
             {statusText}
           </div>
-        )}
-      </div>
+        )
+      }
+      actions={[
+        isRunning
+          ? { id: 'stop', label: t('competitors.stop'), icon: Square, onClick: () => stopCompetitors(projectId), primary: true, variant: 'outline' }
+          : {
+              id: 'analyze',
+              label: t(data ? 'competitors.refreshAll' : 'competitors.analyze'),
+              icon: data ? RefreshCw : Search,
+              onClick: () => analyzeCompetitors(projectId),
+              disabled: singleRunning,
+              primary: true,
+            },
+      ]}
+    >
       <CoreValuesBar projectId={projectId} onGoToContext={onGoToContext} />
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Input
           value={focus}
           onChange={(e) => setFocus(e.target.value)}
           placeholder={t('competitors.focusPlaceholder')}
           aria-label={t('competitors.focusLabel')}
-          className="h-9 min-w-0 flex-1 basis-64"
+          className="h-9 min-w-0 flex-1 basis-64 max-md:h-10"
           maxLength={500}
           disabled={isRunning}
         />
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm max-md:w-full">
           <span className="whitespace-nowrap text-muted-foreground">{t('competitors.countLabel', { count })}</span>
           <input
             type="range"
@@ -131,38 +140,27 @@ export function CompetitorAnalysis({ projectId, onGoToRoadmap, onGoToIdeation, o
             value={count}
             onChange={(e) => setCount(Number(e.target.value))}
             disabled={isRunning}
-            className="w-28 accent-primary"
+            className="w-28 accent-primary max-md:h-10 max-md:min-w-0 max-md:flex-1"
             aria-valuetext={t('competitors.countLabel', { count })}
           />
         </label>
-        {isRunning ? (
-          <Button variant="outline" size="sm" className="h-9" onClick={() => stopCompetitors(projectId)}>
-            <Square className="mr-1 h-4 w-4" />
-            {t('competitors.stop')}
-          </Button>
-        ) : (
-          <Button size="sm" className="h-9" onClick={() => analyzeCompetitors(projectId)} disabled={singleRunning}>
-            {data ? <RefreshCw className="mr-1 h-4 w-4" /> : <Search className="mr-1 h-4 w-4" />}
-            {t(data ? 'competitors.refreshAll' : 'competitors.analyze')}
-          </Button>
-        )}
       </div>
       {error && (
         <div className="flex items-start justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <span>{t('competitors.errorPrefix', { error })}</span>
-          <button type="button" className="text-xs underline" onClick={() => setError(null)}>
+          <span className="min-w-0 break-words">{t('competitors.errorPrefix', { error })}</span>
+          <button type="button" className="shrink-0 text-xs underline max-md:min-h-10" onClick={() => setError(null)}>
             {t('competitors.dismiss')}
           </button>
         </div>
       )}
-    </div>
+    </PageHeader>
   );
 
   if (!data && !isRunning) {
     return (
-      <div className="flex h-full flex-col">
+      <div className={PAGE_ROOT}>
         {header}
-        <div className="flex flex-1 items-center justify-center overflow-y-auto p-6 max-md:p-3">
+        <div className={cn(PAGE_BODY, 'flex items-center justify-center overflow-y-auto p-6 max-md:overflow-visible max-md:p-3')}>
           {isLoading ? (
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           ) : (
@@ -190,9 +188,9 @@ export function CompetitorAnalysis({ projectId, onGoToRoadmap, onGoToIdeation, o
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className={PAGE_ROOT}>
       {header}
-      <div className="min-h-0 flex-1 space-y-8 overflow-y-auto p-6 max-md:space-y-6 max-md:p-3">
+      <div className={cn(PAGE_BODY, 'space-y-8 overflow-y-auto p-6 max-md:space-y-6 max-md:overflow-visible max-md:p-3')}>
         <Section title={t('competitors.sections.analyzed', { count: analyzed.length })}>
           {analyzed.length === 0 ? (
             <p className="text-sm text-muted-foreground">

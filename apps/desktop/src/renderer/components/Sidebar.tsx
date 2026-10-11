@@ -76,6 +76,8 @@ interface SidebarProps {
   activeView?: SidebarView;
   onViewChange?: (view: SidebarView) => void;
   className?: string;
+  /** `rail`: icon-only column with tooltips, used for narrow desktop windows */
+  variant?: 'full' | 'rail';
 }
 
 interface NavItem {
@@ -170,8 +172,10 @@ export function Sidebar({
   onNewTaskClick,
   activeView = 'kanban',
   onViewChange,
-  className
+  className,
+  variant = 'full'
 }: SidebarProps) {
+  const isRail = variant === 'rail';
   const { t } = useTranslation(['navigation', 'dialogs', 'common', 'deploy']);
   // Merged tasks not yet deployed — shown on the Ship → Deploy item
   const undeployedCount = useTaskStore((state) => countUndeployedTasks(state.tasks));
@@ -387,6 +391,51 @@ export function Sidebar({
     onViewChange?.(view);
   };
 
+  const renderRailItem = (item: NavItem) => {
+    const isActive = activeView === item.id;
+    const Icon = item.icon;
+    const label = t(item.labelKey);
+
+    return (
+      <Tooltip key={item.id}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => handleNavClick(item.id)}
+            disabled={!selectedProjectId}
+            aria-keyshortcuts={item.shortcut}
+            aria-label={label}
+            aria-current={isActive ? 'page' : undefined}
+            className={cn(
+              'relative mx-auto flex h-10 w-10 items-center justify-center rounded-lg transition-colors duration-200',
+              'hover:bg-accent hover:text-accent-foreground',
+              'disabled:pointer-events-none disabled:opacity-50',
+              isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
+            )}
+          >
+            <Icon className="h-[18px] w-[18px]" />
+            {item.id === 'deploy' && undeployedCount > 0 && (
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" />
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="flex items-center gap-2">
+          {label}
+          {item.id === 'deploy' && undeployedCount > 0 && (
+            <span className="text-muted-foreground">
+              {t('deploy:notDeployed', { count: undeployedCount })}
+            </span>
+          )}
+          {item.shortcut && (
+            <kbd className="rounded border border-border bg-secondary px-1 font-mono text-[11px] text-muted-foreground">
+              {item.shortcut}
+            </kbd>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
+
   const renderNavItem = (item: NavItem) => {
     const isActive = activeView === item.id;
     const Icon = item.icon;
@@ -423,8 +472,75 @@ export function Sidebar({
     );
   };
 
-  return (
-    <TooltipProvider>
+  const sidebarBody = isRail ? (
+    <div className={cn('flex h-full w-16 shrink-0 flex-col border-r border-border bg-sidebar', className)}>
+      {/* Drag area keeps room for the macOS traffic lights */}
+      <div className="electron-drag flex h-14 items-center justify-center pt-6">
+        <span className="electron-no-drag text-lg font-bold text-primary">m</span>
+      </div>
+
+      <Separator className="mt-2" />
+
+      <ScrollArea className="flex-1">
+        <nav className="flex flex-col py-2">
+          {visibleSections.map((section, index) => (
+            <div
+              key={section.id}
+              role="group"
+              aria-label={t(section.labelKey)}
+              className="flex flex-col gap-1 py-1"
+            >
+              {index > 0 && <Separator className="mx-auto mb-1 w-8" />}
+              {section.items.map(renderRailItem)}
+            </div>
+          ))}
+        </nav>
+      </ScrollArea>
+
+      <Separator />
+
+      <div className="flex flex-col items-center gap-2 py-3">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={onSettingsClick} aria-label={t('actions.settings')}>
+              <Settings className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{t('tooltips.settings')}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.open('https://github.com/linilss/Aperant/issues', '_blank')}
+              aria-label={t('tooltips.help')}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{t('tooltips.help')}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              onClick={onNewTaskClick}
+              disabled={!selectedProjectId || !selectedProject?.autoBuildPath}
+              aria-label={t('actions.newTask')}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {selectedProject && !selectedProject.autoBuildPath
+              ? t('messages.initializeToCreateTasks')
+              : t('actions.newTask')}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  ) : (
       <div className={cn('flex h-full w-64 flex-col bg-sidebar border-r border-border', className)}>
         {/* Header with drag area - extra top padding for macOS traffic lights */}
         <div className="electron-drag flex h-14 items-center px-4 pt-6 max-md:h-12 max-md:pt-0">
@@ -523,6 +639,11 @@ export function Sidebar({
           )}
         </div>
       </div>
+  );
+
+  return (
+    <TooltipProvider>
+      {sidebarBody}
 
       {/* Initialize Auto Claude Dialog */}
       <Dialog open={showInitDialog} onOpenChange={(open) => {

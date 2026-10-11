@@ -16,7 +16,7 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-import { Plus, Sparkles, Grid2X2, FolderTree, File, Folder, History, ChevronDown, Loader2, TerminalSquare, Settings } from 'lucide-react';
+import { Plus, Sparkles, Grid2X2, FolderTree, File, Folder, History, ChevronDown, Loader2, TerminalSquare, Settings, MoreHorizontal } from 'lucide-react';
 import { SortableTerminalWrapper } from './SortableTerminalWrapper';
 import { Button } from './ui/button';
 import {
@@ -324,6 +324,12 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
     setExpandedTerminalId(prev => prev === terminalId ? null : terminalId);
   }, []);
 
+  const canInvokeClaudeAll = terminals.some((term) => term.status === 'running' && !term.isCLIMode);
+
+  const openTerminalSettings = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-app-settings', { detail: 'terminal-fonts' }));
+  }, []);
+
   const handleInvokeClaudeAll = useCallback(() => {
     terminals.forEach((terminal) => {
       if (terminal.status === 'running' && !terminal.isCLIMode) {
@@ -520,14 +526,16 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
         className="flex h-full flex-col"
         style={viewportMaxHeight !== null ? { maxHeight: viewportMaxHeight } : undefined}
       >
-        {/* Toolbar — below md the whole row scrolls horizontally instead of clipping */}
-        <div className="flex h-10 items-center justify-between border-b border-border bg-card/30 px-3 max-md:h-auto max-md:w-full max-md:min-w-0 max-md:shrink-0 max-md:justify-start max-md:gap-2 max-md:overflow-x-auto max-md:px-2 max-md:py-1.5">
-          <div className="flex items-center gap-2 max-md:shrink-0">
-            <span className="text-xs font-medium text-muted-foreground">
-              {terminals.length} / 12 terminals
-            </span>
-          </div>
-          <div className="flex items-center gap-2 max-md:shrink-0 max-md:*:shrink-0">
+        {/* Toolbar — wraps instead of clipping; secondary actions go icon-only below lg and into "⋯" on phones */}
+        <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border bg-card/30 px-3 py-1 max-md:px-2 max-md:py-1.5">
+          <span
+            className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+            title={t('terminal:toolbar.count', { count: terminals.length, max: 12 })}
+          >
+            <span className="max-md:hidden">{t('terminal:toolbar.count', { count: terminals.length, max: 12 })}</span>
+            <span className="md:hidden">{t('terminal:toolbar.countShort', { count: terminals.length, max: 12 })}</span>
+          </span>
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* Claude Code CLI status */}
             <ClaudeCodeStatusBadge />
             {/* Session history dropdown */}
@@ -537,21 +545,23 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs gap-1.5"
+                    className="h-7 text-xs gap-1.5 max-md:h-10"
                     disabled={isRestoring || isLoadingDates}
+                    aria-label={t('terminal:toolbar.history')}
+                    title={t('terminal:toolbar.history')}
                   >
                     {isRestoring ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <History className="h-3 w-3" />
                     )}
-                    History
+                    <span className="max-lg:hidden">{t('terminal:toolbar.history')}</span>
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    Restore sessions from...
+                    {t('terminal:toolbar.restoreFrom')}
                   </div>
                   <DropdownMenuSeparator />
                   {sessionDates.map((dateInfo) => (
@@ -562,7 +572,7 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
                     >
                       <span>{dateInfo.label}</span>
                       <span className="text-xs text-muted-foreground">
-                        {dateInfo.sessionCount} session{dateInfo.sessionCount !== 1 ? 's' : ''}
+                        {t('terminal:toolbar.sessionCount', { count: dateInfo.sessionCount })}
                       </span>
                     </DropdownMenuItem>
                   ))}
@@ -572,35 +582,37 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs gap-1.5"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('open-app-settings', { detail: 'terminal-fonts' }));
-              }}
+              className="h-7 text-xs gap-1.5 max-md:hidden"
+              onClick={openTerminalSettings}
+              aria-label={t('actions.settings')}
+              title={t('actions.settings')}
             >
               <Settings className="h-3 w-3" />
-              {t('actions.settings')}
+              <span className="max-lg:hidden">{t('actions.settings')}</span>
             </Button>
-            {terminals.some((t) => t.status === 'running' && !t.isCLIMode) && (
+            {canInvokeClaudeAll && (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 text-xs gap-1.5 max-md:hidden"
                 onClick={handleInvokeClaudeAll}
+                aria-label={t('terminal:toolbar.invokeClaudeAll')}
+                title={t('terminal:toolbar.invokeClaudeAll')}
               >
                 <Sparkles className="h-3 w-3" />
-                Invoke Claude All
+                <span className="max-lg:hidden">{t('terminal:toolbar.invokeClaudeAll')}</span>
               </Button>
             )}
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs gap-1.5"
+              className="h-7 text-xs gap-1.5 max-md:h-10"
               onClick={handleAddTerminal}
               disabled={!canAddTerminal(projectPath)}
             >
               <Plus className="h-3 w-3" />
-              New Terminal
-              <kbd className="ml-1 text-[10px] text-muted-foreground max-md:hidden">
+              {t('terminal:toolbar.newTerminal')}
+              <kbd className="ml-1 text-[10px] text-muted-foreground max-lg:hidden">
                 {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+T
               </kbd>
             </Button>
@@ -609,13 +621,46 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
               <Button
                 variant={fileExplorerOpen ? 'default' : 'outline'}
                 size="sm"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 text-xs gap-1.5 max-md:hidden"
                 onClick={toggleFileExplorer}
+                aria-label={t('terminal:toolbar.files')}
+                title={t('terminal:toolbar.files')}
               >
                 <FolderTree className="h-3 w-3" />
-                Files
+                <span className="max-lg:hidden">{t('terminal:toolbar.files')}</span>
               </Button>
             )}
+            {/* Phone: secondary actions fold into a menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 md:hidden"
+                  aria-label={t('terminal:toolbar.moreActions')}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[12rem]">
+                <DropdownMenuItem onSelect={openTerminalSettings} className="min-h-10 gap-2">
+                  <Settings className="h-4 w-4" />
+                  {t('actions.settings')}
+                </DropdownMenuItem>
+                {canInvokeClaudeAll && (
+                  <DropdownMenuItem onSelect={handleInvokeClaudeAll} className="min-h-10 gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    {t('terminal:toolbar.invokeClaudeAll')}
+                  </DropdownMenuItem>
+                )}
+                {projectPath && (
+                  <DropdownMenuItem onSelect={toggleFileExplorer} className="min-h-10 gap-2">
+                    <FolderTree className="h-4 w-4" />
+                    {t('terminal:toolbar.files')}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

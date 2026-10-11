@@ -29,7 +29,7 @@ import {
 } from './components/ui/dialog';
 import { Sidebar, getNavItemLabelKey, type SidebarView } from './components/Sidebar';
 import { MobileDrawer, MobileProjectList, MobileTopBar } from './components/MobileNav';
-import { useIsMobile } from './hooks/useIsMobile';
+import { useIsCompact, useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TaskDetailModal } from './components/task-detail/TaskDetailModal';
 import { TaskDeployDialog } from './components/deploy/TaskDeployDialog';
@@ -181,6 +181,8 @@ export function App() {
   const [activeView, setActiveView] = useState<SidebarView>('kanban');
   // Phone layout (LAN web UI): sidebar becomes a drawer behind a top bar
   const isMobile = useIsMobile();
+  // Narrow desktop windows (800–1023px) get the icon-rail sidebar
+  const isCompact = useIsCompact();
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
   const handleViewChange = useCallback((view: SidebarView) => {
     setActiveView(view);
@@ -937,6 +939,7 @@ export function App() {
         ) : (
           /* Sidebar */
           <Sidebar
+            variant={isCompact ? 'rail' : 'full'}
             onSettingsClick={() => setIsSettingsDialogOpen(true)}
             onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
             activeView={activeView}
@@ -945,7 +948,7 @@ export function App() {
         )}
 
         {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden max-md:min-h-0 max-md:min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden max-md:min-h-0">
           {/* Project Tabs (on mobile, project switching lives in the nav drawer) */}
           {!isMobile && projectTabs.length > 0 && (
             <DndContext
@@ -983,7 +986,7 @@ export function App() {
           )}
 
           {/* Main content area */}
-          <main className="flex-1 overflow-hidden max-md:min-w-0">
+          <main className="min-w-0 flex-1 overflow-hidden">
             {selectedProject ? (
               <>
                 {activeView === 'kanban' && (

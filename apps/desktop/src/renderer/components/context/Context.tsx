@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderTree, Brain, BookOpen } from 'lucide-react';
+import { FolderTree, Brain, BookOpen, Library } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { PageHeader, PAGE_ROOT, PAGE_BODY, PAGE_STICKY } from '../ui/page-header';
+import { cn } from '../../lib/utils';
 import {
   useContextStore,
   verifyMemory,
@@ -127,28 +129,32 @@ export function Context({ projectId }: ContextProps) {
     return t('context:summary.line', { docs: docs.length, pointers: pointers.length, date });
   }, [t, docs.length, pointers.length, lastOptimizedAt]);
 
+  // Desktop: tab panels fill and scroll on their own. Phone: the page root scrolls, panels grow to content.
+  const panelClass = cn(PAGE_BODY, 'm-0 overflow-hidden max-md:overflow-visible');
+
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <div className="border-b border-border px-6 py-3 max-md:px-4">
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
-            <TabsTrigger value="index" className="gap-2">
-              <FolderTree className="h-4 w-4" />
+    <div className={PAGE_ROOT}>
+      <PageHeader icon={Library} title={t('context:title')} subtitle={docsSummary} />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col max-md:flex-none">
+        <div className={cn(PAGE_STICKY, 'shrink-0 border-b border-border px-6 py-3 max-md:px-3 max-md:py-2')}>
+          <TabsList className="flex w-full max-w-lg justify-start overflow-x-auto [scrollbar-width:none] max-md:max-w-none max-md:h-12 [&::-webkit-scrollbar]:hidden">
+            <TabsTrigger value="index" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+              <FolderTree className="h-4 w-4 shrink-0" />
               {t('common:context.tabs.projectIndex')}
             </TabsTrigger>
-            <TabsTrigger value="docs" className="gap-2">
-              <BookOpen className="h-4 w-4" />
+            <TabsTrigger value="docs" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+              <BookOpen className="h-4 w-4 shrink-0" />
               {t('context:tabs.docs')}
             </TabsTrigger>
-            <TabsTrigger value="memories" className="gap-2">
-              <Brain className="h-4 w-4" />
+            <TabsTrigger value="memories" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+              <Brain className="h-4 w-4 shrink-0" />
               {t('common:context.tabs.memories')}
             </TabsTrigger>
           </TabsList>
         </div>
 
         {/* Project Index Tab */}
-        <TabsContent value="index" className="flex-1 overflow-hidden m-0">
+        <TabsContent value="index" className={panelClass}>
           <ProjectIndexTab
             projectId={projectId}
             onOpenDoc={handleOpenDoc}
@@ -157,17 +163,16 @@ export function Context({ projectId }: ContextProps) {
             indexLoading={indexLoading}
             indexError={indexError}
             onRefresh={handleRefreshIndex}
-            docsSummary={docsSummary}
           />
         </TabsContent>
 
         {/* Docs Tab */}
-        <TabsContent value="docs" className="flex-1 overflow-hidden m-0">
+        <TabsContent value="docs" className={panelClass}>
           <DocsTab projectId={projectId} focus={docFocus} />
         </TabsContent>
 
         {/* Memories Tab */}
-        <TabsContent value="memories" className="flex-1 overflow-hidden m-0">
+        <TabsContent value="memories" className={panelClass}>
           <MemoriesTab
             projectId={projectId}
             pointers={pointers}

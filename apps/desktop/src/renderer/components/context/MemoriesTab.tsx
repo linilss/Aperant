@@ -151,7 +151,7 @@ export function MemoriesTab({
   };
 
   return (
-    <ScrollArea className="h-full" viewportClassName="max-md:[&>div]:!block">
+    <ScrollArea className="h-full">
       <div className="p-6 space-y-6 max-md:p-4">
         <PointersSection projectId={projectId} pointers={pointers} onOpenPointer={onOpenPointer} />
 

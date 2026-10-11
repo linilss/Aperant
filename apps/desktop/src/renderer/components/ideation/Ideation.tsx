@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TabsContent } from '../ui/tabs';
+import { PAGE_ROOT } from '../ui/page-header';
 import { IDEATION_TYPE_DESCRIPTIONS } from '../../../shared/constants';
 import { IdeationEmptyState } from './IdeationEmptyState';
 import { IdeationHeader } from './IdeationHeader';
@@ -158,7 +159,7 @@ export function Ideation({ projectId, onGoToTask, onGoToCompetitors, onGoToMosco
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className={PAGE_ROOT}>
       {/* Funnel handoff from Plan → Competitors */}
       <StrategyGuidanceBar projectId={projectId} onClick={onGoToCompetitors} />
 
@@ -190,76 +191,74 @@ export function Ideation({ projectId, onGoToTask, onGoToCompetitors, onGoToMosco
         isTagged={isDirectionTagged}
         untaggedHint={t('ideation.directions.untaggedHint')}
         ariaLabel={t('ideation.directions.filterLabel')}
-        className="border-b border-border px-4 py-2"
+        className="border-b border-border px-4 py-2 max-md:px-3"
       />
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <IdeationFilters activeTab={activeTab} onTabChange={setActiveTab}>
-          {/* All Ideas View */}
-          <TabsContent value="all" className="flex-1 overflow-auto p-4">
-            <div className="grid gap-3">
-              {visibleIdeas.map((idea) => (
-                <IdeaCard
-                  key={idea.id}
-                  idea={idea}
-                  isSelected={selectedIds.has(idea.id)}
-                  onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
-                  onConvert={handleConvertToTask}
-                  onGoToTask={handleGoToTask}
-                  onDismiss={handleDismiss}
-                  onToggleSelect={toggleSelectIdea}
-                  onAddToRoadmap={handleAddToRoadmap}
-                  onGoToMoscow={onGoToMoscow}
-                  projectId={projectId}
-                />
-              ))}
-              {visibleIdeas.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  {t('ideation.noIdeasToDisplay')}
-                </div>
-              )}
-            </div>
-          </TabsContent>
+      {/* Content: type tabs pinned on phones, body scrolls (desktop) / grows (phone) */}
+      <IdeationFilters activeTab={activeTab} onTabChange={setActiveTab}>
+        {/* All Ideas View */}
+        <TabsContent value="all" className="min-h-0 flex-1 overflow-auto p-4 max-md:mt-0 max-md:flex-none max-md:overflow-visible max-md:p-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+            {visibleIdeas.map((idea) => (
+              <IdeaCard
+                key={idea.id}
+                idea={idea}
+                isSelected={selectedIds.has(idea.id)}
+                onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
+                onConvert={handleConvertToTask}
+                onGoToTask={handleGoToTask}
+                onDismiss={handleDismiss}
+                onToggleSelect={toggleSelectIdea}
+                onAddToRoadmap={handleAddToRoadmap}
+                onGoToMoscow={onGoToMoscow}
+                projectId={projectId}
+              />
+            ))}
+            {visibleIdeas.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                {t('ideation.noIdeasToDisplay')}
+              </div>
+            )}
+          </div>
+        </TabsContent>
 
-          {/* Type-specific Views */}
-          {ALL_IDEATION_TYPES.map((type) => {
-            const typeIdeas = byDirection(
-              getIdeasByType(type).filter((idea) => {
-                if (!showDismissed && idea.status === 'dismissed') return false;
-                if (!showArchived && idea.status === 'archived') return false;
-                return true;
-              })
-            );
-            return (
-              <TabsContent key={type} value={type} className="flex-1 overflow-auto p-4">
-                <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    {IDEATION_TYPE_DESCRIPTIONS[type]}
-                  </p>
-                </div>
-                <div className="grid gap-3">
-                  {typeIdeas.map((idea) => (
-                    <IdeaCard
-                      key={idea.id}
-                      idea={idea}
-                      isSelected={selectedIds.has(idea.id)}
-                      onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
-                      onConvert={handleConvertToTask}
-                      onGoToTask={handleGoToTask}
-                      onDismiss={handleDismiss}
-                      onToggleSelect={toggleSelectIdea}
-                      onAddToRoadmap={handleAddToRoadmap}
-                      onGoToMoscow={onGoToMoscow}
-                      projectId={projectId}
-                    />
-                  ))}
-                </div>
-              </TabsContent>
-            );
-          })}
-        </IdeationFilters>
-      </div>
+        {/* Type-specific Views */}
+        {ALL_IDEATION_TYPES.map((type) => {
+          const typeIdeas = byDirection(
+            getIdeasByType(type).filter((idea) => {
+              if (!showDismissed && idea.status === 'dismissed') return false;
+              if (!showArchived && idea.status === 'archived') return false;
+              return true;
+            })
+          );
+          return (
+            <TabsContent key={type} value={type} className="min-h-0 flex-1 overflow-auto p-4 max-md:mt-0 max-md:flex-none max-md:overflow-visible max-md:p-3">
+              <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  {IDEATION_TYPE_DESCRIPTIONS[type]}
+                </p>
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+                {typeIdeas.map((idea) => (
+                  <IdeaCard
+                    key={idea.id}
+                    idea={idea}
+                    isSelected={selectedIds.has(idea.id)}
+                    onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
+                    onConvert={handleConvertToTask}
+                    onGoToTask={handleGoToTask}
+                    onDismiss={handleDismiss}
+                    onToggleSelect={toggleSelectIdea}
+                    onAddToRoadmap={handleAddToRoadmap}
+                    onGoToMoscow={onGoToMoscow}
+                    projectId={projectId}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+          );
+        })}
+      </IdeationFilters>
 
       {/* Idea Detail Panel */}
       {panelIdea && (

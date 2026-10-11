@@ -109,7 +109,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
         {hasClassification && (
           <div className="flex flex-wrap items-center gap-1.5">
             {/* Category */}
-            {task.metadata?.category && (
+            {task.metadata?.category && TASK_CATEGORY_LABELS[task.metadata.category] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_CATEGORY_COLORS[task.metadata.category])}
@@ -122,7 +122,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
               </Badge>
             )}
             {/* Priority */}
-            {task.metadata?.priority && (
+            {task.metadata?.priority && TASK_PRIORITY_LABELS[task.metadata.priority] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_PRIORITY_COLORS[task.metadata.priority])}
@@ -131,7 +131,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
               </Badge>
             )}
             {/* Complexity */}
-            {task.metadata?.complexity && (
+            {task.metadata?.complexity && TASK_COMPLEXITY_LABELS[task.metadata.complexity] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_COMPLEXITY_COLORS[task.metadata.complexity])}
@@ -140,7 +140,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
               </Badge>
             )}
             {/* Impact */}
-            {task.metadata?.impact && (
+            {task.metadata?.impact && TASK_IMPACT_LABELS[task.metadata.impact] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_IMPACT_COLORS[task.metadata.impact])}

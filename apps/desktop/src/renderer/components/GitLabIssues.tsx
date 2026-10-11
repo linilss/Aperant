@@ -14,7 +14,9 @@ import {
 import type { GitLabIssue } from "../../shared/types";
 import type { GitLabIssuesProps } from "./gitlab-issues/types";
 import { MobileBackBar } from './MobileNav';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { useIsCompact } from '../hooks/useIsMobile';
+import { PAGE_BODY, PAGE_ROOT, PAGE_STICKY } from './ui/page-header';
+import { cn } from '../lib/utils';
 
 export function GitLabIssues({ onOpenSettings, onNavigateToTask }: GitLabIssuesProps) {
   const { t } = useTranslation("gitlab");
@@ -47,9 +49,11 @@ export function GitLabIssues({ onOpenSettings, onNavigateToTask }: GitLabIssuesP
   const { searchQuery, setSearchQuery, filteredIssues } = useIssueFiltering(getFilteredIssues());
 
   const [showInvestigateDialog, setShowInvestigateDialog] = useState(false);
-  // Phone: list and detail are shown one at a time
-  const isMobile = useIsMobile();
+  // Below lg (phones + narrow desktop): list and detail are shown one at a time
+  const isCompact = useIsCompact();
   const [showMobileDetail, setShowMobileDetail] = useState(false);
+  const showList = !isCompact || !showMobileDetail;
+  const showDetail = !isCompact || showMobileDetail;
   const [selectedIssueForInvestigation, setSelectedIssueForInvestigation] =
     useState<GitLabIssue | null>(null);
 
@@ -89,55 +93,65 @@ export function GitLabIssues({ onOpenSettings, onNavigateToTask }: GitLabIssuesP
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Header */}
-      <IssueListHeader
-        projectPath={syncStatus.projectPathWithNamespace ?? ""}
-        openIssuesCount={getOpenIssuesCount()}
-        isLoading={isLoading}
-        searchQuery={searchQuery}
-        filterState={filterState}
-        onSearchChange={setSearchQuery}
-        onFilterChange={handleFilterChange}
-        onRefresh={handleRefresh}
-      />
+    <div className={PAGE_ROOT}>
+      {/* Header + filters (hidden while a compact layout shows the detail on its own) */}
+      {showList && (
+        <IssueListHeader
+          projectPath={syncStatus.projectPathWithNamespace ?? ""}
+          openIssuesCount={getOpenIssuesCount()}
+          isLoading={isLoading}
+          searchQuery={searchQuery}
+          filterState={filterState}
+          onSearchChange={setSearchQuery}
+          onFilterChange={handleFilterChange}
+          onRefresh={handleRefresh}
+        />
+      )}
 
       {/* Content */}
-      <div className="flex-1 flex min-h-0">
+      <div className={cn(PAGE_BODY, "flex")}>
         {/* Issue List */}
-        <div className={`w-1/2 border-r border-border flex flex-col max-md:w-full max-md:border-r-0${isMobile && showMobileDetail ? " hidden" : ""}`}>
-          <IssueList
-            issues={filteredIssues}
-            selectedIssueIid={selectedIssueIid}
-            isLoading={isLoading}
-            error={error}
-            onSelectIssue={(issueIid) => {
-              selectIssue(issueIid);
-              setShowMobileDetail(true);
-            }}
-            onInvestigate={handleInvestigate}
-          />
-        </div>
+        {showList && (
+          <div className="flex w-1/2 min-w-0 flex-col border-r border-border max-lg:w-full max-lg:border-r-0">
+            <IssueList
+              issues={filteredIssues}
+              selectedIssueIid={selectedIssueIid}
+              isLoading={isLoading}
+              error={error}
+              onSelectIssue={(issueIid) => {
+                selectIssue(issueIid);
+                setShowMobileDetail(true);
+              }}
+              onInvestigate={handleInvestigate}
+            />
+          </div>
+        )}
 
         {/* Issue Detail */}
-        <div className={`w-1/2 flex flex-col max-md:w-full${isMobile && !showMobileDetail ? " hidden" : ""}`}>
-          {isMobile && <MobileBackBar onBack={() => setShowMobileDetail(false)} />}
-          {selectedIssue ? (
-            <IssueDetail
-              issue={selectedIssue}
-              onInvestigate={() => handleInvestigate(selectedIssue)}
-              investigationResult={
-                lastInvestigationResult?.issueIid === selectedIssue.iid
-                  ? lastInvestigationResult
-                  : null
-              }
-              linkedTaskId={issueToTaskMap.get(selectedIssue.iid)}
-              onViewTask={onNavigateToTask}
-            />
-          ) : (
-            <EmptyState message={t("empty.selectIssue")} />
-          )}
-        </div>
+        {showDetail && (
+          <div className="flex w-1/2 min-w-0 flex-col max-lg:w-full">
+            {isCompact && (
+              <div className={PAGE_STICKY}>
+                <MobileBackBar onBack={() => setShowMobileDetail(false)} />
+              </div>
+            )}
+            {selectedIssue ? (
+              <IssueDetail
+                issue={selectedIssue}
+                onInvestigate={() => handleInvestigate(selectedIssue)}
+                investigationResult={
+                  lastInvestigationResult?.issueIid === selectedIssue.iid
+                    ? lastInvestigationResult
+                    : null
+                }
+                linkedTaskId={issueToTaskMap.get(selectedIssue.iid)}
+                onViewTask={onNavigateToTask}
+              />
+            ) : (
+              <EmptyState message={t("empty.selectIssue")} />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Investigation Dialog */}

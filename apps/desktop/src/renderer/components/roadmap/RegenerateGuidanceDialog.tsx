@@ -11,6 +11,7 @@ import {
 } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface RegenerateGuidanceDialogProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function RegenerateGuidanceDialog({
 }: RegenerateGuidanceDialogProps) {
   const { t } = useTranslation(['dialogs']);
   const [text, setText] = useState(initialGuidance);
+  const isMobile = useIsMobile();
 
   // Start each opening from the last direction given
   useEffect(() => {
@@ -61,11 +63,14 @@ export function RegenerateGuidanceDialog({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t('dialogs:regenerateRoadmap.placeholder')}
-          className="min-h-[140px]"
+          placeholder={t(isMobile ? 'dialogs:regenerateRoadmap.placeholderShort' : 'dialogs:regenerateRoadmap.placeholder')}
+          className="mt-4 min-h-[140px]"
           autoFocus
         />
-        <p className="text-xs text-muted-foreground">{t('dialogs:regenerateRoadmap.hint')}</p>
+        <p className="mt-2 text-xs text-muted-foreground max-md:text-sm">
+          {t('dialogs:regenerateRoadmap.hint')}
+          <span className="pointer-coarse:hidden"> {t('dialogs:regenerateRoadmap.shortcutHint')}</span>
+        </p>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

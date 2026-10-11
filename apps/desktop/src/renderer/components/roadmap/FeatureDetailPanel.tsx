@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
-  ChevronRight,
+  ArrowLeft,
+  X,
   Lightbulb,
   Users,
   CheckCircle2,
@@ -21,6 +23,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { ScrollArea } from '../ui/scroll-area';
+import { DialogOverlay, DialogPortal } from '../ui/dialog';
 import {
   ROADMAP_PRIORITY_COLORS,
   ROADMAP_PRIORITY_LABELS,
@@ -42,6 +45,7 @@ export function FeatureDetailPanel({
 }: FeatureDetailPanelProps) {
   const { t } = useTranslation('common');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   // Live copy from the store so an AI refinement shows up in place
   const feature =
     useRoadmapStore((state) => state.roadmap?.features.find((f) => f.id === selectedFeature.id)) ??
@@ -75,11 +79,34 @@ export function FeatureDetailPanel({
     }
   };
 
+  // Desktop: right-side sheet over a backdrop; phone: full screen. Esc / backdrop click close it.
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-lg flex flex-col z-50 max-md:inset-x-0 max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]">
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogPortal>
+        <DialogOverlay className="bg-black/50 backdrop-blur-none max-md:hidden" />
+        <DialogPrimitive.Content
+          ref={contentRef}
+          aria-describedby={undefined}
+          onOpenAutoFocus={(e) => {
+            // Focus the sheet itself rather than (and ringing) the first header button
+            e.preventDefault();
+            contentRef.current?.focus();
+          }}
+          className="fixed inset-y-0 right-0 z-50 flex w-[26rem] max-w-[calc(100vw-4rem)] flex-col border-l border-border bg-card shadow-2xl outline-none max-md:inset-x-0 max-md:w-full max-md:max-w-none max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]"
+        >
       {/* Header */}
-      <div className="shrink-0 p-4 border-b border-border electron-no-drag">
+      <div className="shrink-0 p-4 border-b border-border electron-no-drag max-md:p-3">
         <div className="flex items-start justify-between gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="-ml-1 h-10 w-10 shrink-0 md:hidden"
+            onClick={onClose}
+            aria-label={t('roadmap.detail.back')}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <Badge variant="outline" className={ROADMAP_PRIORITY_COLORS[feature.priority]}>
@@ -92,7 +119,7 @@ export function FeatureDetailPanel({
                 {feature.complexity}
               </Badge>
             </div>
-            <h2 className="font-semibold truncate">{feature.title}</h2>
+            <DialogPrimitive.Title className="font-semibold break-words">{feature.title}</DialogPrimitive.Title>
             {refineError && (
               <p className="mt-1 text-xs text-destructive" role="alert">
                 {t('roadmap.refineFailed', { error: refineError })}
@@ -128,19 +155,26 @@ export function FeatureDetailPanel({
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={t('accessibility.closeFeatureDetailsAriaLabel')}>
-              <ChevronRight className="h-4 w-4" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="max-md:hidden"
+              onClick={onClose}
+              aria-label={t('accessibility.closeFeatureDetailsAriaLabel')}
+            >
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-4 space-y-6">
           {/* Description */}
           <div>
-            <h3 className="text-sm font-medium mb-2">Description</h3>
+            <h3 className="text-sm font-medium mb-2">{t('roadmap.detail.description')}</h3>
             <p className="text-sm text-muted-foreground">{feature.description}</p>
           </div>
 
@@ -148,7 +182,7 @@ export function FeatureDetailPanel({
         <div>
           <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Lightbulb className="h-4 w-4" />
-            Rationale
+            {t('roadmap.detail.rationale')}
           </h3>
           <p className="text-sm text-muted-foreground">{feature.rationale}</p>
         </div>
@@ -161,17 +195,17 @@ export function FeatureDetailPanel({
             >
               {feature.complexity}
             </div>
-            <div className="text-xs text-muted-foreground">Complexity</div>
+            <div className="text-xs text-muted-foreground">{t('roadmap.detail.complexity')}</div>
           </Card>
           <Card className="p-3 text-center">
             <div className={`text-lg font-semibold ${ROADMAP_IMPACT_COLORS[feature.impact]}`}>
               {feature.impact}
             </div>
-            <div className="text-xs text-muted-foreground">Impact</div>
+            <div className="text-xs text-muted-foreground">{t('roadmap.detail.impact')}</div>
           </Card>
           <Card className="p-3 text-center">
             <div className="text-lg font-semibold">{feature.dependencies.length}</div>
-            <div className="text-xs text-muted-foreground">Dependencies</div>
+            <div className="text-xs text-muted-foreground truncate">{t('roadmap.detail.dependencies')}</div>
           </Card>
         </div>
 
@@ -180,7 +214,7 @@ export function FeatureDetailPanel({
           <div>
             <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
               <Users className="h-4 w-4" />
-              User Stories
+              {t('roadmap.detail.userStories')}
             </h3>
             <div className="space-y-2">
               {feature.userStories.map((story, i) => (
@@ -197,7 +231,7 @@ export function FeatureDetailPanel({
           <div>
             <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Acceptance Criteria
+              {t('roadmap.detail.acceptanceCriteria')}
             </h3>
             <ul className="space-y-1">
               {feature.acceptanceCriteria.map((criterion, i) => (
@@ -215,7 +249,7 @@ export function FeatureDetailPanel({
           <div>
             <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
               <ArrowRight className="h-4 w-4" />
-              Dependencies
+              {t('roadmap.detail.dependencies')}
             </h3>
             <div className="flex flex-wrap gap-1">
               {feature.dependencies.map((dep) => (
@@ -232,7 +266,7 @@ export function FeatureDetailPanel({
           <div>
             <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              Addresses Competitor Pain Points
+              {t('roadmap.detail.competitorPainPoints')}
             </h3>
             <div className="space-y-2">
               {competitorInsights.map((insight) => (
@@ -255,7 +289,7 @@ export function FeatureDetailPanel({
                           : 'text-green-500 border-green-500/50'
                       }`}
                     >
-                      {insight.severity} severity
+                      {t('roadmap.detail.severity', { severity: insight.severity })}
                     </Badge>
                   </div>
                 </div>
@@ -310,7 +344,7 @@ export function FeatureDetailPanel({
             {onRefine && (
               <Button variant="outline" className="w-full" onClick={() => onRefine(feature)}>
                 <Wand2 className="h-4 w-4 mr-2" />
-                Refine
+                {t('roadmap.detail.refine')}
               </Button>
             )}
             <Button className="w-full" onClick={() => onConvertToSpec(feature)}>
@@ -329,22 +363,24 @@ export function FeatureDetailPanel({
               <Trash2 className="h-6 w-6 text-destructive" />
             </div>
             <div>
-              <h3 className="font-semibold">Delete Feature?</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                This will permanently remove "{feature.title}" from your roadmap.
+              <h3 className="font-semibold">{t('roadmap.detail.deleteTitle')}</h3>
+              <p className="text-sm text-muted-foreground mt-1 break-words">
+                {t('roadmap.detail.deleteDescription', { title: feature.title })}
               </p>
             </div>
             <div className="flex gap-2 justify-center">
               <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-                Cancel
+                {t('roadmap.detail.cancel')}
               </Button>
               <Button variant="destructive" onClick={handleDelete}>
-                Delete
+                {t('roadmap.detail.delete')}
               </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </DialogPrimitive.Root>
   );
 }

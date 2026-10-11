@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ScrollArea } from './ui/scroll-area';
+import { PageHeader, PAGE_BODY, PAGE_ROOT } from './ui/page-header';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import {
@@ -441,7 +442,7 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowAddDialog(true); }}
-                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors max-md:min-h-10"
                 >
                   <Plus className="h-3 w-3" />
                   {t('mcp.addServer')}
@@ -981,39 +982,33 @@ export function AgentTools() {
   );
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border p-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-muted">
-            <Server className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-foreground">MCP Server Overview</h1>
-              {selectedProject && (
-                <span className="text-sm text-muted-foreground">
-                  for {selectedProject.name}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
+    <div className={PAGE_ROOT}>
+      <PageHeader
+        icon={Server}
+        title={
+          <>
+            {/* Phones already show the project name in the top bar */}
+            <span className="max-md:hidden">
               {selectedProject
-                ? t('settings:mcp.description')
-                : t('settings:mcp.descriptionNoProject')}
-            </p>
-          </div>
-          {envConfig && (
-            <div className="text-right">
-              <span className="text-sm text-muted-foreground">{t('settings:mcp.serversEnabled', { count: enabledCount })}</span>
-            </div>
-          )}
-        </div>
-      </div>
+                ? t('settings:mcp.titleWithProject', { projectName: selectedProject.name })
+                : t('settings:mcp.title')}
+            </span>
+            <span className="md:hidden">{t('settings:mcp.title')}</span>
+          </>
+        }
+        subtitle={selectedProject ? t('settings:mcp.description') : t('settings:mcp.descriptionNoProject')}
+        extra={
+          envConfig && (
+            <span className="whitespace-nowrap text-sm text-muted-foreground max-md:text-xs">
+              {t('settings:mcp.serversEnabled', { count: enabledCount })}
+            </span>
+          )
+        }
+      />
 
       {/* Content */}
-      <ScrollArea className="flex-1">
-        <div className="p-6 space-y-6">
+      <ScrollArea className={PAGE_BODY}>
+        <div className="p-6 space-y-6 max-md:p-3 max-md:space-y-4">
           {/* No project selected message */}
           {!selectedProject && (
             <div className="rounded-lg border border-border bg-card p-6 text-center">
@@ -1039,7 +1034,7 @@ export function AgentTools() {
           {/* MCP Server Configuration */}
           {envConfig && (
             <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-4">
                 <h2 className="text-sm font-medium text-foreground">{t('settings:mcp.configuration')}</h2>
                 <span className="text-xs text-muted-foreground">
                   {t('settings:mcp.configurationHint')}
@@ -1048,8 +1043,8 @@ export function AgentTools() {
 
               <div className="space-y-4">
                 {/* Context7 */}
-                <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.context7.name')}</span>
@@ -1063,8 +1058,8 @@ export function AgentTools() {
                 </div>
 
                 {/* Built-in memory (not an MCP server: injected into agent prompts) */}
-                <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <Brain className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.memory.name')}</span>
@@ -1078,8 +1073,8 @@ export function AgentTools() {
                 </div>
 
                 {/* Linear */}
-                <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <ClipboardList className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.linear.name')}</span>
@@ -1107,8 +1102,8 @@ export function AgentTools() {
                   </div>
 
                   {/* Electron */}
-                  <div className="flex items-center justify-between py-2 border-b border-border">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-3 py-2 border-b border-border">
+                    <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                       <Monitor className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm font-medium">{t('settings:mcp.servers.electron.name')}</span>
@@ -1122,8 +1117,8 @@ export function AgentTools() {
                   </div>
 
                   {/* Puppeteer */}
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-3 py-2">
+                    <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                       <Globe className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm font-medium">{t('settings:mcp.servers.puppeteer.name')}</span>
@@ -1138,8 +1133,8 @@ export function AgentTools() {
                 </div>
 
                 {/* Auto-Claude (always enabled) */}
-                <div className="flex items-center justify-between py-2 border-t border-border opacity-60">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 py-2 border-t border-border opacity-60">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <ListChecks className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.autoClaude.name')}</span>
@@ -1161,7 +1156,7 @@ export function AgentTools() {
                     <button
                       type="button"
                       onClick={() => { setEditingCustomServer(null); setShowCustomMcpDialog(true); }}
-                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors max-md:min-h-10"
                     >
                       <Plus className="h-3 w-3" />
                       {t('settings:mcp.addCustomServer')}
@@ -1195,9 +1190,9 @@ export function AgentTools() {
                         return (
                           <div
                             key={server.id}
-                            className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg group"
+                            className="flex items-center justify-between gap-3 py-2 px-3 bg-muted/50 rounded-lg group"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                               {/* Status indicator */}
                               <StatusIndicator />
                               {server.type === 'command' ? (
@@ -1286,7 +1281,7 @@ export function AgentTools() {
                 <button
                   type="button"
                   onClick={() => toggleCategory(categoryId)}
-                  className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity max-md:min-h-10"
                 >
                   {isExpanded ? (
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />

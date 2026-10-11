@@ -30,10 +30,10 @@ export function PhaseCard({
 
   return (
     <Card className="p-4">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${
               phase.status === 'completed'
                 ? 'bg-success/10 text-success'
                 : phase.status === 'in_progress'
@@ -47,12 +47,12 @@ export function PhaseCard({
               <span className="text-sm font-semibold">{phase.order}</span>
             )}
           </div>
-          <div>
-            <h3 className="font-semibold">{phase.name}</h3>
-            <p className="text-sm text-muted-foreground">{phase.description}</p>
+          <div className="min-w-0">
+            <h3 className="font-semibold break-words">{phase.name}</h3>
+            <p className="text-sm text-muted-foreground break-words">{phase.description}</p>
           </div>
         </div>
-        <Badge variant={phase.status === 'completed' ? 'default' : 'outline'}>
+        <Badge variant={phase.status === 'completed' ? 'default' : 'outline'} className="shrink-0">
           {phase.status}
         </Badge>
       </div>
@@ -60,9 +60,9 @@ export function PhaseCard({
       {/* Progress */}
       <div className="mb-4">
         <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-muted-foreground">Progress</span>
+          <span className="text-muted-foreground">{t('roadmap.phase.progress')}</span>
           <span>
-            {completedCount}/{features.length} features
+            {t('roadmap.phase.featuresProgress', { done: completedCount, total: features.length })}
           </span>
         </div>
         <Progress value={progress} className="h-2" />
@@ -71,7 +71,7 @@ export function PhaseCard({
       {/* Milestones */}
       {phase.milestones.length > 0 && (
         <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2">Milestones</h4>
+          <h4 className="text-sm font-medium mb-2">{t('roadmap.phase.milestones')}</h4>
           <div className="space-y-2">
             {phase.milestones.map((milestone) => (
               <div key={milestone.id} className="flex items-center gap-2 text-sm">
@@ -95,7 +95,7 @@ export function PhaseCard({
 
       {/* Features */}
       <div>
-        <h4 className="text-sm font-medium mb-2">Features ({features.length})</h4>
+        <h4 className="text-sm font-medium mb-2">{t('roadmap.phase.features', { count: features.length })}</h4>
         <div className="grid gap-2">
           {visibleFeatures.map((feature) => {
             const isDone = feature.status === 'done';
@@ -103,7 +103,7 @@ export function PhaseCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2"
+                className="h-6 px-2 max-md:h-9 max-md:px-3"
                 title={t('roadmap.archiveFeature')}
                 aria-label={t('accessibility.archiveFeatureAriaLabel')}
                 onClick={(e) => {
@@ -115,26 +115,33 @@ export function PhaseCard({
               </Button>
             );
             return (
+            // Phone: title on its own line, priority badge + action on the line below
             <div
               key={feature.id}
-              className="flex items-center justify-between p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors"
+              className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors max-md:flex-wrap max-md:gap-y-1.5"
             >
               <button
                 type="button"
-                className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 max-md:basis-full max-md:min-h-10"
                 onClick={() => onFeatureSelect(feature)}
               >
                 <Badge
                   variant="outline"
-                  className={`text-xs ${ROADMAP_PRIORITY_COLORS[feature.priority]}`}
+                  className={`text-xs max-md:hidden ${ROADMAP_PRIORITY_COLORS[feature.priority]}`}
                 >
                   {feature.priority}
                 </Badge>
-                <span className="text-sm truncate">{feature.title}</span>
+                <span className="text-sm truncate max-md:whitespace-normal max-md:break-words">{feature.title}</span>
                 {feature.competitorInsightIds && feature.competitorInsightIds.length > 0 && (
                   <TrendingUp className="h-3 w-3 text-primary flex-shrink-0" />
                 )}
               </button>
+              <Badge
+                variant="outline"
+                className={`text-xs md:hidden ${ROADMAP_PRIORITY_COLORS[feature.priority]}`}
+              >
+                {feature.priority}
+              </Badge>
               {feature.taskOutcome ? (
                 <span className="flex items-center gap-1 flex-shrink-0">
                   <TaskOutcomeBadge outcome={feature.taskOutcome} size="lg" showLabel={false} />
@@ -149,7 +156,7 @@ export function PhaseCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-2"
+                  className="h-6 px-2 flex-shrink-0 max-md:h-9 max-md:px-3"
                   onClick={(e) => {
                     e.stopPropagation();
                     onGoToTask(feature.linkedSpecId!);
@@ -162,7 +169,7 @@ export function PhaseCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-2 flex-shrink-0"
+                  className="h-6 px-2 flex-shrink-0 max-md:h-9 max-md:px-3"
                   onClick={(e) => {
                     e.stopPropagation();
                     onConvertToSpec(feature);

@@ -51,6 +51,8 @@ interface ChatHistorySidebarProps {
   onArchiveSessions?: (sessionIds: string[]) => Promise<void>;
   showArchived?: boolean;
   onToggleShowArchived?: () => void;
+  /** Overrides the default fixed-width column styling (e.g. full width in the compact overlay) */
+  className?: string;
 }
 
 export function ChatHistorySidebar({
@@ -66,7 +68,8 @@ export function ChatHistorySidebar({
   onDeleteSessions,
   onArchiveSessions,
   showArchived = false,
-  onToggleShowArchived
+  onToggleShowArchived,
+  className
 }: ChatHistorySidebarProps) {
   const { t } = useTranslation('common');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -207,7 +210,7 @@ export function ChatHistorySidebar({
   const sessionsToDelete = sessions.filter((s) => selectedIds.has(s.id));
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-border bg-muted/30">
+    <div className={cn('flex h-full w-64 flex-col border-r border-border bg-muted/30', className)}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-3 py-3">
         <h3 className="text-sm font-medium text-foreground">{t('insights.chatHistory')}</h3>
@@ -218,7 +221,7 @@ export function ChatHistorySidebar({
               <Button
                 variant={isSelectionMode ? 'secondary' : 'ghost'}
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 max-md:h-10 max-md:w-10"
                 onClick={handleToggleSelectionMode}
                 aria-label={isSelectionMode ? t('insights.exitSelectMode') : t('insights.selectMode')}
               >
@@ -237,7 +240,7 @@ export function ChatHistorySidebar({
                 <Button
                   variant={showArchived ? 'secondary' : 'ghost'}
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-7 w-7 max-md:h-10 max-md:w-10"
                   onClick={onToggleShowArchived}
                   aria-label={showArchived ? t('insights.hideArchived') : t('insights.showArchived')}
                 >
@@ -255,7 +258,7 @@ export function ChatHistorySidebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 max-md:h-10 max-md:w-10"
                 onClick={onNewSession}
                 aria-label={t('accessibility.newConversationAriaLabel')}
               >
@@ -301,7 +304,7 @@ export function ChatHistorySidebar({
           <div className="py-2">
             {Object.entries(groupedSessions).map(([dateLabel, dateSessions]) => (
               <div key={dateLabel} className="mb-2">
-                <div className="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {dateLabel}
                 </div>
                 {dateSessions.map((session) => (
@@ -561,7 +564,7 @@ function SessionItem({
               </span>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {t('insights.messageCount', { count: session.messageCount })}
           </p>
         </div>

@@ -113,7 +113,7 @@ export function SortableFeatureCard({
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', ROADMAP_PRIORITY_COLORS[feature.priority])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', ROADMAP_PRIORITY_COLORS[feature.priority])}
               >
                 {ROADMAP_PRIORITY_LABELS[feature.priority]}
               </Badge>
@@ -122,21 +122,21 @@ export function SortableFeatureCard({
                   <TooltipTrigger asChild>
                     <Badge
                       variant="outline"
-                      className="text-[10px] px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
+                      className="text-[11px] max-md:text-xs px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
                     >
                       <Layers className="h-2.5 w-2.5 mr-0.5" />
                       {phaseName.length > 12 ? `${phaseName.slice(0, 12)}...` : phaseName}
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Phase: {phaseName}
+                    {t('roadmap.card.phaseTooltip', { name: phaseName })}
                   </TooltipContent>
                 </Tooltip>
               )}
               {refining && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
+                  className="text-[11px] max-md:text-xs px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
                   title={t('roadmap.refiningTooltip')}
                 >
                   <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />
@@ -148,13 +148,13 @@ export function SortableFeatureCard({
                   <TooltipTrigger asChild>
                     <Badge
                       variant="outline"
-                      className="text-[10px] px-1.5 py-0 text-primary border-primary/50"
+                      className="text-[11px] max-md:text-xs px-1.5 py-0 text-primary border-primary/50"
                     >
                       <TrendingUp className="h-2.5 w-2.5" />
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    This feature addresses competitor pain points
+                    {t('roadmap.card.competitorTooltip')}
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -166,7 +166,7 @@ export function SortableFeatureCard({
             {feature.taskOutcome ? (
               <Badge
                 variant="outline"
-                className={`text-[10px] px-1.5 py-0 ${getTaskOutcomeColorClass(feature.taskOutcome)}`}
+                className={`text-[11px] max-md:text-xs px-1.5 py-0 ${getTaskOutcomeColorClass(feature.taskOutcome)}`}
               >
                 <TaskOutcomeBadge outcome={feature.taskOutcome} size="sm" />
               </Badge>
@@ -227,13 +227,13 @@ export function SortableFeatureCard({
         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
           <Badge
             variant="outline"
-            className={cn('text-[10px] px-1.5 py-0', ROADMAP_COMPLEXITY_COLORS[feature.complexity])}
+            className={cn('text-[11px] max-md:text-xs px-1.5 py-0', ROADMAP_COMPLEXITY_COLORS[feature.complexity])}
           >
             {feature.complexity}
           </Badge>
           <Badge
             variant="outline"
-            className={cn('text-[10px] px-1.5 py-0', ROADMAP_IMPACT_COLORS[feature.impact])}
+            className={cn('text-[11px] max-md:text-xs px-1.5 py-0', ROADMAP_IMPACT_COLORS[feature.impact])}
           >
             {feature.impact}
           </Badge>
@@ -243,14 +243,14 @@ export function SortableFeatureCard({
               <TooltipTrigger asChild>
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 text-muted-foreground"
+                  className="text-[11px] max-md:text-xs px-1.5 py-0 text-muted-foreground"
                 >
                   <ThumbsUp className="h-2.5 w-2.5 mr-0.5" />
                   {feature.votes}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
-                {feature.votes} votes from user feedback
+                {t('roadmap.card.votesTooltip', { count: feature.votes })}
               </TooltipContent>
             </Tooltip>
           )}
@@ -260,13 +260,13 @@ export function SortableFeatureCard({
               <TooltipTrigger asChild>
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 text-orange-500 border-orange-500/30"
+                  className="text-[11px] max-md:text-xs px-1.5 py-0 text-orange-500 border-orange-500/30"
                 >
-                  {feature.source?.provider === 'canny' ? 'Canny' : 'External'}
+                  {feature.source?.provider === 'canny' ? 'Canny' : t('roadmap.card.external')}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
-                Imported from {feature.source?.provider}
+                {t('roadmap.card.importedFrom', { provider: feature.source?.provider })}
               </TooltipContent>
             </Tooltip>
           )}
@@ -286,7 +286,7 @@ interface CompactFeatureCardBodyProps {
   moveTo?: MoveToConfig;
 }
 
-const tinyBadge = 'inline-flex shrink-0 items-center rounded px-1 text-[10px] leading-4';
+const tinyBadge = 'inline-flex shrink-0 items-center rounded px-1 text-xs leading-4';
 
 /** Title (2 lines) + a single non-wrapping metadata row */
 function CompactFeatureCardBody({
@@ -309,7 +309,7 @@ function CompactFeatureCardBody({
         {feature.taskOutcome ? (
           <Badge
             variant="outline"
-            className={cn('shrink-0 px-1 py-0 text-[10px]', getTaskOutcomeColorClass(feature.taskOutcome))}
+            className={cn('shrink-0 px-1 py-0 text-xs', getTaskOutcomeColorClass(feature.taskOutcome))}
           >
             <TaskOutcomeBadge outcome={feature.taskOutcome} size="sm" />
           </Badge>

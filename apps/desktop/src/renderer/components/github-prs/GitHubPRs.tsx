@@ -7,7 +7,10 @@ import { PRList, PRDetail, PRFilterBar } from "./components";
 import { Button } from "../ui/button";
 import { ResizablePanels } from "../ui/resizable-panels";
 import { MobileBackBar } from "../MobileNav";
-import { useIsMobile } from "../../hooks/useIsMobile";
+import { useIsCompact } from "../../hooks/useIsMobile";
+import { Badge } from "../ui/badge";
+import { PageHeader, PAGE_BODY, PAGE_ROOT, PAGE_STICKY } from "../ui/page-header";
+import { cn } from "../../lib/utils";
 
 interface GitHubPRsProps {
   onOpenSettings?: () => void;
@@ -53,8 +56,8 @@ function EmptyState({ message }: { message: string }) {
 
 export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) {
   const { t } = useTranslation("common");
-  // Phone: list and detail are shown one at a time
-  const isMobile = useIsMobile();
+  // Below lg (phones + narrow desktop): list and detail are shown one at a time
+  const isCompact = useIsCompact();
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
 
@@ -204,32 +207,40 @@ export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) 
     return <NotConnectedState error={error} onOpenSettings={onOpenSettings} t={t} />;
   }
 
+  const filterBar = (
+    <PRFilterBar
+      filters={filters}
+      contributors={contributors}
+      hasActiveFilters={hasActiveFilters}
+      onSearchChange={setSearchQuery}
+      onContributorsChange={setContributors}
+      onStatusesChange={setStatuses}
+      onSortChange={setSortBy}
+      onClearFilters={clearFilters}
+    />
+  );
+
+  const prList = (
+    <PRList
+      prs={filteredPRs}
+      selectedPRNumber={selectedPRNumber}
+      isLoading={isLoading}
+      hasMore={hasMore}
+      error={error}
+      getReviewStateForPR={getReviewStateForPR}
+      onSelectPR={(prNumber) => {
+        selectPR(prNumber);
+        setShowMobileDetail(true);
+      }}
+      onLoadMore={loadMore}
+      isLoadingMore={isLoadingMore}
+    />
+  );
+
   const leftPanel = (
     <div className="flex flex-col h-full">
-      <PRFilterBar
-        filters={filters}
-        contributors={contributors}
-        hasActiveFilters={hasActiveFilters}
-        onSearchChange={setSearchQuery}
-        onContributorsChange={setContributors}
-        onStatusesChange={setStatuses}
-        onSortChange={setSortBy}
-        onClearFilters={clearFilters}
-      />
-      <PRList
-        prs={filteredPRs}
-        selectedPRNumber={selectedPRNumber}
-        isLoading={isLoading}
-        hasMore={hasMore}
-        error={error}
-        getReviewStateForPR={getReviewStateForPR}
-        onSelectPR={(prNumber) => {
-          selectPR(prNumber);
-          setShowMobileDetail(true);
-        }}
-        onLoadMore={loadMore}
-        isLoadingMore={isLoadingMore}
-      />
+      {filterBar}
+      {prList}
     </div>
   );
 
@@ -262,55 +273,75 @@ export function GitHubPRs({ onOpenSettings, isActive = false }: GitHubPRsProps) 
       <EmptyState message={t("prReview.selectPRToView")} />
     );
 
-  return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border max-md:gap-2 max-md:px-3">
-        <div className="flex items-center gap-3 max-md:min-w-0 max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-1">
-          <h2 className="text-sm font-medium flex items-center gap-2">
-            <GitPullRequest className="h-4 w-4" />
-            {t("prReview.pullRequests")}
-          </h2>
-          {repoFullName && (
-            <a
-              href={`https://github.com/${repoFullName}/pulls`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-            >
-              {repoFullName}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {prs.length} {t("prReview.open")}
-          </span>
-        </div>
-        <Button variant="ghost" size="icon" onClick={refresh} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-        </Button>
-      </div>
-
-      {/* Content - Resizable split panels (phone: list → detail) */}
-      {isMobile ? (
-        showMobileDetail ? (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <MobileBackBar onBack={() => setShowMobileDetail(false)} />
-            <div className="min-h-0 flex-1">{rightPanel}</div>
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1">{leftPanel}</div>
+  const header = (
+    <PageHeader
+      icon={GitPullRequest}
+      title={t("prReview.pullRequests")}
+      titleAddon={
+        <Badge variant="outline" className="shrink-0 text-xs">
+          {prs.length} {t("prReview.open")}
+        </Badge>
+      }
+      subtitle={
+        repoFullName && (
+          <a
+            href={`https://github.com/${repoFullName}/pulls`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex max-w-full items-center gap-1 hover:text-foreground"
+          >
+            <span className="truncate">{repoFullName}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
         )
-      ) : (
-        <ResizablePanels
-          defaultLeftWidth={50}
-          minLeftWidth={30}
-          maxLeftWidth={70}
-          storageKey="github-prs-panel-width"
-          leftPanel={leftPanel}
-          rightPanel={rightPanel}
-        />
-      )}
+      }
+      actions={[
+        {
+          id: "refresh",
+          label: t("buttons.refresh"),
+          icon: RefreshCw,
+          iconOnly: true,
+          busy: isLoading,
+          disabled: isLoading,
+          onClick: refresh,
+        },
+      ]}
+    />
+  );
+
+  // Below lg: list (with header + pinned filters) or detail (with back bar), one at a time
+  if (isCompact) {
+    return (
+      <div className={PAGE_ROOT}>
+        {showMobileDetail ? (
+          <>
+            <div className={PAGE_STICKY}>
+              <MobileBackBar onBack={() => setShowMobileDetail(false)} />
+            </div>
+            <div className={cn(PAGE_BODY, "flex flex-col")}>{rightPanel}</div>
+          </>
+        ) : (
+          <>
+            {header}
+            <div className={PAGE_STICKY}>{filterBar}</div>
+            <div className={cn(PAGE_BODY, "flex flex-col")}>{prList}</div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={PAGE_ROOT}>
+      {header}
+      <ResizablePanels
+        defaultLeftWidth={50}
+        minLeftWidth={30}
+        maxLeftWidth={70}
+        storageKey="github-prs-panel-width"
+        leftPanel={leftPanel}
+        rightPanel={rightPanel}
+      />
     </div>
   );
 }
