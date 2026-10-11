@@ -88,7 +88,8 @@ vi.mock('node:fs', () => ({
 // Import after mocking
 // =============================================================================
 
-import { runIdeation, IDEATION_TYPES, IDEATION_TYPE_LABELS } from '../ideation';
+import { runIdeation, buildFocusSection, IDEATION_TYPES, IDEATION_TYPE_LABELS, IDEATION_TYPE_PROMPTS } from '../ideation';
+import { ALL_IDEATION_TYPES } from '../../../../shared/constants/ideation';
 import type { IdeationConfig, IdeationStreamEvent } from '../ideation';
 
 // =============================================================================
@@ -123,6 +124,7 @@ describe('runIdeation', () => {
 
   it('exports all expected IDEATION_TYPES', () => {
     expect(IDEATION_TYPES).toEqual([
+      'features',
       'code_improvements',
       'ui_ux_improvements',
       'documentation_gaps',
@@ -427,6 +429,83 @@ describe('runIdeation', () => {
       expect(prompt).toContain('"dir-a" #1 Coach-first');
       expect(prompt).toContain('"dir-b" #2 Cheapest (AVOID)');
       expect(prompt).toContain('"direction_ids"');
+    });
+  });
+
+  describe('features type', () => {
+    it('loads ideation_features.md for the features type', async () => {
+      await runIdeation(baseConfig({ ideationType: 'features' }));
+
+      expect(mockReadFileSync).toHaveBeenCalledWith('/prompts/ideation_features.md', 'utf-8');
+      expect(spawnCalls[0].prompt).toContain('generate up to 5 features ideas');
+    });
+
+    it('maps every ideation type (UI list included) to a prompt file that exists', async () => {
+      const realFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+      const realPath = await vi.importActual<typeof import('node:path')>('node:path');
+      const promptsDir = realPath.resolve(__dirname, '../../../../../prompts');
+      expect([...IDEATION_TYPES].sort()).toEqual([...ALL_IDEATION_TYPES].sort());
+      for (const type of IDEATION_TYPES) {
+        expect(realFs.existsSync(realPath.join(promptsDir, IDEATION_TYPE_PROMPTS[type]))).toBe(true);
+      }
+    });
+
+    it('features prompt writes features_ideas.json with the FeatureIdea fields', async () => {
+      const realFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+      const realPath = await vi.importActual<typeof import('node:path')>('node:path');
+      const text = realFs.readFileSync(realPath.resolve(__dirname, '../../../../../prompts/ideation_features.md'), 'utf-8');
+      expect(text).toContain('{output_dir}/features_ideas.json');
+      for (const field of ['"user_value"', '"target_users"', '"complexity"', '"impact"', '"direction_ids"']) {
+        expect(text).toContain(field);
+      }
+    });
+  });
+
+  describe('focus from the user', () => {
+    const HEADING = '## FOCUS FROM THE USER (steer ideas toward this; core values still win on conflict)';
+
+    it.each(IDEATION_TYPES)('adds the focus section for %s', async (ideationType) => {
+      await runIdeation(baseConfig({ ideationType, focus: '  Keep 4-year-olds playing longer  ' }));
+
+      const prompt = spawnCalls[0].prompt;
+      expect(prompt).toContain(`${HEADING}\nKeep 4-year-olds playing longer\n`);
+      expect(prompt.split(HEADING)).toHaveLength(2);
+    });
+
+    it('places the focus after core values and strategy guidance, before direction tags', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockImplementation((path: string) => {
+        const p = String(path);
+        if (p.endsWith('core-values.md')) return '- Calm over flashy.';
+        if (p.endsWith('strategy.json')) {
+          return JSON.stringify({
+            directions: [{ id: 'dir-a', title: 'Coach-first', avoid: false }],
+            ranking_saved_at: '2026-10-01T00:00:00.000Z',
+          });
+        }
+        return '# Ideation prompt';
+      });
+
+      await runIdeation(baseConfig({ ideationType: 'features', focus: 'offline play' }));
+
+      const prompt = spawnCalls[0].prompt;
+      const focusAt = prompt.indexOf(HEADING);
+      expect(prompt.indexOf('CORE VALUES')).toBeLessThan(focusAt);
+      expect(prompt.indexOf('STRATEGIC DIRECTION')).toBeLessThan(focusAt);
+      expect(focusAt).toBeLessThan(prompt.indexOf('DIRECTION TAGS'));
+    });
+
+    it.each([undefined, '', '   \n '])('adds no focus section for %j', async (focus) => {
+      await runIdeation(baseConfig({ focus }));
+
+      expect(spawnCalls[0].prompt).not.toContain('FOCUS FROM THE USER');
+    });
+
+    it('caps the focus at 1000 characters', () => {
+      const section = buildFocusSection('a'.repeat(1500));
+      expect(section).toContain('a'.repeat(1000));
+      expect(section).not.toContain('a'.repeat(1001));
+      expect(buildFocusSection(42)).toBe('');
     });
   });
 });

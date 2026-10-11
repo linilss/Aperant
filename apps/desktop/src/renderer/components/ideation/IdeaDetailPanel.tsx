@@ -11,6 +11,7 @@ import type { Idea } from '../../../shared/types';
 import { TypeIcon } from './TypeIcon';
 import { DirectionTagChips } from '../competitors/DirectionTagChips';
 import {
+  isFeatureIdea,
   isCodeImprovementIdea,
   isUIUXIdea,
   isDocumentationGapIdea,
@@ -18,6 +19,7 @@ import {
   isPerformanceOptimizationIdea,
   isCodeQualityIdea
 } from './type-guards';
+import { FeatureDetails } from './details/FeatureDetails';
 import { CodeImprovementDetails } from './details/CodeImprovementDetails';
 import { UIUXDetails } from './details/UIUXDetails';
 import { DocumentationGapDetails } from './details/DocumentationGapDetails';
@@ -102,6 +104,7 @@ export function IdeaDetailPanel({
         </div>
 
         {/* Type-specific content */}
+        {isFeatureIdea(idea) && <FeatureDetails idea={idea} />}
         {isCodeImprovementIdea(idea) && <CodeImprovementDetails idea={idea} />}
         {isUIUXIdea(idea) && <UIUXDetails idea={idea} />}
         {isDocumentationGapIdea(idea) && <DocumentationGapDetails idea={idea} />}

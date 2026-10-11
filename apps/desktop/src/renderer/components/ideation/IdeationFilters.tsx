@@ -1,5 +1,7 @@
-import { Zap, Palette, BookOpen, Shield, Gauge } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
+import { TypeIcon } from './TypeIcon';
+import { ALL_IDEATION_TYPES } from './constants';
 
 interface IdeationFiltersProps {
   activeTab: string;
@@ -8,30 +10,19 @@ interface IdeationFiltersProps {
 }
 
 export function IdeationFilters({ activeTab, onTabChange, children }: IdeationFiltersProps) {
+  const { t } = useTranslation('common');
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="h-full flex flex-col">
       <TabsList className="shrink-0 mx-4 mt-4 flex-wrap h-auto gap-1">
-        <TabsTrigger value="all">All</TabsTrigger>
-        <TabsTrigger value="code_improvements">
-          <Zap className="h-3 w-3 mr-1" />
-          Code
-        </TabsTrigger>
-        <TabsTrigger value="ui_ux_improvements">
-          <Palette className="h-3 w-3 mr-1" />
-          UI/UX
-        </TabsTrigger>
-        <TabsTrigger value="documentation_gaps">
-          <BookOpen className="h-3 w-3 mr-1" />
-          Docs
-        </TabsTrigger>
-        <TabsTrigger value="security_hardening">
-          <Shield className="h-3 w-3 mr-1" />
-          Security
-        </TabsTrigger>
-        <TabsTrigger value="performance_optimizations">
-          <Gauge className="h-3 w-3 mr-1" />
-          Performance
-        </TabsTrigger>
+        <TabsTrigger value="all">{t('ideation.tabs.all')}</TabsTrigger>
+        {ALL_IDEATION_TYPES.map((type) => (
+          <TabsTrigger key={type} value={type} className="[&_svg]:h-3 [&_svg]:w-3">
+            <span className="mr-1 inline-flex">
+              <TypeIcon type={type} />
+            </span>
+            {t(`ideation.tabs.${type}`)}
+          </TabsTrigger>
+        ))}
       </TabsList>
       {children}
     </Tabs>

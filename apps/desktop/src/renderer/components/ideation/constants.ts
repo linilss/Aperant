@@ -1,12 +1,5 @@
+import { ALL_IDEATION_TYPES as SHARED_IDEATION_TYPES } from '../../../shared/constants';
 import type { IdeationType } from '../../../shared/types';
 
-// All ideation types for iteration
-// Note: high_value_features removed - strategic features belong to Roadmap
-export const ALL_IDEATION_TYPES: IdeationType[] = [
-  'code_improvements',
-  'ui_ux_improvements',
-  'documentation_gaps',
-  'security_hardening',
-  'performance_optimizations',
-  'code_quality'
-];
+// All ideation types for iteration, in display order ('features' first)
+export const ALL_IDEATION_TYPES: IdeationType[] = [...SHARED_IDEATION_TYPES];

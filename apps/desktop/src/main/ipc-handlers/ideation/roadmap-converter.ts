@@ -42,6 +42,9 @@ export function suggestRoadmapPriority(idea: RawIdea): RoadmapFeaturePriority {
 }
 
 function complexityFromEffort(idea: RawIdea): Level {
+  // Feature ideas already use the roadmap's low/medium/high scale
+  const complexity = str(idea.complexity);
+  if (complexity === 'low' || complexity === 'medium' || complexity === 'high') return complexity;
   const effort = str(idea.estimated_effort ?? idea.estimatedEffort);
   if (effort === 'trivial' || effort === 'small') return 'low';
   if (effort === 'large' || effort === 'complex') return 'high';
@@ -53,6 +56,14 @@ function impactFromIdea(idea: RawIdea): Level {
   if (level === 'critical' || level === 'high' || level === 'major') return 'high';
   if (level === 'low' || level === 'minor' || level === 'suggestion') return 'low';
   return 'medium';
+}
+
+/** Feature ideas: one story from target users + user value; [] otherwise */
+function userStoriesFromIdea(idea: RawIdea): string[] {
+  const value = (idea.user_value ?? idea.userValue ?? '').trim();
+  if (!value) return [];
+  const users = (idea.target_users ?? idea.targetUsers ?? '').trim();
+  return [users ? `${users}: ${value}` : value];
 }
 
 /** Raw (snake_case) roadmap feature built from an idea */
@@ -72,7 +83,7 @@ export function buildFeatureFromIdea(
     dependencies: [],
     status: 'under_review',
     acceptance_criteria: [],
-    user_stories: [],
+    user_stories: userStoriesFromIdea(idea),
     source: { provider: 'internal', imported_at: options.now.toISOString() },
     source_idea_id: idea.id,
   };

@@ -11,7 +11,7 @@ import { detectRateLimit, createSDKRateLimitInfo } from '../rate-limit-detector'
 import { debugLog, debugError } from '../../shared/utils/debug-logger';
 import { transformIdeaFromSnakeCase, transformSessionFromSnakeCase } from '../ipc-handlers/ideation/transformers';
 import { transformRoadmapFromSnakeCase } from '../ipc-handlers/roadmap/transformers';
-import type { RawIdea } from '../ipc-handlers/ideation/types';
+import type { RawIdea, RawIdeationConfig } from '../ipc-handlers/ideation/types';
 import { debounce } from '../utils/debounce';
 import { writeFileWithRetry } from '../utils/atomic-file';
 import { runIdeation, IDEATION_TYPES } from '../ai/runners/ideation';
@@ -20,7 +20,7 @@ import { runRoadmapGeneration } from '../ai/runners/roadmap';
 import type { RoadmapStreamEvent } from '../ai/runners/roadmap';
 import type { ModelShorthand, ThinkingLevel } from '../ai/config/types';
 import { resolvePromptsDir } from '../ai/prompts/prompt-loader';
-import { ideationTypeFileName, mergeIdeationIdeas } from './ideation-consolidation';
+import { buildPersistedIdeationConfig, ideationTypeFileName, mergeIdeationIdeas } from './ideation-consolidation';
 import { ideationContextOptions } from '../ai/runners/ideation-context';
 import { loadKnownDirectionIds, sanitizeFeatureDirectionIds } from '../ai/runners/competitors/guidance';
 import { projectStore } from '../project-store';
@@ -271,6 +271,7 @@ export class AgentQueueManager {
             thinkingLevel: (config.thinkingLevel || 'medium') as ThinkingLevel,
             maxIdeasPerType: config.maxIdeasPerType || 5,
             ...contextOptions,
+            focus: config.focus,
             abortSignal: abortController.signal,
           },
           (event: IdeationStreamEvent) => {
@@ -351,7 +352,7 @@ export class AgentQueueManager {
       const ideationFilePath = path.join(outputDir, 'ideation.json');
 
       // Read whatever is already there so types that didn't run are preserved
-      let existingRaw: { id?: string; ideas?: RawIdea[]; generated_at?: string } = {};
+      let existingRaw: { id?: string; ideas?: RawIdea[]; generated_at?: string; config?: RawIdeationConfig } = {};
       if (existsSync(ideationFilePath)) {
         try {
           existingRaw = JSON.parse(await fsPromises.readFile(ideationFilePath, 'utf-8'));
@@ -369,6 +370,8 @@ export class AgentQueueManager {
           ...existingRaw,
           id: existingRaw.id || `ideation-${Date.now()}`,
           ideas: mergedIdeas,
+          // Remember types, context toggles and focus for the next visit
+          config: buildPersistedIdeationConfig(existingRaw.config, config),
           generated_at: existingRaw.generated_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };

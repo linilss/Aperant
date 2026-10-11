@@ -523,6 +523,44 @@
     "directions": {
       "filterLabel": "Filter ideas by strategic direction",
       "untaggedHint": "Regenerate ideas to tag them with your strategic directions"
+    },
+    "empty": {
+      "title": "No Ideas Yet",
+      "description": "Generate AI-powered feature ideas based on your project's context, existing patterns, and target audience.",
+      "enabledTypes": "Enabled Ideation Types",
+      "openConfig": "Ideation settings",
+      "generate": "Generate Ideas",
+      "noProvider": "No AI provider configured. Add a provider account in Settings to generate ideas."
+    },
+    "focus": {
+      "label": "Focus",
+      "optional": "(optional)",
+      "placeholder": "e.g. things that keep 4-year-olds playing longer without ads",
+      "hint": "Steers every idea type toward this. Core values still win on conflict."
+    },
+    "tabs": {
+      "all": "All",
+      "features": "Features",
+      "code_improvements": "Code",
+      "ui_ux_improvements": "UI/UX",
+      "documentation_gaps": "Docs",
+      "security_hardening": "Security",
+      "performance_optimizations": "Performance",
+      "code_quality": "Quality"
+    },
+    "feature": {
+      "userValue": "User Value",
+      "targetUsers": "Target Users",
+      "impactBadge": {
+        "low": "low impact",
+        "medium": "medium impact",
+        "high": "high impact"
+      },
+      "complexityBadge": {
+        "low": "low complexity",
+        "medium": "medium complexity",
+        "high": "high complexity"
+      }
     }
   },
   "issues": {

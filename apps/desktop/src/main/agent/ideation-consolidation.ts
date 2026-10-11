@@ -6,7 +6,10 @@
  * ideation.json — the single file the Ideation view reads.
  */
 
-import type { RawIdea } from '../ipc-handlers/ideation/types';
+import type { RawIdea, RawIdeationConfig } from '../ipc-handlers/ideation/types';
+import type { IdeationConfig } from '../../shared/types';
+import { ALL_IDEATION_TYPES } from '../../shared/constants/ideation';
+import { normalizeIdeationFocus, resolveEnabledIdeationTypes } from '../../shared/utils/ideation-config';
 
 /**
  * Output file each ideation prompt writes its ideas to.
@@ -19,6 +22,7 @@ import type { RawIdea } from '../ipc-handlers/ideation/types';
  * apps/desktop/prompts/ideation_*.md.
  */
 export const IDEATION_TYPE_FILES: Record<string, string> = {
+  features: 'features_ideas.json',
   code_improvements: 'code_improvements_ideas.json',
   ui_ux_improvements: 'ui_ux_ideas.json',
   documentation_gaps: 'documentation_gaps_ideas.json',
@@ -63,4 +67,33 @@ export function mergeIdeationIdeas(
   }
 
   return merged;
+}
+
+/**
+ * Config written to ideation.json after a run, so the next visit restores the
+ * user's types, context toggles and focus. An append run only adds its types to
+ * the saved selection. `known_types` records every type that existed, so types
+ * added in later versions count as enabled (see resolveEnabledIdeationTypes).
+ */
+export function buildPersistedIdeationConfig(
+  existing: RawIdeationConfig | undefined,
+  config: IdeationConfig,
+): RawIdeationConfig {
+  const enabled = config.append
+    ? [
+        ...new Set([
+          ...resolveEnabledIdeationTypes(existing?.enabled_types ?? existing?.enabledTypes, existing?.known_types),
+          ...config.enabledTypes,
+        ]),
+      ]
+    : [...config.enabledTypes];
+  return {
+    ...existing,
+    enabled_types: ALL_IDEATION_TYPES.filter((type) => enabled.includes(type)),
+    known_types: [...ALL_IDEATION_TYPES],
+    include_roadmap_context: config.includeRoadmapContext,
+    include_kanban_context: config.includeKanbanContext,
+    max_ideas_per_type: config.maxIdeasPerType,
+    focus: normalizeIdeationFocus(config.focus),
+  };
 }

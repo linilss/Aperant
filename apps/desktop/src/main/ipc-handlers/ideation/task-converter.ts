@@ -32,15 +32,27 @@ function slugifyTitle(title: string): string {
     .substring(0, 50);
 }
 
+/** Feature idea complexity (low/medium/high) → task effort scale */
+const FEATURE_COMPLEXITY_TO_TASK: Record<string, TaskComplexity> = {
+  low: 'small',
+  medium: 'medium',
+  high: 'large'
+};
+
 /**
  * Build task description from idea data
  */
-function buildTaskDescription(idea: RawIdea): string {
+export function buildTaskDescription(idea: RawIdea): string {
   let description = `# ${idea.title}\n\n`;
   description += `${idea.description}\n\n`;
   description += `## Rationale\n${idea.rationale}\n\n`;
 
-  if (idea.type === 'code_improvements') {
+  if (idea.type === 'features') {
+    const userValue = idea.user_value || idea.userValue;
+    const targetUsers = idea.target_users || idea.targetUsers;
+    if (userValue) description += `## User Value\n${userValue}\n\n`;
+    if (targetUsers) description += `## Target Users\n${targetUsers}\n\n`;
+  } else if (idea.type === 'code_improvements') {
     const buildsUpon = idea.builds_upon || [];
     if (Array.isArray(buildsUpon) && buildsUpon.length > 0) {
       description += `## Builds Upon\n${buildsUpon.map((b: string) => `- ${b}`).join('\n')}\n\n`;
@@ -72,7 +84,7 @@ function buildTaskDescription(idea: RawIdea): string {
 /**
  * Build task metadata from idea
  */
-function buildTaskMetadata(idea: RawIdea): TaskMetadata {
+export function buildTaskMetadata(idea: RawIdea): TaskMetadata {
   const metadata: TaskMetadata = {
     sourceType: 'ideation',
     ideationType: idea.type,
@@ -82,6 +94,7 @@ function buildTaskMetadata(idea: RawIdea): TaskMetadata {
 
   // Map idea type to task category
   const ideaTypeToCategory: Record<string, TaskCategory> = {
+    'features': 'feature',
     'code_improvements': 'feature',
     'ui_ux_improvements': 'ui_ux',
     'documentation_gaps': 'documentation',
@@ -92,7 +105,22 @@ function buildTaskMetadata(idea: RawIdea): TaskMetadata {
   metadata.category = ideaTypeToCategory[idea.type] || 'feature';
 
   // Extract type-specific metadata with proper type casting
-  if (idea.type === 'code_improvements') {
+  if (idea.type === 'features') {
+    const complexity = FEATURE_COMPLEXITY_TO_TASK[String(idea.complexity)];
+    if (complexity) {
+      metadata.complexity = complexity;
+      metadata.estimatedEffort = complexity;
+    }
+    const impact = String(idea.impact);
+    if (impact === 'low' || impact === 'medium' || impact === 'high') {
+      metadata.impact = impact;
+      metadata.priority = impact;
+    }
+    const targetUsers = idea.target_users || idea.targetUsers;
+    if (targetUsers) metadata.targetAudience = targetUsers;
+    const userValue = idea.user_value || idea.userValue;
+    if (userValue) metadata.problemSolved = userValue;
+  } else if (idea.type === 'code_improvements') {
     const effort = idea.estimated_effort as TaskComplexity | undefined;
     metadata.estimatedEffort = effort;
     metadata.complexity = effort;

@@ -11,6 +11,7 @@ import type { TaskMetadata, ImageAttachment } from './task';
 // Note: high_value_features removed - strategic features belong to Roadmap
 // low_hanging_fruit renamed to code_improvements to cover all code-revealed opportunities
 export type IdeationType =
+  | 'features'
   | 'code_improvements'
   | 'ui_ux_improvements'
   | 'documentation_gaps'
@@ -28,6 +29,8 @@ export interface IdeationConfig {
   append?: boolean; // If true, append to existing ideas instead of replacing
   model?: string;          // Model shorthand (opus, sonnet, haiku)
   thinkingLevel?: string;  // Thinking level (low, medium, high)
+  /** Optional free-text steer for the idea search (capped, see MAX_IDEATION_FOCUS_LENGTH) */
+  focus?: string;
 }
 
 export interface IdeaBase {
@@ -45,6 +48,15 @@ export interface IdeaBase {
   directionIds?: string[];
   /** Roadmap feature created from this idea ("Add to roadmap") */
   roadmapFeatureId?: string;
+}
+
+/** New product capability for users (not a code chore) */
+export interface FeatureIdea extends IdeaBase {
+  type: 'features';
+  userValue: string;  // What the user gets out of it
+  targetUsers: string;  // Who it is for
+  complexity: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
 }
 
 export interface CodeImprovementIdea extends IdeaBase {
@@ -122,6 +134,7 @@ export interface CodeQualityIdea extends IdeaBase {
 }
 
 export type Idea =
+  | FeatureIdea
   | CodeImprovementIdea
   | UIUXImprovementIdea
   | DocumentationGapIdea

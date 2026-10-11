@@ -28,6 +28,7 @@ import type {
 import { TypeIcon } from './TypeIcon';
 import { DirectionTagChips } from '../competitors/DirectionTagChips';
 import {
+  isFeatureIdea,
   isCodeImprovementIdea,
   isUIUXIdea,
   isDocumentationGapIdea,
@@ -104,6 +105,11 @@ export function IdeaCard({
             {idea.status !== 'draft' && (
               <Badge variant="outline" className={IDEATION_STATUS_COLORS[idea.status]}>
                 {idea.status}
+              </Badge>
+            )}
+            {isFeatureIdea(idea) && typeof idea.impact === 'string' && (
+              <Badge variant="outline" className={IDEATION_IMPACT_COLORS[idea.impact]}>
+                {t(`ideation.feature.impactBadge.${idea.impact}`)}
               </Badge>
             )}
             {isCodeImprovementIdea(idea) && typeof (idea as CodeImprovementIdea).estimatedEffort === 'string' && (

@@ -18,6 +18,7 @@ import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getClaudeProfileManager } from '../../claude-profile-manager';
 import { loadCoreValuesSection } from '../../core-values';
+import { normalizeIdeationFocus } from '../../../shared/utils/ideation-config';
 import { loadIdeaDirectionTaggingSection, loadStrategyGuidance } from './competitors/guidance';
 import {
   buildKanbanContextSection,
@@ -32,6 +33,7 @@ import {
 
 /** Supported ideation types */
 export const IDEATION_TYPES = [
+  'features',
   'code_improvements',
   'ui_ux_improvements',
   'documentation_gaps',
@@ -44,6 +46,7 @@ export type IdeationType = (typeof IDEATION_TYPES)[number];
 
 /** Human-readable labels for ideation types */
 export const IDEATION_TYPE_LABELS: Record<IdeationType, string> = {
+  features: 'Features',
   code_improvements: 'Code Improvements',
   ui_ux_improvements: 'UI/UX Improvements',
   documentation_gaps: 'Documentation Gaps',
@@ -53,7 +56,8 @@ export const IDEATION_TYPE_LABELS: Record<IdeationType, string> = {
 };
 
 /** Prompt file mapping per ideation type */
-const IDEATION_TYPE_PROMPTS: Record<IdeationType, string> = {
+export const IDEATION_TYPE_PROMPTS: Record<IdeationType, string> = {
+  features: 'ideation_features.md',
   code_improvements: 'ideation_code_improvements.md',
   ui_ux_improvements: 'ideation_ui_ux.md',
   documentation_gaps: 'ideation_documentation.md',
@@ -88,6 +92,8 @@ export interface IdeationConfig {
   includeKanbanContext?: boolean;
   /** Existing tasks for the kanban context (supplied by the caller) */
   existingTasks?: IdeationContextTask[];
+  /** Free-text steer from the user (trimmed and capped; '' / undefined = none) */
+  focus?: string;
   /** Abort signal for cancellation */
   abortSignal?: AbortSignal;
 }
@@ -114,6 +120,13 @@ export type IdeationStreamEvent =
 // =============================================================================
 // Ideation Runner
 // =============================================================================
+
+/** Prompt section with the user's focus; '' when the focus is empty */
+export function buildFocusSection(focus: unknown): string {
+  const text = normalizeIdeationFocus(focus);
+  if (!text) return '';
+  return `\n## FOCUS FROM THE USER (steer ideas toward this; core values still win on conflict)\n${text}\n`;
+}
 
 /**
  * Run an ideation agent for a specific ideation type.
@@ -170,6 +183,7 @@ export async function runIdeation(
   if (strategy) {
     prompt += `${strategy}Favor ideas that serve the pursued directions; skip ideas that mainly serve avoided ones.\n`;
   }
+  prompt += buildFocusSection(config.focus);
   prompt += loadIdeaDirectionTaggingSection(projectDir);
   // Existing work, so ideas don't duplicate what is already planned
   if (config.includeRoadmapContext) {

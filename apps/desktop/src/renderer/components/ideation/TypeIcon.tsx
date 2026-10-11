@@ -1,4 +1,5 @@
 import {
+  Rocket,
   Zap,
   Palette,
   Lightbulb,
@@ -15,6 +16,8 @@ interface TypeIconProps {
 
 export function TypeIcon({ type }: TypeIconProps) {
   switch (type) {
+    case 'features':
+      return <Rocket className="h-4 w-4" />;
     case 'code_improvements':
       return <Zap className="h-4 w-4" />;
     case 'ui_ux_improvements':

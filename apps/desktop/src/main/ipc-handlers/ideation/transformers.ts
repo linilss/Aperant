@@ -5,6 +5,7 @@
 
 import type {
   Idea,
+  FeatureIdea,
   CodeImprovementIdea,
   UIUXImprovementIdea,
   DocumentationGapIdea,
@@ -12,43 +13,29 @@ import type {
   PerformanceOptimizationIdea,
   CodeQualityIdea,
   IdeationStatus,
-  IdeationType,
+  IdeationConfig,
   IdeationSession
 } from '../../../shared/types';
 import { debugLog } from '../../../shared/utils/debug-logger';
-import type { RawIdea } from './types';
+import type { RawIdea, RawIdeationConfig } from './types';
+import { isIdeationType, normalizeIdeationFocus, resolveEnabledIdeationTypes } from '../../../shared/utils/ideation-config';
 import { directionIdsFromRaw } from '../roadmap/feature-persistence';
 
-const VALID_IDEATION_TYPES: ReadonlySet<IdeationType> = new Set([
-  'code_improvements',
-  'ui_ux_improvements',
-  'documentation_gaps',
-  'security_hardening',
-  'performance_optimizations',
-  'code_quality'
-] as const);
-
-function isValidIdeationType(value: unknown): value is IdeationType {
-  return typeof value === 'string' && VALID_IDEATION_TYPES.has(value as IdeationType);
-}
-
-function validateEnabledTypes(rawTypes: unknown): IdeationType[] {
-  if (!Array.isArray(rawTypes)) {
-    return [];
+/** Saved ideation.json config → IdeationConfig (types new since it was saved count as enabled) */
+export function transformConfigFromSnakeCase(raw: RawIdeationConfig | undefined): IdeationConfig {
+  const savedTypes = raw?.enabled_types ?? raw?.enabledTypes;
+  const enabledTypes = resolveEnabledIdeationTypes(savedTypes, raw?.known_types);
+  if (Array.isArray(savedTypes) && savedTypes.some((t) => !isIdeationType(t))) {
+    debugLog('[Transformers] Dropped invalid IdeationType values:', savedTypes.filter((t) => !isIdeationType(t)));
   }
-  const validTypes: IdeationType[] = [];
-  const invalidTypes: unknown[] = [];
-  for (const entry of rawTypes) {
-    if (isValidIdeationType(entry)) {
-      validTypes.push(entry);
-    } else {
-      invalidTypes.push(entry);
-    }
-  }
-  if (invalidTypes.length > 0) {
-    debugLog('[Transformers] Dropped invalid IdeationType values:', invalidTypes);
-  }
-  return validTypes;
+  const focus = normalizeIdeationFocus(raw?.focus);
+  return {
+    enabledTypes,
+    includeRoadmapContext: raw?.include_roadmap_context ?? raw?.includeRoadmapContext ?? true,
+    includeKanbanContext: raw?.include_kanban_context ?? raw?.includeKanbanContext ?? true,
+    maxIdeasPerType: raw?.max_ideas_per_type || raw?.maxIdeasPerType || 5,
+    ...(focus ? { focus } : {}),
+  };
 }
 
 /**
@@ -69,11 +56,31 @@ function withFunnelLinks(result: Idea, idea: RawIdea): Idea {
   return result;
 }
 
+/** low | medium | high, anything else → medium */
+function toLevel(value: unknown): 'low' | 'medium' | 'high' {
+  const level = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return level === 'low' || level === 'high' ? level : 'medium';
+}
+
 function transformIdeaFields(idea: RawIdea): Idea {
   const status = (idea.status || 'draft') as IdeationStatus;
   const createdAt = idea.created_at ? new Date(idea.created_at) : new Date();
 
-  if (idea.type === 'code_improvements') {
+  if (idea.type === 'features') {
+    return {
+      id: idea.id,
+      type: 'features',
+      title: idea.title,
+      description: idea.description,
+      rationale: idea.rationale,
+      status,
+      createdAt,
+      userValue: idea.user_value || idea.userValue || '',
+      targetUsers: idea.target_users || idea.targetUsers || '',
+      complexity: toLevel(idea.complexity),
+      impact: toLevel(idea.impact)
+    } as FeatureIdea;
+  } else if (idea.type === 'code_improvements') {
     return {
       id: idea.id,
       type: 'code_improvements',
@@ -200,16 +207,7 @@ function transformIdeaFields(idea: RawIdea): Idea {
 interface RawIdeationSession {
   id?: string;
   project_id?: string;
-  config?: {
-    enabled_types?: string[];
-    enabledTypes?: string[];
-    include_roadmap_context?: boolean;
-    includeRoadmapContext?: boolean;
-    include_kanban_context?: boolean;
-    includeKanbanContext?: boolean;
-    max_ideas_per_type?: number;
-    maxIdeasPerType?: number;
-  };
+  config?: RawIdeationConfig;
   ideas?: RawIdea[];
   project_context?: {
     existing_features?: string[];
@@ -231,18 +229,10 @@ export function transformSessionFromSnakeCase(
   rawSession: RawIdeationSession,
   projectId: string
 ): IdeationSession {
-  const rawEnabledTypes = rawSession.config?.enabled_types || rawSession.config?.enabledTypes || [];
-  const enabledTypes = validateEnabledTypes(rawEnabledTypes);
-
   return {
     id: rawSession.id || `ideation-${Date.now()}`,
     projectId,
-    config: {
-      enabledTypes,
-      includeRoadmapContext: rawSession.config?.include_roadmap_context ?? rawSession.config?.includeRoadmapContext ?? true,
-      includeKanbanContext: rawSession.config?.include_kanban_context ?? rawSession.config?.includeKanbanContext ?? true,
-      maxIdeasPerType: rawSession.config?.max_ideas_per_type || rawSession.config?.maxIdeasPerType || 5
-    },
+    config: transformConfigFromSnakeCase(rawSession.config),
     ideas: (rawSession.ideas || []).map(idea => transformIdeaFromSnakeCase(idea)),
     projectContext: {
       existingFeatures: rawSession.project_context?.existing_features || rawSession.projectContext?.existingFeatures || [],

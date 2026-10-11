@@ -123,10 +123,11 @@ export function Ideation({ projectId, onGoToTask, onGoToCompetitors, onGoToMosco
   if (!session) {
     return (
       <>
-        <div className="relative h-full">
-          <div className="absolute left-0 right-0 top-0 z-10 flex justify-center p-3">
+        <div className="flex h-full flex-col">
+          <div className="flex shrink-0 justify-center p-3 pb-0 empty:hidden">
             <StrategyGuidanceChip projectId={projectId} onClick={onGoToCompetitors} />
           </div>
+          <div className="min-h-0 flex-1">
           <IdeationEmptyState
             config={config}
             hasToken={hasToken}
@@ -134,7 +135,9 @@ export function Ideation({ projectId, onGoToTask, onGoToCompetitors, onGoToMosco
             onGenerate={handleGenerate}
             onOpenConfig={() => setShowConfigDialog(true)}
             onToggleIdeationType={toggleIdeationType}
+            onFocusChange={(focus) => setConfig({ focus })}
           />
+          </div>
         </div>
 
         <IdeationDialogs

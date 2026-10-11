@@ -82,6 +82,7 @@ const initialConfig: IdeationConfig = {
 // Initialize all type states to 'pending' initially (will be set when generation starts)
 // Note: high_value_features removed, low_hanging_fruit renamed to code_improvements
 const initialTypeStates: Record<IdeationType, IdeationTypeState> = {
+  features: 'pending',
   code_improvements: 'pending',
   ui_ux_improvements: 'pending',
   documentation_gaps: 'pending',
@@ -109,6 +110,8 @@ export const useIdeationStore = create<IdeationState>((set) => ({
         return {
           currentProjectId: projectId,
           session: null,
+          // Config (types, focus) is per project; loadIdeation restores the saved one
+          config: initialConfig,
           generationStatus: initialGenerationStatus,
           logs: [],
           typeStates: { ...initialTypeStates },
@@ -391,6 +394,17 @@ export const useIdeationStore = create<IdeationState>((set) => ({
     })
 }));
 
+/** Store config from a loaded session's saved config (model settings stay as they are) */
+export function configFromSession(saved: IdeationConfig): Partial<IdeationConfig> {
+  return {
+    enabledTypes: [...saved.enabledTypes],
+    includeRoadmapContext: saved.includeRoadmapContext,
+    includeKanbanContext: saved.includeKanbanContext,
+    maxIdeasPerType: saved.maxIdeasPerType,
+    focus: saved.focus ?? ''
+  };
+}
+
 export async function loadIdeation(projectId: string): Promise<void> {
   const store = useIdeationStore.getState();
 
@@ -412,6 +426,8 @@ export async function loadIdeation(projectId: string): Promise<void> {
 
   if (result.success && result.data) {
     currentState.setSession(result.data);
+    // Restore the project's last-used types, context toggles and focus
+    currentState.setConfig(configFromSession(result.data.config));
   } else {
     currentState.setSession(null);
   }
