@@ -54,6 +54,8 @@ import {
   initializeProject
 } from '../stores/project-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useTaskStore } from '../stores/task-store';
+import { countUndeployedTasks } from '../../shared/utils/task-deployments';
 import {
   useProjectEnvStore,
   loadProjectEnvConfig,
@@ -170,7 +172,9 @@ export function Sidebar({
   onViewChange,
   className
 }: SidebarProps) {
-  const { t } = useTranslation(['navigation', 'dialogs', 'common']);
+  const { t } = useTranslation(['navigation', 'dialogs', 'common', 'deploy']);
+  // Merged tasks not yet deployed — shown on the Ship → Deploy item
+  const undeployedCount = useTaskStore((state) => countUndeployedTasks(state.tasks));
   const projects = useProjectStore((state) => state.projects);
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const settings = useSettingsStore((state) => state.settings);
@@ -402,6 +406,14 @@ export function Sidebar({
       >
         <Icon className="h-4 w-4 shrink-0" />
         <span className="flex-1 text-left">{t(item.labelKey)}</span>
+        {item.id === 'deploy' && undeployedCount > 0 && (
+          <span
+            className="rounded-full bg-primary/15 px-1.5 text-[10px] font-medium leading-5 text-primary"
+            title={t('deploy:notDeployed', { count: undeployedCount })}
+          >
+            {undeployedCount}
+          </span>
+        )}
         {item.shortcut && (
           <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
             {item.shortcut}

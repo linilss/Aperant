@@ -34,6 +34,7 @@ import {
 import { safeParseJson } from '../../utils/json-repair';
 import type { SessionResult } from '../session/types';
 import { iterateSubtasks } from './subtask-iterator';
+import { skipReleaseSubtasksInFile } from './release-subtasks';
 import type { SubtaskIteratorConfig, SubtaskResult } from './subtask-iterator';
 
 // =============================================================================
@@ -270,6 +271,15 @@ export class BuildOrchestrator extends EventEmitter {
         this.emitTyped('log', `Pre-coding plan validation failed: ${errorDetail}`);
         return this.buildOutcome(false, Date.now() - startTime,
           `Implementation plan is invalid and cannot be executed: ${errorDetail}`);
+      }
+
+      // Agents never release: close deploy/TestFlight/push subtasks before coding
+      const skippedReleaseSubtasks = await skipReleaseSubtasksInFile(preCodingPlanPath);
+      if (skippedReleaseSubtasks.length > 0) {
+        this.emitTyped('log', `Skipped release subtasks (the user deploys from Malvy): ${skippedReleaseSubtasks.join(', ')}`);
+        if (this.config.sourceSpecDir && this.config.syncSpecToSource) {
+          await this.config.syncSpecToSource(this.config.specDir, this.config.sourceSpecDir);
+        }
       }
 
       // Check if build is already complete

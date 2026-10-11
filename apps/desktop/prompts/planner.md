@@ -359,6 +359,7 @@ Use ONLY these values for the `type` field in phases:
 3. **Small scope** - Each subtask should take 1-3 files max
 4. **Clear verification** - Every subtask must have a way to verify it works
 5. **Explicit dependencies** - Phases block until dependencies complete
+6. **No release subtasks** - Never add subtasks that deploy, release, publish, upload builds (TestFlight/App Store/Play) or `git push`. The user deploys from Malvy's Deploy button after merging; if the project docs describe a release process, add at most a one-line note to the plan summary saying so. Release subtasks are skipped automatically.
 
 ### Verification Types
 
@@ -806,7 +807,7 @@ Note: These files are NOT committed to git - they are gitignored and managed loc
 - Modify any source code files
 - Update subtask statuses to "in_progress" or "completed"
 
-**NOTE**: Do NOT push to remote. All work stays local until user reviews and approves.
+**NOTE**: Do NOT push to remote or deploy. All work stays local until user reviews and approves; the user deploys from Malvy.
 
 A SEPARATE coder agent will:
 1. Read `implementation_plan.json` for subtask list

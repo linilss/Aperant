@@ -35,6 +35,11 @@ export const projectMock = {
 
   clearProjectData: async () => ({ success: true }),
   listDeployScripts: async () => ({ success: true, data: [] }),
+  getDeployPreflight: async () => ({
+    success: true,
+    data: { currentBranch: 'main', mainBranch: 'main', hasUncommittedChanges: false }
+  }),
+  recordTaskDeployment: async () => ({ success: true, data: [] }),
 
   checkProjectVersion: async () => ({
     success: true,

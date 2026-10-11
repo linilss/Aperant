@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PROJECT_MEMORY_HEADING, injectContext } from '../prompt-loader';
+import { PROJECT_MEMORY_HEADING, RELEASE_POLICY_SECTION, injectContext } from '../prompt-loader';
 
 // The worker builds every system prompt (CLI path: piped to `claude --print`;
 // SDK path: SessionConfig.systemPrompt for streamText) through
@@ -29,14 +29,14 @@ describe('injectContext — project memory', () => {
 
   it('adds the section even without project instructions', () => {
     const prompt = injectContext(base, { specDir: '', projectDir: '/p', memoryContext });
-    expect(prompt.startsWith(PROJECT_MEMORY_HEADING)).toBe(true);
+    expect(prompt.startsWith(RELEASE_POLICY_SECTION + PROJECT_MEMORY_HEADING)).toBe(true);
   });
 
   it('omits the section when there is no memory context (memory off or nothing relevant)', () => {
     for (const mc of [undefined, null, '']) {
       const prompt = injectContext(base, { specDir: '', projectDir: '/p', memoryContext: mc });
       expect(prompt).not.toContain('PROJECT MEMORY');
-      expect(prompt).toBe(base);
+      expect(prompt).toBe(RELEASE_POLICY_SECTION + base);
     }
   });
 });
@@ -58,7 +58,7 @@ describe('injectContext — human input', () => {
   });
 
   it('omits the section when there is no human input', () => {
-    expect(injectContext(base, { specDir: '', projectDir: '/p', humanInput: null })).toBe(base);
+    expect(injectContext(base, { specDir: '', projectDir: '/p', humanInput: null })).toBe(RELEASE_POLICY_SECTION + base);
   });
 });
 
@@ -87,7 +87,28 @@ describe('injectContext — core values', () => {
   it('adds no section without core values', () => {
     for (const coreValues of [undefined, null, '', '  ']) {
       const prompt = injectContext(base, { specDir: '', projectDir: '/p', coreValues });
-      expect(prompt).toBe(base);
+      expect(prompt).toBe(RELEASE_POLICY_SECTION + base);
     }
+  });
+});
+
+describe('injectContext — release policy', () => {
+  it('always adds the RELEASE POLICY, right after core values and before everything else', () => {
+    const prompt = injectContext(base, {
+      specDir: '/p/.malvy/specs/001',
+      projectDir: '/p',
+      coreValues: '- No ads.',
+      projectInstructions: 'Team rules',
+    });
+    const policy = prompt.indexOf('## RELEASE POLICY');
+    expect(policy).toBeGreaterThan(prompt.indexOf('- No ads.'));
+    expect(policy).toBeLessThan(prompt.indexOf('## SPEC LOCATION'));
+    expect(policy).toBeLessThan(prompt.indexOf('## PROJECT INSTRUCTIONS'));
+    expect(prompt).toContain('git push');
+    expect(prompt).toContain('TestFlight');
+  });
+
+  it('is first when there are no core values', () => {
+    expect(injectContext(base, { specDir: '', projectDir: '/p' }).startsWith('## RELEASE POLICY')).toBe(true);
   });
 });

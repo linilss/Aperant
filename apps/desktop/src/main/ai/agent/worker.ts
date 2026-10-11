@@ -51,6 +51,7 @@ import { loadProjectInstructions, injectContext } from '../prompts/prompt-loader
 import { createMcpClientsForAgent, mergeMcpTools, closeAllMcpClients } from '../mcp/client';
 import type { McpClientResult } from '../mcp/types';
 import { runProjectIndexer } from '../project/project-indexer';
+import { taskAgentCliToolArgs } from '../security/release-guard';
 
 // =============================================================================
 // Validation
@@ -312,7 +313,8 @@ async function runSessionViaCLI(
     '--print',
     '--verbose',
     '--output-format', 'stream-json',
-    '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep,WebFetch',
+    // Agents never release: Bash is allowed but deploy/publish/upload/git push are denied
+    ...taskAgentCliToolArgs(),
     '--model', modelId,
   ];
   // Project setting "Use CLAUDE.md" off: skip project-level settings sources so the CLI

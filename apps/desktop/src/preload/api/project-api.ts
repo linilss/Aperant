@@ -13,6 +13,8 @@ import type {
   InfrastructureStatus,
   MemoryValidationResult,
   DeployScript,
+  DeployPreflight,
+  TaskDeployment,
   ClaudeDocsListing,
   DocPointer,
   CreatePointerInput,
@@ -48,6 +50,12 @@ export interface ProjectAPI {
   checkProjectVersion: (projectId: string) => Promise<IPCResult<AutoBuildVersionInfo>>;
   clearProjectData: (projectId: string) => Promise<IPCResult<void>>;
   listDeployScripts: (projectId: string) => Promise<IPCResult<DeployScript[]>>;
+  getDeployPreflight: (projectId: string) => Promise<IPCResult<DeployPreflight>>;
+  recordTaskDeployment: (
+    projectId: string,
+    taskId: string,
+    deployment: { script: string; args?: string }
+  ) => Promise<IPCResult<TaskDeployment[]>>;
 
   // Tab State (persisted in main process for reliability)
   getTabState: () => Promise<IPCResult<TabState>>;
@@ -202,6 +210,16 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   listDeployScripts: (projectId: string): Promise<IPCResult<DeployScript[]>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST_DEPLOY_SCRIPTS, projectId),
+
+  getDeployPreflight: (projectId: string): Promise<IPCResult<DeployPreflight>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_PREFLIGHT, projectId),
+
+  recordTaskDeployment: (
+    projectId: string,
+    taskId: string,
+    deployment: { script: string; args?: string }
+  ): Promise<IPCResult<TaskDeployment[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT, projectId, taskId, deployment),
 
   // Tab State (persisted in main process for reliability)
   getTabState: (): Promise<IPCResult<TabState>> =>

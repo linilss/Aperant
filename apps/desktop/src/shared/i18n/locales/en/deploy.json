@@ -13,5 +13,25 @@
     "title": "No deploy scripts found",
     "description": "Malvy looks for deploy*.sh files in the project root and up to two folders down, like deploy.sh or deploy-ios.sh.",
     "hint": "Comment lines at the top of the script become its description here. A \"# Usage: …\" line shows which arguments it takes."
-  }
+  },
+  "task": {
+    "title": "Deploy",
+    "button": "Deploy",
+    "buttonTooltip": "Deploy this merged task with one of the project's deploy scripts",
+    "mergeFirst": "Merge the task first, then deploy it from the Done column",
+    "deployed": "Deployed {{time}}",
+    "deployedTooltip": "Last deployed {{time}} with {{script}}",
+    "lastDeployed": "Last deployed {{time}} with {{script}}.",
+    "confirm": "Deploy {{script}} from {{branch}} now?",
+    "review": "Deploy…",
+    "deployNow": "Deploy now",
+    "deployAnyway": "Deploy anyway",
+    "cancel": "Cancel",
+    "openDeployView": "Open Deploy view",
+    "warnings": {
+      "notOnMain": "The project is on {{current}}, not {{main}}. The script runs from the current checkout.",
+      "uncommitted": "The project has uncommitted changes. They would be included in the deploy."
+    }
+  },
+  "notDeployed": "{{count}} merged, not deployed"
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles, PauseCircle } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles, PauseCircle, Rocket } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -36,6 +36,8 @@ import { Input } from './ui/input';
 import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue, useTaskStore } from '../stores/task-store';
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
+import { useDeployDialogStore } from '../stores/deploy-dialog-store';
+import { getLastDeployment } from '../../shared/utils/task-deployments';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
 
 // Category icon mapping
@@ -109,6 +111,7 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
     prevTask.metadata?.archivedAt === nextTask.metadata?.archivedAt &&
     prevTask.metadata?.prUrl === nextTask.metadata?.prUrl &&
     prevTask.metadata?.refined === nextTask.metadata?.refined &&
+    prevTask.metadata?.deployments?.length === nextTask.metadata?.deployments?.length &&
     // Check if any subtask statuses changed (compare all subtasks)
     prevTask.subtasks.every((s, i) => s.status === nextTask.subtasks[i]?.status)
   );
@@ -137,7 +140,7 @@ export const TaskCard = memo(function TaskCard({
   isSelected,
   onToggleSelect
 }: TaskCardProps) {
-  const { t } = useTranslation(['tasks', 'errors']);
+  const { t } = useTranslation(['tasks', 'errors', 'deploy']);
   const { toast } = useToast();
   const [isStuck, setIsStuck] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -363,6 +366,13 @@ export const TaskCard = memo(function TaskCard({
     }
   };
 
+  const lastDeployment = getLastDeployment(task);
+
+  const handleDeploy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    useDeployDialogStore.getState().openForTask(task);
+  };
+
   const handleViewPR = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (task.metadata?.prUrl && window.electronAPI?.openExternal) {
@@ -457,6 +467,21 @@ export const TaskCard = memo(function TaskCard({
 
   const isArchived = !!task.metadata?.archivedAt;
 
+  // Merged tasks (Done) can be deployed; re-deploys stay available
+  const deployButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-7 px-2.5 text-xs max-md:h-9 max-md:px-3"
+      onClick={handleDeploy}
+      title={t('deploy:task.buttonTooltip')}
+      aria-label={t('deploy:task.button')}
+    >
+      <Rocket className="h-3 w-3 md:mr-1.5" />
+      <span className="max-md:hidden">{t('deploy:task.button')}</span>
+    </Button>
+  );
+
   return (
     <>
     <Card
@@ -543,6 +568,20 @@ export const TaskCard = memo(function TaskCard({
               >
                 <Archive className="h-2.5 w-2.5" />
                 {t('status.archived')}
+              </Badge>
+            )}
+            {/* Deployed indicator - last deploy started from the Deploy button */}
+            {lastDeployment && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
+                title={t('deploy:task.deployedTooltip', {
+                  time: formatRelativeTime(new Date(lastDeployment.at)),
+                  script: lastDeployment.script
+                })}
+              >
+                <Rocket className="h-2.5 w-2.5" />
+                {t('deploy:task.deployed', { time: formatRelativeTime(new Date(lastDeployment.at)) })}
               </Badge>
             )}
             {/* Execution phase badge - shown when actively running */}
@@ -770,6 +809,7 @@ export const TaskCard = memo(function TaskCard({
               </div>
             ) : task.status === 'done' && task.metadata?.prUrl ? (
               <div className="flex gap-1">
+                {deployButton}
                 {task.metadata?.prUrl && (
                   <Button
                     variant="ghost"
@@ -793,17 +833,23 @@ export const TaskCard = memo(function TaskCard({
                   </Button>
                 )}
               </div>
-            ) : task.status === 'done' && !task.metadata?.archivedAt ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2.5 hover:bg-muted-foreground/10"
-                onClick={handleArchive}
-                title={t('tooltips.archiveTask')}
-              >
-                <Archive className="mr-1.5 h-3 w-3" />
-                {t('actions.archive')}
-              </Button>
+            ) : task.status === 'done' ? (
+              <div className="flex items-center gap-1">
+                {deployButton}
+                {!task.metadata?.archivedAt && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2.5 hover:bg-muted-foreground/10 max-md:h-9"
+                    onClick={handleArchive}
+                    title={t('tooltips.archiveTask')}
+                    aria-label={t('tooltips.archiveTask')}
+                  >
+                    <Archive className="h-3 w-3 md:mr-1.5" />
+                    <span className="max-md:hidden">{t('actions.archive')}</span>
+                  </Button>
+                )}
+              </div>
             ) : task.status === 'pending_merge' ? (
               <Button
                 variant="ghost"

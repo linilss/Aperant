@@ -13,6 +13,7 @@
  *
  * Flow:
  *   Command comes in →
+ *     0. Release command (deploy/publish/git push, release-guard.ts)? → DENY
  *     1. Is command name in BLOCKED_COMMANDS? → DENY with reason
  *     2. Does command have a validator in VALIDATORS? → Run validator → DENY or ALLOW
  *     3. Otherwise → ALLOW
@@ -24,6 +25,7 @@ import {
   splitCommandSegments,
 } from './command-parser';
 import { BLOCKED_COMMANDS, isCommandBlocked } from './denylist';
+import { RELEASE_BLOCK_REASON, findReleaseCommand } from './release-guard';
 import { validateRmCommand, validateChmodCommand } from './validators/filesystem-validators';
 import { validateGitCommand } from './validators/git-validators';
 import { validatePkillCommand, validateKillCommand, validateKillallCommand } from './validators/process-validators';
@@ -204,6 +206,17 @@ export function bashSecurityHook(
     return {} as Record<string, never>;
   }
 
+  // Release guard: task agents never deploy/publish/push (shared with the CLI path)
+  if (findReleaseCommand(command)) {
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: RELEASE_BLOCK_REASON,
+      },
+    };
+  }
+
   // Extract all commands from the command string
   const commands = extractCommands(command);
 
@@ -270,6 +283,10 @@ export function validateCommand(
   command: string,
   _profile?: SecurityProfile,
 ): ValidationResult {
+  if (findReleaseCommand(command)) {
+    return [false, RELEASE_BLOCK_REASON];
+  }
+
   const commands = extractCommands(command);
 
   if (commands.length === 0) {

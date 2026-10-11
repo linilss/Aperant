@@ -264,6 +264,18 @@ export interface TaskMetadata {
   // Archive status
   archivedAt?: string;  // ISO date when task was archived
   archivedInVersion?: string;  // Version in which task was archived (from changelog)
+
+  // Deploys the user started from the task's Deploy button (newest last)
+  deployments?: TaskDeployment[];
+}
+
+/** One user-confirmed deploy of a merged task (task_metadata.json `deployments`) */
+export interface TaskDeployment {
+  /** Script path relative to the project root, e.g. `deploy.sh` */
+  script: string;
+  args?: string;
+  /** ISO timestamp */
+  at: string;
 }
 
 export interface Task {

@@ -438,6 +438,14 @@ export interface DeployScript {
   usage?: string;
 }
 
+/** Project working-tree state checked before deploying (non-blocking warnings). */
+export interface DeployPreflight {
+  currentBranch: string | null;
+  /** Project's main branch (settings.mainBranch, else main/master if present) */
+  mainBranch: string | null;
+  hasUncommittedChanges: boolean;
+}
+
 // Auto Claude Initialization Types
 export interface AutoBuildVersionInfo {
   isInitialized: boolean;

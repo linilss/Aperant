@@ -32,6 +32,7 @@ import { MobileDrawer, MobileProjectList, MobileTopBar } from './components/Mobi
 import { useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TaskDetailModal } from './components/task-detail/TaskDetailModal';
+import { TaskDeployDialog } from './components/deploy/TaskDeployDialog';
 import { TaskCreationWizard } from './components/TaskCreationWizard';
 import { AppSettingsDialog, type AppSection } from './components/settings/AppSettings';
 import type { ProjectSettingsSection } from './components/settings/ProjectSettingsContent';
@@ -1135,6 +1136,19 @@ export function App() {
           onOpenChange={(open) => !open && handleCloseTaskDetail()}
           onSwitchToTerminals={() => setActiveView('terminals')}
           onOpenInbuiltTerminal={handleOpenInbuiltTerminal}
+        />
+
+        {/* Deploy a merged task (opened from task cards / task detail) */}
+        <TaskDeployDialog
+          onRunInTerminal={(command, title) => {
+            const started = handleRunInTerminal(command, title);
+            if (started) handleCloseTaskDetail();
+            return started;
+          }}
+          onOpenDeployView={() => {
+            handleCloseTaskDetail();
+            setActiveView('deploy');
+          }}
         />
 
         {/* Dialogs */}

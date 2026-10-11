@@ -4,7 +4,7 @@ import { Rocket, RefreshCw, Play, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
-import { escapeShellPath } from '../../../shared/utils/shell-escape';
+import { buildDeployCommand } from './deploy-command';
 import type { DeployScript } from '../../../shared/types';
 
 interface DeployProps {
@@ -36,7 +36,7 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
   }, [load]);
 
   const run = (script: DeployScript, args: string) => {
-    const command = `bash ${escapeShellPath(`./${script.relativePath}`)}${args.trim() ? ` ${args.trim()}` : ''}`;
+    const command = buildDeployCommand(script, args);
     if (!onRunInTerminal(command, `${t('title')}: ${script.name}`)) {
       setError(t('terminalLimit'));
     }

@@ -2,7 +2,7 @@ import { ipcMain, shell } from 'electron';
 import { existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import path from 'path';
-import { IPC_CHANNELS } from '../../shared/constants';
+import { IPC_CHANNELS, getSpecsDir } from '../../shared/constants';
 import type {
   Project,
   ProjectSettings,
@@ -11,10 +11,14 @@ import type {
   AutoBuildVersionInfo,
   GitStatus,
   GitBranchDetail,
-  DeployScript
+  DeployScript,
+  DeployPreflight,
+  TaskDeployment
 } from '../../shared/types';
 import { projectStore } from '../project-store';
 import { findDeployScripts } from '../deploy-scripts';
+import { appendTaskDeployment } from '../task-deployments';
+import { findAllSpecPaths } from '../utils/spec-path-helpers';
 import {
   initializeProject,
   isInitialized,
@@ -197,6 +201,37 @@ function getCurrentGitBranch(projectPath: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Cheap pre-deploy check of the project's working tree (no fetch): current branch,
+ * main branch (configured, else local main/master) and whether there are uncommitted changes.
+ */
+function getDeployPreflight(projectPath: string, configuredMainBranch?: string): DeployPreflight {
+  const git = (args: string[]): string | null => {
+    try {
+      return execFileSync(getToolPath('git'), args, {
+        cwd: projectPath,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 5000
+      }).trim();
+    } catch {
+      return null;
+    }
+  };
+
+  let mainBranch = configuredMainBranch?.trim() || null;
+  if (!mainBranch) {
+    mainBranch = ['main', 'master'].find((b) => git(['rev-parse', '--verify', '--quiet', `refs/heads/${b}`]) !== null) ?? null;
+  }
+  const status = git(['status', '--porcelain', '--untracked-files=no']);
+
+  return {
+    currentBranch: getCurrentGitBranch(projectPath),
+    mainBranch,
+    hasUncommittedChanges: !!status
+  };
 }
 
 /**
@@ -407,6 +442,51 @@ export function registerProjectHandlers(
           return { success: false, error: 'Project not found' };
         }
         return { success: true, data: await findDeployScripts(project.path) };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_PREFLIGHT,
+    async (_, projectId: string): Promise<IPCResult<DeployPreflight>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+      return { success: true, data: getDeployPreflight(project.path, project.settings?.mainBranch) };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT,
+    async (
+      _,
+      projectId: string,
+      taskId: string,
+      deployment: { script: string; args?: string }
+    ): Promise<IPCResult<TaskDeployment[]>> => {
+      try {
+        const project = projectStore.getProject(projectId);
+        if (!project) {
+          return { success: false, error: 'Project not found' };
+        }
+        const specPaths = findAllSpecPaths(project.path, getSpecsDir(project.autoBuildPath), taskId);
+        const entry: TaskDeployment = {
+          script: deployment.script,
+          ...(deployment.args?.trim() ? { args: deployment.args.trim() } : {}),
+          at: new Date().toISOString()
+        };
+        const deployments = appendTaskDeployment(specPaths, entry);
+        if (!deployments) {
+          return { success: false, error: 'Task not found' };
+        }
+        projectStore.invalidateTasksCache(projectId);
+        return { success: true, data: deployments };
       } catch (error) {
         return {
           success: false,

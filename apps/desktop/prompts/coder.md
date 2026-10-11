@@ -852,8 +852,8 @@ These are internal tracking files that must stay local.
 
 ### DO NOT Push to Remote
 
-**IMPORTANT**: Do NOT run `git push`. All work stays local until the user reviews and approves.
-The user will push to remote after reviewing your changes in the isolated workspace.
+**IMPORTANT**: Do NOT run `git push`, deploy scripts or any publish/upload command. All work stays local until the user reviews and approves.
+The user will push and deploy (from Malvy's Deploy button) after reviewing your changes in the isolated workspace. If a subtask asks you to deploy or release, mark it completed without running it and note that the user deploys.
 
 ---
 

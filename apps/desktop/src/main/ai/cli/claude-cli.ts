@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { findExecutable } from '../../platform';
+import { releaseGuardCliArgs } from '../security/release-guard';
 
 export interface ClaudeCliOptions {
   /** Full prompt (system instructions + task), written to stdin */
@@ -153,6 +154,8 @@ export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<C
     '--verbose',
     '--output-format', 'stream-json',
     ...(allowedTools.length > 0 ? ['--allowedTools', allowedTools.join(',')] : []),
+    // Agents never release: block deploy/publish/git push whenever Bash is available
+    ...(allowedTools.includes('Bash') ? releaseGuardCliArgs() : []),
     ...(restrictTools ? ['--tools', allowedTools.join(',')] : []),
     '--model', modelId,
     ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),

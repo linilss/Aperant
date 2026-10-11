@@ -34,12 +34,14 @@ import {
   Sparkles,
   GitBranch,
   RefreshCw,
+  Rocket,
 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { calculateProgress } from '../../lib/utils';
 import { stopTask, submitReview, recoverStuckTask, deleteTask, useTaskStore, startTaskOrQueue } from '../../stores/task-store';
 import { useProjectStore } from '../../stores/project-store';
+import { useDeployDialogStore } from '../../stores/deploy-dialog-store';
 import { getTaskBranchName } from '../../../shared/utils/task-branch';
 import { TASK_STATUS_LABELS } from '../../../shared/constants';
 import { TaskEditDialog } from '../TaskEditDialog';
@@ -86,7 +88,7 @@ const isFilesTabEnabled = () => {
 
 // Separate component to use hooks only when task exists
 function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals, onOpenInbuiltTerminal }: { open: boolean; task: Task; onOpenChange: (open: boolean) => void; onSwitchToTerminals?: () => void; onOpenInbuiltTerminal?: (id: string, cwd: string) => void }) {
-  const { t } = useTranslation(['tasks']);
+  const { t } = useTranslation(['tasks', 'deploy']);
   const { toast } = useToast();
   const state = useTaskDetail({ task });
   const activeProject = useProjectStore(s => s.getActiveProject());
@@ -913,6 +915,24 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                     </>
                   )}
                 </Button>
+              )}
+              {/* Deploy: merged (Done) tasks only; review/pending-merge tasks must be merged first */}
+              {task.status === 'done' ? (
+                <Button
+                  variant="outline"
+                  onClick={() => useDeployDialogStore.getState().openForTask(task)}
+                  title={t('deploy:task.buttonTooltip')}
+                >
+                  <Rocket className="mr-2 h-4 w-4" />
+                  {t('deploy:task.button')}
+                </Button>
+              ) : (task.status === 'human_review' || task.status === 'pending_merge') && (
+                <span title={t('deploy:task.mergeFirst')}>
+                  <Button variant="outline" disabled aria-label={t('deploy:task.mergeFirst')}>
+                    <Rocket className="mr-2 h-4 w-4" />
+                    {t('deploy:task.button')}
+                  </Button>
+                </span>
               )}
               <Button variant="outline" onClick={handleClose}>
                 Close

@@ -13,6 +13,8 @@ export const IPC_CHANNELS = {
   PROJECT_CHECK_VERSION: 'project:checkVersion',
   PROJECT_CLEAR_DATA: 'project:clearData',
   PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
+  PROJECT_DEPLOY_PREFLIGHT: 'project:deployPreflight',      // Branch + uncommitted-changes check before a deploy
+  PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json
 
   // Tab state operations (persisted in main process)
   TAB_STATE_GET: 'tabState:get',

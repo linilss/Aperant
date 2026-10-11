@@ -260,10 +260,24 @@ export async function loadAgentsMd(projectDir: string): Promise<string | null> {
 export const PROJECT_MEMORY_HEADING = '## PROJECT MEMORY (from previous work — verify before relying on it)';
 
 /**
+ * Injected into every task agent prompt. Enforced separately by the release guard
+ * (security/release-guard.ts) on both the CLI and SDK paths.
+ */
+export const RELEASE_POLICY_SECTION =
+  `## RELEASE POLICY\n\n` +
+  `Never deploy, publish or release anything. Do not upload builds (TestFlight, App Store, Play Store), ` +
+  `do not run deploy*/release*/publish* scripts, \`az webapp\`, \`az acr build\`, \`kubectl apply\`, ` +
+  `\`terraform apply\`, \`fly deploy\`, \`vercel --prod\`, \`npm publish\`, \`dotnet nuget push\` or ` +
+  `\`xcrun altool\`, and never \`git push\` to any remote. The user releases from Malvy's Deploy button after merging. ` +
+  `Planners: never add deploy/release/push subtasks; if the docs describe a release process, at most note in the ` +
+  `plan summary that the user deploys from Malvy.\n\n---\n\n`;
+
+/**
  * Inject dynamic sections into a prompt template.
  *
  * Handles:
  * - CORE VALUES first (highest priority, overrides everything below)
+ * - RELEASE POLICY (always): agents never deploy/publish/push
  * - SPEC LOCATION header with file paths
  * - CLAUDE.md injection if provided
  * - Project memory (built-in memory system) if provided
@@ -281,6 +295,9 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
   if (coreValues) {
     sections.push(`${coreValues}---\n\n`);
   }
+
+  // 0b. Release policy — agents never deploy/publish/push; the user does via Deploy
+  sections.push(RELEASE_POLICY_SECTION);
 
   // 1. Spec location header
   const specContext = buildSpecLocationHeader(context);
