@@ -25,6 +25,8 @@ import { Card } from './ui/card';
 import { SortableFeatureCard } from './SortableFeatureCard';
 import { cn } from '../lib/utils';
 import { useRoadmapStore } from '../stores/roadmap-store';
+import { useIsMobile } from '../hooks/useIsMobile';
+import type { MoveToOption } from './roadmap/MoveToMenu';
 import {
   ROADMAP_STATUS_COLUMNS,
   type RoadmapStatusColumn
@@ -49,7 +51,19 @@ interface DroppableStatusColumnProps {
   onGoToTask?: (specId: string) => void;
   onArchive?: (featureId: string) => void;
   isOver: boolean;
+  /** Phone layout: compact cards with a "Move to…" status menu */
+  mobileMove?: {
+    options: MoveToOption[];
+    onMove: (feature: RoadmapFeature, status: RoadmapFeatureStatus) => void;
+  };
 }
+
+const STATUS_DOT_CLASSES: Record<string, string> = {
+  under_review: 'bg-muted-foreground/50',
+  planned: 'bg-info',
+  in_progress: 'bg-primary',
+  done: 'bg-success'
+};
 
 // Get icon component for status
 function getStatusIcon(iconName: string) {
@@ -75,7 +89,8 @@ function DroppableStatusColumn({
   onConvertToSpec,
   onGoToTask,
   onArchive,
-  isOver
+  isOver,
+  mobileMove
 }: DroppableStatusColumnProps) {
   const { setNodeRef } = useDroppable({
     id: column.id
@@ -163,6 +178,14 @@ function DroppableStatusColumn({
                     onConvertToSpec={onConvertToSpec}
                     onGoToTask={onGoToTask}
                     onArchive={onArchive}
+                    compact={!!mobileMove}
+                    moveTo={
+                      mobileMove && {
+                        options: mobileMove.options,
+                        current: feature.status,
+                        onSelect: (id) => mobileMove.onMove(feature, id as RoadmapFeatureStatus)
+                      }
+                    }
                   />
                 ))
               )}
@@ -186,6 +209,26 @@ export function RoadmapKanbanView({
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
 
   const updateFeatureStatus = useRoadmapStore((state) => state.updateFeatureStatus);
+  const isMobile = useIsMobile();
+
+  const mobileMove = useMemo(
+    () =>
+      isMobile
+        ? {
+            options: ROADMAP_STATUS_COLUMNS.map((c) => ({
+              id: c.id,
+              label: c.label,
+              dotClass: STATUS_DOT_CLASSES[c.id]
+            })),
+            onMove: (feature: RoadmapFeature, status: RoadmapFeatureStatus) => {
+              if (feature.status === status) return;
+              updateFeatureStatus(feature.id, status);
+              onSave?.();
+            }
+          }
+        : undefined,
+    [isMobile, updateFeatureStatus, onSave]
+  );
 
   const sensors = useSensors(
     useSensor(MouseAndPenSensor, {
@@ -309,6 +352,7 @@ export function RoadmapKanbanView({
               onGoToTask={onGoToTask}
               onArchive={onArchive}
               isOver={overColumnId === column.id}
+              mobileMove={mobileMove}
             />
           ))}
         </div>

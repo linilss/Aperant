@@ -56,7 +56,10 @@ export function DirectionFilterBar({
     <div
       role="toolbar"
       aria-label={ariaLabel}
-      className={cn('flex shrink-0 items-center gap-1.5 overflow-x-auto', className)}
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 overflow-x-auto max-md:[scrollbar-width:none]',
+        className
+      )}
     >
       <button
         type="button"
@@ -74,9 +77,12 @@ export function DirectionFilterBar({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(toggleDirectionFilter(selected, direction.id))}
-            className={cn('rounded-full', active && 'ring-2 ring-primary ring-offset-1 ring-offset-background')}
+            className={cn(
+              'rounded-full max-md:shrink-0',
+              active && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+            )}
           >
-            <DirectionTag direction={direction} rank={i + 1} className="py-0.5 text-xs" />
+            <DirectionTag direction={direction} rank={i + 1} className="py-0.5 text-xs max-md:max-w-[24ch]" />
           </button>
         );
       })}

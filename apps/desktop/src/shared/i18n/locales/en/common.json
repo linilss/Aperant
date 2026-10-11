@@ -731,6 +731,8 @@
     "refiningTooltip": "AI is turning this into a full feature",
     "refineWithAI": "Refine with AI",
     "refineFailed": "AI refinement failed: {{error}}",
+    "moveTo": "Move to…",
+    "moveToAriaLabel": "Move “{{title}}” to…",
     "moscow": {
       "title": "MoSCoW Prioritization",
       "subtitle": "Drag roadmap features between quadrants to set their priority",
@@ -738,20 +740,33 @@
       "dropHere": "Drop here",
       "emptyQuadrant": "No features",
       "updateFailed": "Could not update feature priority",
+      "quadrantTabsLabel": "MoSCoW priority",
+      "emptyQuadrantHint": "Use “Move to…” on a feature in another tab to put it here.",
+      "compact": {
+        "complexity": "{{level}} effort",
+        "impact": "{{level}} impact",
+        "complexityTitle": "Complexity: {{level}}",
+        "impactTitle": "Impact: {{level}}",
+        "phaseTitle": "Phase: {{name}}"
+      },
       "quadrants": {
         "must": {
+          "short": "Must",
           "title": "Must have",
           "description": "Critical for this release; without these it fails"
         },
         "should": {
+          "short": "Should",
           "title": "Should have",
           "description": "Important, but the release still works without them"
         },
         "could": {
+          "short": "Could",
           "title": "Could have",
           "description": "Nice to have if time and resources allow"
         },
         "wont": {
+          "short": "Won't",
           "title": "Won't have this time",
           "description": "Agreed out of scope for now; may return later"
         }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DndContext,
@@ -22,7 +22,9 @@ import { useFeatureActions, useFeatureDelete } from '../roadmap/hooks';
 import { getCompetitorInsightsForFeature } from '../roadmap/utils';
 import { useRoadmapStore, loadRoadmap } from '../../stores/roadmap-store';
 import { useToast } from '../../hooks/use-toast';
-import { MOSCOW_QUADRANTS, MoscowQuadrant } from './MoscowQuadrant';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { cn } from '../../lib/utils';
+import { MOSCOW_QUADRANTS, MoscowQuadrant, MoscowQuadrantList } from './MoscowQuadrant';
 import { StrategyGuidanceChip } from '../competitors/StrategyGuidanceChip';
 import { useProjectDirections } from '../competitors/DirectionTagChips';
 import { DirectionFilterBar } from '../competitors/DirectionFilterBar';
@@ -44,9 +46,33 @@ function isQuadrantId(id: string): id is RoadmapFeaturePriority {
   return QUADRANT_IDS.includes(id);
 }
 
+/** Horizontal swipe distance (px) that switches the phone tab */
+const SWIPE_THRESHOLD = 60;
+
+const tabStorageKey = (projectId: string) => `moscow-mobile-tab:${projectId}`;
+
+function readStoredTab(projectId: string): RoadmapFeaturePriority {
+  try {
+    const stored = localStorage.getItem(tabStorageKey(projectId));
+    if (stored && isQuadrantId(stored)) return stored;
+  } catch {
+    // Storage unavailable (private mode etc.) — fall back to the first tab
+  }
+  return 'must';
+}
+
+function storeTab(projectId: string, tab: RoadmapFeaturePriority) {
+  try {
+    localStorage.setItem(tabStorageKey(projectId), tab);
+  } catch {
+    // Best effort only
+  }
+}
+
 export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompetitors }: MoscowMatrixProps) {
   const { t } = useTranslation('common');
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const roadmap = useRoadmapStore((state) => state.roadmap);
   const competitorAnalysis = useRoadmapStore((state) => state.competitorAnalysis);
@@ -62,7 +88,17 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
   /** Selected direction ids / UNTAGGED_FILTER; empty = all directions */
   const [directionFilter, setDirectionFilter] = useState<string[]>([]);
 
+  /** Phone layout: which quadrant's list is shown */
+  const [mobileTab, setMobileTab] = useState<RoadmapFeaturePriority>(() => readStoredTab(projectId));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+
   const directions = useProjectDirections(projectId);
+
+  useEffect(() => {
+    setMobileTab(readStoredTab(projectId));
+  }, [projectId]);
 
   // Directions feed the tag chips and the filter row
   useEffect(() => {
@@ -139,11 +175,16 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     setOverQuadrant(null);
     if (!over) return;
 
-    const featureId = active.id as string;
-    const feature = findFeature(featureId);
+    const feature = findFeature(active.id as string);
     const targetPriority = resolveTargetPriority(over.id as string);
-    if (!feature || !targetPriority || feature.priority === targetPriority) return;
+    if (!feature || !targetPriority) return;
+    await moveFeature(feature, targetPriority);
+  };
 
+  /** Optimistic priority change, reverted (with a toast) if the IPC call fails */
+  const moveFeature = async (feature: RoadmapFeature, targetPriority: RoadmapFeaturePriority) => {
+    if (feature.priority === targetPriority) return;
+    const featureId = feature.id;
     const previousPriority = feature.priority;
     updateFeature(featureId, { priority: targetPriority });
 
@@ -182,15 +223,44 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     if (selectedFeatureId === featureId) setSelectedFeatureId(null);
   };
 
+  const selectMobileTab = (tab: RoadmapFeaturePriority) => {
+    if (tab === mobileTab) return;
+    setMobileTab(tab);
+    storeTab(projectId, tab);
+    // Show the new list from its top (just below the sticky tabs) if scrolled past it
+    const scroller = scrollRef.current;
+    const headerHeight = headerRef.current?.offsetHeight ?? 0;
+    if (scroller && scroller.scrollTop > headerHeight) scroller.scrollTop = headerHeight;
+  };
+
+  const handleSwipeStart = (e: TouchEvent) => {
+    const touch = e.touches[0];
+    swipeStart.current = e.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const handleSwipeEnd = (e: TouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const touch = e.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    // Mostly-horizontal gestures only, so vertical scrolling never switches tabs
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const index = QUADRANT_IDS.indexOf(mobileTab) + (dx < 0 ? 1 : -1);
+    const next = MOSCOW_QUADRANTS[index];
+    if (next) selectMobileTab(next.id);
+  };
+
   const header = (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-4 max-md:px-3 max-md:py-3">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-4 max-md:px-3 max-md:py-2.5">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 max-md:hidden">
           <Grid2x2 className="h-5 w-5 text-primary" />
         </div>
         <div>
           <h2 className="font-semibold text-foreground">{t('roadmap.moscow.title')}</h2>
-          <p className="text-sm text-muted-foreground">{t('roadmap.moscow.subtitle')}</p>
+          <p className="text-sm text-muted-foreground max-md:hidden">{t('roadmap.moscow.subtitle')}</p>
         </div>
       </div>
       <div className="min-w-0 max-md:w-full">
@@ -243,6 +313,75 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     );
   }
 
+  const detailPanel = selectedFeature && (
+    <FeatureDetailPanel
+      feature={selectedFeature}
+      onClose={() => setSelectedFeatureId(null)}
+      onConvertToSpec={handleConvertToSpec}
+      onGoToTask={handleGoToTask}
+      onDelete={handleDeleteFeature}
+      competitorInsights={getCompetitorInsightsForFeature(selectedFeature, competitorAnalysis)}
+    />
+  );
+
+  if (isMobile) {
+    const activeQuadrant = MOSCOW_QUADRANTS.find((q) => q.id === mobileTab) ?? MOSCOW_QUADRANTS[0];
+    return (
+      <div ref={scrollRef} className="h-full overflow-y-auto overscroll-contain">
+        <div ref={headerRef}>{header}</div>
+        <div className="sticky top-0 z-10 border-b border-border bg-background">
+          {directionBar}
+          <div
+            role="tablist"
+            aria-label={t('roadmap.moscow.quadrantTabsLabel')}
+            className="mx-3 my-2 grid grid-cols-4 gap-0.5 rounded-lg bg-secondary/60 p-0.5"
+          >
+            {MOSCOW_QUADRANTS.map((quadrant) => {
+              const selected = quadrant.id === mobileTab;
+              return (
+                <button
+                  key={quadrant.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  title={t(`roadmap.moscow.quadrants.${quadrant.id}.title`)}
+                  onClick={() => selectMobileTab(quadrant.id)}
+                  className={cn(
+                    'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-1 py-1.5 text-xs font-medium transition-colors',
+                    selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  )}
+                >
+                  <span className={cn('h-2 w-2 shrink-0 rounded-full', quadrant.dotClass)} />
+                  <span className="truncate">{t(`roadmap.moscow.quadrants.${quadrant.id}.short`)}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {featuresByPriority[quadrant.id].length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div
+          className="min-h-[60vh] p-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+          onTouchStart={handleSwipeStart}
+          onTouchEnd={handleSwipeEnd}
+          onTouchCancel={() => {
+            swipeStart.current = null;
+          }}
+        >
+          <MoscowQuadrantList
+            quadrant={activeQuadrant}
+            features={featuresByPriority[activeQuadrant.id]}
+            roadmap={projectRoadmap}
+            onFeatureClick={(feature) => setSelectedFeatureId(feature.id)}
+            onMoveFeature={(feature, priority) => void moveFeature(feature, priority)}
+          />
+        </div>
+        {detailPanel}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {header}
@@ -285,16 +424,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
         </DragOverlay>
       </DndContext>
 
-      {selectedFeature && (
-        <FeatureDetailPanel
-          feature={selectedFeature}
-          onClose={() => setSelectedFeatureId(null)}
-          onConvertToSpec={handleConvertToSpec}
-          onGoToTask={handleGoToTask}
-          onDelete={handleDeleteFeature}
-          competitorInsights={getCompetitorInsightsForFeature(selectedFeature, competitorAnalysis)}
-        />
-      )}
+      {detailPanel}
     </div>
   );
 }

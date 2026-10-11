@@ -11,7 +11,9 @@ import {
 } from './ui/tooltip';
 import { Play, ExternalLink, TrendingUp, Layers, ThumbsUp, Archive, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { DirectionTagChips } from './competitors/DirectionTagChips';
+import { DirectionTagChips, useProjectDirections } from './competitors/DirectionTagChips';
+import { resolveFeatureDirections } from './moscow/direction-filter';
+import { MoveToMenu, type MoveToConfig } from './roadmap/MoveToMenu';
 import { useRoadmapStore } from '../stores/roadmap-store';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './roadmap/TaskOutcomeBadge';
 import {
@@ -29,6 +31,15 @@ interface SortableFeatureCardProps {
   onConvertToSpec?: (feature: RoadmapFeature) => void;
   onGoToTask?: (specId: string) => void;
   onArchive?: (featureId: string) => void;
+  /**
+   * Phone layout: title + one metadata row, no description or action buttons
+   * (both live in the detail panel opened on tap).
+   */
+  compact?: boolean;
+  /** Turn off drag-and-drop for this card (e.g. phone layouts that use "Move to…") */
+  dragDisabled?: boolean;
+  /** Shows a "Move to…" menu on compact cards */
+  moveTo?: MoveToConfig;
 }
 
 export function SortableFeatureCard({
@@ -37,7 +48,10 @@ export function SortableFeatureCard({
   onClick,
   onConvertToSpec,
   onGoToTask,
-  onArchive
+  onArchive,
+  compact = false,
+  dragDisabled = false,
+  moveTo
 }: SortableFeatureCardProps) {
   const { t } = useTranslation('common');
   const {
@@ -48,7 +62,7 @@ export function SortableFeatureCard({
     transition,
     isDragging,
     isOver
-  } = useSortable({ id: feature.id });
+  } = useSortable({ id: feature.id, disabled: dragDisabled });
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
 
   const style = {
@@ -76,9 +90,19 @@ export function SortableFeatureCard({
         isDragging && 'dragging-placeholder opacity-40 scale-[0.98]',
         isOver && !isDragging && 'ring-2 ring-primary/30 ring-offset-2 ring-offset-background rounded-xl'
       )}
-      {...attributes}
-      {...listeners}
+      {...(dragDisabled ? undefined : attributes)}
+      {...(dragDisabled ? undefined : listeners)}
     >
+      {compact ? (
+        <CompactFeatureCardBody
+          feature={feature}
+          phaseName={phaseName}
+          projectId={roadmap?.projectId}
+          refining={refining}
+          onClick={onClick}
+          moveTo={moveTo}
+        />
+      ) : (
       <Card
         className="p-3 hover:bg-muted/50 cursor-pointer transition-colors"
         onClick={onClick}
@@ -248,6 +272,94 @@ export function SortableFeatureCard({
           )}
         </div>
       </Card>
+      )}
     </div>
+  );
+}
+
+interface CompactFeatureCardBodyProps {
+  feature: RoadmapFeature;
+  phaseName?: string;
+  projectId?: string;
+  refining: boolean;
+  onClick: () => void;
+  moveTo?: MoveToConfig;
+}
+
+const tinyBadge = 'inline-flex shrink-0 items-center rounded px-1 text-[10px] leading-4';
+
+/** Title (2 lines) + a single non-wrapping metadata row */
+function CompactFeatureCardBody({
+  feature,
+  phaseName,
+  projectId,
+  refining,
+  onClick,
+  moveTo
+}: CompactFeatureCardBodyProps) {
+  const { t } = useTranslation('common');
+  const directionRefs = resolveFeatureDirections(feature, useProjectDirections(projectId));
+
+  return (
+    <Card className="relative cursor-pointer px-3 py-2.5 transition-colors active:bg-muted/50" onClick={onClick}>
+      <h3 className={cn('text-sm font-medium leading-snug line-clamp-2', moveTo && 'pr-7')}>{feature.title}</h3>
+      {moveTo && <MoveToMenu {...moveTo} itemTitle={feature.title} className="absolute right-1 top-1 m-0" />}
+      <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden">
+        {refining && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" aria-label={t('roadmap.refining')} />}
+        {feature.taskOutcome ? (
+          <Badge
+            variant="outline"
+            className={cn('shrink-0 px-1 py-0 text-[10px]', getTaskOutcomeColorClass(feature.taskOutcome))}
+          >
+            <TaskOutcomeBadge outcome={feature.taskOutcome} size="sm" />
+          </Badge>
+        ) : (
+          feature.linkedSpecId && (
+            <span className={cn(tinyBadge, 'gap-0.5 bg-primary/10 text-primary')} title={t('roadmap.viewTask')}>
+              <ExternalLink className="h-2.5 w-2.5" />
+              {t('roadmap.task')}
+            </span>
+          )
+        )}
+        {directionRefs.map(({ direction, rank }) => (
+          <span
+            key={direction.id}
+            className={cn(
+              tinyBadge,
+              'rounded-full font-semibold tabular-nums',
+              direction.avoid ? 'bg-muted text-muted-foreground line-through' : 'bg-primary/15 text-primary'
+            )}
+            title={
+              direction.avoid
+                ? t('roadmap.moscow.directions.avoidTooltip', { rank, title: direction.title })
+                : t('roadmap.moscow.directions.tooltip', { rank, title: direction.title })
+            }
+          >
+            {rank}
+          </span>
+        ))}
+        <span
+          className={cn(tinyBadge, ROADMAP_IMPACT_COLORS[feature.impact])}
+          title={t('roadmap.moscow.compact.impactTitle', { level: feature.impact })}
+        >
+          {t('roadmap.moscow.compact.impact', { level: feature.impact })}
+        </span>
+        <span
+          className={cn(tinyBadge, ROADMAP_COMPLEXITY_COLORS[feature.complexity])}
+          title={t('roadmap.moscow.compact.complexityTitle', { level: feature.complexity })}
+        >
+          {t('roadmap.moscow.compact.complexity', { level: feature.complexity })}
+        </span>
+        {phaseName && (
+          <span
+            className={cn(tinyBadge, 'min-w-0 shrink gap-0.5 text-muted-foreground')}
+            title={t('roadmap.moscow.compact.phaseTitle', { name: phaseName })}
+          >
+            <Layers className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{phaseName}</span>
+          </span>
+        )}
+      </div>
+    </Card>
   );
 }

@@ -32,6 +32,64 @@ interface MoscowQuadrantProps {
   onGoToTask?: (specId: string) => void;
 }
 
+interface MoscowQuadrantListProps {
+  quadrant: MoscowQuadrantConfig;
+  features: RoadmapFeature[];
+  roadmap: Roadmap;
+  onFeatureClick: (feature: RoadmapFeature) => void;
+  onMoveFeature: (feature: RoadmapFeature, priority: RoadmapFeaturePriority) => void;
+}
+
+/**
+ * Phone layout of one quadrant: a plain list in the page scroll (no inner
+ * scroll container), compact cards and "Move to…" instead of drag-and-drop.
+ */
+export function MoscowQuadrantList({
+  quadrant,
+  features,
+  roadmap,
+  onFeatureClick,
+  onMoveFeature,
+}: MoscowQuadrantListProps) {
+  const { t } = useTranslation('common');
+  const options = MOSCOW_QUADRANTS.map((q) => ({
+    id: q.id,
+    label: t(`roadmap.moscow.quadrants.${q.id}.title`),
+    dotClass: q.dotClass,
+  }));
+
+  return (
+    <section aria-label={t(`roadmap.moscow.quadrants.${quadrant.id}.title`)} className="space-y-2">
+      <p className="px-0.5 text-xs text-muted-foreground">
+        {t(`roadmap.moscow.quadrants.${quadrant.id}.description`)}
+      </p>
+      {features.length === 0 ? (
+        <div className="empty-column-dropzone flex flex-col items-center justify-center px-6 py-8 text-center">
+          <Inbox className="h-5 w-5 text-muted-foreground/50" />
+          <span className="mt-1 text-sm text-muted-foreground">{t('roadmap.moscow.emptyQuadrant')}</span>
+          <span className="mt-1 text-xs text-muted-foreground/70">{t('roadmap.moscow.emptyQuadrantHint')}</span>
+        </div>
+      ) : (
+        features.map((feature) => (
+          <SortableFeatureCard
+            key={feature.id}
+            feature={feature}
+            roadmap={roadmap}
+            compact
+            dragDisabled
+            onClick={() => onFeatureClick(feature)}
+            moveTo={{
+              options,
+              current: feature.priority,
+              onSelect: (id) => onMoveFeature(feature, id as RoadmapFeaturePriority),
+            }}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
 export function MoscowQuadrant({
   quadrant,
   features,
