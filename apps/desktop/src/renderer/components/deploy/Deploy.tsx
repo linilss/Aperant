@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Rocket, RefreshCw, Play, AlertCircle } from 'lucide-react';
+import { Rocket, RefreshCw, Play, AlertCircle, Star } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { PageHeader, PAGE_BODY, PAGE_ROOT } from '../ui/page-header';
 import { cn } from '../../lib/utils';
+import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
+import { resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
 import { buildDeployCommand } from './deploy-command';
 import type { DeployScript } from '../../../shared/types';
 
@@ -20,6 +22,8 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
   const [scripts, setScripts] = useState<DeployScript[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const settings = useProjectStore((s) => s.projects.find((p) => p.id === projectId)?.settings);
+  const defaultPath = resolveProjectDeployScript(scripts, settings)?.relativePath ?? null;
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -84,7 +88,16 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
         <ScrollArea className={PAGE_BODY}>
           <div className="space-y-3 p-6 max-md:p-3">
             {scripts.map((script) => (
-              <DeployScriptCard key={script.relativePath} script={script} onRun={run} />
+              <DeployScriptCard
+                key={script.relativePath}
+                script={script}
+                isDefault={script.relativePath === defaultPath}
+                defaultArgs={script.relativePath === settings?.deployScript ? settings?.deployArgs : undefined}
+                onMakeDefault={(args) =>
+                  updateProjectSettings(projectId, { deployScript: script.relativePath, deployArgs: args.trim() })
+                }
+                onRun={run}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -95,13 +108,19 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
 
 function DeployScriptCard({
   script,
+  isDefault,
+  defaultArgs,
+  onMakeDefault,
   onRun
 }: {
   script: DeployScript;
+  isDefault: boolean;
+  defaultArgs?: string;
+  onMakeDefault: (args: string) => void;
   onRun: (script: DeployScript, args: string) => void;
 }) {
   const { t } = useTranslation('deploy');
-  const [args, setArgs] = useState('');
+  const [args, setArgs] = useState(defaultArgs ?? '');
   // Deploys are outward-facing: first click arms, second click runs
   const [armed, setArmed] = useState(false);
 
@@ -131,6 +150,15 @@ function DeployScriptCard({
           <p className="break-all font-mono text-sm">
             <span className="text-muted-foreground">{folder}</span>
             <span className="font-semibold text-foreground">{script.name}</span>
+            {isDefault && (
+              <span
+                className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 align-middle font-sans text-xs text-primary"
+                title={t('defaultTooltip')}
+              >
+                <Star className="h-3 w-3" />
+                {t('default')}
+              </span>
+            )}
           </p>
           <p className="mt-1 line-clamp-2 text-sm text-muted-foreground" title={script.description}>
             {script.description || t('noDescription')}
@@ -149,6 +177,18 @@ function DeployScriptCard({
               placeholder={t('argsPlaceholder')}
               className="h-8 w-44 font-mono text-xs max-md:h-10 max-md:w-full"
             />
+          )}
+          {!isDefault && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onMakeDefault(args)}
+              title={t('defaultTooltip')}
+              className="max-md:h-10 max-md:w-full"
+            >
+              <Star className="mr-2 h-4 w-4" />
+              {t('makeDefault')}
+            </Button>
           )}
           <Button
             size="sm"

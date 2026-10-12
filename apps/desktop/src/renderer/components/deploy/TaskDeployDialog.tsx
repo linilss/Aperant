@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, AlertTriangle, Loader2, Rocket } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Checkbox } from '../ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn, formatRelativeTime } from '../../lib/utils';
 import { useDeployDialogStore } from '../../stores/deploy-dialog-store';
 import { useTaskStore } from '../../stores/task-store';
-import { getLastDeployment } from '../../../shared/utils/task-deployments';
+import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
+import { toast } from '../../hooks/use-toast';
+import { getLastDeployment, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
 import { buildDeployCommand } from './deploy-command';
 import type { DeployPreflight, DeployScript, Task } from '../../../shared/types';
 
@@ -18,14 +21,91 @@ interface TaskDeployDialogProps {
   onOpenDeployView: () => void;
 }
 
+/** Saves a started deploy on the task (task_metadata.json) and in the task store. */
+async function recordDeployment(task: Task, script: string, args: string): Promise<void> {
+  const result = await window.electronAPI.recordTaskDeployment(task.projectId, task.id, { script, args });
+  if (result.success && result.data) {
+    const current = useTaskStore.getState().tasks.find((x) => x.id === task.id);
+    useTaskStore.getState().updateTask(task.id, {
+      metadata: { ...(current?.metadata ?? task.metadata), deployments: result.data }
+    });
+  }
+}
+
+function hasPreflightWarnings(preflight: DeployPreflight | null | undefined): boolean {
+  if (!preflight) return false;
+  if (preflight.hasUncommittedChanges) return true;
+  return !!(preflight.currentBranch && preflight.mainBranch && preflight.currentBranch !== preflight.mainBranch);
+}
+
 /**
  * Deploy a merged task: pick one of the project's deploy*.sh scripts, see branch /
  * uncommitted-changes warnings, confirm, then run it in an agent terminal and record it.
  * Mounted once in App; opened via useDeployDialogStore().openForTask(task).
+ *
+ * Also runs one-click deploys (useDeployDialogStore().deployTask): quick-merge an unmerged
+ * task, then run the project's deploy script. Without a resolvable script, or with branch /
+ * uncommitted-changes warnings, it opens this dialog instead.
  */
 export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDeployDialogProps) {
+  const { t } = useTranslation('deploy');
   const task = useDeployDialogStore((s) => s.task);
   const close = useDeployDialogStore((s) => s.close);
+  const runInTerminal = useRef(onRunInTerminal);
+  runInTerminal.current = onRunInTerminal;
+
+  const deployOneClick = useCallback(
+    async (task: Task) => {
+      const { setStage, openForTask } = useDeployDialogStore.getState();
+      try {
+        if (task.status !== 'done') {
+          setStage(task.id, 'merging');
+          const merge = await window.electronAPI.mergeWorktree(task.id, { quickMerge: true });
+          if (!(merge.success && merge.data?.success)) {
+            toast({
+              title: t('task.mergeFailed'),
+              description: merge.data?.message || merge.error,
+              variant: 'destructive'
+            });
+            return;
+          }
+        }
+        setStage(task.id, 'deploying');
+        const [scriptsResult, preflightResult] = await Promise.all([
+          window.electronAPI.listDeployScripts(task.projectId),
+          window.electronAPI.getDeployPreflight(task.projectId)
+        ]);
+        const current = useTaskStore.getState().tasks.find((x) => x.id === task.id) ?? task;
+        const settings = useProjectStore.getState().projects.find((p) => p.id === task.projectId)?.settings;
+        const script = scriptsResult.success ? resolveProjectDeployScript(scriptsResult.data ?? [], settings) : null;
+        if (!script || hasPreflightWarnings(preflightResult.success ? preflightResult.data : null)) {
+          openForTask(current);
+          return;
+        }
+        const args = settings?.deployArgs ?? '';
+        if (!runInTerminal.current(buildDeployCommand(script, args), `${t('title')}: ${script.name}`)) {
+          toast({ title: t('terminalLimit'), variant: 'destructive' });
+          return;
+        }
+        await recordDeployment(current, script.relativePath, args);
+        toast({ title: t('task.started', { script: script.name }) });
+      } catch (err) {
+        toast({
+          title: t('task.failed'),
+          description: err instanceof Error ? err.message : String(err),
+          variant: 'destructive'
+        });
+      } finally {
+        setStage(task.id, null);
+      }
+    },
+    [t]
+  );
+
+  useEffect(() => {
+    useDeployDialogStore.getState().setRunner(deployOneClick);
+    return () => useDeployDialogStore.getState().setRunner(null);
+  }, [deployOneClick]);
 
   return (
     <Dialog open={!!task} onOpenChange={(open) => !open && close()}>
@@ -55,7 +135,11 @@ function TaskDeployDialogBody({
   const [args, setArgs] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const settings = useProjectStore((s) => s.projects.find((p) => p.id === task.projectId)?.settings);
+  // Remember the choice so the card's Deploy button runs it next time without asking
+  const [makeDefault, setMakeDefault] = useState(!settings?.deployScript);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: project settings only seed the initial selection
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -66,9 +150,10 @@ function TaskDeployDialogBody({
       if (scriptsResult.success) {
         const found = scriptsResult.data ?? [];
         setScripts(found);
-        // Preselect the script used last time, else the first one
-        const last = getLastDeployment(task)?.script;
-        setSelectedPath(found.find((s) => s.relativePath === last)?.relativePath ?? found[0]?.relativePath ?? null);
+        // Preselect the project's deploy script, else the one used last time, else the first one
+        const preferred = resolveProjectDeployScript(found, settings)?.relativePath ?? getLastDeployment(task)?.script;
+        setSelectedPath(found.find((s) => s.relativePath === preferred)?.relativePath ?? found[0]?.relativePath ?? null);
+        if (settings?.deployScript && preferred === settings.deployScript) setArgs(settings.deployArgs ?? '');
       } else {
         setScripts([]);
         setError(scriptsResult.error ?? t('loadFailed'));
@@ -99,16 +184,10 @@ function TaskDeployDialogBody({
       setError(t('terminalLimit'));
       return;
     }
-    const result = await window.electronAPI.recordTaskDeployment(task.projectId, task.id, {
-      script: selected.relativePath,
-      args
-    });
-    if (result.success && result.data) {
-      const current = useTaskStore.getState().tasks.find((x) => x.id === task.id);
-      useTaskStore.getState().updateTask(task.id, {
-        metadata: { ...(current?.metadata ?? task.metadata), deployments: result.data }
-      });
+    if (makeDefault) {
+      await updateProjectSettings(task.projectId, { deployScript: selected.relativePath, deployArgs: args.trim() });
     }
+    await recordDeployment(task, selected.relativePath, args);
     onClose();
   };
 
@@ -211,6 +290,19 @@ function TaskDeployDialogBody({
               {warning}
             </p>
           ))}
+        </div>
+      )}
+
+      {selected && scripts && scripts.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Checkbox
+            id="deploy-make-default"
+            checked={makeDefault}
+            onCheckedChange={(v) => setMakeDefault(v === true)}
+          />
+          <label htmlFor="deploy-make-default" className="cursor-pointer">
+            {t('task.makeDefault')}
+          </label>
         </div>
       )}
 

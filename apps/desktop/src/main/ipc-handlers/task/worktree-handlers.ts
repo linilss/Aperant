@@ -1661,7 +1661,10 @@ function autoDetectMergeTarget(projectPath: string, specDir: string, projectMain
   const taskBaseBranch = getTaskBaseBranch(specDir);
   if (taskBaseBranch) return taskBaseBranch;
 
-  // 2. Prefer origin/dev if it exists
+  // 2. Project settings — the branch the project deploys from
+  if (projectMainBranch && GIT_BRANCH_REGEX.test(projectMainBranch)) return projectMainBranch;
+
+  // 3. Prefer origin/dev if it exists
   try {
     const remoteRefs = execFileSync(
       getToolPath('git'),
@@ -1672,9 +1675,6 @@ function autoDetectMergeTarget(projectPath: string, specDir: string, projectMain
   } catch {
     // ls-remote failed — network issue or no remote; continue
   }
-
-  // 3. Project settings
-  if (projectMainBranch && GIT_BRANCH_REGEX.test(projectMainBranch)) return projectMainBranch;
 
   // 4. Fallback
   return 'main';
@@ -2168,7 +2168,7 @@ export function registerWorktreeHandlers(
         }
 
         // Determine base branch.
-        // For quickMerge (Merge button on pending_merge tasks): prefer origin/dev, then project setting.
+        // For quickMerge (Merge / Deploy buttons): task base branch, then project setting, then origin/dev.
         // For the human-review orchestrator path: use getTaskBaseBranch → project setting → 'main'.
         const projectMainBranch = project.settings?.mainBranch;
         const effectiveBaseBranch = options?.quickMerge

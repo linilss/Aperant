@@ -62,6 +62,10 @@ export interface ProjectSettings {
    * (pause and wait) instead of switching to another account. Default true.
    */
   claudeProfileStrict?: boolean;
+  /** Deploy script (relative path of a deploy*.sh) the Kanban Deploy button runs without asking */
+  deployScript?: string;
+  /** Arguments passed to deployScript */
+  deployArgs?: string;
 }
 
 export interface NotificationSettings {

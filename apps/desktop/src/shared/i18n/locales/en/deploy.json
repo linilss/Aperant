@@ -17,7 +17,7 @@
   "task": {
     "title": "Deploy",
     "button": "Deploy",
-    "buttonTooltip": "Deploy this merged task with one of the project's deploy scripts",
+    "buttonTooltip": "Deploy this merged task with the project's deploy script",
     "mergeFirst": "Merge the task first, then deploy it from the Done column",
     "deployed": "Deployed {{time}}",
     "deployedTooltip": "Last deployed {{time}} with {{script}}",
@@ -31,7 +31,19 @@
     "warnings": {
       "notOnMain": "The project is on {{current}}, not {{main}}. The script runs from the current checkout.",
       "uncommitted": "The project has uncommitted changes. They would be included in the deploy."
-    }
+    },
+    "mergeAndDeployTooltip": "Merge this task into the main branch, then run the project's deploy script",
+    "confirmShort": "Deploy?",
+    "confirmMerge": "Merge + deploy?",
+    "merging": "Merging…",
+    "deploying": "Deploying…",
+    "started": "Deploy started: {{script}}",
+    "mergeFailed": "Merge failed, nothing was deployed",
+    "failed": "Deploy failed",
+    "makeDefault": "Use for this project's Deploy button (no question next time)"
   },
-  "notDeployed": "{{count}} merged, not deployed"
+  "notDeployed": "{{count}} merged, not deployed",
+  "default": "Project default",
+  "makeDefault": "Use as default",
+  "defaultTooltip": "The Deploy button on task cards runs this script"
 }

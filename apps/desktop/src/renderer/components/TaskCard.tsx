@@ -368,9 +368,23 @@ export const TaskCard = memo(function TaskCard({
 
   const lastDeployment = getLastDeployment(task);
 
+  const deployStage = useDeployDialogStore((s) => s.inFlight[task.id]);
+  // Deploy is outward-facing: first click arms, second click merges (if needed) and deploys
+  const [deployArmed, setDeployArmed] = useState(false);
+  useEffect(() => {
+    if (!deployArmed) return;
+    const timer = setTimeout(() => setDeployArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [deployArmed]);
+
   const handleDeploy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    useDeployDialogStore.getState().openForTask(task);
+    if (!deployArmed) {
+      setDeployArmed(true);
+      return;
+    }
+    setDeployArmed(false);
+    useDeployDialogStore.getState().deployTask(task);
   };
 
   const handleViewPR = (e: React.MouseEvent) => {
@@ -467,20 +481,28 @@ export const TaskCard = memo(function TaskCard({
 
   const isArchived = !!task.metadata?.archivedAt;
 
-  // Merged tasks (Done) can be deployed; re-deploys stay available
+  // Finished tasks deploy in one go: unmerged ones are merged first. Re-deploys stay available.
+  const needsMerge = task.status !== 'done';
+  const deployLabel = deployStage
+    ? t(deployStage === 'merging' ? 'deploy:task.merging' : 'deploy:task.deploying')
+    : deployArmed
+      ? t(needsMerge ? 'deploy:task.confirmMerge' : 'deploy:task.confirmShort')
+      : t('deploy:task.button');
   const deployButton = (
     <Button
-      variant="outline"
+      variant={deployArmed ? 'destructive' : needsMerge ? 'default' : 'outline'}
       size="sm"
       className="h-7 px-2.5 text-xs max-md:h-9 max-md:px-3"
       onClick={handleDeploy}
-      title={t('deploy:task.buttonTooltip')}
-      aria-label={t('deploy:task.button')}
+      disabled={!!deployStage}
+      title={t(needsMerge ? 'deploy:task.mergeAndDeployTooltip' : 'deploy:task.buttonTooltip')}
+      aria-label={deployLabel}
     >
-      <Rocket className="h-3 w-3 md:mr-1.5" />
-      <span className="max-md:hidden">{t('deploy:task.button')}</span>
+      {deployStage ? <Loader2 className="h-3 w-3 animate-spin md:mr-1.5" /> : <Rocket className="h-3 w-3 md:mr-1.5" />}
+      <span className={deployArmed || deployStage ? undefined : 'max-md:hidden'}>{deployLabel}</span>
     </Button>
   );
+  const canDeployFromReview = task.status === 'human_review' && effectiveReviewReason === 'completed';
 
   return (
     <>
@@ -776,6 +798,7 @@ export const TaskCard = memo(function TaskCard({
               </Button>
             ) : task.status === 'human_review' ? (
               <div className="flex items-center gap-1.5">
+                {canDeployFromReview && deployButton}
                 {hasWorktree && (
                   <Button
                     variant="ghost"
@@ -859,6 +882,8 @@ export const TaskCard = memo(function TaskCard({
                 )}
               </div>
             ) : task.status === 'pending_merge' ? (
+              <div className="flex items-center gap-1.5">
+              {deployButton}
               <Button
                 variant="ghost"
                 size="sm"
@@ -873,6 +898,7 @@ export const TaskCard = memo(function TaskCard({
                   <><RefreshCw className="mr-1.5 h-3 w-3" />Rebase</>
                 )}
               </Button>
+              </div>
             ) : (task.status === 'backlog' || task.status === 'in_progress') && (
               <Button
                 variant={isRunning ? 'destructive' : 'default'}
