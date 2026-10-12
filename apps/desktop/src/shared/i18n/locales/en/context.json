@@ -2,7 +2,8 @@
   "title": "Context",
   "tabs": {
     "docs": "Docs",
-    "design": "Design"
+    "design": "Design",
+    "indexShort": "Index"
   },
   "summary": {
     "line": "{{docs}} doc files · {{pointers}} pointers · last optimized {{date}}",

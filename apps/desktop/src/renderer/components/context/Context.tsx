@@ -139,21 +139,22 @@ export function Context({ projectId }: ContextProps) {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col max-md:flex-none">
         <div className={cn(PAGE_STICKY, 'shrink-0 border-b border-border px-6 py-3 max-md:px-3 max-md:py-2')}>
           <TabsList className="flex w-full max-w-2xl justify-start overflow-x-auto [scrollbar-width:none] max-md:max-w-none max-md:h-12 [&::-webkit-scrollbar]:hidden">
-            <TabsTrigger value="index" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+            <TabsTrigger value="index" className="flex-1 shrink-0 gap-2 max-md:min-h-10 max-md:min-w-0 max-md:shrink max-md:gap-1 max-md:px-1.5 max-md:text-xs">
               <FolderTree className="h-4 w-4 shrink-0" />
-              {t('common:context.tabs.projectIndex')}
+              <span className="truncate max-md:hidden">{t('common:context.tabs.projectIndex')}</span>
+              <span className="truncate md:hidden">{t('context:tabs.indexShort')}</span>
             </TabsTrigger>
-            <TabsTrigger value="docs" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+            <TabsTrigger value="docs" className="flex-1 shrink-0 gap-2 max-md:min-h-10 max-md:min-w-0 max-md:shrink max-md:gap-1 max-md:px-1.5 max-md:text-xs">
               <BookOpen className="h-4 w-4 shrink-0" />
-              {t('context:tabs.docs')}
+              <span className="truncate">{t('context:tabs.docs')}</span>
             </TabsTrigger>
-            <TabsTrigger value="memories" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+            <TabsTrigger value="memories" className="flex-1 shrink-0 gap-2 max-md:min-h-10 max-md:min-w-0 max-md:shrink max-md:gap-1 max-md:px-1.5 max-md:text-xs">
               <Brain className="h-4 w-4 shrink-0" />
-              {t('common:context.tabs.memories')}
+              <span className="truncate">{t('common:context.tabs.memories')}</span>
             </TabsTrigger>
-            <TabsTrigger value="design" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+            <TabsTrigger value="design" className="flex-1 shrink-0 gap-2 max-md:min-h-10 max-md:min-w-0 max-md:shrink max-md:gap-1 max-md:px-1.5 max-md:text-xs">
               <Palette className="h-4 w-4 shrink-0" />
-              {t('context:tabs.design')}
+              <span className="truncate">{t('context:tabs.design')}</span>
             </TabsTrigger>
           </TabsList>
         </div>
