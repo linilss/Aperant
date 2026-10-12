@@ -4,6 +4,34 @@
 
 const noop = (): void => undefined;
 
+/** No design system detected (browser mock) */
+const emptyDesignState = {
+  detection: {
+    name: null,
+    artifactUrl: null,
+    sourceDir: null,
+    publishRoot: null,
+    tokenFiles: [],
+    docFile: null,
+    candidates: [],
+    overridden: { artifactUrl: false, sourceDir: false }
+  },
+  config: {},
+  data: {
+    origin: 'none' as const,
+    colors: [],
+    typography: [],
+    radii: [],
+    spacing: [],
+    components: [],
+    docs: [],
+    parsedFiles: [],
+    rawFiles: []
+  },
+  hasSnapshot: false,
+  running: null
+};
+
 export const contextMock = {
   getProjectContext: async () => ({
     success: true,
@@ -82,5 +110,14 @@ export const contextMock = {
   onDocsOptimizerChunk: () => noop,
   onDocsOptimizerBranchProgress: () => noop,
   onDocsOptimizerComplete: () => noop,
-  onDocsOptimizerError: () => noop
+  onDocsOptimizerError: () => noop,
+
+  // Design system (Context → Design)
+  getDesignSystem: async () => ({ success: true, data: emptyDesignState }),
+  saveDesignSystemOverrides: async () => ({ success: false, error: 'Not available in browser mock' }),
+  readDesignSystemFile: async () => ({ success: false, error: 'Not available in browser mock' }),
+  getDesignPublishPlan: async () => ({ success: true, data: null }),
+  syncDesignSystem: async () => ({ success: false, error: 'Not available in browser mock' }),
+  publishDesignSystem: async () => ({ success: false, error: 'Not available in browser mock' }),
+  onDesignSystemProgress: () => noop
 };

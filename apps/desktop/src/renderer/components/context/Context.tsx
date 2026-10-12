@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderTree, Brain, BookOpen, Library } from 'lucide-react';
+import { FolderTree, Brain, BookOpen, Library, Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PageHeader, PAGE_ROOT, PAGE_BODY, PAGE_STICKY } from '../ui/page-header';
@@ -19,6 +19,7 @@ import { useProjectContext, useRefreshIndex, useMemorySearch } from './hooks';
 import { ProjectIndexTab } from './ProjectIndexTab';
 import { MemoriesTab } from './MemoriesTab';
 import { DocsTab, type DocFocus } from './docs/DocsTab';
+import { DesignTab } from './design/DesignTab';
 import type { BranchProgressEvent, DocPointer, DocsOptimizerResult } from '../../../shared/types';
 import type { ContextProps } from './types';
 
@@ -137,7 +138,7 @@ export function Context({ projectId }: ContextProps) {
       <PageHeader icon={Library} title={t('context:title')} subtitle={docsSummary} />
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col max-md:flex-none">
         <div className={cn(PAGE_STICKY, 'shrink-0 border-b border-border px-6 py-3 max-md:px-3 max-md:py-2')}>
-          <TabsList className="flex w-full max-w-lg justify-start overflow-x-auto [scrollbar-width:none] max-md:max-w-none max-md:h-12 [&::-webkit-scrollbar]:hidden">
+          <TabsList className="flex w-full max-w-2xl justify-start overflow-x-auto [scrollbar-width:none] max-md:max-w-none max-md:h-12 [&::-webkit-scrollbar]:hidden">
             <TabsTrigger value="index" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
               <FolderTree className="h-4 w-4 shrink-0" />
               {t('common:context.tabs.projectIndex')}
@@ -149,6 +150,10 @@ export function Context({ projectId }: ContextProps) {
             <TabsTrigger value="memories" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
               <Brain className="h-4 w-4 shrink-0" />
               {t('common:context.tabs.memories')}
+            </TabsTrigger>
+            <TabsTrigger value="design" className="flex-1 shrink-0 gap-2 max-md:min-h-10">
+              <Palette className="h-4 w-4 shrink-0" />
+              {t('context:tabs.design')}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -188,6 +193,11 @@ export function Context({ projectId }: ContextProps) {
             onPin={handlePin}
             onDeprecate={handleDeprecate}
           />
+        </TabsContent>
+
+        {/* Design Tab */}
+        <TabsContent value="design" className={panelClass}>
+          <DesignTab projectId={projectId} />
         </TabsContent>
       </Tabs>
     </div>

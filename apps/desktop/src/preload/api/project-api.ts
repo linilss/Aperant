@@ -27,7 +27,10 @@ import type {
   DocsOptimizerResult,
   BranchProgressEvent,
   CoreValues,
-  SaveCoreValuesResult
+  SaveCoreValuesResult,
+  DesignSystemState,
+  DesignPublishPlan,
+  DesignSystemRunResult
 } from '../../shared/types';
 
 // Tab state interface (persisted in main process)
@@ -90,6 +93,21 @@ export interface ProjectAPI {
   onDocsOptimizerBranchProgress: (cb: (projectId: string, progress: BranchProgressEvent) => void) => () => void;
   onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => () => void;
   onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => () => void;
+
+  // Design system (Context → Design)
+  getDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemState>>;
+  /** Empty strings clear an override */
+  saveDesignSystemOverrides: (
+    projectId: string,
+    input: { artifactUrl?: string; sourceDir?: string }
+  ) => Promise<IPCResult<DesignSystemState>>;
+  readDesignSystemFile: (projectId: string, relativePath: string) => Promise<IPCResult<string>>;
+  getDesignPublishPlan: (projectId: string) => Promise<IPCResult<DesignPublishPlan | null>>;
+  /** Read-only: snapshot the artifact into .malvy/design-system/ */
+  syncDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemRunResult>>;
+  /** User-confirmed publish of these artifact paths */
+  publishDesignSystem: (projectId: string, paths: string[]) => Promise<IPCResult<DesignSystemRunResult>>;
+  onDesignSystemProgress: (cb: (projectId: string, text: string) => void) => () => void;
 
   // Memory Infrastructure operations (built-in memory, libSQL)
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
@@ -272,6 +290,30 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   draftCoreValues: (projectId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_DRAFT, projectId),
+
+  getDesignSystem: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_GET, projectId),
+
+  saveDesignSystemOverrides: (projectId: string, input: { artifactUrl?: string; sourceDir?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_SAVE_OVERRIDES, projectId, input),
+
+  readDesignSystemFile: (projectId: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_READ_FILE, projectId, relativePath),
+
+  getDesignPublishPlan: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_PUBLISH_PLAN, projectId),
+
+  syncDesignSystem: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_SYNC, projectId),
+
+  publishDesignSystem: (projectId: string, paths: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_PUBLISH, projectId, paths),
+
+  onDesignSystemProgress: (cb: (projectId: string, text: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, text: string) => cb(projectId, text);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DESIGN_PROGRESS, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DESIGN_PROGRESS, listener);
+  },
 
   getPendingDocsRun: (projectId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_PENDING, projectId),

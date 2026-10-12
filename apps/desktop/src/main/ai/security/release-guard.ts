@@ -10,6 +10,9 @@
  *   (build/QA sessions in worker.ts, and claude-cli.ts when Bash is mapped)
  * - `findReleaseCommand()` — the matcher used by the SDK-path bash validator
  * - `isReleaseStepText()` — classifier for implementation-plan subtasks
+ *
+ * Design-system artifacts on claude.ai count as releases too: task agents update the
+ * source files in the repo and the user publishes from Context → Design.
  */
 
 /** Command prefixes (tokens) that release something. Matched after `git`/`npx` option skipping. */
@@ -52,6 +55,13 @@ const COMMAND_WRAPPERS = new Set(['env', 'sudo', 'time', 'nohup', 'exec', 'comma
 const GIT_OPTIONS_WITH_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace']);
 
 /**
+ * Claude Code tools that publish to claude.ai (design-system artifacts, claude.ai/design
+ * projects). The CLI can't restrict a tool by action, so the whole tool is denied; the
+ * Context → Design runners (sync/publish) are separate spawns that don't get this guard.
+ */
+export const ARTIFACT_PUBLISH_TOOLS: readonly string[] = ['Artifact', 'DesignSync'];
+
+/**
  * `--disallowedTools` patterns for the claude CLI. Deny rules win over `--allowedTools`
  * and the CLI checks each part of a compound command (`cd x && git push`) separately.
  */
@@ -69,6 +79,7 @@ export const RELEASE_DISALLOWED_TOOLS: readonly string[] = [
     `Bash(yarn ${word}*)`,
     `Bash(make ${word}*)`,
   ]),
+  ...ARTIFACT_PUBLISH_TOOLS,
 ];
 
 /** CLI args that block release commands; append to any `claude` spawn that allows Bash. */
@@ -197,6 +208,7 @@ const RELEASE_TEXT_PATTERNS: readonly RegExp[] = [
   /\bpush(ed|es|ing)?\s+(it\s+|the\s+\w+\s+|changes\s+)?(to\s+)?(origin|main|master|remote|production|prod)\b/i,
   /\bdeploy(s|ed|ing)?\s+(it\s+|the\s+\w+\s+)?(to\s+)?(prod|production|staging|azure|aws|gcp|fly|vercel|netlify|heroku|the server|live)\b/i,
   /\brelease\s+(to\s+)?(prod|production|users)\b/i,
+  /\b(re)?publish\w*\b[^.]*\b(design[- ]system|artifact)\b/i,
 ];
 
 /**

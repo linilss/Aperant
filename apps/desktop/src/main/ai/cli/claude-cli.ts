@@ -35,6 +35,8 @@ export interface ClaudeCliOptions {
   abortSignal?: AbortSignal;
   onText?: (text: string) => void;
   onToolUse?: (name: string, input: Record<string, unknown>) => void;
+  /** Text content of each tool result the CLI reports back (e.g. where the Artifact tool saved files) */
+  onToolResult?: (content: string) => void;
   /**
    * Replaces Claude Code's default system prompt (written to a temp file and passed
    * via `--system-prompt-file`, so long prompts don't hit OS argument-length limits).
@@ -102,6 +104,15 @@ export async function runClaudeCli(options: ClaudeCliOptions): Promise<string> {
   return (await runClaudeCliDetailed(options)).text;
 }
 
+/** Tool result content is a string or a list of `{type: 'text', text}` blocks */
+function toolResultText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((part) => (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string' ? (part as { text: string }).text : ''))
+    .join('\n');
+}
+
 function toNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -136,7 +147,7 @@ async function resolveSpawnContext(
 /** Runs the prompt and resolves to the full text plus usage/cost from the `result` event. */
 export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<ClaudeCliResult> {
   const {
-    prompt, cwd, modelId, allowedTools, maxTurns, abortSignal, onText, onToolUse,
+    prompt, cwd, modelId, allowedTools, maxTurns, abortSignal, onText, onToolUse, onToolResult,
     systemPrompt, restrictTools, minimalContext, projectContext, partialMessages, onTextBlockStart,
   } = options;
 
@@ -154,8 +165,9 @@ export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<C
     '--verbose',
     '--output-format', 'stream-json',
     ...(allowedTools.length > 0 ? ['--allowedTools', allowedTools.join(',')] : []),
-    // Agents never release: block deploy/publish/git push whenever Bash is available
-    ...(allowedTools.includes('Bash') ? releaseGuardCliArgs() : []),
+    // Agents never release: block deploy/publish/git push and artifact publishing whenever
+    // Bash or Write is available (dedicated design-system runners pass neither)
+    ...(allowedTools.includes('Bash') || allowedTools.includes('Write') ? releaseGuardCliArgs() : []),
     ...(restrictTools ? ['--tools', allowedTools.join(',')] : []),
     '--model', modelId,
     ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
@@ -174,7 +186,7 @@ export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<C
     }
 
     return await spawnAndCollect(claudePath, args, {
-      cwd, prompt, spawnEnv, abortSignal, onText, onToolUse, partialMessages, onTextBlockStart,
+      cwd, prompt, spawnEnv, abortSignal, onText, onToolUse, onToolResult, partialMessages, onTextBlockStart,
     });
   } finally {
     if (tempDir) {
@@ -190,12 +202,14 @@ interface SpawnOptions {
   abortSignal?: AbortSignal;
   onText?: (text: string) => void;
   onToolUse?: (name: string, input: Record<string, unknown>) => void;
+  onToolResult?: (content: string) => void;
   partialMessages?: boolean;
   onTextBlockStart?: () => void;
 }
 
 async function spawnAndCollect(claudePath: string, args: string[], options: SpawnOptions): Promise<ClaudeCliResult> {
-  const { cwd, prompt, spawnEnv, abortSignal, onText, onToolUse, partialMessages, onTextBlockStart } = options;
+  const { cwd, prompt, spawnEnv, abortSignal, onText, onToolUse, onToolResult, partialMessages, onTextBlockStart } =
+    options;
 
   const child = spawn(claudePath, args, {
     cwd,
@@ -253,6 +267,12 @@ async function spawnAndCollect(claudePath: string, args: string[], options: Spaw
         } else if (block.type === 'tool_use') {
           onToolUse?.(String(block.name ?? 'unknown'), (block.input ?? {}) as Record<string, unknown>);
         }
+      }
+    } else if (event.type === 'user' && onToolResult) {
+      const message = event.message as Record<string, unknown> | undefined;
+      const content = Array.isArray(message?.content) ? (message.content as Array<Record<string, unknown>>) : [];
+      for (const block of content) {
+        if (block.type === 'tool_result') onToolResult(toolResultText(block.content));
       }
     } else if (event.type === 'result') {
       if (event.result) result.resultText = String(event.result);

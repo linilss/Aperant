@@ -269,6 +269,8 @@ export const RELEASE_POLICY_SECTION =
   `do not run deploy*/release*/publish* scripts, \`az webapp\`, \`az acr build\`, \`kubectl apply\`, ` +
   `\`terraform apply\`, \`fly deploy\`, \`vercel --prod\`, \`npm publish\`, \`dotnet nuget push\` or ` +
   `\`xcrun altool\`, and never \`git push\` to any remote. The user releases from Malvy's Deploy button after merging. ` +
+  `Don't publish design-system artifacts (claude.ai Artifact/Design System): update the source files in the repo ` +
+  `and the user publishes from Malvy. ` +
   `Planners: never add deploy/release/push subtasks; if the docs describe a release process, at most note in the ` +
   `plan summary that the user deploys from Malvy.\n\n---\n\n`;
 

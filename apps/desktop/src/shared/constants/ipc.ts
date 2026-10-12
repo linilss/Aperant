@@ -299,6 +299,14 @@ export const IPC_CHANNELS = {
   CONTEXT_DOCS_BRANCH_PROGRESS: 'context:docs:branchProgress',
   CONTEXT_DOCS_COMPLETE: 'context:docs:complete',
   CONTEXT_DOCS_ERROR: 'context:docs:error',
+  // Design system (Context → Design)
+  CONTEXT_DESIGN_GET: 'context:design:get',
+  CONTEXT_DESIGN_SAVE_OVERRIDES: 'context:design:saveOverrides',
+  CONTEXT_DESIGN_READ_FILE: 'context:design:readFile',
+  CONTEXT_DESIGN_PUBLISH_PLAN: 'context:design:publishPlan',
+  CONTEXT_DESIGN_SYNC: 'context:design:sync',
+  CONTEXT_DESIGN_PUBLISH: 'context:design:publish',
+  CONTEXT_DESIGN_PROGRESS: 'context:design:progress', // main → renderer
 
   // Environment configuration
   ENV_GET: 'env:get',

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { RELEASE_POLICY_SECTION } from '../../prompts/prompt-loader';
 import {
+  ARTIFACT_PUBLISH_TOOLS,
   RELEASE_DISALLOWED_TOOLS,
   findReleaseCommand,
   isReleaseStepText,
@@ -111,6 +113,20 @@ describe('CLI deny patterns', () => {
     expect(args[args.indexOf('--allowedTools') + 1]).toContain('Bash');
     expect(args[args.indexOf('--disallowedTools') + 1]).toContain('Bash(git push:*)');
   });
+
+  it('blocks the whole Artifact tool (and DesignSync) for task agents: no design-system publishing', () => {
+    expect(ARTIFACT_PUBLISH_TOOLS).toEqual(['Artifact', 'DesignSync']);
+    const args = taskAgentCliToolArgs();
+    const denied = args[args.indexOf('--disallowedTools') + 1].split(',');
+    expect(denied).toContain('Artifact');
+    expect(denied).toContain('DesignSync');
+    expect(args[args.indexOf('--allowedTools') + 1]).not.toContain('Artifact');
+  });
+
+  it('tells task agents not to publish design-system artifacts', () => {
+    expect(RELEASE_POLICY_SECTION).toContain("Don't publish design-system artifacts");
+    expect(RELEASE_POLICY_SECTION).toContain('the user publishes from Malvy');
+  });
 });
 
 describe('isReleaseStepText (plan subtasks)', () => {
@@ -121,6 +137,7 @@ describe('isReleaseStepText (plan subtasks)', () => {
     'Deploy to production',
     'Upload the build to App Store Connect',
     'Run npm publish',
+    'Publish the changed files to the design system artifact',
   ])('flags %s', (text) => {
     expect(isReleaseStepText(text)).toBe(true);
   });
@@ -133,6 +150,7 @@ describe('isReleaseStepText (plan subtasks)', () => {
     'Implement the release notes screen',
     'Create the workout history API endpoint',
     'Run the frontend test suite',
+    'Update design/system/project/tokens.json and publish the design system',
   ])('does not flag %s', (text) => {
     expect(isReleaseStepText(text)).toBe(false);
   });

@@ -1,7 +1,8 @@
 {
   "title": "Context",
   "tabs": {
-    "docs": "Docs"
+    "docs": "Docs",
+    "design": "Design"
   },
   "summary": {
     "line": "{{docs}} doc files · {{pointers}} pointers · last optimized {{date}}",
@@ -165,6 +166,92 @@
       "saveError": "Could not save core values: {{error}}",
       "updatedAt": "Updated {{date}}",
       "staleNotice": "Saved. Competitor directions were marked for re-synthesis so they follow the new values."
+    }
+  },
+  "design": {
+    "fallbackName": "Design system",
+    "artifact": "Artifact",
+    "openArtifact": "Open artifact",
+    "source": "Source folder",
+    "noSource": "No local source folder",
+    "tokenFiles": "Token files",
+    "lastSynced": "Synced {{time}}",
+    "lastPublished": "Published {{time}}",
+    "neverSynced": "Never synced",
+    "neverPublished": "Never published",
+    "detectedIn": "Found in {{file}}",
+    "overridden": "Set in Malvy",
+    "sync": "Sync from artifact",
+    "syncing": "Syncing…",
+    "syncHint": "Reads the artifact (read-only) into .malvy/design-system/",
+    "syncDone_one": "Synced {{count}} file from the artifact",
+    "syncDone_other": "Synced {{count}} files from the artifact",
+    "publish": "Publish design system",
+    "publishing": "Publishing…",
+    "publishDisabled": "Publishing needs a local source folder and an artifact link",
+    "publishDone_one": "Published {{count}} file",
+    "publishDone_other": "Published {{count}} files",
+    "edit": "Edit link/source",
+    "addLink": "Add link",
+    "refresh": "Refresh",
+    "progress": "Output",
+    "origin": {
+      "source": "Showing the local source folder",
+      "snapshot": "Showing the last synced snapshot",
+      "tokenFiles": "Showing token files from the repo",
+      "none": "No tokens to show yet"
+    },
+    "sections": {
+      "colors": "Colors",
+      "typography": "Typography",
+      "radiiSpacing": "Radii & spacing",
+      "radii": "Radii",
+      "spacing": "Spacing",
+      "components": "Components",
+      "docs": "Docs",
+      "files": "Files"
+    },
+    "ungrouped": "Other",
+    "light": "Light",
+    "dark": "Dark",
+    "sample": "The quick brown fox jumps over the lazy dog",
+    "noDescription": "No description",
+    "preview": "Preview (HTML)",
+    "readme": "Guidelines",
+    "loadError": "Could not read this file",
+    "rawHint": "These files could not be turned into tokens. Open them in the artifact or the repo.",
+    "empty": {
+      "title": "No design system found",
+      "description": "Malvy looks for a claude.ai artifact link next to the word \"design\" in CLAUDE.md or AGENTS.md (nested ones too), and for a design-system.json in the repo (up to three folders deep).",
+      "hint": "You can also set the link and the source folder here. They are saved in .malvy/design-system.json, not in the repo."
+    },
+    "form": {
+      "title": "Design system link and source",
+      "description": "Overrides what Malvy detected. Leave a field empty to use detection again.",
+      "url": "Artifact link",
+      "urlPlaceholder": "https://claude.ai/artifact/…",
+      "sourceDir": "Source folder (relative to the project)",
+      "sourceDirPlaceholder": "design/system/project",
+      "detected": "Detected: {{value}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saveError": "Could not save: {{error}}"
+    },
+    "publishDialog": {
+      "title": "Publish design system",
+      "description": "Publishes the changed files to the artifact with Claude Code. Agents never publish; only this button does.",
+      "target": "Target",
+      "root": "Publish root",
+      "changed_one": "{{count}} changed file since the last sync or publish",
+      "changed_other": "{{count}} changed files since the last sync or publish",
+      "noBaseline": "No snapshot yet, so every source file counts as changed. Sync from the artifact first to publish only real changes.",
+      "noChanges": "Nothing changed since the last sync or publish.",
+      "indexLast": "The index file is published last.",
+      "added": "new",
+      "modified": "changed",
+      "loading": "Comparing files…",
+      "cancel": "Cancel",
+      "confirm": "Publish {{count}} files"
     }
   }
 }
