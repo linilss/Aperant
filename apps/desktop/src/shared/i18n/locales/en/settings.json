@@ -372,7 +372,13 @@
         "suggestion": "Use the {{name}} account for this project?",
         "suggestionAction": "Use {{name}}",
         "noProfiles": "No Claude accounts yet. Add one in Settings → Accounts."
-      }
+      },
+      "mainBranch": "Main branch",
+      "mainBranchDescription": "Tasks branch from here and merge back here. Deploy runs from it too. Type a name or pick an existing branch.",
+      "mainBranchPlaceholder": "Auto-detect ({{branch}})",
+      "mainBranchPick": "Pick an existing branch",
+      "mainBranchNoBranches": "No branches found",
+      "mainBranchMissing": "{{branch}} doesn't exist in this repository yet."
     },
     "claude": {
       "title": "Claude Auth",

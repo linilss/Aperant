@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   RefreshCw,
   Download,
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Trash2
+  Trash2,
+  ChevronDown,
+  GitBranch
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
@@ -20,6 +22,12 @@ import {
   SelectValue
 } from '../ui/select';
 import { Separator } from '../ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
 import { ClaudeAccountSection } from './ClaudeAccountSection';
 import { AVAILABLE_MODELS } from '../../../shared/constants';
 import {
@@ -186,6 +194,7 @@ export function GeneralSettings({
                 }
               />
             </div>
+            <MainBranchField project={project} settings={settings} setSettings={setSettings} />
             <div className="space-y-2 pt-2">
               <Label htmlFor="branchPrefix" className="text-sm font-medium text-foreground">
                 {t('projectSections.general.branchPrefix')}
@@ -360,5 +369,97 @@ export function GeneralSettings({
         </>
       )}
     </>
+  );
+}
+
+/** Main branch: free text, or pick one of the repo's branches. Empty = auto-detect. */
+function MainBranchField({
+  project,
+  settings,
+  setSettings
+}: Pick<GeneralSettingsProps, 'project' | 'settings' | 'setSettings'>) {
+  const { t } = useTranslation(['settings']);
+  const [branches, setBranches] = useState<string[] | null>(null);
+  const [detected, setDetected] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      window.electronAPI.getGitBranches(project.path),
+      window.electronAPI.detectMainBranch(project.path)
+    ]).then(([branchesResult, detectResult]) => {
+      if (cancelled) return;
+      setBranches(branchesResult.success ? (branchesResult.data ?? []) : []);
+      if (detectResult.success && detectResult.data) setDetected(detectResult.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.path]);
+
+  const value = settings.mainBranch ?? '';
+  const trimmed = value.trim();
+  const missing = trimmed !== '' && branches !== null && branches.length > 0 && !branches.includes(trimmed);
+
+  return (
+    <div className="space-y-2 pt-2">
+      <Label htmlFor="mainBranch" className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <GitBranch className="h-4 w-4 text-info" />
+        {t('projectSections.general.mainBranch')}
+      </Label>
+      <div className="flex gap-2">
+        <Input
+          id="mainBranch"
+          className="font-mono"
+          value={value}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder={t('projectSections.general.mainBranchPlaceholder', { branch: detected ?? 'main' })}
+          onChange={(e) => setSettings((prev) => ({ ...prev, mainBranch: e.target.value || undefined }))}
+          onBlur={() => {
+            if (value !== trimmed) setSettings((prev) => ({ ...prev, mainBranch: trimmed || undefined }));
+          }}
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              aria-label={t('projectSections.general.mainBranchPick')}
+              title={t('projectSections.general.mainBranchPick')}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+            {branches === null ? (
+              <DropdownMenuItem disabled>
+                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              </DropdownMenuItem>
+            ) : branches.length === 0 ? (
+              <DropdownMenuItem disabled>{t('projectSections.general.mainBranchNoBranches')}</DropdownMenuItem>
+            ) : (
+              branches.map((branch) => (
+                <DropdownMenuItem
+                  key={branch}
+                  className="font-mono"
+                  onSelect={() => setSettings((prev) => ({ ...prev, mainBranch: branch }))}
+                >
+                  {branch === trimmed && <CheckCircle2 className="mr-2 h-3 w-3 text-success" />}
+                  {branch}
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <p className="text-xs text-muted-foreground">{t('projectSections.general.mainBranchDescription')}</p>
+      {missing && (
+        <p className="text-xs text-warning">{t('projectSections.general.mainBranchMissing', { branch: trimmed })}</p>
+      )}
+    </div>
   );
 }
