@@ -2210,6 +2210,18 @@ export function registerWorktreeHandlers(
             return { success: true, data: { success: false, message: `Feature branch not found (tried: ${candidateBranches.join(', ')})` } };
           }
 
+          // Refuse up front when the project checkout has uncommitted tracked changes (someone is
+          // working directly on it): the merge would fail midway or sweep their work into the commit.
+          try {
+            const dirty = execFileSync(getToolPath('git'), ['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).malvy'], {
+              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+            }).trim();
+            if (dirty) {
+              const count = dirty.split('\n').length;
+              return { success: true, data: { success: false, message: `${project.name} has ${count} uncommitted change${count === 1 ? '' : 's'} in its main checkout. Commit or stash them, then merge again. Nothing was changed.` } };
+            }
+          } catch { /* status failed — let the merge report its own error */ }
+
           // Stash .malvy/ changes to avoid blocking merge
           let malvyStashed = false;
           try {
