@@ -5,7 +5,7 @@ import { AgentState } from './agent-state';
 import type { AgentEvents } from './agent-events';
 import { AgentProcessManager } from './agent-process';
 import { RoadmapConfig } from './types';
-import type { IdeationConfig, Idea } from '../../shared/types';
+import type { IdeationConfig, IdeationGenerationStatus, IdeationRunStatus, Idea } from '../../shared/types';
 import { AUTO_BUILD_PATHS } from '../../shared/constants';
 import { detectRateLimit, createSDKRateLimitInfo } from '../rate-limit-detector';
 import { resolveProfileForProject } from '../claude-profile/project-profile';
@@ -25,6 +25,7 @@ import { buildPersistedIdeationConfig, ideationTypeFileName, mergeIdeationIdeas 
 import { ideationContextOptions } from '../ai/runners/ideation-context';
 import { loadKnownDirectionIds, sanitizeFeatureDirectionIds } from '../ai/runners/competitors/guidance';
 import { projectStore } from '../project-store';
+import { IdeationRunTracker } from './ideation-run-tracker';
 
 /**
  * Queue management for ideation and roadmap generation
@@ -67,6 +68,9 @@ export class AgentQueueManager {
 
   /** Map of active AbortControllers for cancellation support */
   private abortControllers: Map<string, AbortController> = new Map();
+
+  /** Progress of running ideation generations, so the UI can restore it after a project switch */
+  private ideationRuns = new IdeationRunTracker();
 
   /**
    * Persist roadmap generation progress to disk.
@@ -228,6 +232,25 @@ export class AgentQueueManager {
       : [...IDEATION_TYPES];
     const totalTypes = enabledTypes.length;
 
+    // Track this run (keyed by its abort controller) and keep the tracker in step with every event
+    const runKey = `ideation:${projectId}`;
+    this.ideationRuns.start(projectId, abortController, {
+      enabledTypes: enabledTypes as IdeationRunStatus['enabledTypes'],
+      append: config.append === true,
+    });
+    const emitProgress = (status: IdeationGenerationStatus & { completedTypes: string[] }): void => {
+      this.ideationRuns.progress(projectId, abortController, status);
+      this.emitter.emit('ideation-progress', projectId, status);
+    };
+    const emitTypeComplete = (ideationType: string, ideas: Idea[]): void => {
+      this.ideationRuns.typeComplete(projectId, abortController, ideationType as IdeationType, ideas);
+      this.emitter.emit('ideation-type-complete', projectId, ideationType, ideas);
+    };
+    const emitTypeFailed = (ideationType: string): void => {
+      this.ideationRuns.typeFailed(projectId, abortController, ideationType as IdeationType);
+      this.emitter.emit('ideation-type-failed', projectId, ideationType);
+    };
+
     // Resolve prompts directory using the proper prompt-loader utility
     // which handles both dev (apps/desktop/prompts/) and production (resourcesPath/prompts/)
     const promptsDir = resolvePromptsDir();
@@ -238,7 +261,7 @@ export class AgentQueueManager {
     const contextOptions = ideationContextOptions(config, () => projectStore.getTasks(projectId));
 
     // Emit initial progress
-    this.emitter.emit('ideation-progress', projectId, {
+    emitProgress({
       phase: 'analyzing',
       progress: 10,
       message: 'Starting ideation generation...',
@@ -253,7 +276,8 @@ export class AgentQueueManager {
       }
 
       const typeProgress = Math.round(10 + (completedTypes.size / totalTypes) * 80);
-      this.emitter.emit('ideation-progress', projectId, {
+      this.ideationRuns.typeStarted(projectId, abortController, ideationType as IdeationType);
+      emitProgress({
         phase: 'generating',
         progress: typeProgress,
         message: `Generating ${ideationType} ideas...`,
@@ -298,14 +322,14 @@ export class AgentQueueManager {
             // was streamed to the UI, instead of re-reading the files.
             generatedIdeasByType.set(ideationType, rawIdeas);
             const ideas: Idea[] = rawIdeas.map((idea) => transformIdeaFromSnakeCase(idea));
-            this.emitter.emit('ideation-type-complete', projectId, ideationType, ideas);
+            emitTypeComplete(ideationType, ideas);
           } catch (err) {
             debugError('[Agent Queue] Failed to load ideas for type:', ideationType, err);
-            this.emitter.emit('ideation-type-complete', projectId, ideationType, []);
+            emitTypeComplete(ideationType, []);
           }
         } else {
           debugError('[Agent Queue] Ideation type failed:', { projectId, ideationType, error: result.error });
-          this.emitter.emit('ideation-type-failed', projectId, ideationType);
+          emitTypeFailed(ideationType);
 
           // Check for rate limit
           if (result.error) {
@@ -323,21 +347,26 @@ export class AgentQueueManager {
           break;
         }
         debugError('[Agent Queue] Ideation type error:', { ideationType, err });
-        this.emitter.emit('ideation-type-failed', projectId, ideationType);
+        emitTypeFailed(ideationType);
       }
     }
 
-    // Clean up
-    this.abortControllers.delete(`ideation:${projectId}`);
-    this.state.deleteProcess(projectId);
+    // Clean up — unless a newer run for this project has replaced this one (stop + refresh),
+    // in which case its controller, process entry and tracked state belong to that run.
+    const superseded = this.abortControllers.has(runKey) && this.abortControllers.get(runKey) !== abortController;
+    if (!superseded) {
+      this.abortControllers.delete(runKey);
+      this.state.deleteProcess(projectId);
+    }
 
     if (abortController.signal.aborted) {
-      this.emitter.emit('ideation-stopped', projectId);
+      this.ideationRuns.finish(projectId, abortController);
+      if (!superseded) this.emitter.emit('ideation-stopped', projectId);
       return;
     }
 
     // Emit completion
-    this.emitter.emit('ideation-progress', projectId, {
+    emitProgress({
       phase: 'complete',
       progress: 100,
       message: 'Ideation generation complete',
@@ -384,15 +413,18 @@ export class AgentQueueManager {
         });
 
         const session = transformSessionFromSnakeCase(consolidated, projectId);
+        this.ideationRuns.finish(projectId, abortController);
         this.emitter.emit('ideation-complete', projectId, session);
       } else {
         // Nothing on disk and nothing generated. Emit null so the UI can stop the
         // spinner — the renderer keeps whatever it already has rather than clearing.
         debugLog('[Agent Queue] Ideation run produced no ideas');
+        this.ideationRuns.finish(projectId, abortController);
         this.emitter.emit('ideation-complete', projectId, null);
       }
     } catch (err) {
       debugError('[Agent Queue] Failed to load ideation session:', err);
+      this.ideationRuns.finish(projectId, abortController);
       this.emitter.emit('ideation-error', projectId,
         `Failed to load ideation session: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
@@ -590,6 +622,8 @@ export class AgentQueueManager {
       debugLog('[Agent Queue] Aborting ideation TS runner:', projectId);
       controller.abort();
       this.abortControllers.delete(`ideation:${projectId}`);
+      // The stop handler tells the renderer right away, so the run is over for getStatus too
+      this.ideationRuns.finish(projectId);
       // Note: the runner's async loop will handle cleanup and emit ideation-stopped
       return true;
     }
@@ -600,6 +634,7 @@ export class AgentQueueManager {
     if (isIdeation) {
       debugLog('[Agent Queue] Killing legacy ideation process:', projectId);
       this.processManager.killProcess(projectId);
+      this.ideationRuns.finish(projectId);
       this.emitter.emit('ideation-stopped', projectId);
       return true;
     }
@@ -615,6 +650,13 @@ export class AgentQueueManager {
     if (this.abortControllers.has(`ideation:${projectId}`)) return true;
     const processInfo = this.state.getProcess(projectId);
     return processInfo?.queueProcessType === 'ideation';
+  }
+
+  /**
+   * Progress of the project's running ideation generation, or null when none is running
+   */
+  getIdeationRunStatus(projectId: string): IdeationRunStatus | null {
+    return this.ideationRuns.get(projectId);
   }
 
   /**

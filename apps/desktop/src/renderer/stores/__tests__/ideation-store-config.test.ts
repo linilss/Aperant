@@ -10,6 +10,7 @@ import { useIdeationStore, loadIdeation, generateIdeation, refreshIdeation } fro
 
 const api = {
   getIdeation: vi.fn(),
+  getIdeationStatus: vi.fn(async () => ({ success: true, data: null })),
   generateIdeation: vi.fn(),
   refreshIdeation: vi.fn(),
   stopIdeation: vi.fn(async () => ({ success: true })),

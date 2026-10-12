@@ -13,7 +13,7 @@ import {
   TaskExecutionOptions,
   RoadmapConfig
 } from './types';
-import type { IdeationConfig } from '../../shared/types';
+import type { IdeationConfig, IdeationRunStatus } from '../../shared/types';
 import { resetStuckSubtasks } from '../ipc-handlers/task/plan-file-utils';
 import { AUTO_BUILD_PATHS, getSpecsDir } from '../../shared/constants';
 import { projectStore } from '../project-store';
@@ -795,6 +795,13 @@ export class AgentManager extends EventEmitter {
    */
   isIdeationRunning(projectId: string): boolean {
     return this.queueManager.isIdeationRunning(projectId);
+  }
+
+  /**
+   * Progress of the project's running ideation generation, or null when none is running
+   */
+  getIdeationRunStatus(projectId: string): IdeationRunStatus | null {
+    return this.queueManager.getIdeationRunStatus(projectId);
   }
 
   /**

@@ -4,6 +4,7 @@ import type {
   IdeationConfig,
   IdeationStatus,
   IdeationGenerationStatus,
+  IdeationRunStatus,
   Idea,
   Task,
   IPCResult
@@ -19,6 +20,8 @@ export interface IdeationAPI {
   generateIdeation: (projectId: string, config: IdeationConfig) => void;
   refreshIdeation: (projectId: string, config: IdeationConfig) => void;
   stopIdeation: (projectId: string) => Promise<IPCResult>;
+  /** Progress of a generation still running in main (null when none) */
+  getIdeationStatus: (projectId: string) => Promise<IPCResult<IdeationRunStatus | null>>;
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus) => Promise<IPCResult>;
   convertIdeaToTask: (projectId: string, ideaId: string) => Promise<IPCResult<Task>>;
   addIdeaToRoadmap: (projectId: string, ideaId: string) => Promise<IPCResult<{ featureId: string }>>;
@@ -69,6 +72,9 @@ export const createIdeationAPI = (): IdeationAPI => ({
 
   stopIdeation: (projectId: string): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.IDEATION_STOP, projectId),
+
+  getIdeationStatus: (projectId: string): Promise<IPCResult<IdeationRunStatus | null>> =>
+    invokeIpc(IPC_CHANNELS.IDEATION_GET_STATUS, projectId),
 
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.IDEATION_UPDATE_IDEA, projectId, ideaId, status),

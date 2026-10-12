@@ -16,7 +16,13 @@ import { ipcMain } from "electron";
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type { AgentManager } from "../agent";
-import type { IdeationGenerationStatus, IdeationSession, Idea } from "../../shared/types";
+import type {
+  IdeationGenerationStatus,
+  IdeationRunStatus,
+  IdeationSession,
+  Idea,
+  IPCResult,
+} from "../../shared/types";
 import {
   getIdeationSession,
   updateIdeaStatus,
@@ -68,6 +74,15 @@ export function registerIdeationHandlers(
 
   ipcMain.handle(IPC_CHANNELS.IDEATION_STOP, (event, projectId) =>
     stopIdeationGeneration(event, projectId, agentManager, getMainWindow())
+  );
+
+  // Running generation's progress, so the view can restore it after a project switch
+  ipcMain.handle(
+    IPC_CHANNELS.IDEATION_GET_STATUS,
+    (_event, projectId: string): IPCResult<IdeationRunStatus | null> => ({
+      success: true,
+      data: agentManager.getIdeationRunStatus(projectId),
+    })
   );
 
   // Task conversion

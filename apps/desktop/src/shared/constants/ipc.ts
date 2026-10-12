@@ -319,6 +319,7 @@ export const IPC_CHANNELS = {
   IDEATION_GENERATE: 'ideation:generate',
   IDEATION_REFRESH: 'ideation:refresh',
   IDEATION_STOP: 'ideation:stop',
+  IDEATION_GET_STATUS: 'ideation:getStatus',
   IDEATION_UPDATE_IDEA: 'ideation:updateIdea',
   IDEATION_CONVERT_TO_TASK: 'ideation:convertToTask',
   IDEATION_DISMISS: 'ideation:dismiss',

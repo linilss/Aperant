@@ -165,6 +165,29 @@ export interface IdeationGenerationStatus {
   error?: string;
 }
 
+/** Per-type state of a running ideation generation, as tracked by main */
+export type IdeationRunTypeState = 'queued' | 'running' | 'done' | 'failed';
+
+/**
+ * Snapshot of an ideation run that is still in progress in main.
+ * Lets the renderer restore the progress UI after switching projects.
+ */
+export interface IdeationRunStatus {
+  isRunning: boolean;
+  /** ISO timestamp */
+  startedAt: string;
+  /** Run adds types to the existing session instead of replacing it */
+  append: boolean;
+  enabledTypes: IdeationType[];
+  /** Latest progress emitted for the run */
+  status: IdeationGenerationStatus;
+  typeStates: Partial<Record<IdeationType, IdeationRunTypeState>>;
+  /** Number of ideas produced by each finished type */
+  typeCounts: Partial<Record<IdeationType, number>>;
+  /** Ideas of the types that finished in this run (not yet in ideation.json) */
+  ideasByType: Partial<Record<IdeationType, Idea[]>>;
+}
+
 export interface IdeationSummary {
   totalIdeas: number;
   byType: Record<IdeationType, number>;

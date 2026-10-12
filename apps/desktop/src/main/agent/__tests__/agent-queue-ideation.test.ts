@@ -29,6 +29,8 @@ vi.mock('../agent-process', () => ({ AgentProcessManager: class {} }));
 import { AgentQueueManager } from '../agent-queue';
 import { AgentState } from '../agent-state';
 import { transformSessionFromSnakeCase } from '../../ipc-handlers/ideation/transformers';
+import { runIdeation } from '../../ai/runners/ideation';
+import type { IdeationRunStatus } from '../../../shared/types';
 
 describe('AgentQueueManager ideation: focus and saved config', () => {
   let projectDir: string;
@@ -99,5 +101,100 @@ describe('AgentQueueManager ideation: focus and saved config', () => {
     await run(baseConfig({ enabledTypes: ['code_improvements'], append: true }));
 
     expect(savedIdeation().config.enabled_types).toEqual(['features', 'code_improvements']);
+  });
+
+  describe('run status for getStatus', () => {
+    it('tracks progress and finished types while running, and clears on complete', async () => {
+      const seen: Array<IdeationRunStatus | null> = [];
+      emitter.on('ideation-type-complete', () => seen.push(queue.getIdeationRunStatus('p1')));
+      let atComplete: IdeationRunStatus | null | undefined;
+      emitter.on('ideation-complete', () => {
+        atComplete = queue.getIdeationRunStatus('p1');
+      });
+
+      await run(baseConfig());
+
+      expect(seen[0]).toMatchObject({
+        isRunning: true,
+        append: false,
+        enabledTypes: ['features', 'code_improvements'],
+        typeStates: { features: 'done', code_improvements: 'queued' },
+        typeCounts: { features: 1 },
+        status: { phase: 'generating', message: 'Generating features ideas...' },
+      });
+      expect(seen[0]?.ideasByType.features?.map((i) => i.id)).toEqual(['features-1']);
+      expect(seen[1]?.typeStates).toEqual({ features: 'done', code_improvements: 'done' });
+      // Cleared before the completion event goes out, so a reload on it sees the final state
+      expect(atComplete).toBeNull();
+      expect(queue.getIdeationRunStatus('p1')).toBeNull();
+      expect(queue.getIdeationRunStatus('other')).toBeNull();
+    });
+
+    it('marks a failed type and keeps running', async () => {
+      vi.mocked(runIdeation).mockResolvedValueOnce({ success: false, error: 'boom' } as never);
+      const seen: Array<IdeationRunStatus | null> = [];
+      emitter.on('ideation-type-failed', () => seen.push(queue.getIdeationRunStatus('p1')));
+
+      await run(baseConfig());
+
+      expect(seen[0]?.typeStates).toEqual({ features: 'failed', code_improvements: 'queued' });
+      expect(queue.getIdeationRunStatus('p1')).toBeNull();
+    });
+
+    it('clears on error', async () => {
+      // ideation.json as a directory makes the consolidation write fail
+      mkdirSync(path.join(projectDir, '.malvy', 'ideation', 'ideation.json'), { recursive: true });
+      const errored = new Promise((resolve) => emitter.once('ideation-error', resolve));
+
+      await queue.startIdeationGeneration('p1', projectDir, baseConfig(), false);
+      await errored;
+
+      expect(queue.getIdeationRunStatus('p1')).toBeNull();
+    });
+
+    it('clears on stop, and a stopped run cannot clear the run that replaced it', async () => {
+      vi.mocked(runIdeation).mockImplementationOnce(
+        (config: { abortSignal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            config.abortSignal?.addEventListener('abort', () => reject(new Error('aborted')));
+          }) as never
+      );
+      const stopped = vi.fn();
+      emitter.on('ideation-stopped', stopped);
+
+      const first = queue.startIdeationGeneration('p1', projectDir, baseConfig(), false);
+      expect(queue.getIdeationRunStatus('p1')?.typeStates.features).toBe('running');
+
+      expect(queue.stopIdeation('p1')).toBe(true);
+      expect(queue.getIdeationRunStatus('p1')).toBeNull();
+
+      // Refresh: a new run starts before the stopped one has unwound
+      // The replacement run never finishes during the test
+      vi.mocked(runIdeation).mockImplementationOnce(() => new Promise(() => undefined) as never);
+      void queue.startIdeationGeneration('p1', projectDir, baseConfig({ enabledTypes: ['features'] }), false);
+      await first;
+
+      expect(stopped).not.toHaveBeenCalled();
+      expect(queue.isIdeationRunning('p1')).toBe(true);
+      expect(queue.getIdeationRunStatus('p1')).toMatchObject({ isRunning: true, enabledTypes: ['features'] });
+    });
+
+    it('a plain stop emits stopped and leaves nothing tracked', async () => {
+      vi.mocked(runIdeation).mockImplementationOnce(
+        (config: { abortSignal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            config.abortSignal?.addEventListener('abort', () => reject(new Error('aborted')));
+          }) as never
+      );
+      const stopped = new Promise((resolve) => emitter.once('ideation-stopped', resolve));
+
+      const running = queue.startIdeationGeneration('p1', projectDir, baseConfig(), false);
+      queue.stopIdeation('p1');
+      await running;
+      await stopped;
+
+      expect(queue.isIdeationRunning('p1')).toBe(false);
+      expect(queue.getIdeationRunStatus('p1')).toBeNull();
+    });
   });
 });

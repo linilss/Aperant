@@ -95,6 +95,7 @@ import type {
   IdeationConfig,
   IdeationStatus,
   IdeationGenerationStatus,
+  IdeationRunStatus,
   Idea,
   InsightsSession,
   InsightsSessionSummary,
@@ -658,6 +659,7 @@ export interface ElectronAPILegacy {
   generateIdeation: (projectId: string, config: IdeationConfig) => void;
   refreshIdeation: (projectId: string, config: IdeationConfig) => void;
   stopIdeation: (projectId: string) => Promise<IPCResult>;
+  getIdeationStatus: (projectId: string) => Promise<IPCResult<IdeationRunStatus | null>>;
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus) => Promise<IPCResult>;
   convertIdeaToTask: (projectId: string, ideaId: string) => Promise<IPCResult<Task>>;
   addIdeaToRoadmap: (projectId: string, ideaId: string) => Promise<IPCResult<{ featureId: string }>>;
