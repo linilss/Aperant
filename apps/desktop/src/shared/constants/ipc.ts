@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   PROJECT_CHECK_VERSION: 'project:checkVersion',
   PROJECT_CLEAR_DATA: 'project:clearData',
   PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
+  PROJECT_DEPLOY_CLEAN_CHECKOUT: 'project:deployCleanCheckout',  // Detached worktree at HEAD so a deploy skips uncommitted changes
   PROJECT_DEPLOY_PREFLIGHT: 'project:deployPreflight',      // Branch + uncommitted-changes check before a deploy
   PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json
   PROJECT_FUNNEL_PROGRESS: 'project:funnelProgress',      // Plan-funnel step completion for a set of projects

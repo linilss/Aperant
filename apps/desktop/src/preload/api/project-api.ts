@@ -55,6 +55,8 @@ export interface ProjectAPI {
   clearProjectData: (projectId: string) => Promise<IPCResult<void>>;
   listDeployScripts: (projectId: string) => Promise<IPCResult<DeployScript[]>>;
   getDeployPreflight: (projectId: string) => Promise<IPCResult<DeployPreflight>>;
+  /** Path of a clean, detached checkout of the project's HEAD to deploy from */
+  prepareDeployCheckout: (projectId: string) => Promise<IPCResult<string>>;
   recordTaskDeployment: (
     projectId: string,
     taskId: string,
@@ -236,6 +238,8 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   getDeployPreflight: (projectId: string): Promise<IPCResult<DeployPreflight>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_PREFLIGHT, projectId),
+  prepareDeployCheckout: (projectId: string): Promise<IPCResult<string>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_CLEAN_CHECKOUT, projectId),
 
   recordTaskDeployment: (
     projectId: string,

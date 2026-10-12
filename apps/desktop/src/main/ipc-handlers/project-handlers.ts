@@ -235,6 +235,34 @@ function getDeployPreflight(projectPath: string, configuredMainBranch?: string):
 }
 
 /**
+ * A detached worktree at the project's HEAD (`<autoBuildPath>/worktrees/deploy`), reset and
+ * cleaned of untracked files, so a deploy builds exactly what is committed while someone has
+ * uncommitted work in the main checkout. Ignored files (build caches) are kept.
+ */
+function prepareDeployCheckout(projectPath: string, autoBuildPath: string): string {
+  const git = (cwd: string, args: string[]) =>
+    execFileSync(getToolPath('git'), args, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 60000 });
+  const head = git(projectPath, ['rev-parse', 'HEAD']).trim();
+  const checkout = path.join(projectPath, autoBuildPath, 'worktrees', 'deploy');
+  let reusable = false;
+  if (existsSync(checkout)) {
+    try {
+      reusable = git(checkout, ['rev-parse', '--is-inside-work-tree']).trim() === 'true';
+    } catch {
+      reusable = false;
+    }
+  }
+  if (reusable) {
+    git(checkout, ['checkout', '--detach', '--force', head]);
+    git(checkout, ['clean', '-fdq']);
+  } else {
+    git(projectPath, ['worktree', 'prune']);
+    git(projectPath, ['worktree', 'add', '--detach', '--force', checkout, head]);
+  }
+  return checkout;
+}
+
+/**
  * Detect the main branch for a git repository
  * Checks for common main branch names in order of preference
  */
@@ -447,6 +475,19 @@ export function registerProjectHandlers(
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_CLEAN_CHECKOUT,
+    async (_, projectId: string): Promise<IPCResult<string>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      try {
+        return { success: true, data: prepareDeployCheckout(project.path, project.autoBuildPath || '.malvy') };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not prepare a clean checkout' };
       }
     }
   );

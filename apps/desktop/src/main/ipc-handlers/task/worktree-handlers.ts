@@ -1540,6 +1540,44 @@ function getEffectiveBaseBranch(projectPath: string, specId: string, projectMain
  * @param projectPath - Project root (the AI calls run on its pinned Claude account)
  * @param onProgress - Optional progress callback
  */
+/**
+ * Put back changes set aside with `git stash push` before a merge. Conflicts with the merged
+ * code are resolved with AI and the result left unstaged, as it was. Returns an error note
+ * when the work could not be restored (it then stays in the stash list), else null.
+ */
+async function restoreStashedWork(
+  projectPath: string,
+  label: string,
+  onProgress?: (msg: string) => void
+): Promise<string | null> {
+  const git = (args: string[]) => execFileSync(getToolPath('git'), args, {
+    cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+  });
+  const keptNote = `Uncommitted changes could not be put back automatically; they are kept in git stash ("${label}").`;
+  // Find our entry by label — another stash (e.g. .malvy/) may sit on top if its pop failed
+  const ref = git(['stash', 'list', '--format=%gd%x09%gs'])
+    .split('\n')
+    .find((line) => line.endsWith(label))
+    ?.split('\t')[0];
+  if (!ref) return keptNote;
+  try {
+    git(['stash', 'pop', ref]);
+    return null;
+  } catch {
+    // Conflicts: markers are in the files and the stash entry is kept
+  }
+  try {
+    onProgress?.('Putting uncommitted changes back — resolving conflicts with AI');
+    await resolveGitConflictsWithAI(projectPath, projectPath, onProgress);
+    if (git(['diff', '--name-only', '--diff-filter=U']).trim()) return keptNote;
+    git(['reset', '-q']);
+    git(['stash', 'drop', ref]);
+    return null;
+  } catch {
+    return keptNote;
+  }
+}
+
 async function resolveGitConflictsWithAI(
   cwd: string,
   projectPath: string,
@@ -2204,23 +2242,31 @@ export function registerWorktreeHandlers(
         // Cleanup (branch delete, worktree remove) is handled separately by
         // TASK_POST_MERGE_CLEANUP, so the user is prompted before deletion.
         if (options?.quickMerge) {
+          const git = (args: string[]) => execFileSync(getToolPath('git'), args, {
+            cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+          });
+
+          // Someone may be working directly in the project checkout. Set their uncommitted
+          // tracked changes aside for the merge and put them back right after.
+          const workStashLabel = `malvy: uncommitted work set aside while merging ${task.specId}`;
+          let workStashed = false;
+          try {
+            if (git(['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).malvy']).trim()) {
+              emitProgress('updating', 5, 'Setting uncommitted changes aside');
+              git(['stash', 'push', '-m', workStashLabel, '--', '.', ':(exclude).malvy']);
+              workStashed = true;
+            }
+          } catch (stashErr) {
+            const msg = stashErr instanceof Error ? stashErr.message : String(stashErr);
+            return { success: true, data: { success: false, message: `Could not set uncommitted changes aside: ${msg}` } };
+          }
+
+          const quickResult = await (async (): Promise<IPCResult<WorktreeMergeResult>> => {
           const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
           const featureBranch = findExistingTaskBranch(project.path, task.specId, project.settings);
           if (!featureBranch) {
             return { success: true, data: { success: false, message: `Feature branch not found (tried: ${candidateBranches.join(', ')})` } };
           }
-
-          // Refuse up front when the project checkout has uncommitted tracked changes (someone is
-          // working directly on it): the merge would fail midway or sweep their work into the commit.
-          try {
-            const dirty = execFileSync(getToolPath('git'), ['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).malvy'], {
-              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-            }).trim();
-            if (dirty) {
-              const count = dirty.split('\n').length;
-              return { success: true, data: { success: false, message: `${project.name} has ${count} uncommitted change${count === 1 ? '' : 's'} in its main checkout. Commit or stash them, then merge again. Nothing was changed.` } };
-            }
-          } catch { /* status failed — let the merge report its own error */ }
 
           // Stash .malvy/ changes to avoid blocking merge
           let malvyStashed = false;
@@ -2390,6 +2436,15 @@ export function registerWorktreeHandlers(
               } catch { /* non-fatal */ }
             }
           }
+                  })();
+
+          if (workStashed) {
+            const restoreError = await restoreStashedWork(project.path, workStashLabel, (msg) => emitProgress('resolving', 95, msg));
+            if (restoreError && quickResult.data) {
+              quickResult.data = { ...quickResult.data, message: `${quickResult.data.message} ${restoreError}` };
+            }
+          }
+          return quickResult;
         }
         // ── End quick merge path ─────────────────────────────────────────────────
 

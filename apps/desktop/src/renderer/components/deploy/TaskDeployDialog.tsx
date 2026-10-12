@@ -11,7 +11,7 @@ import { useTaskStore } from '../../stores/task-store';
 import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
 import { toast } from '../../hooks/use-toast';
 import { getLastDeployment, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
-import { buildDeployCommand } from './deploy-command';
+import { buildCleanCheckoutDeployCommand, buildDeployCommand } from './deploy-command';
 import type { DeployPreflight, DeployScript, Task } from '../../../shared/types';
 
 interface TaskDeployDialogProps {
@@ -32,10 +32,27 @@ async function recordDeployment(task: Task, script: string, args: string): Promi
   }
 }
 
-function hasPreflightWarnings(preflight: DeployPreflight | null | undefined): boolean {
-  if (!preflight) return false;
-  if (preflight.hasUncommittedChanges) return true;
-  return !!(preflight.currentBranch && preflight.mainBranch && preflight.currentBranch !== preflight.mainBranch);
+function isOffMainBranch(preflight: DeployPreflight | null | undefined): boolean {
+  return !!(preflight?.currentBranch && preflight.mainBranch && preflight.currentBranch !== preflight.mainBranch);
+}
+
+/**
+ * The terminal command for a deploy. With uncommitted changes in the project checkout the
+ * script runs in a clean checkout of HEAD instead, so that work doesn't ship.
+ */
+async function buildTaskDeployCommand(
+  projectId: string,
+  script: DeployScript,
+  args: string,
+  preflight: DeployPreflight | null | undefined
+): Promise<string> {
+  if (!preflight?.hasUncommittedChanges) return buildDeployCommand(script, args);
+  const projectPath = useProjectStore.getState().projects.find((p) => p.id === projectId)?.path;
+  const checkout = await window.electronAPI.prepareDeployCheckout(projectId);
+  if (!projectPath || !checkout.success || !checkout.data) {
+    throw new Error(checkout.error || 'Could not prepare a clean checkout to deploy from');
+  }
+  return buildCleanCheckoutDeployCommand(script, args, checkout.data, projectPath);
 }
 
 /**
@@ -78,12 +95,14 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
         const current = useTaskStore.getState().tasks.find((x) => x.id === task.id) ?? task;
         const settings = useProjectStore.getState().projects.find((p) => p.id === task.projectId)?.settings;
         const script = scriptsResult.success ? resolveProjectDeployScript(scriptsResult.data ?? [], settings) : null;
-        if (!script || hasPreflightWarnings(preflightResult.success ? preflightResult.data : null)) {
+        const preflight = preflightResult.success ? preflightResult.data : null;
+        if (!script || isOffMainBranch(preflight)) {
           openForTask(current);
           return;
         }
         const args = settings?.deployArgs ?? '';
-        if (!runInTerminal.current(buildDeployCommand(script, args), `${t('title')}: ${script.name}`)) {
+        const command = await buildTaskDeployCommand(task.projectId, script, args, preflight);
+        if (!runInTerminal.current(command, `${t('title')}: ${script.name}`)) {
           toast({ title: t('terminalLimit'), variant: 'destructive' });
           return;
         }
@@ -173,13 +192,19 @@ function TaskDeployDialogBody({
   if (preflight?.currentBranch && preflight.mainBranch && preflight.currentBranch !== preflight.mainBranch) {
     warnings.push(t('task.warnings.notOnMain', { current: preflight.currentBranch, main: preflight.mainBranch }));
   }
-  if (preflight?.hasUncommittedChanges) {
-    warnings.push(t('task.warnings.uncommitted'));
-  }
+  const cleanCheckoutNote = preflight?.hasUncommittedChanges ? t('task.cleanCheckout') : null;
 
   const handleDeploy = async () => {
     if (!selected) return;
-    if (!onRunInTerminal(buildDeployCommand(selected, args), `${t('title')}: ${selected.name}`)) {
+    let command: string;
+    try {
+      command = await buildTaskDeployCommand(task.projectId, selected, args, preflight);
+    } catch (err) {
+      setConfirming(false);
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    if (!onRunInTerminal(command, `${t('title')}: ${selected.name}`)) {
       setConfirming(false);
       setError(t('terminalLimit'));
       return;
@@ -304,6 +329,12 @@ function TaskDeployDialogBody({
             {t('task.makeDefault')}
           </label>
         </div>
+      )}
+
+      {selected && cleanCheckoutNote && (
+        <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          {cleanCheckoutNote}
+        </p>
       )}
 
       {confirming && selected && (

@@ -29,8 +29,7 @@
     "cancel": "Cancel",
     "openDeployView": "Open Deploy view",
     "warnings": {
-      "notOnMain": "The project is on {{current}}, not {{main}}. The script runs from the current checkout.",
-      "uncommitted": "The project has uncommitted changes. They would be included in the deploy."
+      "notOnMain": "The project is on {{current}}, not {{main}}. The script runs from the current checkout."
     },
     "mergeAndDeployTooltip": "Merge this task into the main branch, then run the project's deploy script",
     "confirmShort": "Deploy?",
@@ -40,7 +39,8 @@
     "started": "Deploy started: {{script}}",
     "mergeFailed": "Merge failed, nothing was deployed",
     "failed": "Deploy failed",
-    "makeDefault": "Use for this project's Deploy button (no question next time)"
+    "makeDefault": "Use for this project's Deploy button (no question next time)",
+    "cleanCheckout": "The project has uncommitted changes. They stay out of this deploy: the script runs in a clean copy of the merged code, and file changes it makes (like a version bump) are copied back."
   },
   "notDeployed": "{{count}} merged, not deployed",
   "default": "Project default",
