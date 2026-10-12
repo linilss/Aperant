@@ -1,18 +1,26 @@
 /**
  * Phone-only shell pieces (below Tailwind `md`): a compact top bar with a
- * hamburger, and an off-canvas drawer that hosts the regular Sidebar plus
- * project switching (the desktop ProjectTabBar is hidden on mobile).
+ * hamburger and a project dropdown (the desktop ProjectTabBar is hidden on
+ * mobile), and an off-canvas drawer that hosts the regular Sidebar.
  */
 
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, Menu, Plus } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, Menu, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { ProjectAccountChip } from './ProjectAccountChip';
 import { UsageIndicator } from './UsageIndicator';
 import { FunnelBar } from './FunnelProgress';
 import { useFunnelStore } from '../stores/funnel-store';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu';
 import type { FunnelProgress, Project } from '../../shared/types';
 
 /** Project name with its plan-funnel progress as a thin bar underneath */
@@ -34,15 +42,16 @@ function ProjectNameWithFunnel({ name, funnel, className }: { name: string; funn
 }
 
 interface MobileTopBarProps {
-  title: string;
-  subtitle?: string;
+  /** Current view, shown under the project name */
+  viewTitle: string;
   onMenuClick: () => void;
+  projects: MobileProjectMenuProps;
 }
 
-export function MobileTopBar({ title, subtitle, onMenuClick }: MobileTopBarProps) {
+export function MobileTopBar({ viewTitle, onMenuClick, projects }: MobileTopBarProps) {
   const { t } = useTranslation('navigation');
   return (
-    <header className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-2 pt-[env(safe-area-inset-top)] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))]">
+    <header className="flex shrink-0 items-center gap-1 border-b border-border bg-background px-2 pt-[env(safe-area-inset-top)] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))]">
       <button
         type="button"
         onClick={onMenuClick}
@@ -51,10 +60,7 @@ export function MobileTopBar({ title, subtitle, onMenuClick }: MobileTopBarProps
       >
         <Menu className="h-5 w-5" />
       </button>
-      <div className="flex min-w-0 flex-1 flex-col py-1.5">
-        <span className="truncate text-sm font-semibold leading-tight">{title}</span>
-        {subtitle && <span className="truncate text-xs leading-tight text-muted-foreground">{subtitle}</span>}
-      </div>
+      <MobileProjectMenu {...projects} viewTitle={viewTitle} />
     </header>
   );
 }
@@ -110,7 +116,7 @@ export function MobileDrawer({ open, onOpenChange, children }: MobileDrawerProps
   );
 }
 
-interface MobileProjectListProps {
+interface MobileProjectMenuProps {
   projects: Project[];
   closedProjects: Project[];
   activeProjectId: string | null;
@@ -119,61 +125,85 @@ interface MobileProjectListProps {
   onAddProject: () => void;
 }
 
-export function MobileProjectList({
+/** Top-bar project switcher: the active project's name opens a dropdown of all projects. */
+function MobileProjectMenu({
   projects,
   closedProjects,
   activeProjectId,
   onProjectSelect,
   onProjectOpen,
-  onAddProject
-}: MobileProjectListProps) {
+  onAddProject,
+  viewTitle
+}: MobileProjectMenuProps & { viewTitle: string }) {
   const { t } = useTranslation(['navigation', 'common']);
   const funnelByProject = useFunnelStore((s) => s.byProject);
-  const rowClass =
-    'flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent';
+  const active = projects.find((p) => p.id === activeProjectId);
+  const itemClass = 'min-h-11 gap-2 px-3 py-2';
 
   return (
-    <div className="shrink-0 space-y-1 border-b border-border px-3 pb-3 pt-3">
-      <div className="flex items-center justify-between gap-2 px-3 pb-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('navigation:mobile.switchProject')}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-accent"
+        >
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-semibold leading-tight">
+              {active?.name ?? t('navigation:mobile.noProject')}
+            </span>
+            <span className="truncate text-xs leading-tight text-muted-foreground">{viewTitle}</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="max-h-[70dvh] w-[min(20rem,calc(100vw-1rem))] overflow-y-auto"
+      >
+        <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
           {t('navigation:mobile.projects')}
-        </span>
-        <div className="flex min-w-0 items-center gap-1.5">
-          <AuthStatusIndicator />
-          <ProjectAccountChip />
-          <UsageIndicator />
-        </div>
-      </div>
-      <div className="max-h-48 space-y-1 overflow-y-auto">
+        </DropdownMenuLabel>
         {projects.map((project) => {
           const isActive = project.id === activeProjectId;
           return (
-            <button
+            <DropdownMenuItem
               key={project.id}
-              type="button"
-              onClick={() => onProjectSelect(project.id)}
-              className={cn(rowClass, isActive && 'bg-accent text-accent-foreground')}
+              onSelect={() => onProjectSelect(project.id)}
+              className={cn(itemClass, isActive && 'bg-accent text-accent-foreground')}
             >
               <ProjectNameWithFunnel name={project.name} funnel={funnelByProject[project.id]} className="font-medium" />
               {isActive && <Check className="h-4 w-4 shrink-0" />}
-            </button>
+            </DropdownMenuItem>
           );
         })}
         {closedProjects.map((project) => (
-          <button
+          <DropdownMenuItem
             key={project.id}
-            type="button"
-            onClick={() => onProjectOpen(project.id)}
-            className={cn(rowClass, 'text-muted-foreground')}
+            onSelect={() => onProjectOpen(project.id)}
+            className={cn(itemClass, 'text-muted-foreground')}
           >
             <ProjectNameWithFunnel name={project.name} funnel={funnelByProject[project.id]} />
-          </button>
+          </DropdownMenuItem>
         ))}
-      </div>
-      <button type="button" onClick={onAddProject} className={cn(rowClass, 'text-muted-foreground')}>
-        <Plus className="h-4 w-4 shrink-0" />
-        <span>{t('common:projectTab.addProjectAriaLabel')}</span>
-      </button>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onAddProject} className={cn(itemClass, 'text-muted-foreground')}>
+          <Plus className="h-4 w-4 shrink-0" />
+          <span>{t('common:projectTab.addProjectAriaLabel')}</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Drawer header row: auth, the project's Claude account and usage. */
+export function MobileDrawerStatus() {
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-3">
+      <AuthStatusIndicator />
+      <ProjectAccountChip />
+      <UsageIndicator />
     </div>
   );
 }

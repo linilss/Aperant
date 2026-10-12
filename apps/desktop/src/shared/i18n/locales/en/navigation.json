@@ -3,7 +3,8 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "projects": "Projects",
-    "noProject": "No project"
+    "noProject": "No project",
+    "switchProject": "Switch project"
   },
   "sections": {
     "understand": "Understand",

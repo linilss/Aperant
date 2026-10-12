@@ -28,7 +28,7 @@ import {
   DialogTitle
 } from './components/ui/dialog';
 import { Sidebar, getNavItemLabelKey, type SidebarView } from './components/Sidebar';
-import { MobileDrawer, MobileProjectList, MobileTopBar } from './components/MobileNav';
+import { MobileDrawer, MobileDrawerStatus, MobileTopBar } from './components/MobileNav';
 import { useIsCompact, useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TaskDetailModal } from './components/task-detail/TaskDetailModal';
@@ -916,28 +916,19 @@ export function App() {
         {isMobile ? (
           <>
             <MobileTopBar
-              title={t(getNavItemLabelKey(activeView) ?? 'navigation:items.kanban')}
-              subtitle={selectedProject?.name ?? t('navigation:mobile.noProject')}
+              viewTitle={t(getNavItemLabelKey(activeView) ?? 'navigation:items.kanban')}
               onMenuClick={() => setIsNavDrawerOpen(true)}
+              projects={{
+                projects: projectTabs,
+                closedProjects,
+                activeProjectId,
+                onProjectSelect: handleProjectTabSelect,
+                onProjectOpen: openProjectTab,
+                onAddProject: handleAddProject
+              }}
             />
             <MobileDrawer open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
-              <MobileProjectList
-                projects={projectTabs}
-                closedProjects={closedProjects}
-                activeProjectId={activeProjectId}
-                onProjectSelect={(projectId) => {
-                  handleProjectTabSelect(projectId);
-                  setIsNavDrawerOpen(false);
-                }}
-                onProjectOpen={(projectId) => {
-                  openProjectTab(projectId);
-                  setIsNavDrawerOpen(false);
-                }}
-                onAddProject={() => {
-                  setIsNavDrawerOpen(false);
-                  handleAddProject();
-                }}
-              />
+              <MobileDrawerStatus />
               <Sidebar
                 className="h-auto min-h-0 w-full flex-1 border-r-0"
                 onSettingsClick={() => {
