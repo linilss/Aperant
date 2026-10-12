@@ -98,6 +98,8 @@ export const taskMock = {
 
   unwatchTaskLogs: async () => ({ success: true }),
 
+  taskRefineGetStatus: async () => ({ success: true, data: null }),
+
   // Event Listeners (no-op in browser)
   onTaskProgress: () => () => {},
   onTaskError: () => () => {},

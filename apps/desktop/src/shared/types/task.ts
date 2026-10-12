@@ -598,3 +598,29 @@ export interface TaskStartOptions {
   model?: string;
   baseBranch?: string; // Override base branch for worktree creation
 }
+
+/** One phase of the task refine (mega-groom) pipeline, as sent to the renderer */
+export interface RefinePhaseInfo {
+  name: string;
+  label: string;
+  status: string;
+}
+
+/**
+ * Snapshot of a task's refine run in main, so a reopened task dialog can
+ * re-attach to it instead of starting a new one.
+ */
+export interface RefineRunStatus {
+  taskId: string;
+  isRunning: boolean;
+  autoMode: boolean;
+  /** Terminal the pipeline writes to (`refine-${taskId}`) */
+  terminalId: string;
+  /** ISO timestamp */
+  startedAt: string;
+  currentPhase: string | null;
+  currentPhaseIndex: number;
+  phases: RefinePhaseInfo[];
+  /** Latest terminal output (bounded), to replay into a terminal that has none, e.g. on the phone */
+  outputTail: string;
+}

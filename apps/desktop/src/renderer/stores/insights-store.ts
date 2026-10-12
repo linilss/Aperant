@@ -19,7 +19,13 @@ interface ToolUsage {
 
 interface InsightsState {
   // Data
+  /** Project whose chat is shown; events for other projects are ignored */
+  projectId: string | null;
   session: InsightsSession | null;
+  /** Id of a session created here before main created the real one (first message) */
+  placeholderSessionId: string | null;
+  /** Another session of the shown project whose reply is still streaming */
+  busySessionId: string | null;
   sessions: InsightsSessionSummary[]; // List of all sessions
   status: InsightsChatStatus;
   pendingMessage: string;
@@ -58,7 +64,10 @@ const initialStatus: InsightsChatStatus = {
 
 export const useInsightsStore = create<InsightsState>((set, _get) => ({
   // Initial state
+  projectId: null,
   session: null,
+  placeholderSessionId: null,
+  busySessionId: null,
   sessions: [],
   status: initialStatus,
   pendingMessage: '',
@@ -86,11 +95,13 @@ export const useInsightsStore = create<InsightsState>((set, _get) => ({
   addMessage: (message) =>
     set((state) => {
       if (!state.session) {
-        // Create new session if none exists
+        // Create new session if none exists (main creates the real one and sends it back)
+        const id = `session-${Date.now()}`;
         return {
+          placeholderSessionId: id,
           session: {
-            id: `session-${Date.now()}`,
-            projectId: '',
+            id,
+            projectId: state.projectId ?? '',
             messages: [message],
             createdAt: new Date(),
             updatedAt: new Date()
@@ -176,13 +187,15 @@ export const useInsightsStore = create<InsightsState>((set, _get) => ({
       };
 
       if (!state.session) {
+        const id = `session-${Date.now()}`;
         return {
           streamingContent: '',
           streamingTasks: [],
           toolsUsed: [],
+          placeholderSessionId: id,
           session: {
-            id: `session-${Date.now()}`,
-            projectId: '',
+            id,
+            projectId: state.projectId ?? '',
             messages: [newMessage],
             createdAt: new Date(),
             updatedAt: new Date()
@@ -205,6 +218,8 @@ export const useInsightsStore = create<InsightsState>((set, _get) => ({
   clearSession: () =>
     set({
       session: null,
+      placeholderSessionId: null,
+      busySessionId: null,
       status: initialStatus,
       pendingMessage: '',
       streamingContent: '',
@@ -218,6 +233,61 @@ export const useInsightsStore = create<InsightsState>((set, _get) => ({
 }));
 
 // Helper functions
+
+/** Clear the in-progress reply shown in the chat (switching project or session) */
+function resetStreamingView(): void {
+  useInsightsStore.setState({
+    status: initialStatus,
+    streamingContent: '',
+    streamingTasks: [],
+    currentTool: null,
+    toolsUsed: [],
+    busySessionId: null
+  });
+}
+
+/** Whether an event for this project/session belongs to the chat that is shown */
+function isForShownChat(state: InsightsState, projectId: string, sessionId?: string): boolean {
+  if (projectId !== state.projectId) return false;
+  if (!sessionId) return true;
+  const current = state.session?.id;
+  return current === sessionId || (current !== undefined && current === state.placeholderSessionId);
+}
+
+/**
+ * Restore a reply that is still streaming in main (the user left the project or
+ * session while it was being generated), so it shows again and keeps streaming.
+ */
+export async function restoreInsightsStream(projectId: string): Promise<void> {
+  let result: Awaited<ReturnType<typeof window.electronAPI.getInsightsStreamStatus>> | undefined;
+  try {
+    result = await window.electronAPI.getInsightsStreamStatus?.(projectId);
+  } catch {
+    return;
+  }
+  const state = useInsightsStore.getState();
+  if (state.projectId !== projectId) return; // switched away meanwhile
+  const stream = result?.success ? result.data : null;
+  if (!stream) {
+    if (state.busySessionId) useInsightsStore.setState({ busySessionId: null });
+    return;
+  }
+  if (stream.sessionId !== state.session?.id) {
+    // The reply belongs to another session of this project: keep its text out of this chat
+    const finished = stream.status.phase === 'complete' || stream.status.phase === 'error';
+    useInsightsStore.setState({ busySessionId: finished ? null : stream.sessionId });
+    return;
+  }
+  // Snapshot covers every chunk sent before it; later chunks append to it
+  useInsightsStore.setState({
+    status: stream.status,
+    streamingContent: stream.content,
+    streamingTasks: [...stream.suggestedTasks],
+    currentTool: stream.currentTool,
+    toolsUsed: stream.toolsUsed.map((t) => ({ ...t, timestamp: new Date(t.timestamp) })),
+    busySessionId: null
+  });
+}
 
 export async function loadInsightsSessions(projectId: string, includeArchived?: boolean): Promise<void> {
   const store = useInsightsStore.getState();
@@ -239,12 +309,20 @@ export async function loadInsightsSessions(projectId: string, includeArchived?: 
 }
 
 export async function loadInsightsSession(projectId: string, includeArchived?: boolean): Promise<void> {
+  if (useInsightsStore.getState().projectId !== projectId) {
+    // Another project: nothing of the previous project's chat may stay on screen
+    useInsightsStore.setState({ projectId, session: null, placeholderSessionId: null, pendingMessage: '' });
+    resetStreamingView();
+  }
   const result = await window.electronAPI.getInsightsSession(projectId);
+  if (useInsightsStore.getState().projectId !== projectId) return; // switched away meanwhile
   if (result.success && result.data) {
     useInsightsStore.getState().setSession(result.data);
   } else {
     useInsightsStore.getState().setSession(null);
   }
+  useInsightsStore.setState({ placeholderSessionId: null });
+  await restoreInsightsStream(projectId);
   // Also load the sessions list
   await loadInsightsSessions(projectId, includeArchived);
 }
@@ -297,6 +375,9 @@ export async function newSession(projectId: string): Promise<void> {
   const result = await window.electronAPI.newInsightsSession(projectId);
   if (result.success && result.data) {
     useInsightsStore.getState().setSession(result.data);
+    useInsightsStore.setState({ placeholderSessionId: null });
+    resetStreamingView();
+    await restoreInsightsStream(projectId);
     // Reload sessions list
     await loadInsightsSessions(projectId);
   }
@@ -306,11 +387,10 @@ export async function switchSession(projectId: string, sessionId: string): Promi
   const result = await window.electronAPI.switchInsightsSession(projectId, sessionId);
   if (result.success && result.data) {
     useInsightsStore.getState().setSession(result.data);
-    // Reset streaming state when switching sessions
-    useInsightsStore.getState().clearStreamingContent();
-    useInsightsStore.getState().clearToolsUsed();
-    useInsightsStore.getState().setCurrentTool(null);
-    useInsightsStore.getState().setStatus({ phase: 'idle', message: '' });
+    useInsightsStore.setState({ placeholderSessionId: null });
+    // Reset streaming state when switching sessions, then show this session's reply if it is still streaming
+    resetStreamingView();
+    await restoreInsightsStream(projectId);
   }
 }
 
@@ -398,13 +478,28 @@ export async function createTaskFromSuggestion(
   return null;
 }
 
+/** A reply of another session in the shown project is streaming (or just ended) */
+function trackBusySession(projectId: string, sessionId: string | undefined, ended: boolean): void {
+  const state = useInsightsStore.getState();
+  if (!sessionId || projectId !== state.projectId) return;
+  if (ended) {
+    if (state.busySessionId === sessionId) useInsightsStore.setState({ busySessionId: null });
+  } else if (state.busySessionId !== sessionId) {
+    useInsightsStore.setState({ busySessionId: sessionId });
+  }
+}
+
 // IPC listener setup - call this once when the app initializes
 export function setupInsightsListeners(): () => void {
   const store = useInsightsStore.getState;
 
   // Listen for streaming chunks
   const unsubStreamChunk = window.electronAPI.onInsightsStreamChunk(
-    (_projectId, chunk: InsightsStreamChunk) => {
+    (projectId, chunk: InsightsStreamChunk, sessionId?: string) => {
+      if (!isForShownChat(store(), projectId, sessionId)) {
+        trackBusySession(projectId, sessionId, chunk.type === 'done' || chunk.type === 'error');
+        return;
+      }
       switch (chunk.type) {
         case 'text':
           if (chunk.content) {
@@ -464,12 +559,20 @@ export function setupInsightsListeners(): () => void {
   );
 
   // Listen for status updates
-  const unsubStatus = window.electronAPI.onInsightsStatus((_projectId, status) => {
+  const unsubStatus = window.electronAPI.onInsightsStatus((projectId, status, sessionId) => {
+    if (!isForShownChat(store(), projectId, sessionId)) {
+      trackBusySession(projectId, sessionId, status.phase === 'complete' || status.phase === 'error');
+      return;
+    }
     store().setStatus(status);
   });
 
   // Listen for errors
-  const unsubError = window.electronAPI.onInsightsError((_projectId, error) => {
+  const unsubError = window.electronAPI.onInsightsError((projectId, error, sessionId) => {
+    if (!isForShownChat(store(), projectId, sessionId)) {
+      trackBusySession(projectId, sessionId, true);
+      return;
+    }
     store().setStatus({
       phase: 'error',
       error
@@ -478,15 +581,20 @@ export function setupInsightsListeners(): () => void {
 
   // Listen for session updates (e.g., after assistant message saved with auto-generated title)
   const unsubSessionUpdated = window.electronAPI.onInsightsSessionUpdated(
-    (_projectId, session: InsightsSession) => {
-      // Update current session if it matches
-      const currentSession = store().session;
-      if (currentSession?.id === session.id) {
+    (projectId, session: InsightsSession) => {
+      // Main already saved it; another project's chat is not on screen
+      if (projectId !== store().projectId) return;
+      // Update current session if it matches (or replace the one created here for the first message)
+      const state = store();
+      const currentId = state.session?.id;
+      if (currentId === session.id || (currentId !== undefined && currentId === state.placeholderSessionId)) {
         store().setSession(session);
+        useInsightsStore.setState({ placeholderSessionId: null });
       }
+      if (state.busySessionId === session.id) useInsightsStore.setState({ busySessionId: null });
       // Also refresh sessions list for sidebar
-      loadInsightsSessions(session.projectId).catch((err) => {
-        console.error('Failed to refresh sessions list after update:', err);
+      loadInsightsSessions(projectId).catch(() => {
+        // The list refreshes again on the next load
       });
     }
   );

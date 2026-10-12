@@ -16,7 +16,8 @@ import type {
   SupportedTerminal,
   WorktreeCreatePROptions,
   WorktreeCreatePRResult,
-  ImageAttachment
+  ImageAttachment,
+  RefineRunStatus
 } from '../../shared/types';
 
 export interface TaskAPI {
@@ -113,6 +114,8 @@ export interface TaskAPI {
   taskRefineTerminalStart: (taskId: string, autoMode?: boolean) => void;
   taskRefineSkipPhase: (taskId: string) => void;
   taskRefineGetSession: (taskId: string) => Promise<IPCResult<{ session: unknown } | null>>;
+  /** The task's refine run in main (null when it has none) */
+  taskRefineGetStatus: (taskId: string) => Promise<IPCResult<RefineRunStatus | null>>;
   taskRefineResetSession: (taskId: string) => Promise<IPCResult>;
   onTaskRefinePhaseChange: (callback: (taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>) => void) => () => void;
 }
@@ -440,6 +443,9 @@ export const createTaskAPI = (): TaskAPI => ({
 
   taskRefineGetSession: (taskId: string): Promise<IPCResult<{ session: unknown } | null>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_GET_SESSION, taskId),
+
+  taskRefineGetStatus: (taskId: string): Promise<IPCResult<RefineRunStatus | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_GET_STATUS, taskId),
 
   taskRefineResetSession: (taskId: string): Promise<IPCResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_RESET_SESSION, taskId),

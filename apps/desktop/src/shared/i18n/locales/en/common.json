@@ -484,6 +484,7 @@
     "you": "You",
     "assistant": "Assistant",
     "thinking": "Thinking...",
+    "busyOtherChat": "Another chat in this project is still replying. You can send once it has finished.",
     "inputPlaceholder": "Ask about your codebase...",
     "sendHint": "Press Enter to send, Shift+Enter for new line",
     "send": "Send",

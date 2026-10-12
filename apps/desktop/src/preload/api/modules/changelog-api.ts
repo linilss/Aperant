@@ -7,6 +7,7 @@ import type {
   ChangelogSaveRequest,
   ChangelogSaveResult,
   ChangelogGenerationProgress,
+  ChangelogRunStatus,
   ExistingChangelog,
   GitBranchInfo,
   GitTagInfo,
@@ -26,6 +27,10 @@ export interface ChangelogAPI {
   getChangelogDoneTasks: (projectId: string, tasks?: Task[]) => Promise<IPCResult<ChangelogTask[]>>;
   loadTaskSpecs: (projectId: string, taskIds: string[]) => Promise<IPCResult<TaskSpecContent[]>>;
   generateChangelog: (request: ChangelogGenerationRequest) => Promise<IPCResult<void>>;
+  /** Generation state of a project in main: running, finished with result, or failed (null when none) */
+  getChangelogStatus: (projectId: string) => Promise<IPCResult<ChangelogRunStatus | null>>;
+  /** Forget a project's finished generation result or error */
+  clearChangelogStatus: (projectId: string) => Promise<IPCResult>;
   saveChangelog: (request: ChangelogSaveRequest) => Promise<IPCResult<ChangelogSaveResult>>;
   readExistingChangelog: (projectId: string) => Promise<IPCResult<ExistingChangelog>>;
   suggestChangelogVersion: (
@@ -78,6 +83,12 @@ export const createChangelogAPI = (): ChangelogAPI => ({
 
   generateChangelog: (request: ChangelogGenerationRequest): Promise<IPCResult<void>> =>
     invokeIpc(IPC_CHANNELS.CHANGELOG_GENERATE, request),
+
+  getChangelogStatus: (projectId: string): Promise<IPCResult<ChangelogRunStatus | null>> =>
+    invokeIpc(IPC_CHANNELS.CHANGELOG_GET_STATUS, projectId),
+
+  clearChangelogStatus: (projectId: string): Promise<IPCResult> =>
+    invokeIpc(IPC_CHANNELS.CHANGELOG_CLEAR_STATUS, projectId),
 
   saveChangelog: (request: ChangelogSaveRequest): Promise<IPCResult<ChangelogSaveResult>> =>
     invokeIpc(IPC_CHANNELS.CHANGELOG_SAVE, request),

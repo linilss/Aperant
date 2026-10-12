@@ -127,6 +127,23 @@ export interface ChangelogGenerationProgress {
   error?: string;
 }
 
+/**
+ * A project's changelog generation as tracked by main: still running, finished
+ * with a result, or failed. Kept after it ends until the renderer clears it, so the
+ * view can restore it after a project switch (changelog:getStatus).
+ */
+export interface ChangelogRunStatus {
+  state: 'running' | 'done' | 'error';
+  sourceMode: ChangelogSourceMode;
+  version: string;
+  /** Latest progress emitted for the run */
+  progress: ChangelogGenerationProgress;
+  /** Set when state is 'done' */
+  result?: ChangelogGenerationResult;
+  /** Set when state is 'error' */
+  error?: string;
+}
+
 export interface ExistingChangelog {
   exists: boolean;
   content?: string;

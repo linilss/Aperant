@@ -116,6 +116,14 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
         setRefineCompleted(session?.completedPhases?.length >= 4);
       }
     }).catch(() => {});
+    // A refine run still going in main (dialog reopened): show its tab again so it can be re-attached
+    window.electronAPI?.taskRefineGetStatus?.(task.id).then((result) => {
+      if (cancelled || !result?.success || !result.data?.isRunning) return;
+      const mode = result.data.autoMode ? 'auto' : 'interactive';
+      setRefineTerminalMode((current) => current || mode);
+    }).catch(() => {
+      // No status: the Refine buttons still start a run
+    });
     return () => { cancelled = true; };
   }, [task.id]);
 

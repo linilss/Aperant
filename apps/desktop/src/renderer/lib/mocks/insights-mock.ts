@@ -127,6 +127,8 @@ export const insightsMock = {
     }
   }),
 
+  getInsightsStreamStatus: async () => ({ success: true, data: null }),
+
   onInsightsStreamChunk: () => () => {},
   onInsightsStatus: () => () => {},
   onInsightsError: () => () => {},

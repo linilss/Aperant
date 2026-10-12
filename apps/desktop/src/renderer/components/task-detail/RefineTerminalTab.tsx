@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { CheckCircle2, RotateCcw, Play } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal-store';
 import { useProjectStore } from '../../stores/project-store';
+import { terminalBufferManager } from '../../lib/terminal-buffer-manager';
 import { Button } from '../ui/button';
 import { Terminal } from '../Terminal';
 import { RefinePhaseBar, type PhaseInfo } from './RefinePhaseBar';
@@ -35,21 +36,32 @@ export function RefineTerminalTab({ taskId, taskTitle, taskDescription, autoMode
 
   useEffect(() => {
     let cancelled = false;
-    window.electronAPI?.taskRefineGetSession(taskId).then((result) => {
+    const api = window.electronAPI;
+    Promise.all([
+      api?.taskRefineGetStatus?.(taskId).catch(() => null),
+      api?.taskRefineGetSession(taskId).catch(() => null),
+    ]).then(([statusResult, sessionResult]) => {
       if (cancelled) return;
-      if (result?.success && result.data) {
-        const session = (result.data as { session: SessionInfo }).session;
-        if (session?.completedPhases?.length > 0) {
-          setExistingSession(session);
-        } else {
-          setExistingSession(null);
+      const run = statusResult?.success ? statusResult.data : null;
+      if (run?.isRunning) {
+        // A run is already in progress for this task (dialog reopened): re-attach, never start another
+        orchestratorStartedRef.current = true;
+        setPhases(run.phases);
+        setCurrentPhaseIndex(run.currentPhaseIndex);
+        // A terminal without history (e.g. a fresh phone client) gets the run's recent output
+        if (run.outputTail && terminalBufferManager.getSize(terminalId) === 0) {
+          terminalBufferManager.set(terminalId, run.outputTail);
         }
-      } else {
         setExistingSession(null);
+        return;
       }
-    }).catch(() => { if (!cancelled) setExistingSession(null); });
+      const session = sessionResult?.success && sessionResult.data
+        ? (sessionResult.data as { session: SessionInfo }).session
+        : null;
+      setExistingSession(session && session.completedPhases?.length > 0 ? session : null);
+    });
     return () => { cancelled = true; };
-  }, [taskId]);
+  }, [taskId, terminalId]);
 
   useEffect(() => {
     if (!projectPath) return;
@@ -115,6 +127,9 @@ export function RefineTerminalTab({ taskId, taskTitle, taskDescription, autoMode
   }, [terminalId]);
 
   if (!projectPath) return null;
+
+  // Wait for the run/session check so the terminal mounts with any restored output
+  if (existingSession === undefined) return <div className="h-full" />;
 
   if (existingSession) {
     return (

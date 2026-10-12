@@ -8,7 +8,10 @@ import type {
   Task,
   ChangelogTask,
   TaskSpecContent,
+  ChangelogGenerationProgress,
   ChangelogGenerationRequest,
+  ChangelogGenerationResult,
+  ChangelogRunStatus,
   ChangelogSaveRequest,
   ChangelogSaveResult,
   ExistingChangelog,
@@ -21,6 +24,7 @@ import type {
 import { projectStore } from '../project-store';
 import { changelogService } from '../changelog-service';
 import { generateChangelog as generateChangelogTS } from '../ai/runners/changelog';
+import { changelogRunTracker } from '../changelog/changelog-run-tracker';
 
 // Store cleanup function to remove listeners on subsequent calls
 let cleanupListeners: (() => void) | null = null;
@@ -85,6 +89,8 @@ export function registerChangelogHandlers(
     ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_GET_DONE_TASKS);
     ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_LOAD_TASK_SPECS);
     ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_GENERATE);
+    ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_GET_STATUS);
+    ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_CLEAR_STATUS);
     ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_SAVE);
     ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_READ_EXISTING);
     ipcMain.removeHandler(IPC_CHANNELS.CHANGELOG_SUGGEST_VERSION);
@@ -146,19 +152,37 @@ export function registerChangelogHandlers(
         return { success: false, error: 'Project not found' };
       }
 
+      // Track the run per project in main, so a renderer showing another project
+      // (or with the changelog view closed) can restore it later via getStatus
+      const { projectId } = request;
+      const token = {};
+      changelogRunTracker.start(projectId, token, {
+        sourceMode: request.sourceMode,
+        version: request.version,
+      });
+      const sendProgress = (progress: ChangelogGenerationProgress) => {
+        changelogRunTracker.progress(projectId, token, progress);
+        getMainWindow()?.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_PROGRESS, projectId, progress);
+      };
+      const sendComplete = (result: ChangelogGenerationResult) => {
+        changelogRunTracker.complete(projectId, token, result);
+        getMainWindow()?.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_COMPLETE, projectId, result);
+      };
+      const sendError = (error: string) => {
+        changelogRunTracker.fail(projectId, token, error);
+        getMainWindow()?.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_ERROR, projectId, error);
+      };
+
       // Return immediately to allow renderer to register event listeners
       // Start the actual generation asynchronously via TypeScript Vercel AI SDK runner
       setImmediate(async () => {
-        const mainWindow = getMainWindow();
         try {
           // Emit starting progress
-          if (mainWindow) {
-            mainWindow.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_PROGRESS, request.projectId, {
-              stage: 'loading_specs',
-              progress: 10,
-              message: 'Preparing changelog generation...'
-            });
-          }
+          sendProgress({
+            stage: 'loading_specs',
+            progress: 10,
+            message: 'Preparing changelog generation...'
+          });
 
           // Load specs for selected tasks (only in tasks mode)
           let specs: TaskSpecContent[] = [];
@@ -168,13 +192,11 @@ export function registerChangelogHandlers(
             specs = await changelogService.loadTaskSpecs(project.path, request.taskIds, tasks, specsBaseDir);
           }
 
-          if (mainWindow) {
-            mainWindow.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_PROGRESS, request.projectId, {
-              stage: 'generating',
-              progress: 30,
-              message: 'Generating changelog with AI...'
-            });
-          }
+          sendProgress({
+            stage: 'generating',
+            progress: 30,
+            message: 'Generating changelog with AI...'
+          });
 
           // Build commits string for git modes
           let commitsText: string | undefined;
@@ -205,32 +227,46 @@ export function registerChangelogHandlers(
             projectDir: project.path,
           });
 
-          if (mainWindow) {
-            if (result.success) {
-              mainWindow.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_PROGRESS, request.projectId, {
-                stage: 'complete',
-                progress: 100,
-                message: 'Changelog generated successfully'
-              });
-              mainWindow.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_COMPLETE, request.projectId, {
-                success: true,
-                changelog: result.text,
-                version: request.version,
-                tasksIncluded: specs.length || 0,
-              });
-            } else {
-              mainWindow.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_ERROR, request.projectId, result.error || 'Generation failed');
-            }
+          if (result.success) {
+            sendProgress({
+              stage: 'complete',
+              progress: 100,
+              message: 'Changelog generated successfully'
+            });
+            sendComplete({
+              success: true,
+              changelog: result.text,
+              version: request.version,
+              tasksIncluded: specs.length || 0,
+            });
+          } else {
+            sendError(result.error || 'Generation failed');
           }
         } catch (error) {
           // Send error via event instead of return value since we already returned
-          if (mainWindow) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to start changelog generation';
-            mainWindow.webContents.send(IPC_CHANNELS.CHANGELOG_GENERATION_ERROR, request.projectId, errorMessage);
-          }
+          sendError(error instanceof Error ? error.message : 'Failed to start changelog generation');
         }
       });
 
+      return { success: true };
+    }
+  );
+
+  // Generation state of a project (running, finished with result, or failed),
+  // so the view can restore it after a project switch
+  ipcMain.handle(
+    IPC_CHANNELS.CHANGELOG_GET_STATUS,
+    (_, projectId: string): IPCResult<ChangelogRunStatus | null> => ({
+      success: true,
+      data: changelogRunTracker.get(projectId),
+    })
+  );
+
+  // The renderer dismissed the finished result (or error) of a project
+  ipcMain.handle(
+    IPC_CHANNELS.CHANGELOG_CLEAR_STATUS,
+    (_, projectId: string): IPCResult => {
+      changelogRunTracker.clear(projectId);
       return { success: true };
     }
   );

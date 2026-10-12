@@ -83,6 +83,7 @@ import type {
   ChangelogSaveRequest,
   ChangelogSaveResult,
   ChangelogGenerationProgress,
+  ChangelogRunStatus,
   ExistingChangelog,
   GitBranchInfo,
   GitTagInfo,
@@ -101,6 +102,7 @@ import type {
   InsightsSessionSummary,
   InsightsChatStatus,
   InsightsStreamChunk,
+  InsightsStreamStatus,
   InsightsModelConfig
 } from './insights';
 import type {
@@ -727,6 +729,8 @@ export interface ElectronAPILegacy {
   getChangelogDoneTasks: (projectId: string, tasks?: Task[]) => Promise<IPCResult<ChangelogTask[]>>;
   loadTaskSpecs: (projectId: string, taskIds: string[]) => Promise<IPCResult<TaskSpecContent[]>>;
   generateChangelog: (request: ChangelogGenerationRequest) => Promise<IPCResult<void>>; // Async with progress events
+  getChangelogStatus: (projectId: string) => Promise<IPCResult<ChangelogRunStatus | null>>;
+  clearChangelogStatus: (projectId: string) => Promise<IPCResult>;
   saveChangelog: (request: ChangelogSaveRequest) => Promise<IPCResult<ChangelogSaveResult>>;
   readExistingChangelog: (projectId: string) => Promise<IPCResult<ExistingChangelog>>;
   suggestChangelogVersion: (
@@ -787,16 +791,17 @@ export interface ElectronAPILegacy {
   unarchiveInsightsSession: (projectId: string, sessionId: string) => Promise<IPCResult>;
   renameInsightsSession: (projectId: string, sessionId: string, newTitle: string) => Promise<IPCResult>;
   updateInsightsModelConfig: (projectId: string, sessionId: string, modelConfig: InsightsModelConfig) => Promise<IPCResult>;
+  getInsightsStreamStatus: (projectId: string) => Promise<IPCResult<InsightsStreamStatus | null>>;
 
   // Insights event listeners
   onInsightsStreamChunk: (
-    callback: (projectId: string, chunk: InsightsStreamChunk) => void
+    callback: (projectId: string, chunk: InsightsStreamChunk, sessionId?: string) => void
   ) => () => void;
   onInsightsStatus: (
-    callback: (projectId: string, status: InsightsChatStatus) => void
+    callback: (projectId: string, status: InsightsChatStatus, sessionId?: string) => void
   ) => () => void;
   onInsightsError: (
-    callback: (projectId: string, error: string) => void
+    callback: (projectId: string, error: string, sessionId?: string) => void
   ) => () => void;
   onInsightsSessionUpdated: (
     callback: (projectId: string, session: InsightsSession) => void

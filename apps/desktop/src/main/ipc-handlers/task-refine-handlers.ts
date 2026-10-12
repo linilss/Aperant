@@ -9,6 +9,7 @@
  *   TASK_REFINE_TERMINAL_START — start the pipeline for a task
  *   TASK_REFINE_SKIP_PHASE     — skip the current phase
  *   TASK_REFINE_GET_SESSION    — read the persisted refine session
+ *   TASK_REFINE_GET_STATUS     — status of the task's run in main (to re-attach)
  *   TASK_REFINE_RESET_SESSION  — delete the session and start fresh
  *   TASK_REFINE_ERROR          → renderer — error string
  */
@@ -21,12 +22,14 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { safeSendToRenderer } from './utils';
 import { findTaskAndProject } from './task/shared';
 import { RefineOrchestrator } from '../ai/orchestration/refine-orchestrator';
+import { RefineRunRegistry } from '../ai/orchestration/refine-run-registry';
+import type { IPCResult, RefineRunStatus } from '../../shared/types';
 
 // =============================================================================
 // Handler Registration
 // =============================================================================
 
-const orchestrators = new Map<string, RefineOrchestrator>();
+const runs = new RefineRunRegistry<RefineOrchestrator>();
 
 export function registerTaskRefineHandlers(
   getMainWindow: () => BrowserWindow | null,
@@ -48,14 +51,11 @@ export function registerTaskRefineHandlers(
         return;
       }
 
-      // Stop any existing orchestrator for this task
-      const existing = orchestrators.get(taskId);
-      existing?.stop();
-
       const terminalId = `refine-${taskId}`;
       const specDir = join(project.path, '.malvy', 'specs', task.specId || taskId);
 
-      const orchestrator = new RefineOrchestrator({
+      // A run already in progress for this task keeps going (the renderer re-attaches to it)
+      runs.start(taskId, () => new RefineOrchestrator({
         taskId,
         taskTitle: task.title,
         taskDescription: task.description || '',
@@ -64,10 +64,7 @@ export function registerTaskRefineHandlers(
         terminalId,
         autoMode: autoMode ?? false,
         getMainWindow,
-      });
-
-      orchestrators.set(taskId, orchestrator);
-      void orchestrator.start();
+      }));
     },
   );
 
@@ -77,7 +74,7 @@ export function registerTaskRefineHandlers(
   ipcMain.on(
     IPC_CHANNELS.TASK_REFINE_SKIP_PHASE,
     (_, taskId: string) => {
-      const orchestrator = orchestrators.get(taskId);
+      const orchestrator = runs.get(taskId);
       if (orchestrator) {
         void orchestrator.skipPhase();
       }
@@ -101,14 +98,23 @@ export function registerTaskRefineHandlers(
   );
 
   // ------------------------------------------------------------------
+  // GET STATUS — the task's run in main, so a reopened dialog re-attaches
+  // ------------------------------------------------------------------
+  ipcMain.handle(
+    IPC_CHANNELS.TASK_REFINE_GET_STATUS,
+    (_, taskId: string): IPCResult<RefineRunStatus | null> => ({
+      success: true,
+      data: runs.getStatus(taskId),
+    }),
+  );
+
+  // ------------------------------------------------------------------
   // RESET SESSION — delete refine session and start fresh
   // ------------------------------------------------------------------
   ipcMain.handle(
     IPC_CHANNELS.TASK_REFINE_RESET_SESSION,
     (_, taskId: string) => {
-      const existing = orchestrators.get(taskId);
-      existing?.stop();
-      orchestrators.delete(taskId);
+      runs.stop(taskId);
 
       const { task, project } = findTaskAndProject(taskId);
       if (task && project) {

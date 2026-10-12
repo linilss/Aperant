@@ -136,7 +136,10 @@ export function Insights({ projectId }: InsightsProps) {
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const isLoading = status.phase === 'thinking' || status.phase === 'streaming';
+  const busySessionId = useInsightsStore((state) => state.busySessionId);
+  const isReplying = status.phase === 'thinking' || status.phase === 'streaming';
+  // A reply streaming in another chat of this project would be cancelled by a new message
+  const isLoading = isReplying || busySessionId !== null;
 
   // Image upload hook
   const {
@@ -610,6 +613,10 @@ export function Insights({ projectId }: InsightsProps) {
             </Button>
           </div>
         </div>
+
+        {busySessionId && !isReplying && (
+          <p className="mt-1 text-xs text-muted-foreground">{t('insights.busyOtherChat')}</p>
+        )}
 
         {/* Image analysis warning */}
         {pendingImages.length > 0 && (

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../../../shared/constants';
+import type { RefineRunStatus } from '../../../shared/types';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand } from '../config/types';
@@ -47,6 +48,8 @@ const PHASE_DEFINITIONS: Array<{ name: RefinePhaseName; label: string }> = [
 const MAX_CONTEXT_BUDGET = 30_000;
 const RECENT_PHASE_FULL_FIDELITY = 2;
 const SESSION_FILENAME = 'refine_session.json';
+/** Terminal output kept for re-attaching (chars) */
+const OUTPUT_TAIL_LIMIT = 100_000;
 
 export interface RefineSessionData {
   currentPhase: RefinePhaseName | null;
@@ -65,6 +68,8 @@ export class RefineOrchestrator {
   private abortController: AbortController | null = null;
   private config: RefineOrchestratorConfig;
   private isRunning = false;
+  private startedAt: string | null = null;
+  private outputTail = '';
 
   constructor(config: RefineOrchestratorConfig) {
     this.config = config;
@@ -84,9 +89,30 @@ export class RefineOrchestrator {
     return this.phases[this.currentPhaseIndex];
   }
 
+  /** True while the pipeline is running (not finished or stopped) */
+  isActive(): boolean {
+    return this.isRunning;
+  }
+
+  getStatus(): RefineRunStatus {
+    const current = this.getCurrentPhase();
+    return {
+      taskId: this.config.taskId,
+      isRunning: this.isRunning,
+      autoMode: this.config.autoMode,
+      terminalId: this.config.terminalId,
+      startedAt: this.startedAt ?? '',
+      currentPhase: current?.name ?? null,
+      currentPhaseIndex: current?.index ?? -1,
+      phases: this.phases.map(p => ({ name: p.name, label: p.label, status: p.status })),
+      outputTail: this.outputTail,
+    };
+  }
+
   async start(): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
+    this.startedAt = new Date().toISOString();
 
     const session = this.loadSession();
     if (session && session.completedPhases.length > 0) {
@@ -398,6 +424,13 @@ export class RefineOrchestrator {
   }
 
   private writeToTerminal(data: string): void {
+    this.outputTail += data;
+    if (this.outputTail.length > OUTPUT_TAIL_LIMIT) {
+      // Drop the oldest output, starting at a line boundary
+      const cut = this.outputTail.length - OUTPUT_TAIL_LIMIT;
+      const lineStart = this.outputTail.indexOf('\n', cut);
+      this.outputTail = this.outputTail.slice(lineStart >= 0 ? lineStart + 1 : cut);
+    }
     const win = this.config.getMainWindow();
     if (win) {
       win.webContents.send(IPC_CHANNELS.TERMINAL_OUTPUT, this.config.terminalId, data);

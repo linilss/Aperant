@@ -278,3 +278,21 @@ export interface InsightsStreamChunk {
   };
   error?: string;
 }
+
+/**
+ * Assistant reply still being generated in main for a project's insights session.
+ * Lets the renderer restore the partial reply after switching projects or sessions.
+ */
+export interface InsightsStreamStatus {
+  projectId: string;
+  /** Session the reply will be saved into */
+  sessionId: string;
+  /** ISO timestamp */
+  startedAt: string;
+  status: InsightsChatStatus;
+  /** Reply text so far */
+  content: string;
+  currentTool: { name: string; input?: string } | null;
+  toolsUsed: InsightsToolUsage[];
+  suggestedTasks: NonNullable<InsightsStreamChunk['suggestedTasks']>;
+}

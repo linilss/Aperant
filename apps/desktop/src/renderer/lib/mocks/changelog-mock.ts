@@ -32,6 +32,10 @@ export const changelogMock = {
     return { success: true };
   },
 
+  getChangelogStatus: async () => ({ success: true, data: null }),
+
+  clearChangelogStatus: async () => ({ success: true }),
+
   saveChangelog: async () => ({
     success: true,
     data: {

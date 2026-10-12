@@ -60,6 +60,7 @@ export const IPC_CHANNELS = {
   TASK_REFINE_PHASE_CHANGE: 'task:refine:phaseChange',      // Phase transition event (main → renderer)
   TASK_REFINE_SKIP_PHASE: 'task:refine:skipPhase',          // Skip current refine phase
   TASK_REFINE_GET_SESSION: 'task:refine:getSession',        // Get refine session state
+  TASK_REFINE_GET_STATUS: 'task:refine:getStatus',          // Status of the task's running refine pipeline
   TASK_REFINE_RESET_SESSION: 'task:refine:resetSession',    // Delete refine session and start fresh
 
   TASK_WORKTREE_DISCARD: 'task:worktreeDiscard',
@@ -514,6 +515,8 @@ export const IPC_CHANNELS = {
   CHANGELOG_GET_DONE_TASKS: 'changelog:getDoneTasks',
   CHANGELOG_LOAD_TASK_SPECS: 'changelog:loadTaskSpecs',
   CHANGELOG_GENERATE: 'changelog:generate',
+  CHANGELOG_GET_STATUS: 'changelog:getStatus',
+  CHANGELOG_CLEAR_STATUS: 'changelog:clearStatus',
   CHANGELOG_SAVE: 'changelog:save',
   CHANGELOG_READ_EXISTING: 'changelog:readExisting',
   CHANGELOG_SUGGEST_VERSION: 'changelog:suggestVersion',
@@ -546,6 +549,7 @@ export const IPC_CHANNELS = {
   INSIGHTS_UNARCHIVE_SESSION: 'insights:unarchiveSession',
   INSIGHTS_RENAME_SESSION: 'insights:renameSession',
   INSIGHTS_UPDATE_MODEL_CONFIG: 'insights:updateModelConfig',
+  INSIGHTS_GET_STREAM_STATUS: 'insights:getStreamStatus',  // Reply still streaming for a project
 
   // Insights events (main -> renderer)
   INSIGHTS_STREAM_CHUNK: 'insights:streamChunk',

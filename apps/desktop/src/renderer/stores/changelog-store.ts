@@ -6,6 +6,8 @@ import type {
   ChangelogAudience,
   ChangelogEmojiLevel,
   ChangelogGenerationProgress,
+  ChangelogGenerationResult,
+  ChangelogRunStatus,
   ExistingChangelog,
   ChangelogSourceMode,
   GitBranchInfo,
@@ -20,6 +22,9 @@ import { useSettingsStore } from './settings-store';
 import { saveSettings } from './settings-store';
 
 interface ChangelogState {
+  /** Project whose changelog is on screen; generation state belongs to this project */
+  currentProjectId: string | null;
+
   // Data
   doneTasks: ChangelogTask[];
   selectedTaskIds: string[];
@@ -66,6 +71,7 @@ interface ChangelogState {
   error: string | null;
 
   // Actions
+  setCurrentProjectId: (projectId: string | null) => void;
   setDoneTasks: (tasks: ChangelogTask[]) => void;
   setSelectedTaskIds: (ids: string[]) => void;
   toggleTaskSelection: (taskId: string) => void;
@@ -123,6 +129,14 @@ const getDefaultDate = (): string => {
   return new Date().toISOString().split('T')[0];
 };
 
+const initialGenerationState = {
+  generationProgress: null as ChangelogGenerationProgress | null,
+  generatedChangelog: '',
+  isGenerating: false,
+  error: null as string | null
+};
+
+// currentProjectId is deliberately not part of this, so reset() keeps the project
 const initialState = {
   doneTasks: [] as ChangelogTask[],
   selectedTaskIds: [] as string[],
@@ -162,14 +176,19 @@ const initialState = {
   emojiLevel: 'none' as ChangelogEmojiLevel,
   customInstructions: '',
 
-  generationProgress: null as ChangelogGenerationProgress | null,
-  generatedChangelog: '',
-  isGenerating: false,
-  error: null as string | null
+  ...initialGenerationState
 };
 
 export const useChangelogStore = create<ChangelogState>((set, get) => ({
+  currentProjectId: null,
   ...initialState,
+
+  // Generation state is per project: switching drops the previous project's
+  // spinner/result from the view (main keeps it, see restoreGenerationStatus)
+  setCurrentProjectId: (projectId) => {
+    if (get().currentProjectId === projectId) return;
+    set({ currentProjectId: projectId, ...initialGenerationState });
+  },
 
   // Data actions
   setDoneTasks: (tasks) => set({ doneTasks: tasks }),
@@ -422,6 +441,96 @@ export async function loadCommitsPreview(projectId: string): Promise<void> {
     store.setPreviewCommits([]);
   } finally {
     store.setIsLoadingCommits(false);
+  }
+}
+
+// ============================================
+// Generation events (main → renderer). Events of a project other than the one on
+// screen are ignored; main keeps that project's state for when it is shown again.
+// ============================================
+
+function isCurrentProject(projectId: string): boolean {
+  return useChangelogStore.getState().currentProjectId === projectId;
+}
+
+export function handleGenerationProgressEvent(
+  projectId: string,
+  progress: ChangelogGenerationProgress
+): void {
+  if (!isCurrentProject(projectId)) return;
+  useChangelogStore.getState().setGenerationProgress(progress);
+}
+
+export function handleGenerationCompleteEvent(
+  projectId: string,
+  result: ChangelogGenerationResult
+): void {
+  if (!isCurrentProject(projectId)) return;
+  const store = useChangelogStore.getState();
+  store.setIsGenerating(false);
+  if (result.success) {
+    store.updateGeneratedChangelog(result.changelog);
+    store.setGenerationProgress({
+      stage: 'complete',
+      progress: 100,
+      message: 'Changelog generated successfully!'
+    });
+  } else {
+    store.setError(result.error || 'Generation failed');
+  }
+}
+
+export function handleGenerationErrorEvent(projectId: string, errorMessage: string): void {
+  if (!isCurrentProject(projectId)) return;
+  handleGenerationError(useChangelogStore.getState(), errorMessage);
+}
+
+/**
+ * Put the project's generation as tracked by main back on screen: the spinner and
+ * latest progress while running, the generated changelog when done, or the error.
+ * Returns the status applied (null when there is nothing, or the project changed).
+ */
+export async function restoreGenerationStatus(projectId: string): Promise<ChangelogRunStatus | null> {
+  let run: ChangelogRunStatus | null | undefined;
+  try {
+    const result = await window.electronAPI.getChangelogStatus(projectId);
+    run = result.success ? result.data : null;
+  } catch {
+    run = null;
+  }
+  const store = useChangelogStore.getState();
+  if (!run || store.currentProjectId !== projectId) return null;
+
+  if (run.state === 'running') {
+    useChangelogStore.setState({
+      sourceMode: run.sourceMode,
+      version: run.version,
+      isGenerating: true,
+      error: null,
+      generationProgress: { ...run.progress }
+    });
+  } else if (run.state === 'done' && run.result) {
+    // Already on screen (view re-mounted on the same project): keep the user's edits
+    if (!store.generatedChangelog) {
+      useChangelogStore.setState({
+        sourceMode: run.sourceMode,
+        version: run.result.version || run.version
+      });
+      handleGenerationCompleteEvent(projectId, run.result);
+    }
+  } else if (run.state === 'error') {
+    useChangelogStore.setState({ sourceMode: run.sourceMode, version: run.version });
+    handleGenerationError(store, run.error || 'Generation failed');
+  }
+  return run;
+}
+
+/** The user is done with the generated changelog (or error): main can forget it */
+export async function dismissGenerationStatus(projectId: string): Promise<void> {
+  try {
+    await window.electronAPI.clearChangelogStatus(projectId);
+  } catch {
+    // Best effort: a stale result is only restored again on the next visit
   }
 }
 
