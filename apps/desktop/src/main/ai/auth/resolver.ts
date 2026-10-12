@@ -177,6 +177,14 @@ async function resolveFromProfileOAuth(ctx: AuthResolverContext): Promise<Resolv
  * @param configDir - Config directory for the profile
  * @returns New token or null if refresh failed
  */
+/**
+ * Resolve the OAuth credential stored for one Claude profile's config dir.
+ * Used when a project is pinned to a profile, so the SDK path bills that account.
+ */
+export async function resolveProfileOAuthAuth(configDir: string): Promise<ResolvedAuth | null> {
+  return resolveFromProfileOAuth({ provider: 'anthropic', configDir });
+}
+
 export async function refreshOAuthTokenReactive(configDir: string | undefined): Promise<string | null> {
   try {
     const result = await reactiveTokenRefresh(configDir);
@@ -352,6 +360,11 @@ export async function resolveAuthFromQueue(
     excludeAccountIds?: string[];
     userModelOverrides?: Record<string, Partial<Record<BuiltinProvider, import('../../../shared/constants/models').ProviderModelSpec>>>;
     autoSwitchSettings?: ClaudeAutoSwitchSettings;
+    /**
+     * Config dir per Claude profile id. Accounts linked to one of these profiles
+     * read that profile's own credentials (a project pinned to a profile).
+     */
+    profileConfigDirs?: Record<string, string>;
   }
 ): Promise<QueueResolvedAuth | null> {
   const excludeSet = new Set(options?.excludeAccountIds ?? []);
@@ -411,7 +424,7 @@ export async function resolveAuthFromQueue(
     // is needed here. All OpenAI models are eligible through Codex OAuth.
 
     // Resolve credentials for this account
-    const auth = await resolveCredentialsForAccount(account, supportedProvider);
+    const auth = await resolveCredentialsForAccount(account, supportedProvider, options?.profileConfigDirs);
     if (!auth) continue;
 
     // Success — return the fully resolved auth
@@ -425,6 +438,26 @@ export async function resolveAuthFromQueue(
   }
 
   return null;
+}
+
+/**
+ * Reorder a priority queue for a project pinned to one Claude profile: accounts
+ * linked to that profile go first. A strict pin keeps only those accounts, so the
+ * project's Claude work is never billed to another account (no fallback).
+ */
+export function applyProfilePinToQueue(
+  queue: ProviderAccount[],
+  profileId: string,
+  strict: boolean,
+): ProviderAccount[] {
+  const isPinned = (a: ProviderAccount) => a.provider === 'anthropic' && a.claudeProfileId === profileId;
+  const pinned = queue.filter(isPinned);
+  return strict ? pinned : [...pinned, ...queue.filter((a) => !isPinned(a))];
+}
+
+/** True when the queue has an account linked to the given Claude profile. */
+export function queueHasProfileAccount(queue: ProviderAccount[], profileId: string): boolean {
+  return queue.some((a) => a.provider === 'anthropic' && a.claudeProfileId === profileId);
 }
 
 /**
@@ -495,6 +528,7 @@ function resolveZaiBaseUrl(account: ProviderAccount): string {
 async function resolveCredentialsForAccount(
   account: ProviderAccount,
   provider: SupportedProvider,
+  profileConfigDirs?: Record<string, string>,
 ): Promise<ResolvedAuth | null> {
   // No-auth providers (e.g., Ollama) — no API key required
   if (NO_AUTH_PROVIDERS.has(provider)) {
@@ -525,6 +559,10 @@ async function resolveCredentialsForAccount(
 
   // Anthropic OAuth — refresh token via existing claude-profile system
   if (account.authType === 'oauth' && account.provider === 'anthropic') {
+    const pinnedConfigDir = account.claudeProfileId ? profileConfigDirs?.[account.claudeProfileId] : undefined;
+    if (pinnedConfigDir) {
+      return resolveFromProfileOAuth({ provider, profileId: account.claudeProfileId, configDir: pinnedConfigDir });
+    }
     if (account.claudeProfileId) {
       // Delegate to profile OAuth resolution
       const ctx: AuthResolverContext = { provider, profileId: account.claudeProfileId };

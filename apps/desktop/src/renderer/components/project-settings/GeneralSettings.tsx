@@ -20,6 +20,7 @@ import {
   SelectValue
 } from '../ui/select';
 import { Separator } from '../ui/separator';
+import { ClaudeAccountSection } from './ClaudeAccountSection';
 import { AVAILABLE_MODELS } from '../../../shared/constants';
 import {
   DEFAULT_TASK_BRANCH_PREFIX,
@@ -138,6 +139,11 @@ export function GeneralSettings({
           </div>
         )}
       </section>
+
+      <Separator />
+
+      {/* Claude account (per-project profile) */}
+      <ClaudeAccountSection project={project} settings={settings} setSettings={setSettings} />
 
       {project.autoBuildPath && (
         <>

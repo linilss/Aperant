@@ -193,6 +193,7 @@ export async function learnFromCompletedTask(options: {
       changedFiles,
       commitMessages,
       attemptHistory: [],
+      projectDir: projectPath,
     });
 
     const { stored, skipped } = await storeTaskLearnings(service, { projectId, specId, changedFiles, insights });

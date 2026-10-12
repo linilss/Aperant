@@ -145,6 +145,7 @@ export async function runRoadmapFeatureRefine(input: RoadmapFeatureRefineInput):
   const result = await runClaudeCliDetailed({
     prompt: buildFeatureRefinePrompt(input),
     cwd: input.projectDir,
+    projectPath: input.projectDir,
     modelId: input.modelId,
     allowedTools: ['Read', 'Glob', 'Grep'],
     restrictTools: true,

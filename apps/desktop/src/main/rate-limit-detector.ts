@@ -4,6 +4,7 @@
  */
 
 import { getClaudeProfileManager } from './claude-profile-manager';
+import { getStrictProjectPin } from './claude-profile/project-profile';
 import { getUsageMonitor } from './claude-profile/usage-monitor';
 import { debugLog } from '../shared/utils/debug-logger';
 import { parseClaudeLimitMessage } from './claude-limit-message';
@@ -755,6 +756,8 @@ export interface SDKRateLimitInfo {
   };
   /** Why the swap occurred: 'proactive' (before limit) or 'reactive' (after limit hit) */
   swapReason?: 'proactive' | 'reactive';
+  /** The project is pinned (strict) to profileId, so Malvy waits instead of switching accounts */
+  pinnedToProject?: boolean;
 }
 
 /**
@@ -773,7 +776,7 @@ export function createSDKRateLimitInfo(
     ? profileManager.getProfile(detection.profileId)
     : profileManager.getActiveProfile();
 
-  return {
+  const info: SDKRateLimitInfo = {
     source,
     projectId: options?.projectId,
     taskId: options?.taskId,
@@ -785,4 +788,14 @@ export function createSDKRateLimitInfo(
     detectedAt: new Date(),
     originalError: detection.originalError
   };
+
+  // A project pinned (strict) to its account waits for it: no switch suggestion
+  const pin = options?.projectId ? getStrictProjectPin({ projectId: options.projectId }) : null;
+  if (pin) {
+    info.profileId = pin.profileId;
+    info.profileName = pin.profileName;
+    info.suggestedProfile = undefined;
+    info.pinnedToProject = true;
+  }
+  return info;
 }

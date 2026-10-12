@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles, PauseCircle, Rocket } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles, PauseCircle, Rocket, Lock } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -532,9 +532,17 @@ export const TaskCard = memo(function TaskCard({
               <Badge
                 variant="outline"
                 className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
-                title={rateLimitPause.error}
+                title={
+                  rateLimitPause.pinnedProfileName
+                    ? t('labels.rateLimitedPinned', { account: rateLimitPause.pinnedProfileName })
+                    : rateLimitPause.error
+                }
               >
-                <PauseCircle className="h-2.5 w-2.5" />
+                {rateLimitPause.pinnedProfileName ? (
+                  <Lock className="h-2.5 w-2.5" />
+                ) : (
+                  <PauseCircle className="h-2.5 w-2.5" />
+                )}
                 {rateLimitResetIn
                   ? t('labels.rateLimitedUntil', { time: rateLimitResetIn })
                   : t('labels.rateLimited')}

@@ -468,6 +468,7 @@ async function profileBatch(ctx: CompetitorRunContext, ids: string[], promote: b
     await runClaudeCli({
       prompt: fullPrompt,
       cwd: ctx.projectDir,
+      projectPath: ctx.projectDir,
       modelId: ctx.modelId,
       allowedTools: WEB_TOOLS,
       restrictTools: true,
@@ -534,6 +535,7 @@ export async function runFullAnalysis(
       const text = await runClaudeCli({
         prompt: discoverPrompt,
         cwd: ctx.projectDir,
+        projectPath: ctx.projectDir,
         modelId: ctx.modelId,
         allowedTools: WEB_TOOLS,
         restrictTools: true,
@@ -670,6 +672,7 @@ export async function synthesizeDirections(ctx: CompetitorRunContext): Promise<C
       const text = await runClaudeCli({
         prompt: synthPrompt,
         cwd: ctx.projectDir,
+        projectPath: ctx.projectDir,
         modelId: ctx.modelId,
         allowedTools: [],
         restrictTools: true,

@@ -232,6 +232,23 @@ describe('ProjectStore', () => {
       expect(updated?.settings.model).toBe('sonnet');
     });
 
+    it('should persist the pinned Claude account across reloads and clear it again', async () => {
+      const { ProjectStore } = await import('../project-store');
+      const store = new ProjectStore();
+
+      const project = store.addProject(TEST_PROJECT_PATH);
+      store.updateProjectSettings(project.id, { claudeProfileId: 'chippio', claudeProfileStrict: false });
+
+      const reloaded = new ProjectStore().getProjects().find((p) => p.id === project.id);
+      expect(reloaded?.settings.claudeProfileId).toBe('chippio');
+      expect(reloaded?.settings.claudeProfileStrict).toBe(false);
+
+      store.updateProjectSettings(project.id, { claudeProfileId: undefined, claudeProfileStrict: undefined });
+      const cleared = new ProjectStore().getProjects().find((p) => p.id === project.id);
+      expect(cleared?.settings.claudeProfileId).toBeUndefined();
+      expect(cleared?.settings.model).toBe(project.settings.model);
+    });
+
     it('should update updatedAt timestamp', async () => {
       const { ProjectStore } = await import('../project-store');
       const store = new ProjectStore();

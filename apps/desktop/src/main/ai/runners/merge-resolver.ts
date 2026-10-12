@@ -30,6 +30,8 @@ export interface MergeResolverConfig {
   modelShorthand?: ModelShorthand;
   /** Thinking level (defaults to 'low') */
   thinkingLevel?: ThinkingLevel;
+  /** Project root (or a path inside it); a pinned project's call runs on its Claude account */
+  projectPath?: string;
 }
 
 /** Result of a merge resolution */
@@ -63,6 +65,7 @@ export async function resolveMergeConflict(
     userPrompt,
     modelShorthand = 'haiku',
     thinkingLevel = 'low',
+    projectPath,
   } = config;
 
   try {
@@ -70,6 +73,7 @@ export async function resolveMergeConflict(
       systemPrompt,
       modelShorthand,
       thinkingLevel,
+      projectPath,
     });
 
     const result = await generateText({
@@ -100,11 +104,13 @@ export async function resolveMergeConflict(
  *
  * @param modelShorthand - Model to use (defaults to 'haiku')
  * @param thinkingLevel - Thinking level (defaults to 'low')
+ * @param projectPath - Project the merge is for (runs on its pinned Claude account)
  * @returns Async function that resolves conflicts
  */
 export function createMergeResolverFn(
   modelShorthand: ModelShorthand = 'haiku',
   thinkingLevel: ThinkingLevel = 'low',
+  projectPath?: string,
 ): MergeResolverCallFn {
   return async (system: string, user: string): Promise<string> => {
     const result = await resolveMergeConflict({
@@ -112,6 +118,7 @@ export function createMergeResolverFn(
       userPrompt: user,
       modelShorthand,
       thinkingLevel,
+      projectPath,
     });
     return result.text;
   };

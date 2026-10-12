@@ -133,6 +133,8 @@ export interface SDKRateLimitInfo {
   };
   /** Why the swap occurred: 'proactive' (before limit) or 'reactive' (after limit hit) */
   swapReason?: 'proactive' | 'reactive';
+  /** The project is pinned (strict) to profileId, so Malvy waits instead of switching accounts */
+  pinnedToProject?: boolean;
 }
 
 /**

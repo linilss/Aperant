@@ -604,6 +604,7 @@ export function registerAutoFixHandlers(
           const batchProcessor = new BatchProcessor({
             model: 'sonnet' as ModelShorthand,
             thinkingLevel: 'low' as ThinkingLevel,
+            projectDir: project.path,
           });
           const suggestions = await batchProcessor.groupIssues(issuesToBatch);
           const engineBatches = batchProcessor.buildBatches(issuesToBatch, suggestions);
@@ -768,6 +769,7 @@ export function registerAutoFixHandlers(
           const batchProcessor = new BatchProcessor({
             model: 'sonnet' as ModelShorthand,
             thinkingLevel: 'low' as ThinkingLevel,
+            projectDir: project.path,
           });
           const suggestions = newIssues.length > 0 ? await batchProcessor.groupIssues(newIssues) : [];
 

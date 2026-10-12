@@ -82,6 +82,12 @@ describe('generateChangelog', () => {
     expect(clientArgs).toHaveProperty('thinkingLevel');
   });
 
+  it("runs on the project's Claude account when projectDir is given", async () => {
+    mockGenerateText.mockResolvedValue({ text: '## [1.0.0]' });
+    await generateChangelog(baseConfig({ projectDir: '/my/project' }));
+    expect(mockCreateSimpleClient).toHaveBeenCalledWith(expect.objectContaining({ projectPath: '/my/project' }));
+  });
+
   it('passes model and systemPrompt from client to generateText', async () => {
     mockGenerateText.mockResolvedValue({ text: '## [1.0.0]' });
 

@@ -43,6 +43,12 @@ describe('core values draft', () => {
     );
   });
 
+  it("runs on the project's Claude account (passes projectPath)", async () => {
+    cliMock.mockResolvedValueOnce({ text: '<core_values>- Calm</core_values>', resultText: '' });
+    await runCoreValuesDraft({ projectDir: '/p', modelId: 'm' });
+    expect(cliMock).toHaveBeenLastCalledWith(expect.objectContaining({ projectPath: '/p', cwd: '/p' }));
+  });
+
   it('throws without a block', async () => {
     cliMock.mockResolvedValueOnce({ text: 'sorry', resultText: '' });
     await expect(runCoreValuesDraft({ projectDir: '/p', modelId: 'm' })).rejects.toThrow('<core_values>');

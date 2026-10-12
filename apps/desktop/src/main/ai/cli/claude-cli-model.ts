@@ -297,8 +297,10 @@ export interface ClaudeCliModelOptions {
   cwd?: string;
   /** Max agentic turns when the call uses tools (calls without tools use 1) */
   maxTurns?: number;
-  /** Explicit CLI env (worker threads); defaults to the active Claude profile env */
+  /** Explicit CLI env (worker threads); defaults to the project's (or active) Claude profile env */
   env?: Record<string, string | undefined>;
+  /** Project the calls work for; a project pinned to a Claude profile runs on that account */
+  projectPath?: string;
   /**
    * Direct API model used for calls the CLI can't serve: tools without a CLI
    * equivalent, or no `claude` executable installed.
@@ -355,6 +357,7 @@ export function createClaudeCliModel(modelOptions: ClaudeCliModelOptions): Langu
         maxTurns: cliTools.length > 0 ? (modelOptions.maxTurns ?? DEFAULT_TOOL_MAX_TURNS) : 1,
         abortSignal: options.abortSignal,
         env: modelOptions.env,
+        projectPath: modelOptions.projectPath,
       },
     };
   };

@@ -3229,6 +3229,7 @@ export function registerPRHandlers(getMainWindow: () => BrowserWindow | null): v
             const followupReviewer = new ParallelFollowupReviewer(
               {
                 repo,
+                projectDir: project.path,
                 model: model as ModelShorthand,
                 thinkingLevel: thinkingLevel as ThinkingLevel,
               },

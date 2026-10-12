@@ -37,7 +37,8 @@
     "rateLimited": "Rate limited",
     "rateLimitedUntil": "Rate limited · {{time}}",
     "rateLimitedHint": "Skip the wait and continue now — use after switching to an account with capacity",
-    "resumeFailed": "Could not resume task"
+    "resumeFailed": "Could not resume task",
+    "rateLimitedPinned": "Paused: {{account}} hit its limit — this project is pinned to it"
   },
   "reviewReason": {
     "completed": "Completed",

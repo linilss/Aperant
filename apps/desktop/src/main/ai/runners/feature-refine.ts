@@ -18,7 +18,7 @@ import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
-import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 
 // =============================================================================
@@ -155,7 +155,8 @@ export async function runFeatureRefine(
     '--model', modelId,
   ];
 
-  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+  // The project's Claude account (pinned profile, else the active one)
+  const profileEnv = getProjectProfileEnv({ projectPath: projectDir });
   const spawnEnv = { ...augmentedEnv, ...profileEnv };
   const child = spawn(claudePath, args, {
     cwd: projectDir,

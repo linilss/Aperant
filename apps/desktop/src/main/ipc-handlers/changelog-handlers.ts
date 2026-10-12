@@ -202,6 +202,7 @@ export function registerChangelogHandlers(
             sourceMode: request.sourceMode,
             tasks: changelogTasks.length > 0 ? changelogTasks : undefined,
             commits: commitsText,
+            projectDir: project.path,
           });
 
           if (mainWindow) {

@@ -254,7 +254,8 @@
       "whatHappenedDesc": "The {{source}} operation was stopped because your Claude account ({{account}}) reached its usage limit.",
       "switchRetryOrAdd": "You can switch to another account and retry, or add more accounts above.",
       "addOrWait": "Add another Claude account above to continue working, or wait for the limit to reset.",
-      "close": "Close"
+      "close": "Close",
+      "pinnedToProject": "Paused: {{account}} hit its limit — this project is pinned to it. Work continues when the limit resets."
     }
   },
   "prReview": {
@@ -710,7 +711,11 @@
     "swap": "Swap",
     "switchAccount": "Switch account",
     "clickToSwitchAccount": "Click to switch account",
-    "switchAccountFailed": "Could not switch account"
+    "switchAccountFailed": "Could not switch account",
+    "projectAccount": "Project account",
+    "projectAccountTooltip": "This project runs on {{name}}",
+    "projectAccountStrict": "Stays on this account when it hits its limit",
+    "projectAccountFallback": "Falls back to other accounts when it hits its limit"
   },
   "oauth": {
     "enterCode": "Manual Code Entry (Fallback)",

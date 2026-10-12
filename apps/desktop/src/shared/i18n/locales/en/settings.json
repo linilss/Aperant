@@ -357,7 +357,22 @@
       "useClaudeMdDescription": "Include the team's CLAUDE.md/AGENTS.md in agent context. When off, agents also skip project-level Claude settings; Malvy's own docs and pointers are always included.",
       "branchPrefix": "Task branch prefix",
       "branchPrefixDescription": "Tasks run on branches named {{example}}. Branches created with the old malvy/ prefix keep working.",
-      "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used."
+      "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used.",
+      "claudeAccount": {
+        "title": "Claude account",
+        "description": "The Claude subscription this project's agents, runners and terminals use.",
+        "appDefault": "App default (currently: {{name}})",
+        "appDefaultNone": "App default",
+        "notAuthenticated": "not logged in",
+        "usage": "{{session}}% session · {{weekly}}% week",
+        "strict": "Stay on this account when it hits its limit",
+        "strictDescription": "Pause and wait for the limit to reset instead of switching to another account, which would bill a different subscription.",
+        "missing": "The selected account no longer exists — the app default is used.",
+        "unauthenticated": "{{name}} is not logged in — the app default is used until you log in again.",
+        "suggestion": "Use the {{name}} account for this project?",
+        "suggestionAction": "Use {{name}}",
+        "noProfiles": "No Claude accounts yet. Add one in Settings → Accounts."
+      }
     },
     "claude": {
       "title": "Claude Auth",

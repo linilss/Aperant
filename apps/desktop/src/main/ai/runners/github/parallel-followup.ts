@@ -85,6 +85,8 @@ export interface FollowupReviewResult {
 /** Configuration for the followup reviewer. */
 export interface FollowupReviewerConfig {
   repo: string;
+  /** Project root; a pinned project's review runs on its Claude account */
+  projectDir?: string;
   model?: ModelShorthand;
   thinkingLevel?: ThinkingLevel;
   fastMode?: boolean;
@@ -612,6 +614,7 @@ export class ParallelFollowupReviewer {
       systemPrompt: `You are a ${type} specialist for PR follow-up review.`,
       modelShorthand,
       thinkingLevel,
+      projectPath: this.config.projectDir,
     });
 
     // Use Output.object() with the schema appropriate for this specialist type.

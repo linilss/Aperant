@@ -8,6 +8,7 @@ import { RoadmapConfig } from './types';
 import type { IdeationConfig, Idea } from '../../shared/types';
 import { AUTO_BUILD_PATHS } from '../../shared/constants';
 import { detectRateLimit, createSDKRateLimitInfo } from '../rate-limit-detector';
+import { resolveProfileForProject } from '../claude-profile/project-profile';
 import { debugLog, debugError } from '../../shared/utils/debug-logger';
 import { transformIdeaFromSnakeCase, transformSessionFromSnakeCase } from '../ipc-handlers/ideation/transformers';
 import { transformRoadmapFromSnakeCase } from '../ipc-handlers/roadmap/transformers';
@@ -308,7 +309,8 @@ export class AgentQueueManager {
 
           // Check for rate limit
           if (result.error) {
-            const rateLimitDetection = detectRateLimit(result.error);
+            // Attribute the limit to the project's account (pinned profile, else active)
+            const rateLimitDetection = detectRateLimit(result.error, resolveProfileForProject({ projectId, projectPath }).profile.id);
             if (rateLimitDetection.isRateLimited) {
               const rateLimitInfo = createSDKRateLimitInfo('ideation', rateLimitDetection, { projectId });
               this.emitter.emit('sdk-rate-limit', rateLimitInfo);
@@ -549,7 +551,8 @@ export class AgentQueueManager {
 
         // Check for rate limit
         if (result.error) {
-          const rateLimitDetection = detectRateLimit(result.error);
+          // Attribute the limit to the project's account (pinned profile, else active)
+            const rateLimitDetection = detectRateLimit(result.error, resolveProfileForProject({ projectId, projectPath }).profile.id);
           if (rateLimitDetection.isRateLimited) {
             const rateLimitInfo = createSDKRateLimitInfo('roadmap', rateLimitDetection, { projectId });
             this.emitter.emit('sdk-rate-limit', rateLimitInfo);

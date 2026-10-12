@@ -13,6 +13,7 @@ import { getClaudeProfileManager, initializeClaudeProfileManager } from '../clau
 import { getFullCredentialsFromKeychain, clearKeychainCache, updateProfileSubscriptionMetadata } from '../claude-profile/credential-utils';
 import { getUsageMonitor } from '../claude-profile/usage-monitor';
 import { getEmailFromConfigDir } from '../claude-profile/profile-utils';
+import { getStrictProjectPin, resolveProfileForProject } from '../claude-profile/project-profile';
 import * as OutputParser from './output-parser';
 import * as SessionHandler from './session-handler';
 import * as PtyManager from './pty-manager';
@@ -467,7 +468,10 @@ export function handleRateLimit(
   }
 
   const autoSwitchSettings = profileManager.getAutoSwitchSettings();
-  const bestProfile = profileManager.getBestAvailableProfile(currentProfileId);
+  // A project pinned (strict) to this account stays on it: no suggestion, no auto-switch
+  const pin = getStrictProjectPin({ projectPath: terminal.projectPath || terminal.cwd });
+  const pinnedHere = !!pin && pin.profileId === currentProfileId;
+  const bestProfile = pinnedHere ? null : profileManager.getBestAvailableProfile(currentProfileId);
 
   safeSendToRenderer(getWindow, IPC_CHANNELS.TERMINAL_RATE_LIMIT, {
     terminalId: terminal.id,
@@ -476,7 +480,8 @@ export function handleRateLimit(
     profileId: currentProfileId,
     suggestedProfileId: bestProfile?.id,
     suggestedProfileName: bestProfile?.name,
-    autoSwitchEnabled: autoSwitchSettings.autoSwitchOnRateLimit
+    autoSwitchEnabled: autoSwitchSettings.autoSwitchOnRateLimit && !pinnedHere,
+    pinnedToProject: pinnedHere || undefined
   } as RateLimitEvent);
 
   if (autoSwitchSettings.enabled && autoSwitchSettings.autoSwitchOnRateLimit && bestProfile) {
@@ -1008,6 +1013,15 @@ async function executeProfileCommandAsync(options: ExecuteProfileCommandOptions)
 }
 
 /**
+ * Profile a terminal's project is pinned to (ProjectSettings.claudeProfileId), so
+ * "Invoke Claude" in a project terminal runs on the project's account by default.
+ */
+function getProjectPinnedProfileId(terminal: TerminalProcess, projectPath: string | undefined): string | undefined {
+  const resolution = resolveProfileForProject({ projectPath: terminal.projectPath || projectPath });
+  return resolution.pinned ? resolution.profile.id : undefined;
+}
+
+/**
  * Invoke Claude with optional profile override
  */
 export function invokeClaude(
@@ -1042,8 +1056,9 @@ export function invokeClaude(
     const projectPath = cwd || terminal.projectPath || terminal.cwd;
 
     const profileManager = getClaudeProfileManager();
-    const activeProfile = profileId
-      ? profileManager.getProfile(profileId)
+    const effectiveProfileId = profileId ?? getProjectPinnedProfileId(terminal, projectPath);
+    const activeProfile = effectiveProfileId
+      ? profileManager.getProfile(effectiveProfileId)
       : profileManager.getActiveProfile();
 
     terminal.claudeProfileId = activeProfile?.id;
@@ -1062,7 +1077,7 @@ export function invokeClaude(
     const pathPrefix = isAbsoluteExecutableCommand(claudeCmd)
       ? ''
       : buildPathPrefix(claudeEnv.PATH || '');
-    const needsEnvOverride: boolean = !!(profileId && profileId !== previousProfileId);
+    const needsEnvOverride: boolean = !!(effectiveProfileId && effectiveProfileId !== previousProfileId);
 
     debugLog('[ClaudeIntegration:invokeClaude] Environment override check:', {
       profileIdProvided: !!profileId,
@@ -1273,8 +1288,9 @@ export async function invokeCLIAsync(
 
     // Ensure profile manager is initialized (async, yields to event loop)
     const profileManager = await initializeClaudeProfileManager();
-    const activeProfile = profileId
-      ? profileManager.getProfile(profileId)
+    const effectiveProfileId = profileId ?? getProjectPinnedProfileId(terminal, projectPath);
+    const activeProfile = effectiveProfileId
+      ? profileManager.getProfile(effectiveProfileId)
       : profileManager.getActiveProfile();
 
     terminal.claudeProfileId = activeProfile?.id;
@@ -1305,7 +1321,7 @@ export async function invokeCLIAsync(
     const pathPrefix = isAbsoluteExecutableCommand(claudeCmd)
       ? ''
       : buildPathPrefix(claudeEnv.PATH || '');
-    const needsEnvOverride: boolean = !!(profileId && profileId !== previousProfileId);
+    const needsEnvOverride: boolean = !!(effectiveProfileId && effectiveProfileId !== previousProfileId);
 
     debugLog('[ClaudeIntegration:invokeCLIAsync] Environment override check:', {
       profileIdProvided: !!profileId,

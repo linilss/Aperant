@@ -41,6 +41,8 @@ export interface RateLimitEvent {
   suggestedProfileId?: string;
   suggestedProfileName?: string;
   autoSwitchEnabled: boolean;
+  /** The terminal's project is pinned (strict) to profileId: no account switch */
+  pinnedToProject?: boolean;
 }
 
 /**

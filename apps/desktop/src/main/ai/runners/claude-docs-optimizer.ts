@@ -350,6 +350,7 @@ async function runPass(options: PassOptions): Promise<string> {
   return runClaudeCli({
     prompt: `${options.systemPrompt}\n\n---\n\n${options.userPrompt}`,
     cwd: projectDir,
+    projectPath: projectDir,
     modelId: resolveModelId(options.modelShorthand),
     allowedTools: ['Read', 'Glob', 'Grep'],
     maxTurns: options.maxSteps,

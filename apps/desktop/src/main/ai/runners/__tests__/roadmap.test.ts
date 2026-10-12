@@ -52,6 +52,11 @@ vi.mock('../../../claude-profile-manager', () => ({
   getClaudeProfileManager: () => ({ getActiveProfileEnv: () => ({}) }),
 }));
 
+// The project's Claude account (unpinned project → active profile env)
+vi.mock('../../../claude-profile/project-profile', () => ({
+  getProjectProfileEnv: () => ({}),
+}));
+
 const mockResolveModelId = vi.fn((shorthand: string) => `model-${shorthand}`);
 vi.mock('../../config/phase-config', () => ({
   resolveModelId: (shorthand: string) => mockResolveModelId(shorthand),

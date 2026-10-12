@@ -52,6 +52,16 @@ export interface ProjectSettings {
   useClaudeMd?: boolean;
   /** Maximum parallel tasks allowed (default: 3) */
   maxParallelTasks?: number;
+  /**
+   * Claude profile (account) all Claude work for this project runs on — agents,
+   * runners and Agent Terminals. Absent = the app's active/default profile.
+   */
+  claudeProfileId?: string;
+  /**
+   * With claudeProfileId: stay on the pinned account when it hits its rate limit
+   * (pause and wait) instead of switching to another account. Default true.
+   */
+  claudeProfileStrict?: boolean;
 }
 
 export interface NotificationSettings {

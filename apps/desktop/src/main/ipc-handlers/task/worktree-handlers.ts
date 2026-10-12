@@ -1537,10 +1537,12 @@ function getEffectiveBaseBranch(projectPath: string, specId: string, projectMain
  * After this returns, call `git merge --continue` (with GIT_EDITOR=true) to finish.
  *
  * @param cwd - Directory containing the git repo (worktree or main project)
+ * @param projectPath - Project root (the AI calls run on its pinned Claude account)
  * @param onProgress - Optional progress callback
  */
 async function resolveGitConflictsWithAI(
   cwd: string,
+  projectPath: string,
   onProgress?: (msg: string) => void
 ): Promise<void> {
   // Find conflicted files
@@ -1570,6 +1572,7 @@ Prefer keeping all changes from both sides unless they directly contradict.`,
       userPrompt: `Resolve the following merge conflict. Return only the complete resolved file.\n\nFile: ${relPath}\n\n${conflictedContent}`,
       modelShorthand: 'sonnet',
       thinkingLevel: 'low',
+      projectPath,
     });
 
     if (result.success && result.text) {
@@ -1624,7 +1627,7 @@ async function syncWorktreeWithBase(
   } catch {
     // Merge produced conflicts — resolve with AI
     try {
-      await resolveGitConflictsWithAI(worktreePath);
+      await resolveGitConflictsWithAI(worktreePath, projectPath);
 
       // Check if any files are still unmerged after AI resolution
       const remaining = execFileSync(
@@ -2240,7 +2243,7 @@ export function registerWorktreeHandlers(
                 // Merge produced conflicts — resolve with AI then continue
                 emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
                 try {
-                  await resolveGitConflictsWithAI(worktreePath, (msg) => emitProgress('resolving', 45, msg));
+                  await resolveGitConflictsWithAI(worktreePath, project.path, (msg) => emitProgress('resolving', 45, msg));
                   execFileSync(getToolPath('git'), ['merge', '--continue'], {
                     cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
                   });
@@ -2271,7 +2274,7 @@ export function registerWorktreeHandlers(
                   // Conflicts — resolve with AI then continue
                   emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
                   try {
-                    await resolveGitConflictsWithAI(project.path, (msg) => emitProgress('resolving', 45, msg));
+                    await resolveGitConflictsWithAI(project.path, project.path, (msg) => emitProgress('resolving', 45, msg));
                     execFileSync(getToolPath('git'), ['merge', '--continue'], {
                       cwd: project.path, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
                     });
@@ -2316,7 +2319,7 @@ export function registerWorktreeHandlers(
               // Conflicts on final merge — resolve with AI
               emitProgress('resolving', 80, 'Resolving final merge conflicts with AI');
               try {
-                await resolveGitConflictsWithAI(project.path, (msg) => emitProgress('resolving', 85, msg));
+                await resolveGitConflictsWithAI(project.path, project.path, (msg) => emitProgress('resolving', 85, msg));
               } catch (resolveErr) {
                 try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
                 const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
@@ -2382,7 +2385,7 @@ export function registerWorktreeHandlers(
 
         // Build the AI resolver function using the merge-resolver runner
         const modelShorthand = (utilitySettings.model as ModelShorthand) || 'haiku';
-        const aiResolverFn = createMergeResolverFn(modelShorthand, 'low');
+        const aiResolverFn = createMergeResolverFn(modelShorthand, 'low', project.path);
 
         // Create the merge orchestrator
         const storageDir = path.join(project.path, project.autoBuildPath || '.malvy');

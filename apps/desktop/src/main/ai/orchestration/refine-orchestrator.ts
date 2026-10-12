@@ -7,7 +7,7 @@ import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand } from '../config/types';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
-import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { writeFileAtomicSync } from '../../utils/atomic-file';
 import { ImplementationPlanSchema } from '../schema/implementation-plan';
 import { projectStore } from '../../project-store';
@@ -255,7 +255,8 @@ export class RefineOrchestrator {
       '--model', modelId,
     ];
 
-    const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+    // The project's Claude account (pinned profile, else the active one)
+  const profileEnv = getProjectProfileEnv({ projectPath: this.config.projectDir });
     const spawnEnv = { ...augmentedEnv, ...profileEnv };
     const child = spawn(claudePath, args, {
       cwd: this.config.projectDir,

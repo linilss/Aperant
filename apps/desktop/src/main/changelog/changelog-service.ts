@@ -468,7 +468,7 @@ export class ChangelogService extends EventEmitter {
    * Suggest version using AI analysis of git commits
    */
   async suggestVersionFromCommits(
-    _projectPath: string,
+    projectPath: string,
     commits: import('../../shared/types').GitCommit[],
     currentVersion?: string
   ): Promise<{ version: string; reason: string }> {
@@ -485,7 +485,7 @@ export class ChangelogService extends EventEmitter {
 
       // Use AI to analyze commits and suggest version bump
       const suggester = this.getVersionSuggester();
-      const suggestion = await suggester.suggestVersionBump(commits, currentVersion);
+      const suggestion = await suggester.suggestVersionBump(commits, currentVersion, projectPath);
 
       this.debug('AI version suggestion', suggestion);
 

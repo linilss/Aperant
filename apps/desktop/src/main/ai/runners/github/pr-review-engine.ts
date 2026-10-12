@@ -188,6 +188,8 @@ export type ProgressCallback = (update: ProgressUpdate) => void;
 /** Configuration for PR review engine. */
 export interface PRReviewEngineConfig {
   repo: string;
+  /** Project root; a pinned project's review runs on its Claude account */
+  projectDir?: string;
   model?: ModelShorthand;
   thinkingLevel?: ThinkingLevel;
   fastMode?: boolean;
@@ -515,6 +517,7 @@ ${diff}
     systemPrompt: 'You are an expert code reviewer. Respond with structured JSON only.',
     modelShorthand,
     thinkingLevel,
+    projectPath: config.projectDir,
   });
 
   if (reviewPass === ReviewPass.QUICK_SCAN) {
@@ -557,6 +560,7 @@ async function runStructuralPass(
     systemPrompt: 'You are an expert code reviewer. Respond with structured JSON only.',
     modelShorthand: config.model ?? 'sonnet',
     thinkingLevel: config.thinkingLevel ?? 'medium',
+    projectPath: config.projectDir,
   });
 
   try {
@@ -593,6 +597,7 @@ async function runAITriagePass(
     systemPrompt: 'You are an expert code reviewer. Respond with structured JSON only.',
     modelShorthand: config.model ?? 'sonnet',
     thinkingLevel: config.thinkingLevel ?? 'medium',
+    projectPath: config.projectDir,
   });
 
   try {

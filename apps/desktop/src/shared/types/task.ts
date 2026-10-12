@@ -28,6 +28,7 @@ export interface RateLimitPauseInfo {
   pausedAt: string;  // ISO date when the pause started
   resetAt: string | null;  // ISO date when the limit resets, if the provider reported one
   error: string;  // Provider error message that triggered the pause
+  pinnedProfileName?: string;  // Set when the task's project is pinned (strict) to this Claude account
 }
 
 // Re-exported from constants - single source of truth

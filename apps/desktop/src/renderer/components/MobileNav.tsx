@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Check, ChevronLeft, Menu, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
+import { ProjectAccountChip } from './ProjectAccountChip';
 import { UsageIndicator } from './UsageIndicator';
 import { FunnelBar } from './FunnelProgress';
 import { useFunnelStore } from '../stores/funnel-store';
@@ -139,6 +140,7 @@ export function MobileProjectList({
         </span>
         <div className="flex min-w-0 items-center gap-1.5">
           <AuthStatusIndicator />
+          <ProjectAccountChip />
           <UsageIndicator />
         </div>
       </div>

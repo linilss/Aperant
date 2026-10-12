@@ -492,6 +492,7 @@ async function extractInsightsAfterSession(
       changedFiles: [],   // Populated by future git integration
       commitMessages: '',
       attemptHistory: [],
+      projectDir: config.projectDir,
     };
 
     return await extractSessionInsights(insightConfig);

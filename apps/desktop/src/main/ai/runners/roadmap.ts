@@ -23,7 +23,7 @@ import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { safeParseJson } from '../../utils/json-repair';
 import { tryLoadPrompt } from '../prompts/prompt-loader';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
-import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
 import {
   createMemoryStore,
@@ -129,7 +129,8 @@ async function runPhaseViaCLI(
     getAugmentedEnvAsync(),
     findExecutableAsync('claude'),
   ]);
-  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+  // The project's Claude account (pinned profile, else the active one)
+  const profileEnv = getProjectProfileEnv({ projectPath: projectDir });
   const spawnEnv = { ...augmentedEnv, ...profileEnv };
 
   if (!claudePath) {

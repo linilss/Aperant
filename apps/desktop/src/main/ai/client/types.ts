@@ -87,6 +87,12 @@ export interface SimpleClientConfig {
    * auth); the CLI's file tools resolve against it. Defaults to the home directory.
    */
   cwd?: string;
+  /**
+   * Project the call works for (defaults to `cwd`). A project pinned to a Claude
+   * profile (ProjectSettings.claudeProfileId) runs on that account — both the CLI
+   * route and the direct-API queue; otherwise the app's active account is used.
+   */
+  projectPath?: string;
 }
 
 // =============================================================================

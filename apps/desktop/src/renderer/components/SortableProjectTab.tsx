@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger
 } from './ui/dropdown-menu';
 import { FunnelBar, FunnelStepList } from './FunnelProgress';
+import { useClaudeProfileStore } from '../stores/claude-profile-store';
 import type { FunnelProgress, Project } from '../../shared/types';
 
 interface SortableProjectTabProps {
@@ -46,6 +47,10 @@ export function SortableProjectTab({
 }: SortableProjectTabProps) {
   const { t } = useTranslation('common');
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const pinnedProfileId = project.settings?.claudeProfileId;
+  const pinnedProfileName = useClaudeProfileStore((state) =>
+    pinnedProfileId ? state.profiles.find((p) => p.id === pinnedProfileId)?.name : undefined
+  );
   // Build tooltip with keyboard shortcut hint (only for tabs 1-9)
   const shortcutHint = tabIndex < 9 ? `${modKey}${tabIndex + 1}` : '';
   const closeShortcut = `${modKey}W`;
@@ -153,6 +158,11 @@ export function SortableProjectTab({
               </kbd>
             )}
           </div>
+          {pinnedProfileName && (
+            <div className="text-xs text-muted-foreground">
+              {t('usage.projectAccountTooltip', { name: pinnedProfileName })}
+            </div>
+          )}
           {funnel && (
             <div className="border-t border-border pt-2">
               <FunnelStepList progress={funnel} />

@@ -30,6 +30,11 @@ vi.mock('../claude-profile-manager', () => ({
   }),
 }));
 
+// No project is pinned to a Claude account in these tests
+vi.mock('../claude-profile/project-profile', () => ({
+  getStrictProjectPin: () => null,
+}));
+
 // Import after mocking
 import { getProfileEnv } from '../rate-limit-detector';
 

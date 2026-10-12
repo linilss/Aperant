@@ -67,6 +67,7 @@ export async function runDesignSync(
   const result = await runClaudeCliDetailed({
     prompt: buildDesignSyncPrompt(input.artifactUrl),
     cwd: input.projectDir,
+    projectPath: input.projectDir,
     modelId: input.modelId,
     allowedTools: [ARTIFACT_TOOL],
     restrictTools: true,
@@ -122,6 +123,7 @@ export async function runDesignPublish(
   const result = await runClaudeCliDetailed({
     prompt: buildDesignPublishPrompt(input.plan),
     cwd: input.projectDir,
+    projectPath: input.projectDir,
     modelId: input.modelId,
     allowedTools: [ARTIFACT_TOOL, 'Read', 'Glob'],
     restrictTools: true,

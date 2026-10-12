@@ -22,6 +22,7 @@ import { getToolPath } from "../cli-tool-manager";
 import { findTaskAndProject } from "./task/shared";
 import { safeSendToRenderer } from "./utils";
 import { getClaudeProfileManager } from "../claude-profile-manager";
+import { getStrictProjectPin } from "../claude-profile/project-profile";
 import { taskStateManager } from "../task-state-manager";
 
 // Timeout for fallback safety net to check if task is still stuck after process exit
@@ -511,7 +512,10 @@ export function registerAgenteventsHandlers(
       resetAt: info.resetAt,
       projectId: project?.id ?? 'UNKNOWN'
     });
-    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, taskId, info, project?.id);
+    // A project pinned (strict) to an account waits for that account instead of switching
+    const pin = project ? getStrictProjectPin({ projectId: project.id, projectPath: project.path }) : null;
+    const pauseInfo: RateLimitPauseInfo = pin ? { ...info, pinnedProfileName: pin.profileName } : info;
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, taskId, pauseInfo, project?.id);
   });
 
   fileWatcher.on("rate-limit-resume", (taskId: string) => {

@@ -49,6 +49,7 @@ export async function runCoreValuesDraft(input: {
   const result = await runClaudeCliDetailed({
     prompt: buildCoreValuesDraftPrompt(input.projectDir),
     cwd: input.projectDir,
+    projectPath: input.projectDir,
     modelId: input.modelId,
     allowedTools: ['Read', 'Glob', 'Grep'],
     restrictTools: true,

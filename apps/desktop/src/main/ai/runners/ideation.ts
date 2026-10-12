@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { resolveModelId } from '../config/phase-config';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
-import { getClaudeProfileManager } from '../../claude-profile-manager';
+import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
 import { normalizeIdeationFocus } from '../../../shared/utils/ideation-config';
 import { loadIdeaDirectionTaggingSection, loadStrategyGuidance } from './competitors/guidance';
@@ -213,7 +213,8 @@ export async function runIdeation(
     '--model', modelId,
   ];
 
-  const profileEnv = getClaudeProfileManager().getActiveProfileEnv();
+  // The project's Claude account (pinned profile, else the active one)
+  const profileEnv = getProjectProfileEnv({ projectPath: projectDir });
   const spawnEnv = { ...augmentedEnv, ...profileEnv };
   console.error(`[Ideation CLI] spawning: ${claudePath} ${args.join(' ')} (type: ${ideationType})`);
 

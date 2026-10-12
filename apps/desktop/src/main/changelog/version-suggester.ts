@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import * as os from 'os';
 import type { GitCommit } from '../../shared/types';
+import { getProjectProfileBinding } from '../claude-profile/project-profile';
 import { getBestAvailableProfileEnv } from '../rate-limit-detector';
 
 import { getAugmentedEnv } from '../env-utils';
@@ -35,10 +36,12 @@ export class VersionSuggester {
 
   /**
    * Suggest version bump using AI analysis of commits
+   * @param projectPath - Project the commits belong to (runs on its pinned Claude account)
    */
   async suggestVersionBump(
     commits: GitCommit[],
-    currentVersion: string
+    currentVersion: string,
+    projectPath?: string
   ): Promise<VersionSuggestion> {
     this.debug('suggestVersionBump called', {
       commitCount: commits.length,
@@ -49,7 +52,7 @@ export class VersionSuggester {
     const prompt = this.buildPrompt(commits, currentVersion);
 
     // Build environment
-    const spawnEnv = this.buildSpawnEnvironment();
+    const spawnEnv = this.buildSpawnEnvironment(projectPath);
 
     return new Promise((resolve, _reject) => {
       // Run the Claude CLI directly (haiku, text output); the prompt goes in via stdin.
@@ -183,16 +186,17 @@ Respond with ONLY a JSON object in this exact format (no markdown, no extra text
   /**
    * Build spawn environment with proper PATH and auth settings
    */
-  private buildSpawnEnvironment(): Record<string, string> {
+  private buildSpawnEnvironment(projectPath?: string): Record<string, string> {
     const homeDir = os.homedir();
 
     // Use getAugmentedEnv() to ensure common tool paths are available
     // even when app is launched from Finder/Dock
     const augmentedEnv = getAugmentedEnv();
 
-    // Get best available Claude profile environment (automatically handles rate limits)
-    const profileResult = getBestAvailableProfileEnv();
-    const profileEnv = profileResult.env;
+    // A pinned project runs on its own account (never triggers the global auto-swap);
+    // otherwise use the best available profile (automatically handles rate limits)
+    const binding = projectPath ? getProjectProfileBinding({ projectPath }) : null;
+    const profileEnv = binding ? binding.env : getBestAvailableProfileEnv().env;
 
     const spawnEnv: Record<string, string> = {
       ...augmentedEnv,

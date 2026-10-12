@@ -69,6 +69,14 @@ export interface ClaudeCliOptions {
    * active Claude profile env is NOT looked up — required in worker threads.
    */
   env?: Record<string, string | undefined>;
+  /**
+   * Project the call works for. A project pinned to a Claude
+   * profile (ProjectSettings.claudeProfileId) runs on that profile's account;
+   * otherwise the app's active profile is used. Ignored when `env` is given.
+   */
+  projectPath?: string;
+  /** Run on this Claude profile explicitly (wins over `projectPath`). Ignored when `env` is given. */
+  profileId?: string;
 }
 
 /** Token usage reported by the CLI's final `result` event */
@@ -131,17 +139,23 @@ function parseUsage(raw: unknown): ClaudeCliUsage | undefined {
 }
 
 async function resolveSpawnContext(
-  env: Record<string, string | undefined> | undefined,
+  options: Pick<ClaudeCliOptions, 'env' | 'projectPath' | 'profileId'>,
 ): Promise<{ claudePath: string | null; spawnEnv: Record<string, string | undefined> }> {
-  if (env) {
-    return { claudePath: findExecutable('claude'), spawnEnv: { ...process.env, ...env } };
+  if (options.env) {
+    return { claudePath: findExecutable('claude'), spawnEnv: { ...process.env, ...options.env } };
   }
-  const [{ getAugmentedEnvAsync, findExecutableAsync }, { getClaudeProfileManager }] = await Promise.all([
-    import('../../env-utils'),
-    import('../../claude-profile-manager'),
-  ]);
+  const [{ getAugmentedEnvAsync, findExecutableAsync }, { getClaudeProfileManager }, { getProjectProfileEnv }] =
+    await Promise.all([
+      import('../../env-utils'),
+      import('../../claude-profile-manager'),
+      import('../../claude-profile/project-profile'),
+    ]);
   const [augmentedEnv, claudePath] = await Promise.all([getAugmentedEnvAsync(), findExecutableAsync('claude')]);
-  return { claudePath, spawnEnv: { ...augmentedEnv, ...getClaudeProfileManager().getActiveProfileEnv() } };
+  // Explicit profile, else the project's account (pinned profile or the active one)
+  const profileEnv = options.profileId
+    ? getClaudeProfileManager().getProfileEnv(options.profileId)
+    : getProjectProfileEnv({ projectPath: options.projectPath });
+  return { claudePath, spawnEnv: { ...augmentedEnv, ...profileEnv } };
 }
 
 /** Runs the prompt and resolves to the full text plus usage/cost from the `result` event. */
@@ -151,7 +165,7 @@ export async function runClaudeCliDetailed(options: ClaudeCliOptions): Promise<C
     systemPrompt, restrictTools, minimalContext, projectContext, partialMessages, onTextBlockStart,
   } = options;
 
-  const { claudePath, spawnEnv } = await resolveSpawnContext(options.env);
+  const { claudePath, spawnEnv } = await resolveSpawnContext(options);
   if (!claudePath) {
     throw new ClaudeCliNotFoundError();
   }

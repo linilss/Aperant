@@ -102,3 +102,12 @@ describe('runDesignPublish', () => {
     expect((await runDesignPublish({ projectDir: '/p', modelId: 'm', plan })).published).toBe(false);
   });
 });
+
+describe('project account', () => {
+  it("sync and publish run on the project's Claude account (pass projectPath)", async () => {
+    calls.length = 0;
+    await runDesignSync({ projectDir: '/p', modelId: 'm', artifactUrl: URL });
+    await runDesignPublish({ projectDir: '/p', modelId: 'm', plan });
+    expect(calls.map((c) => c.projectPath)).toEqual(['/p', '/p']);
+  });
+});

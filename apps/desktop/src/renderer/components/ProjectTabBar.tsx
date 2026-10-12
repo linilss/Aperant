@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { SortableProjectTab } from './SortableProjectTab';
 import { UsageIndicator } from './UsageIndicator';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
+import { ProjectAccountChip } from './ProjectAccountChip';
 import { useFunnelStore } from '../stores/funnel-store';
 import {
   DropdownMenu,
@@ -138,6 +139,7 @@ export function ProjectTabBar({
 
       <div className="flex items-center gap-2 px-2 py-1">
         <AuthStatusIndicator />
+        <ProjectAccountChip />
         <UsageIndicator />
         {closedProjects.length > 0 ? (
           <DropdownMenu>

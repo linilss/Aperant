@@ -300,6 +300,7 @@ async function runMRReview(
   sendProgress({ phase: 'analyzing', mrIid, progress: 30, message: 'Starting AI review...' });
 
   const reviewConfig: MRReviewEngineConfig = {
+    projectDir: project.path,
     model: model as ModelShorthand,
     thinkingLevel: thinkingLevel as ThinkingLevel,
   };
@@ -884,6 +885,7 @@ export function registerMRReviewHandlers(
           sendProgress({ phase: 'analyzing', mrIid, progress: 30, message: 'Starting follow-up AI review...' });
 
           const reviewConfig: MRReviewEngineConfig = {
+            projectDir: project.path,
             model: model as ModelShorthand,
             thinkingLevel: thinkingLevel as ThinkingLevel,
           };
