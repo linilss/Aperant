@@ -199,6 +199,8 @@ export function DesignTab({ projectId }: DesignTabProps) {
                   <span className="max-md:flex-1">
                     <Button
                       size="sm"
+                      // Neutral when publishing isn't possible, so it doesn't read as the main action
+                      variant={canPublish ? 'default' : 'outline'}
                       disabled={!canPublish || running !== null}
                       onClick={() => setPublishOpen(true)}
                       className="max-md:h-10 max-md:w-full"
