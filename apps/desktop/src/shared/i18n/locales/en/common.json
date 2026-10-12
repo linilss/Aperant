@@ -849,7 +849,8 @@
     "tabs": {
       "kanban": "Kanban",
       "phases": "Phases",
-      "allFeatures": "All Features"
+      "allFeatures": "All Features",
+      "moscow": "MoSCoW"
     },
     "phase": {
       "progress": "Progress",

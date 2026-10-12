@@ -26,7 +26,6 @@ import {
   Wand,
   ChevronRight,
   Rocket,
-  Grid2x2,
   Swords,
   Gem,
   Palette,
@@ -72,7 +71,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus, FunnelStepId } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'moscow' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -120,7 +119,6 @@ const navSections: NavSection[] = [
     items: [
       { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F', funnelStep: 'competitors' },
       { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D', funnelStep: 'roadmap' },
-      { id: 'moscow', labelKey: 'navigation:items.moscow', icon: Grid2x2, shortcut: 'O' },
       { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I', funnelStep: 'ideation' },
       { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G', requires: 'github' },
       { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B', requires: 'gitlab' },

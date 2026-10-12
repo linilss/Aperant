@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Archive } from 'lucide-react';
 import { RoadmapGenerationProgress } from './RoadmapGenerationProgress';
@@ -32,7 +32,7 @@ import type { RoadmapFeature } from '../../shared/types';
 import type { RoadmapProps } from './roadmap/types';
 import { PAGE_ROOT, PAGE_BODY } from './ui/page-header';
 
-export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapProps) {
+export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, tabRequestId }: RoadmapProps) {
   const { t } = useTranslation('common');
 
   // Feature Refine session store
@@ -41,7 +41,12 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
 
   // State management
   const [selectedFeature, setSelectedFeature] = useState<RoadmapFeature | null>(null);
-  const [activeTab, setActiveTab] = useState('kanban');
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'kanban');
+
+  // Navigation from elsewhere (e.g. "View in MoSCoW") can ask for a specific tab
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab, tabRequestId]);
   const [showAddFeatureDialog, setShowAddFeatureDialog] = useState(false);
   const [showCompetitorViewer, setShowCompetitorViewer] = useState(false);
   const [pendingArchiveFeatureId, setPendingArchiveFeatureId] = useState<string | null>(null);
@@ -202,6 +207,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors }: RoadmapPro
       <div className={cn(PAGE_BODY, 'flex flex-col overflow-hidden max-md:overflow-visible')}>
         <RoadmapTabs
           roadmap={roadmap}
+          projectId={projectId}
+          onGoToCompetitors={onGoToCompetitors}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onFeatureSelect={setSelectedFeature}

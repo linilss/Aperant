@@ -38,6 +38,8 @@ interface MoscowMatrixProps {
   onGoToTask?: (specId: string) => void;
   /** Navigate to the Competitors page (strategy chip / empty-state funnel) */
   onGoToCompetitors?: () => void;
+  /** Rendered as a Roadmap tab: no own header, scrolls with the Roadmap page on phones */
+  embedded?: boolean;
 }
 
 const QUADRANT_IDS = MOSCOW_QUADRANTS.map((q) => q.id) as string[];
@@ -69,7 +71,7 @@ function storeTab(projectId: string, tab: RoadmapFeaturePriority) {
   }
 }
 
-export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompetitors }: MoscowMatrixProps) {
+export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompetitors, embedded = false }: MoscowMatrixProps) {
   const { t } = useTranslation('common');
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -230,7 +232,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     // Show the new list from its top (just below the sticky tabs) if scrolled past it
     const scroller = scrollRef.current;
     const headerHeight = headerRef.current?.offsetHeight ?? 0;
-    if (scroller && scroller.scrollTop > headerHeight) scroller.scrollTop = headerHeight;
+    if (!embedded && scroller && scroller.scrollTop > headerHeight) scroller.scrollTop = headerHeight;
   };
 
   const handleSwipeStart = (e: TouchEvent) => {
@@ -252,7 +254,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     if (next) selectMobileTab(next.id);
   };
 
-  const header = (
+  const header = embedded ? null : (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-4 max-md:px-3 max-md:py-2.5">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 max-md:hidden">
@@ -327,9 +329,9 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
   if (isMobile) {
     const activeQuadrant = MOSCOW_QUADRANTS.find((q) => q.id === mobileTab) ?? MOSCOW_QUADRANTS[0];
     return (
-      <div ref={scrollRef} className="h-full overflow-y-auto overscroll-contain">
+      <div ref={scrollRef} className={embedded ? undefined : 'h-full overflow-y-auto overscroll-contain'}>
         <div ref={headerRef}>{header}</div>
-        <div className="sticky top-0 z-10 border-b border-border bg-background">
+        <div className={cn('border-b border-border bg-background', !embedded && 'sticky top-0 z-10')}>
           {directionBar}
           <div
             role="tablist"

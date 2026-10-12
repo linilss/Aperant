@@ -71,7 +71,6 @@ const Roadmap = lazy(() => import('./components/Roadmap').then((m) => ({ default
 const CompetitorAnalysis = lazy(() =>
   import('./components/competitors/CompetitorAnalysis').then((m) => ({ default: m.CompetitorAnalysis }))
 );
-const MoscowMatrix = lazy(() => import('./components/moscow/MoscowMatrix').then((m) => ({ default: m.MoscowMatrix })));
 const Context = lazy(() => import('./components/Context').then((m) => ({ default: m.Context })));
 const CoreValuesView = lazy(() =>
   import('./components/funnel/CoreValuesView').then((m) => ({ default: m.CoreValuesView }))
@@ -186,6 +185,12 @@ export function App() {
   const [settingsInitialSection, setSettingsInitialSection] = useState<AppSection | undefined>(undefined);
   const [settingsInitialProjectSection, setSettingsInitialProjectSection] = useState<ProjectSettingsSection | undefined>(undefined);
   const [activeView, setActiveView] = useState<SidebarView>('kanban');
+  // MoSCoW is a Roadmap tab; links like "View in MoSCoW" open Roadmap on that tab
+  const [roadmapTabRequest, setRoadmapTabRequest] = useState<{ tab?: string; id: number }>({ id: 0 });
+  const openRoadmapMoscow = useCallback(() => {
+    setRoadmapTabRequest((prev) => ({ tab: 'moscow', id: prev.id + 1 }));
+    setActiveView('roadmap');
+  }, []);
   // Phone layout (LAN web UI): sidebar becomes a drawer behind a top bar
   const isMobile = useIsMobile();
   // Narrow desktop windows (800–1023px) get the icon-rail sidebar
@@ -1039,19 +1044,13 @@ export function App() {
                     onEditCoreValues={() => setActiveView('core-values')}
                   />
                 )}
-                {activeView === 'moscow' && (activeProjectId || selectedProjectId) && (
-                  <MoscowMatrix
-                    projectId={activeProjectId || selectedProjectId || ''}
-                    onGoToRoadmap={() => setActiveView('roadmap')}
-                    onGoToTask={handleGoToTask}
-                    onGoToCompetitors={() => setActiveView('competitors')}
-                  />
-                )}
                 {activeView === 'roadmap' && (activeProjectId || selectedProjectId) && (
                   <Roadmap
                     projectId={activeProjectId || selectedProjectId!}
                     onGoToTask={handleGoToTask}
                     onGoToCompetitors={() => setActiveView('competitors')}
+                    initialTab={roadmapTabRequest.tab}
+                    tabRequestId={roadmapTabRequest.id}
                   />
                 )}
                 {activeView === 'core-values' && (activeProjectId || selectedProjectId) && (
@@ -1078,7 +1077,7 @@ export function App() {
                     projectId={activeProjectId || selectedProjectId!}
                     onGoToTask={handleGoToTask}
                     onGoToCompetitors={() => setActiveView('competitors')}
-                    onGoToMoscow={() => setActiveView('moscow')}
+                    onGoToMoscow={openRoadmapMoscow}
                   />
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (

@@ -5,6 +5,10 @@ export interface RoadmapProps {
   onGoToTask?: (taskId: string) => void;
   /** Back to Plan → Competitors (from the "Guided by" chip) */
   onGoToCompetitors?: () => void;
+  /** Tab to show, e.g. 'moscow' when navigating from "View in MoSCoW" */
+  initialTab?: string;
+  /** Changes on every navigation request so the same tab can be re-requested */
+  tabRequestId?: number;
 }
 
 export interface PhaseCardProps {
@@ -52,6 +56,8 @@ export interface RoadmapEmptyStateProps {
 
 export interface RoadmapTabsProps {
   roadmap: Roadmap;
+  projectId: string;
+  onGoToCompetitors?: () => void;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onFeatureSelect: (feature: RoadmapFeature) => void;
