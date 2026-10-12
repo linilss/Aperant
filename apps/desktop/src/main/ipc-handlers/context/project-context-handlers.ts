@@ -42,6 +42,7 @@ import {
 import { ensureClaudeLocalImports } from '../../claude-local';
 import { listPointers, markPointersApplied, syncPointers } from './pointer-sync';
 import { safeSendToRenderer } from '../utils';
+import { notifyFunnelChanged } from '../funnel-handlers';
 import { getActiveProviderFeatureSettings } from '../feature-settings-helper';
 import type { ThinkingLevel } from '../../../shared/types/settings';
 
@@ -325,6 +326,7 @@ export function registerProjectContextHandlers(
         // Non-fatal: the docs were written; CLI wiring is retried on the next change
       }
 
+      notifyFunnelChanged(projectId);
       return {
         success: true,
         data: { applied: result.applied.map((p) => p.path), errors: result.errors },
@@ -453,6 +455,7 @@ async function startDocsOptimizer(
             // Non-fatal: the renderer still gets the complete event
           }
           safeSendToRenderer(getMainWindow, IPC_CHANNELS.CONTEXT_DOCS_COMPLETE, projectId, result);
+          notifyFunnelChanged(projectId);
           release();
           break;
         }

@@ -1,5 +1,5 @@
 /**
- * Design token parsers for the Context → Design tab.
+ * Design token parsers for the Design view.
  *
  * Pure functions, tolerant by design: unknown shapes yield empty lists instead of
  * throwing. Supported inputs:

@@ -10,7 +10,6 @@ import type { ProjectIndex } from '../../../shared/types';
 import { branchForPath, documentedCount } from './index/branch-utils';
 import { branchRowId, CodeBranchTree } from './index/CodeBranchTree';
 import { DetectedStack } from './index/DetectedStack';
-import { CoreValuesCard } from './index/CoreValuesCard';
 import { ProjectSummaryCard } from './index/ProjectSummaryCard';
 
 interface ProjectIndexTabProps {
@@ -112,8 +111,6 @@ export function ProjectIndexTab({
             {t('index.noChanges')}
           </div>
         )}
-
-        <CoreValuesCard projectId={projectId} />
 
         <ProjectSummaryCard
           summary={projectSummary}

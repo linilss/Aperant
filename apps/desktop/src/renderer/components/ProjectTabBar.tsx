@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { SortableProjectTab } from './SortableProjectTab';
 import { UsageIndicator } from './UsageIndicator';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
+import { useFunnelStore } from '../stores/funnel-store';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +45,7 @@ export function ProjectTabBar({
   onSettingsClick
 }: ProjectTabBarProps) {
   const { t } = useTranslation('common');
+  const funnelByProject = useFunnelStore((s) => s.byProject);
 
   // Keyboard shortcuts for tab navigation
   useEffect(() => {
@@ -105,11 +107,12 @@ export function ProjectTabBar({
 
   return (
     <div className={cn(
-      'flex items-center border-b border-border bg-background',
+      // Bottom line drawn as an inset shadow so each tab's funnel bar can sit on top of it
+      'flex items-stretch bg-background shadow-[inset_0_-1px_0_var(--border)]',
       'overflow-x-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
       className
     )}>
-      <div className="flex items-center flex-1 min-w-0">
+      <div className="flex items-stretch flex-1 min-w-0">
         {projects.map((project, index) => {
           const isActiveTab = activeProjectId === project.id;
           return (
@@ -127,6 +130,7 @@ export function ProjectTabBar({
               onRemove={() => onProjectRemove(project.id)}
               // Pass control props only for active tab
               onSettingsClick={isActiveTab ? onSettingsClick : undefined}
+              funnel={funnelByProject[project.id]}
             />
           );
         })}

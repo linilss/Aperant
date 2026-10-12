@@ -39,6 +39,7 @@ import { registerFeatureRefineHandlers } from './feature-refine-handlers';
 import { registerTaskRefineHandlers } from './task-refine-handlers';
 import { registerTestsHandlers } from './tests-handlers';
 import { registerCompetitorHandlers } from './competitor-handlers';
+import { registerFunnelHandlers } from './funnel-handlers';
 import { notificationService } from '../notification-service';
 import { setAgentManagerRef } from './utils';
 
@@ -62,6 +63,9 @@ export function setupIpcHandlers(
 
   // Project handlers
   registerProjectHandlers(getMainWindow);
+
+  // Plan-funnel progress (tab bars, sidebar checks)
+  registerFunnelHandlers(getMainWindow);
 
   // Task handlers
   registerTaskHandlers(agentManager, getMainWindow);

@@ -1310,9 +1310,28 @@
       "steering": "Core values steer these directions",
       "none": "No core values set — directions follow market fit only.",
       "add": "Add core values",
-      "edit": "Edit in Context",
+      "edit": "Edit core values",
       "show": "Show core values",
       "hide": "Hide core values"
+    }
+  },
+  "funnel": {
+    "title": "Funnel {{completed}}/{{total}}",
+    "count": "{{completed}}/{{total}}",
+    "ariaLabel": "Funnel progress: {{completed}} of {{total}} steps done",
+    "complete": "All steps done",
+    "steps": {
+      "coreValues": "Core values",
+      "context": "Context",
+      "design": "Design",
+      "competitors": "Competitors",
+      "roadmap": "Roadmap",
+      "ideation": "Ideation"
+    },
+    "detail": {
+      "competitors": "{{count}} analyzed",
+      "roadmap": "{{count}} features",
+      "ideation": "{{count}} ideas"
     }
   }
 }

@@ -112,7 +112,7 @@ export const contextMock = {
   onDocsOptimizerComplete: () => noop,
   onDocsOptimizerError: () => noop,
 
-  // Design system (Context → Design)
+  // Design system (Design view)
   getDesignSystem: async () => ({ success: true, data: emptyDesignState }),
   saveDesignSystemOverrides: async () => ({ success: false, error: 'Not available in browser mock' }),
   readDesignSystemFile: async () => ({ success: false, error: 'Not available in browser mock' }),

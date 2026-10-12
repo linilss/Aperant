@@ -1,5 +1,5 @@
 /**
- * Design system (Context → Design): a Claude Design System artifact on claude.ai
+ * Design system (Design view): a Claude Design System artifact on claude.ai
  * plus its source files in the repo, detected from the project's docs.
  */
 

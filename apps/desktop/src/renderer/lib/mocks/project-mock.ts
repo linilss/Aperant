@@ -3,7 +3,19 @@
  */
 
 import { DEFAULT_PROJECT_SETTINGS } from '../../../shared/constants';
+import { FUNNEL_STEP_IDS, type FunnelProgress } from '../../../shared/types/funnel';
 import { mockProjects } from './mock-data';
+
+/** Varied funnel progress so the tab bars show empty, partial and complete states */
+const MOCK_FUNNEL_COMPLETED: Record<string, number> = { 'mock-project-1': 3, 'mock-project-2': 0 };
+
+function mockFunnelProgress(projectId: string): FunnelProgress {
+  const completed =
+    MOCK_FUNNEL_COMPLETED[projectId] ??
+    [...projectId].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % (FUNNEL_STEP_IDS.length + 1);
+  const steps = FUNNEL_STEP_IDS.map((id, i) => ({ id, done: i < completed }));
+  return { steps, completed, total: steps.length };
+}
 
 export const projectMock = {
   addProject: async (projectPath: string) => ({
@@ -40,6 +52,11 @@ export const projectMock = {
     data: { currentBranch: 'main', mainBranch: 'main', hasUncommittedChanges: false }
   }),
   recordTaskDeployment: async () => ({ success: true, data: [] }),
+  getFunnelProgress: async (projectIds: string[]) => ({
+    success: true,
+    data: Object.fromEntries(projectIds.map((id) => [id, mockFunnelProgress(id)]))
+  }),
+  onFunnelChanged: () => () => undefined,
 
   checkProjectVersion: async () => ({
     success: true,

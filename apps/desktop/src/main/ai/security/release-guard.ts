@@ -12,7 +12,7 @@
  * - `isReleaseStepText()` — classifier for implementation-plan subtasks
  *
  * Design-system artifacts on claude.ai count as releases too: task agents update the
- * source files in the repo and the user publishes from Context → Design.
+ * source files in the repo and the user publishes from the Design view.
  */
 
 /** Command prefixes (tokens) that release something. Matched after `git`/`npx` option skipping. */
@@ -57,7 +57,7 @@ const GIT_OPTIONS_WITH_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', 
 /**
  * Claude Code tools that publish to claude.ai (design-system artifacts, claude.ai/design
  * projects). The CLI can't restrict a tool by action, so the whole tool is denied; the
- * Context → Design runners (sync/publish) are separate spawns that don't get this guard.
+ * Design view runners (sync/publish) are separate spawns that don't get this guard.
  */
 export const ARTIFACT_PUBLISH_TOOLS: readonly string[] = ['Artifact', 'DesignSync'];
 

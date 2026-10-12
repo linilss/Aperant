@@ -2,7 +2,6 @@
   "title": "Context",
   "tabs": {
     "docs": "Docs",
-    "design": "Design",
     "indexShort": "Index"
   },
   "summary": {
@@ -253,6 +252,18 @@
       "loading": "Comparing files…",
       "cancel": "Cancel",
       "confirm": "Publish {{count}} files"
+    }
+  },
+  "pages": {
+    "coreValues": {
+      "title": "Core values",
+      "subtitle": "What this product stands for. They weigh heaviest in every AI step: competitors, roadmap, MoSCoW, ideation and build tasks read them first.",
+      "next": "Next: Context"
+    },
+    "design": {
+      "title": "Design system",
+      "subtitle": "The Claude Design System behind this project: artifact link, local source, tokens and components.",
+      "next": "Next: Competitors"
     }
   }
 }

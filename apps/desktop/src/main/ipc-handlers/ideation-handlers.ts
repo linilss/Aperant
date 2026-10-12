@@ -32,6 +32,7 @@ import {
   addIdeaToRoadmapHandler,
 } from "./ideation";
 import { safeSendToRenderer } from "./utils";
+import { notifyFunnelChanged } from "./funnel-handlers";
 
 /**
  * Register all ideation-related IPC handlers
@@ -73,7 +74,11 @@ export function registerIdeationHandlers(
   ipcMain.handle(IPC_CHANNELS.IDEATION_CONVERT_TO_TASK, convertIdeaToTask);
 
   // Funnel: idea → roadmap feature (roadmap.json)
-  ipcMain.handle(IPC_CHANNELS.ROADMAP_ADD_FEATURE_FROM_IDEA, addIdeaToRoadmapHandler);
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_ADD_FEATURE_FROM_IDEA, async (event, projectId: string, ideaId: string) => {
+    const result = await addIdeaToRoadmapHandler(event, projectId, ideaId);
+    if (result.success) notifyFunnelChanged(projectId);
+    return result;
+  });
 
   // ============================================
   // Ideation Agent Events → Renderer
@@ -107,6 +112,7 @@ export function registerIdeationHandlers(
 
   const handleIdeationComplete = (projectId: string, session: IdeationSession): void => {
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.IDEATION_COMPLETE, projectId, session);
+    notifyFunnelChanged(projectId);
   };
 
   const handleIdeationError = (projectId: string, error: string): void => {

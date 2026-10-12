@@ -15,6 +15,8 @@ export const IPC_CHANNELS = {
   PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
   PROJECT_DEPLOY_PREFLIGHT: 'project:deployPreflight',      // Branch + uncommitted-changes check before a deploy
   PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json
+  PROJECT_FUNNEL_PROGRESS: 'project:funnelProgress',      // Plan-funnel step completion for a set of projects
+  PROJECT_FUNNEL_CHANGED: 'project:funnelChanged',        // main → renderer: a funnel step's files changed (projectId)
 
   // Tab state operations (persisted in main process)
   TAB_STATE_GET: 'tabState:get',
@@ -299,7 +301,7 @@ export const IPC_CHANNELS = {
   CONTEXT_DOCS_BRANCH_PROGRESS: 'context:docs:branchProgress',
   CONTEXT_DOCS_COMPLETE: 'context:docs:complete',
   CONTEXT_DOCS_ERROR: 'context:docs:error',
-  // Design system (Context → Design)
+  // Design system (Design view)
   CONTEXT_DESIGN_GET: 'context:design:get',
   CONTEXT_DESIGN_SAVE_OVERRIDES: 'context:design:saveOverrides',
   CONTEXT_DESIGN_READ_FILE: 'context:design:readFile',

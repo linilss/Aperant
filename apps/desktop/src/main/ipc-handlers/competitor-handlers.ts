@@ -41,6 +41,7 @@ import {
 } from '../ai/runners/competitors';
 import { resolveClaudeCliFeatureModel } from './feature-settings-helper';
 import { safeSendToRenderer } from './utils';
+import { notifyFunnelChanged } from './funnel-handlers';
 
 interface Session {
   projectPath: string;
@@ -137,6 +138,7 @@ export function registerCompetitorHandlers(getMainWindow: () => BrowserWindow | 
         }
         const payload: CompetitorCompletePayload = { state: session.store.get(), stopped: outcome.aborted };
         send(IPC_CHANNELS.COMPETITORS_COMPLETE, projectId, payload);
+        notifyFunnelChanged(projectId);
       });
   };
 
@@ -193,6 +195,7 @@ export function registerCompetitorHandlers(getMainWindow: () => BrowserWindow | 
       })
       .finally(() => {
         if (session.singles.get(competitorId) === controller) session.singles.delete(competitorId);
+        notifyFunnelChanged(projectId);
       });
   });
 
@@ -209,6 +212,7 @@ export function registerCompetitorHandlers(getMainWindow: () => BrowserWindow | 
     }
     const state = session.store.update(fn);
     send(IPC_CHANNELS.COMPETITORS_PROGRESS, projectId, { kind: 'state', state } satisfies CompetitorProgressEvent);
+    notifyFunnelChanged(projectId);
     return { success: true, data: state };
   };
 

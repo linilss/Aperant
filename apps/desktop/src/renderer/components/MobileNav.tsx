@@ -10,7 +10,27 @@ import { Check, ChevronLeft, Menu, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { UsageIndicator } from './UsageIndicator';
-import type { Project } from '../../shared/types';
+import { FunnelBar } from './FunnelProgress';
+import { useFunnelStore } from '../stores/funnel-store';
+import type { FunnelProgress, Project } from '../../shared/types';
+
+/** Project name with its plan-funnel progress as a thin bar underneath */
+function ProjectNameWithFunnel({ name, funnel, className }: { name: string; funnel?: FunnelProgress; className?: string }) {
+  const { t } = useTranslation('common');
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className={cn('min-w-0 flex-1 truncate', className)}>{name}</span>
+        {funnel && (
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+            {t('funnel.count', { completed: funnel.completed, total: funnel.total })}
+          </span>
+        )}
+      </span>
+      {funnel && <FunnelBar progress={funnel} className="h-0.5 rounded-full" />}
+    </span>
+  );
+}
 
 interface MobileTopBarProps {
   title: string;
@@ -107,6 +127,7 @@ export function MobileProjectList({
   onAddProject
 }: MobileProjectListProps) {
   const { t } = useTranslation(['navigation', 'common']);
+  const funnelByProject = useFunnelStore((s) => s.byProject);
   const rowClass =
     'flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent';
 
@@ -131,7 +152,7 @@ export function MobileProjectList({
               onClick={() => onProjectSelect(project.id)}
               className={cn(rowClass, isActive && 'bg-accent text-accent-foreground')}
             >
-              <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
+              <ProjectNameWithFunnel name={project.name} funnel={funnelByProject[project.id]} className="font-medium" />
               {isActive && <Check className="h-4 w-4 shrink-0" />}
             </button>
           );
@@ -143,7 +164,7 @@ export function MobileProjectList({
             onClick={() => onProjectOpen(project.id)}
             className={cn(rowClass, 'text-muted-foreground')}
           >
-            <span className="min-w-0 flex-1 truncate">{project.name}</span>
+            <ProjectNameWithFunnel name={project.name} funnel={funnelByProject[project.id]} />
           </button>
         ))}
       </div>

@@ -30,7 +30,8 @@ import type {
   SaveCoreValuesResult,
   DesignSystemState,
   DesignPublishPlan,
-  DesignSystemRunResult
+  DesignSystemRunResult,
+  FunnelProgress
 } from '../../shared/types';
 
 // Tab state interface (persisted in main process)
@@ -59,6 +60,10 @@ export interface ProjectAPI {
     taskId: string,
     deployment: { script: string; args?: string }
   ) => Promise<IPCResult<TaskDeployment[]>>;
+
+  // Plan funnel (project tab progress, sidebar checks)
+  getFunnelProgress: (projectIds: string[]) => Promise<IPCResult<Record<string, FunnelProgress>>>;
+  onFunnelChanged: (cb: (projectId: string) => void) => () => void;
 
   // Tab State (persisted in main process for reliability)
   getTabState: () => Promise<IPCResult<TabState>>;
@@ -94,7 +99,7 @@ export interface ProjectAPI {
   onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => () => void;
   onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => () => void;
 
-  // Design system (Context → Design)
+  // Design system (Design view)
   getDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemState>>;
   /** Empty strings clear an override */
   saveDesignSystemOverrides: (
@@ -238,6 +243,15 @@ export const createProjectAPI = (): ProjectAPI => ({
     deployment: { script: string; args?: string }
   ): Promise<IPCResult<TaskDeployment[]>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT, projectId, taskId, deployment),
+
+  getFunnelProgress: (projectIds: string[]): Promise<IPCResult<Record<string, FunnelProgress>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_FUNNEL_PROGRESS, projectIds),
+
+  onFunnelChanged: (cb: (projectId: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string) => cb(projectId);
+    ipcRenderer.on(IPC_CHANNELS.PROJECT_FUNNEL_CHANGED, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.PROJECT_FUNNEL_CHANGED, listener);
+  },
 
   // Tab State (persisted in main process for reliability)
   getTabState: (): Promise<IPCResult<TabState>> =>

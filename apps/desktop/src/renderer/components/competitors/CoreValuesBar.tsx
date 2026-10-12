@@ -6,12 +6,12 @@ import { CoreValuesMarkdown } from '../context/index/CoreValuesCard';
 
 interface CoreValuesBarProps {
   projectId: string;
-  /** Open Context → Project Index, where the values are edited */
-  onGoToContext?: () => void;
+  /** Open the Core values view, where the values are edited */
+  onEditCoreValues?: () => void;
 }
 
 /** Compact read-only view of the core values that steer the directions */
-export function CoreValuesBar({ projectId, onGoToContext }: CoreValuesBarProps) {
+export function CoreValuesBar({ projectId, onEditCoreValues }: CoreValuesBarProps) {
   const { t } = useTranslation('common');
   const values = useCoreValuesStore((s) => selectCoreValues(s, projectId));
   const [open, setOpen] = useState(false);
@@ -22,8 +22,8 @@ export function CoreValuesBar({ projectId, onGoToContext }: CoreValuesBarProps) 
 
   if (!values) return null;
 
-  const link = onGoToContext && (
-    <button type="button" className="shrink-0 text-xs text-primary hover:underline max-md:min-h-10" onClick={onGoToContext}>
+  const link = onEditCoreValues && (
+    <button type="button" className="shrink-0 text-xs text-primary hover:underline max-md:min-h-10" onClick={onEditCoreValues}>
       {values.text ? t('competitors.coreValues.edit') : t('competitors.coreValues.add')}
     </button>
   );

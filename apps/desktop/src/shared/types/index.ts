@@ -28,6 +28,7 @@ export * from './tests';
 export * from './claude-docs';
 export * from './core-values';
 export * from './design-system';
+export * from './funnel';
 export * from './remote-access';
 
 // IPC types (must be last to use types from other modules)

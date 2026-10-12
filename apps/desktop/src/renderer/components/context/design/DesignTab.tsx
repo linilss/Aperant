@@ -34,7 +34,7 @@ interface DesignTabProps {
 }
 
 /**
- * Context → Design: the project's Claude Design System (artifact link + local source),
+ * Design view: the project's Claude Design System (artifact link + local source),
  * its tokens, components and docs. Sync is read-only; Publish only runs from the button
  * after a confirm dialog (task agents can't publish).
  */

@@ -1,5 +1,5 @@
 /**
- * Design System (Context → Design)
+ * Design System (Design view)
  * ================================
  *
  * Finds a project's Claude Design System: an artifact link on claude.ai mentioned

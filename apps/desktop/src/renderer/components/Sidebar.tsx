@@ -27,7 +27,10 @@ import {
   ChevronRight,
   Rocket,
   Grid2x2,
-  Swords
+  Swords,
+  Gem,
+  Palette,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -55,6 +58,7 @@ import {
 } from '../stores/project-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useTaskStore } from '../stores/task-store';
+import { useFunnelProgress } from '../stores/funnel-store';
 import { countUndeployedTasks } from '../../shared/utils/task-deployments';
 import {
   useProjectEnvStore,
@@ -66,9 +70,9 @@ import { GitSetupModal } from './GitSetupModal';
 import { RateLimitIndicator } from './RateLimitIndicator';
 
 import { UpdateBanner } from './UpdateBanner';
-import type { Project, GitStatus } from '../../shared/types';
+import type { Project, GitStatus, FunnelStepId } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'competitors' | 'moscow' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'moscow' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -87,6 +91,8 @@ interface NavItem {
   shortcut?: string;
   /** Only shown when this integration is enabled for the project */
   requires?: 'github' | 'gitlab' | 'azureDevOps';
+  /** Plan-funnel step this view completes; shows a check when done for the selected project */
+  funnelStep?: FunnelStepId;
 }
 
 const COLLAPSED_SECTIONS_KEY = 'malvy.sidebar.collapsedSections';
@@ -103,17 +109,19 @@ const navSections: NavSection[] = [
     id: 'understand',
     labelKey: 'navigation:sections.understand',
     items: [
-      { id: 'context', labelKey: 'navigation:items.context', icon: BookOpen, shortcut: 'C' }
+      { id: 'core-values', labelKey: 'navigation:items.coreValues', icon: Gem, shortcut: 'U', funnelStep: 'coreValues' },
+      { id: 'context', labelKey: 'navigation:items.context', icon: BookOpen, shortcut: 'C', funnelStep: 'context' },
+      { id: 'design', labelKey: 'navigation:items.design', icon: Palette, shortcut: 'J', funnelStep: 'design' }
     ]
   },
   {
     id: 'plan',
     labelKey: 'navigation:sections.plan',
     items: [
-      { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F' },
-      { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D' },
+      { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F', funnelStep: 'competitors' },
+      { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D', funnelStep: 'roadmap' },
       { id: 'moscow', labelKey: 'navigation:items.moscow', icon: Grid2x2, shortcut: 'O' },
-      { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I' },
+      { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I', funnelStep: 'ideation' },
       { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G', requires: 'github' },
       { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B', requires: 'gitlab' },
       { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V', requires: 'azureDevOps' }
@@ -191,6 +199,9 @@ export function Sidebar({
   const [isInitializing, setIsInitializing] = useState(false);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const funnel = useFunnelProgress(selectedProjectId);
+  const isStepDone = (item: NavItem) =>
+    !!item.funnelStep && !!funnel?.steps.some((s) => s.id === item.funnelStep && s.done);
 
   // Subscribe to project-env-store for reactive GitHub/GitLab/Azure DevOps tab visibility
   const githubEnabled = useProjectEnvStore((state) => state.envConfig?.githubEnabled ?? false);
@@ -395,6 +406,7 @@ export function Sidebar({
     const isActive = activeView === item.id;
     const Icon = item.icon;
     const label = t(item.labelKey);
+    const stepDone = isStepDone(item);
 
     return (
       <Tooltip key={item.id}>
@@ -417,10 +429,14 @@ export function Sidebar({
             {item.id === 'deploy' && undeployedCount > 0 && (
               <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" />
             )}
+            {stepDone && (
+              <CheckCircle2 className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full bg-sidebar text-success" />
+            )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" className="flex items-center gap-2">
           {label}
+          {stepDone && <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
           {item.id === 'deploy' && undeployedCount > 0 && (
             <span className="text-muted-foreground">
               {t('deploy:notDeployed', { count: undeployedCount })}
@@ -439,6 +455,7 @@ export function Sidebar({
   const renderNavItem = (item: NavItem) => {
     const isActive = activeView === item.id;
     const Icon = item.icon;
+    const stepDone = isStepDone(item);
 
     return (
       <button
@@ -462,6 +479,12 @@ export function Sidebar({
           >
             {undeployedCount}
           </span>
+        )}
+        {stepDone && (
+          <CheckCircle2
+            className="h-4 w-4 shrink-0 text-success"
+            aria-label={t('navigation:funnel.stepDone', { step: t(item.labelKey) })}
+          />
         )}
         {item.shortcut && (
           <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded-md border border-border bg-secondary px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">

@@ -25,6 +25,7 @@ import { projectStore } from "../project-store";
 import { AgentManager } from "../agent";
 import { debugLog, debugError } from "../../shared/utils/debug-logger";
 import { safeSendToRenderer } from "./utils";
+import { notifyFunnelChanged } from "./funnel-handlers";
 import { writeFileWithRetry, readFileWithRetry } from "../utils/atomic-file";
 import { withFileLock } from "../utils/file-lock";
 import { getActiveProviderFeatureSettings, resolveClaudeCliFeatureModel } from "./feature-settings-helper";
@@ -382,6 +383,7 @@ export function registerRoadmapHandlers(
           existingRoadmap.metadata.updated_at = new Date().toISOString();
 
           await writeFileWithRetry(roadmapPath, JSON.stringify(existingRoadmap, null, 2), { encoding: 'utf-8' });
+          notifyFunnelChanged(projectId);
 
           return { success: true };
         });
@@ -1006,6 +1008,7 @@ ${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n"
 
   agentManager.on("roadmap-complete", (projectId: string, roadmap: Roadmap) => {
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.ROADMAP_COMPLETE, projectId, roadmap);
+    notifyFunnelChanged(projectId);
   });
 
   agentManager.on("roadmap-error", (projectId: string, error: string) => {

@@ -50,6 +50,7 @@ import { ProactiveSwapListener } from './components/ProactiveSwapListener';
 import { GitHubSetupModal } from './components/GitHubSetupModal';
 import { useProjectStore, loadProjects, addProject, initializeProject, removeProject } from './stores/project-store';
 import { useTaskStore, loadTasks } from './stores/task-store';
+import { useFunnelProgressSync } from './stores/funnel-store';
 import { useSettingsStore, loadSettings, loadProfiles, saveSettings } from './stores/settings-store';
 import { useClaudeProfileStore, loadClaudeProfiles } from './stores/claude-profile-store';
 import { useTerminalStore, restoreTerminalSessions } from './stores/terminal-store';
@@ -72,6 +73,12 @@ const CompetitorAnalysis = lazy(() =>
 );
 const MoscowMatrix = lazy(() => import('./components/moscow/MoscowMatrix').then((m) => ({ default: m.MoscowMatrix })));
 const Context = lazy(() => import('./components/Context').then((m) => ({ default: m.Context })));
+const CoreValuesView = lazy(() =>
+  import('./components/funnel/CoreValuesView').then((m) => ({ default: m.CoreValuesView }))
+);
+const DesignSystemView = lazy(() =>
+  import('./components/funnel/DesignSystemView').then((m) => ({ default: m.DesignSystemView }))
+);
 const Ideation = lazy(() => import('./components/Ideation').then((m) => ({ default: m.Ideation })));
 const Insights = lazy(() => import('./components/Insights').then((m) => ({ default: m.Insights })));
 const GitHubIssues = lazy(() => import('./components/GitHubIssues').then((m) => ({ default: m.GitHubIssues })));
@@ -226,6 +233,11 @@ export function App() {
   const projectTabs = getProjectTabs();
   // Projects that are still known to the app but have no open tab — reopenable from the tab bar
   const closedProjects = projects.filter((p) => !openProjectIds.includes(p.id));
+  // Plan-funnel progress for every open tab (tab bars, sidebar checks, mobile drawer)
+  useFunnelProgressSync(
+    projectTabs.map((p) => p.id),
+    activeProjectId || selectedProjectId
+  );
   const selectedProject = projects.find((p) => p.id === (activeProjectId || selectedProjectId));
 
   // Initial load
@@ -1024,7 +1036,7 @@ export function App() {
                     projectId={activeProjectId || selectedProjectId || ''}
                     onGoToRoadmap={() => setActiveView('roadmap')}
                     onGoToIdeation={() => setActiveView('ideation')}
-                    onGoToContext={() => setActiveView('context')}
+                    onEditCoreValues={() => setActiveView('core-values')}
                   />
                 )}
                 {activeView === 'moscow' && (activeProjectId || selectedProjectId) && (
@@ -1041,6 +1053,20 @@ export function App() {
                     onGoToTask={handleGoToTask}
                     onGoToCompetitors={() => setActiveView('competitors')}
                   />
+                )}
+                {activeView === 'core-values' && (activeProjectId || selectedProjectId) && (
+                  <CoreValuesView
+                    projectId={activeProjectId || selectedProjectId || ''}
+                    onGoToContext={() => setActiveView('context')}
+                  />
+                )}
+                {activeView === 'design' && (activeProjectId || selectedProjectId) && (
+                  <ErrorBoundary>
+                    <DesignSystemView
+                      projectId={activeProjectId || selectedProjectId || ''}
+                      onGoToCompetitors={() => setActiveView('competitors')}
+                    />
+                  </ErrorBoundary>
                 )}
                 {activeView === 'context' && (activeProjectId || selectedProjectId) && (
                   <ErrorBoundary>

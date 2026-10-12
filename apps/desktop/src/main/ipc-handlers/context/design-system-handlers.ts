@@ -24,6 +24,7 @@ import {
 import { runDesignPublish, runDesignSync } from '../../ai/runners/design-system';
 import { resolveClaudeCliFeatureModel } from '../feature-settings-helper';
 import { safeSendToRenderer } from '../utils';
+import { notifyFunnelChanged } from '../funnel-handlers';
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback);
 
@@ -42,7 +43,7 @@ function buildState(projectId: string, projectDir: string): DesignSystemState {
   };
 }
 
-/** Context → Design: detection, overrides, file reads, sync from artifact, gated publish */
+/** Design view: detection, overrides, file reads, sync from artifact, gated publish */
 export function registerDesignSystemHandlers(getMainWindow: () => BrowserWindow | null): void {
   const progress = (projectId: string, text: string) =>
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.CONTEXT_DESIGN_PROGRESS, projectId, text);
@@ -72,6 +73,7 @@ export function registerDesignSystemHandlers(getMainWindow: () => BrowserWindow 
           ...(typeof artifactUrl === 'string' ? { artifactUrl } : {}),
           ...(typeof sourceDir === 'string' ? { sourceDir } : {}),
         });
+        notifyFunnelChanged(projectId);
         return { success: true, data: buildState(projectId, project.path) };
       } catch (error) {
         return { success: false, error: errorMessage(error, 'Failed to save') };
@@ -124,6 +126,7 @@ export function registerDesignSystemHandlers(getMainWindow: () => BrowserWindow 
           onProgress: (text) => progress(projectId, text),
         });
         const files = writeSnapshotFromSaved(project.path, saved, { version: saved.find((s) => s.version)?.version });
+        notifyFunnelChanged(projectId);
         return { success: true, data: { operation: 'sync', files, at: new Date().toISOString() } };
       } catch (error) {
         return { success: false, error: errorMessage(error, 'Sync failed') };

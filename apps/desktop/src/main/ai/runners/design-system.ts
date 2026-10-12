@@ -1,5 +1,5 @@
 /**
- * Design System runners (Context → Design)
+ * Design System runners (Design view)
  * ========================================
  *
  * Both run the `claude` CLI with Claude Code's Artifact tool, which is only available

@@ -24,7 +24,9 @@
     "roadmap": "Roadmap",
     "ideation": "Ideation",
     "changelog": "Changelog",
+    "coreValues": "Core values",
     "context": "Context",
+    "design": "Design",
     "githubIssues": "GitHub Issues",
     "githubPRs": "GitHub PRs",
     "gitlabIssues": "GitLab Issues",
@@ -98,5 +100,8 @@
     "pathChangeWarningDescription": "Switching CLI installations will use a different Claude Code binary. Any running sessions will continue using the previous installation until restarted.",
     "switchInstallationConfirm": "Switch",
     "versionUnknown": "version unknown"
+  },
+  "funnel": {
+    "stepDone": "{{step}} done for this project"
   }
 }

@@ -7,6 +7,7 @@ import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Textarea } from '../../ui/textarea';
+import { cn } from '../../../lib/utils';
 import {
   draftCoreValues,
   loadCoreValues,
@@ -16,9 +17,15 @@ import {
 } from '../../../stores/core-values-store';
 
 /** Rendered core values markdown (also used read-only on the Competitors page) */
-export function CoreValuesMarkdown({ text }: { text: string }) {
+export function CoreValuesMarkdown({ text, large = false }: { text: string; large?: boolean }) {
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+    <div
+      className={cn(
+        'prose dark:prose-invert max-w-none break-words text-foreground',
+        'prose-headings:text-foreground prose-p:text-foreground/90 prose-li:text-foreground/90 prose-strong:text-foreground prose-code:text-foreground',
+        large ? 'prose-base' : 'prose-sm'
+      )}
+    >
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
@@ -26,10 +33,12 @@ export function CoreValuesMarkdown({ text }: { text: string }) {
 
 interface CoreValuesCardProps {
   projectId: string;
+  /** Full-page use (Core values view): larger editor and text */
+  large?: boolean;
 }
 
-/** Core values on top of the Project Index tab: view, edit, AI draft */
-export function CoreValuesCard({ projectId }: CoreValuesCardProps) {
+/** Core values: view, edit, AI draft */
+export function CoreValuesCard({ projectId, large = false }: CoreValuesCardProps) {
   const { t, i18n } = useTranslation('context');
   const values = useCoreValuesStore((s) => selectCoreValues(s, projectId));
   const [editing, setEditing] = useState(false);
@@ -123,7 +132,8 @@ export function CoreValuesCard({ projectId }: CoreValuesCardProps) {
                 {t('index.coreValues.badge')}
               </Badge>
             </CardTitle>
-            <p className="text-xs text-muted-foreground">{t('index.coreValues.description')}</p>
+            {/* The Core values page says this in its header */}
+            {!large && <p className="text-xs text-muted-foreground">{t('index.coreValues.description')}</p>}
           </div>
           {!editing && text && (
             <Button variant="ghost" size="sm" className="shrink-0 max-md:h-10" onClick={startEdit}>
@@ -153,7 +163,7 @@ export function CoreValuesCard({ projectId }: CoreValuesCardProps) {
                   cancel();
                 }
               }}
-              className="min-h-[96px] overflow-hidden text-sm"
+              className={cn('overflow-hidden', large ? 'min-h-[18rem] text-base max-md:min-h-[12rem]' : 'min-h-[96px] text-sm')}
               maxLength={8000}
               disabled={saving}
             />
@@ -174,7 +184,7 @@ export function CoreValuesCard({ projectId }: CoreValuesCardProps) {
           </div>
         ) : text ? (
           <>
-            <CoreValuesMarkdown text={text} />
+            <CoreValuesMarkdown text={text} large={large} />
             {updatedAt && <p className="text-xs text-muted-foreground">{updatedAt}</p>}
           </>
         ) : (

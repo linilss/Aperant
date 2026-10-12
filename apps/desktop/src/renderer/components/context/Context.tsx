@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { FolderTree, Brain, BookOpen, Library, Palette } from 'lucide-react';
+import { FolderTree, Brain, BookOpen, Library } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PageHeader, PAGE_ROOT, PAGE_BODY, PAGE_STICKY } from '../ui/page-header';
@@ -19,7 +19,6 @@ import { useProjectContext, useRefreshIndex, useMemorySearch } from './hooks';
 import { ProjectIndexTab } from './ProjectIndexTab';
 import { MemoriesTab } from './MemoriesTab';
 import { DocsTab, type DocFocus } from './docs/DocsTab';
-import { DesignTab } from './design/DesignTab';
 import type { BranchProgressEvent, DocPointer, DocsOptimizerResult } from '../../../shared/types';
 import type { ContextProps } from './types';
 
@@ -152,10 +151,6 @@ export function Context({ projectId }: ContextProps) {
               <Brain className="h-4 w-4 shrink-0" />
               <span className="truncate">{t('common:context.tabs.memories')}</span>
             </TabsTrigger>
-            <TabsTrigger value="design" className="flex-1 shrink-0 gap-2 max-md:min-h-10 max-md:min-w-0 max-md:shrink max-md:gap-1 max-md:px-1.5 max-md:text-xs">
-              <Palette className="h-4 w-4 shrink-0" />
-              <span className="truncate">{t('context:tabs.design')}</span>
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -194,11 +189,6 @@ export function Context({ projectId }: ContextProps) {
             onPin={handlePin}
             onDeprecate={handleDeprecate}
           />
-        </TabsContent>
-
-        {/* Design Tab */}
-        <TabsContent value="design" className={panelClass}>
-          <DesignTab projectId={projectId} />
         </TabsContent>
       </Tabs>
     </div>

@@ -5,6 +5,7 @@ import { projectStore } from '../../project-store';
 import { readCoreValues, saveCoreValues } from '../../core-values-store';
 import { runCoreValuesDraft } from '../../ai/runners/core-values-draft';
 import { resolveClaudeCliFeatureModel } from '../feature-settings-helper';
+import { notifyFunnelChanged } from '../funnel-handlers';
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback);
 
@@ -26,7 +27,9 @@ export function registerCoreValuesHandlers(): void {
       if (!project) return { success: false, error: 'Project not found' };
       if (typeof text !== 'string') return { success: false, error: 'Invalid core values' };
       try {
-        return { success: true, data: saveCoreValues(project.path, text) };
+        const data = saveCoreValues(project.path, text);
+        notifyFunnelChanged(projectId);
+        return { success: true, data };
       } catch (error) {
         return { success: false, error: errorMessage(error, 'Failed to save core values') };
       }
