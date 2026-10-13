@@ -69,6 +69,61 @@ export function mergeIdeationIdeas(
   return merged;
 }
 
+/** One idea the user reacted to, kept across runs so ideation learns their taste */
+export interface IdeaTasteEntry {
+  type: string;
+  title: string;
+  /** picked = turned into a task or roadmap feature; dismissed = rejected */
+  verdict: 'picked' | 'dismissed';
+  at: string;
+}
+
+/** Max taste entries kept in ideation.json */
+export const IDEA_TASTE_CAP = 80;
+
+/** The user's verdict on an idea, or null if they haven't acted on it */
+export function ideaVerdict(idea: RawIdea): IdeaTasteEntry['verdict'] | null {
+  const status = String((idea as { status?: unknown }).status ?? '');
+  if (status === 'dismissed') return 'dismissed';
+  if (status === 'converted' || idea.linked_task_id || idea.roadmap_feature_id) return 'picked';
+  return null;
+}
+
+/**
+ * Taste history after a run: ideas of the regenerated types the user acted on are
+ * about to be replaced, so their verdicts move into the history first. Newest first,
+ * one entry per type + title, capped.
+ */
+export function updateIdeaTaste(
+  existingTaste: unknown,
+  existingIdeas: RawIdea[],
+  regeneratedTypes: ReadonlySet<string>,
+  now = new Date().toISOString(),
+): IdeaTasteEntry[] {
+  const fresh: IdeaTasteEntry[] = [];
+  for (const idea of existingIdeas) {
+    const type = String((idea as { type?: unknown }).type ?? '');
+    if (!regeneratedTypes.has(type) || typeof idea.title !== 'string' || !idea.title.trim()) continue;
+    const verdict = ideaVerdict(idea);
+    if (verdict) fresh.push({ type, title: idea.title.trim(), verdict, at: now });
+  }
+  const previous = Array.isArray(existingTaste)
+    ? existingTaste.filter(
+        (e): e is IdeaTasteEntry =>
+          !!e && typeof e === 'object' && typeof e.title === 'string' && (e.verdict === 'picked' || e.verdict === 'dismissed'),
+      )
+    : [];
+  const seen = new Set<string>();
+  const result: IdeaTasteEntry[] = [];
+  for (const entry of [...fresh, ...previous]) {
+    const key = `${entry.type}\u0000${entry.title.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(entry);
+  }
+  return result.slice(0, IDEA_TASTE_CAP);
+}
+
 /**
  * Config written to ideation.json after a run, so the next visit restores the
  * user's types, context toggles and focus. An append run only adds its types to

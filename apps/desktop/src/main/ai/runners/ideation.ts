@@ -27,6 +27,8 @@ import {
   buildRoadmapContextSection,
   loadRoadmapFeaturesForContext,
   type IdeationContextTask,
+  buildTasteSection,
+  loadIdeaTaste,
 } from './ideation-context';
 
 // =============================================================================
@@ -123,6 +125,35 @@ export type IdeationStreamEvent =
 // Ideation Runner
 // =============================================================================
 
+/** Idea types whose quality depends most on product judgment */
+const PRODUCT_IDEATION_TYPES: ReadonlySet<IdeationType> = new Set(['features', 'ui_ux_improvements']);
+
+/** Product ideas run on Opus unless a stronger choice was made; technical types keep the setting */
+export function ideationModelFor(ideationType: IdeationType, configured: ModelShorthand): ModelShorthand {
+  if (!PRODUCT_IDEATION_TYPES.has(ideationType)) return configured;
+  return configured === 'sonnet' || configured === 'haiku' ? 'opus' : configured;
+}
+
+/**
+ * Broad-then-narrow: draft a larger pool, score it against a rubric and keep only the
+ * best. Adds the fields the Ideation cards show (score, why_now, evidence, first_step).
+ */
+export function buildQualitySection(maxIdeas: number): string {
+  const pool = Math.max(maxIdeas * 3, 9);
+  return (
+    '\n## QUALITY BAR (do this before writing the file)\n' +
+    `1. Draft about ${pool} candidate ideas in your head — more than you need.\n` +
+    '2. Score each 1–10 on: user value (would the target user feel the difference?), fit with the core values and the user\'s taste above, ' +
+    'novelty (not already built, planned or dismissed), and evidence (grounded in this codebase, the docs or a competitor).\n' +
+    `3. Keep only the best ${maxIdeas} (fewer if fewer score 7+). Drop anything generic that would fit any app.\n` +
+    '4. Order them best first and add these fields to every idea:\n' +
+    '   - "score": your 1–10 score (number)\n' +
+    '   - "why_now": one sentence on why this matters now\n' +
+    '   - "evidence": the screen, file, doc or competitor it builds on (concrete)\n' +
+    '   - "first_step": the smallest shippable first version, one sentence\n'
+  );
+}
+
 /** Prompt section with the user's focus; '' when the focus is empty */
 export function buildFocusSection(focus: unknown): string {
   const text = normalizeIdeationFocus(focus);
@@ -201,6 +232,10 @@ export async function runIdeation(
     prompt += buildKanbanContextSection(config.existingTasks);
   }
 
+  // What the user picked and dismissed before
+  prompt += buildTasteSection(loadIdeaTaste(outputDir, ideationType));
+  prompt += buildQualitySection(maxIdeasPerType);
+
   const userPrompt = `Analyze the project at ${projectDir} and generate up to ${maxIdeasPerType} ${ideationType.replace(/_/g, ' ')} ideas. Use the available tools to explore the codebase, then write your findings as a JSON file to the output directory.`;
   const combinedPrompt = `${prompt}\n\n${userPrompt}`;
 
@@ -212,7 +247,7 @@ export async function runIdeation(
     return { success: false, text: '', error: 'claude CLI not found — make sure Claude Code is installed' };
   }
 
-  const modelId = resolveModelId(modelShorthand);
+  const modelId = resolveModelId(ideationModelFor(ideationType, modelShorthand));
   const args = [
     '--print',
     '--verbose',

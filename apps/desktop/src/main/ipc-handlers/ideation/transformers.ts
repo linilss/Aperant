@@ -53,6 +53,18 @@ function withFunnelLinks(result: Idea, idea: RawIdea): Idea {
   if (typeof idea.roadmap_feature_id === 'string' && idea.roadmap_feature_id) {
     result.roadmapFeatureId = idea.roadmap_feature_id;
   }
+  const score = Number(idea.score);
+  if (Number.isFinite(score) && score > 0) result.score = Math.min(10, Math.max(1, Math.round(score)));
+  const text = (snake: string, camel: string): string | undefined => {
+    const value = idea[snake] ?? idea[camel];
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  };
+  const whyNow = text('why_now', 'whyNow');
+  if (whyNow) result.whyNow = whyNow;
+  const evidence = text('evidence', 'evidence');
+  if (evidence) result.evidence = evidence;
+  const firstStep = text('first_step', 'firstStep');
+  if (firstStep) result.firstStep = firstStep;
   return result;
 }
 

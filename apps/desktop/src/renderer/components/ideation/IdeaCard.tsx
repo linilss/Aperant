@@ -215,6 +215,18 @@ export function IdeaCard({
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex items-start gap-2">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {typeof idea.score === 'number' && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'tabular-nums',
+                    idea.score >= 8 ? 'border-success/40 text-success' : idea.score <= 5 ? 'text-muted-foreground' : undefined
+                  )}
+                  title={t('ideation.scoreTooltip')}
+                >
+                  {t('ideation.score', { score: idea.score })}
+                </Badge>
+              )}
               <Badge variant="outline" className={IDEATION_TYPE_COLORS[idea.type]}>
                 <TypeIcon type={idea.type} />
                 <span className="ml-1">{IDEATION_TYPE_LABELS[idea.type]}</span>
@@ -256,6 +268,7 @@ export function IdeaCard({
           </div>
           <h3 className={cn('font-medium break-words', isInactive && 'line-through')}>{idea.title}</h3>
           <p className="text-sm text-muted-foreground line-clamp-2">{idea.description}</p>
+          {idea.whyNow && <p className="mt-1 text-xs text-muted-foreground/80 italic line-clamp-1">{idea.whyNow}</p>}
           <DirectionTagChips feature={idea} projectId={projectId} />
         </div>
 

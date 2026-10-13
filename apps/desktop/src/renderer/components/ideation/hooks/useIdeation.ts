@@ -231,7 +231,8 @@ export function useIdeation(projectId: string, options: UseIdeationOptions = {})
     }
     // If both are true, show all
 
-    return ideas;
+    // Best first: the agent's quality score (unscored older ideas keep their order, after)
+    return [...ideas].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   }, [session, showDismissed, effectiveShowArchived]);
 
   const activeIdeas = getFilteredIdeas();

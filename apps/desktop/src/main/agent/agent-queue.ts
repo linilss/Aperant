@@ -21,7 +21,7 @@ import { runRoadmapGeneration } from '../ai/runners/roadmap';
 import type { RoadmapStreamEvent } from '../ai/runners/roadmap';
 import type { ModelShorthand, ThinkingLevel } from '../ai/config/types';
 import { resolvePromptsDir } from '../ai/prompts/prompt-loader';
-import { buildPersistedIdeationConfig, ideationTypeFileName, mergeIdeationIdeas } from './ideation-consolidation';
+import { buildPersistedIdeationConfig, ideationTypeFileName, mergeIdeationIdeas, updateIdeaTaste } from './ideation-consolidation';
 import { ideationContextOptions } from '../ai/runners/ideation-context';
 import { loadKnownDirectionIds, sanitizeFeatureDirectionIds } from '../ai/runners/competitors/guidance';
 import { projectStore } from '../project-store';
@@ -383,7 +383,7 @@ export class AgentQueueManager {
       const ideationFilePath = path.join(outputDir, 'ideation.json');
 
       // Read whatever is already there so types that didn't run are preserved
-      let existingRaw: { id?: string; ideas?: RawIdea[]; generated_at?: string; config?: RawIdeationConfig } = {};
+      let existingRaw: { id?: string; ideas?: RawIdea[]; generated_at?: string; config?: RawIdeationConfig; taste?: unknown } = {};
       if (existsSync(ideationFilePath)) {
         try {
           existingRaw = JSON.parse(await fsPromises.readFile(ideationFilePath, 'utf-8'));
@@ -401,6 +401,8 @@ export class AgentQueueManager {
           ...existingRaw,
           id: existingRaw.id || `ideation-${Date.now()}`,
           ideas: mergedIdeas,
+          // What the user picked / dismissed before, so the next run learns from it
+          taste: updateIdeaTaste(existingRaw.taste, existingIdeas, new Set(generatedIdeasByType.keys())),
           // Remember types, context toggles and focus for the next visit
           config: buildPersistedIdeationConfig(existingRaw.config, config),
           generated_at: existingRaw.generated_at || new Date().toISOString(),

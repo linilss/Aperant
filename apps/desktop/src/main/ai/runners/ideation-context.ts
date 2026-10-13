@@ -104,3 +104,66 @@ export function ideationContextOptions(
   }
   return { includeRoadmapContext, includeKanbanContext, existingTasks: selectKanbanContextTasks(tasks) };
 }
+
+/** Max picked / dismissed ideas listed in the taste section */
+export const IDEA_TASTE_PROMPT_CAP = 20;
+
+interface TasteItem {
+  type: string;
+  title: string;
+  verdict: 'picked' | 'dismissed';
+}
+
+/**
+ * The user's past verdicts: the taste history in ideation.json plus the ideas in it
+ * they already acted on. Same-type entries first. [] when there is no file.
+ */
+export function loadIdeaTaste(outputDir: string, ideationType: string): TasteItem[] {
+  const file = join(outputDir, 'ideation.json');
+  let data: { ideas?: unknown; taste?: unknown };
+  try {
+    if (!existsSync(file)) return [];
+    data = JSON.parse(readFileSync(file, 'utf-8'));
+  } catch {
+    return [];
+  }
+  const items: TasteItem[] = [];
+  const push = (type: unknown, title: unknown, verdict: TasteItem['verdict']) => {
+    if (typeof title === 'string' && title.trim()) items.push({ type: oneLine(type), title: oneLine(title), verdict });
+  };
+  for (const raw of Array.isArray(data.ideas) ? data.ideas : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const idea = raw as Record<string, unknown>;
+    if (idea.status === 'dismissed') push(idea.type, idea.title, 'dismissed');
+    else if (idea.status === 'converted' || idea.linked_task_id || idea.roadmap_feature_id) push(idea.type, idea.title, 'picked');
+  }
+  for (const raw of Array.isArray(data.taste) ? data.taste : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const entry = raw as Record<string, unknown>;
+    if (entry.verdict === 'picked' || entry.verdict === 'dismissed') push(entry.type, entry.title, entry.verdict);
+  }
+  const seen = new Set<string>();
+  const unique = items.filter((i) => {
+    const key = `${i.type}\u0000${i.title.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...unique.filter((i) => i.type === ideationType), ...unique.filter((i) => i.type !== ideationType)];
+}
+
+/** Prompt section with what the user picked and dismissed before; '' when nothing */
+export function buildTasteSection(items: TasteItem[]): string {
+  const picked = items.filter((i) => i.verdict === 'picked').slice(0, IDEA_TASTE_PROMPT_CAP);
+  const dismissed = items.filter((i) => i.verdict === 'dismissed').slice(0, IDEA_TASTE_PROMPT_CAP);
+  if (picked.length === 0 && dismissed.length === 0) return '';
+  const list = (rows: TasteItem[]) => rows.map((i) => `- [${i.type || '?'}] ${truncate(i.title, 120)}`).join('\n');
+  let out = '\n## THE USER\'S TASTE (learn from it)\n';
+  if (picked.length > 0) {
+    out += 'Ideas they PICKED (turned into tasks or roadmap features) — propose more of this kind and ambition, never the same ones again:\n' + `${list(picked)}\n`;
+  }
+  if (dismissed.length > 0) {
+    out += 'Ideas they DISMISSED — do not re-propose them or close variants; infer what they didn\'t want and avoid that kind:\n' + `${list(dismissed)}\n`;
+  }
+  return out;
+}

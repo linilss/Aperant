@@ -48,6 +48,14 @@ export interface IdeaBase {
   directionIds?: string[];
   /** Roadmap feature created from this idea ("Add to roadmap") */
   roadmapFeatureId?: string;
+  /** Agent's 1–10 quality score (absent on older ideas) */
+  score?: number;
+  /** Why this matters now */
+  whyNow?: string;
+  /** Screen, file, doc or competitor the idea builds on */
+  evidence?: string;
+  /** Smallest shippable first version */
+  firstStep?: string;
 }
 
 /** New product capability for users (not a code chore) */

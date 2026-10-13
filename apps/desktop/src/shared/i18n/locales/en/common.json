@@ -608,7 +608,12 @@
         "medium": "medium complexity",
         "high": "high complexity"
       }
-    }
+    },
+    "score": "{{score}}/10",
+    "scoreTooltip": "Quality score from the ideation agent: user value, fit, novelty and evidence",
+    "whyNow": "Why now",
+    "evidence": "Builds on",
+    "firstStep": "First step"
   },
   "issues": {
     "loadingMore": "Loading more...",

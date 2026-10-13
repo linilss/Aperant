@@ -11,10 +11,14 @@ You are a product-minded engineer. Your task is to propose **new product feature
 
 ## Analysis Process
 
-1. **Understand the product** — read README, docs and the main entry points/screens. Who uses it, for what, and what can they do today?
-2. **Map current capabilities** — list the user-facing features that exist (routes, screens, commands, settings). Note gaps, dead ends and half-built flows.
-3. **Find opportunities** — where would a user want to do more, come back more often, or get more value? Think of what the strategic directions ask for that the product does not yet do.
-4. **Filter hard** — drop ideas that duplicate the roadmap/kanban lists, conflict with core values, serve avoided directions, or are not grounded in this codebase.
+Think like the people who use this product, not like its code.
+
+1. **Who and what for** — read README, the root docs and the main screens/entry points. Name the target users (the roadmap discovery file under `.malvy/roadmap/` has them, if present) and the job each comes to the product to get done.
+2. **Walk their day** — for each main user, step through a realistic session: how they arrive, what they try to do, where it takes too many steps, where they get stuck or leave, what they do *outside* the product because it can't. Note each friction and missing moment.
+3. **Look outward** — what competitors offer that these users would expect (see COMPETITORS if present), and what would make them come back tomorrow or tell someone about it.
+4. **Map what exists** — check routes, screens, settings and models so each idea extends something real and isn't already built.
+5. **Turn moments into features** — each idea answers a concrete moment from step 2 or 3. Prefer ideas a user would notice in their first week over polish nobody asked for.
+6. **Filter hard** — drop ideas that duplicate the roadmap/kanban lists or the user's dismissed ideas, conflict with core values, serve avoided directions, or would fit any app unchanged.
 
 ## Output Format
 
@@ -34,6 +38,10 @@ Write your findings to `{output_dir}/features_ideas.json`:
       "complexity": "low|medium|high",
       "impact": "low|medium|high",
       "direction_ids": [],
+      "score": 8,
+      "why_now": "Why this matters now, one sentence.",
+      "evidence": "Screen, file, doc or competitor it builds on.",
+      "first_step": "Smallest shippable first version, one sentence.",
       "status": "draft",
       "created_at": "ISO timestamp"
     }

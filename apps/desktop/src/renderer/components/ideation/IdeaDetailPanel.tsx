@@ -103,6 +103,21 @@ export function IdeaDetailPanel({
           <p className="text-sm text-muted-foreground">{idea.rationale}</p>
         </div>
 
+        {/* Why now / evidence / first step (ideas scored by the quality bar) */}
+        {[
+          { key: 'whyNow', text: idea.whyNow },
+          { key: 'evidence', text: idea.evidence },
+          { key: 'firstStep', text: idea.firstStep }
+        ].map(
+          ({ key, text }) =>
+            text && (
+              <div key={key}>
+                <h3 className="text-sm font-medium mb-2">{t(`common:ideation.${key}`)}</h3>
+                <p className="text-sm text-muted-foreground">{text}</p>
+              </div>
+            )
+        )}
+
         {/* Type-specific content */}
         {isFeatureIdea(idea) && <FeatureDetails idea={idea} />}
         {isCodeImprovementIdea(idea) && <CodeImprovementDetails idea={idea} />}
