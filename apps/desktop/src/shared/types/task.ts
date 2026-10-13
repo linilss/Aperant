@@ -287,6 +287,14 @@ export interface TaskDeployment {
   build?: string;
   /** The script's own result line */
   summary?: string;
+  /** HEAD that was deployed */
+  commit?: string;
+  /** Steps of the deploy chain this run included */
+  steps?: string[];
+  /** Steps that finished successfully (from the log) */
+  stepsOk?: string[];
+  /** Web version from a 'Live: <v>' line, when the chain also deployed a backend */
+  webVersion?: string;
 }
 
 export interface Task {

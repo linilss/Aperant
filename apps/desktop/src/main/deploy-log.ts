@@ -20,6 +20,9 @@ export interface DeployLogResult {
   build?: string;
   /** The script's own success line, e.g. "TestFlight: 1.0.5 (202610131402) is VALID" */
   summary?: string;
+  /** Steps that printed their __MALVY_STEP_OK marker */
+  stepsOk: string[];
+  webVersion?: string;
 }
 
 const lastMatch = (text: string, re: RegExp): RegExpMatchArray | null => {
@@ -31,7 +34,8 @@ const lastMatch = (text: string, re: RegExp): RegExpMatchArray | null => {
 export function parseDeployLog(raw: string): DeployLogResult {
   const text = raw.replace(ANSI, '').replace(/\r/g, '');
   const exit = lastMatch(text, /__MALVY_DEPLOY_EXIT=(\d+)/);
-  const result: DeployLogResult = { done: !!exit };
+  const stepsOk = [...text.matchAll(/__MALVY_STEP_OK=(.+)$/gm)].map((m) => m[1].trim());
+  const result: DeployLogResult = { done: !!exit, stepsOk };
   if (exit) result.exitCode = Number(exit[1]);
 
   const testflight = lastMatch(text, /TestFlight:\s*([\d.]+)\s*\((\d{6,})\)/);
@@ -39,6 +43,7 @@ export function parseDeployLog(raw: string): DeployLogResult {
   const build = lastMatch(text, /\bbuild\s+(\d{10,14})\b/i);
   const live = lastMatch(text, /^Live:\s*(\S+)/m);
   result.version = testflight?.[1] ?? bumped?.[1] ?? live?.[1];
+  if (live && (testflight || bumped)) result.webVersion = live[1];
   result.build = testflight?.[2] ?? build?.[1];
   const summary = lastMatch(text, /^.*\b(TestFlight|Live)\b.*$/m);
   if (summary) result.summary = summary[0].replace(/^=+>\s*/, '').trim().slice(0, 160);
@@ -62,6 +67,8 @@ export function resolveDeployment(projectPath: string, deployment: TaskDeploymen
     status: parsed.exitCode === 0 ? 'succeeded' : 'failed',
     ...(parsed.version ? { version: parsed.version } : {}),
     ...(parsed.build ? { build: parsed.build } : {}),
-    ...(parsed.summary ? { summary: parsed.summary } : {})
+    ...(parsed.summary ? { summary: parsed.summary } : {}),
+    ...(parsed.webVersion ? { webVersion: parsed.webVersion } : {}),
+    ...(parsed.stepsOk.length > 0 ? { stepsOk: parsed.stepsOk } : {})
   };
 }

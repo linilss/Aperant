@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
   PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
   PROJECT_DEPLOY_CLEAN_CHECKOUT: 'project:deployCleanCheckout',  // Detached worktree at HEAD so a deploy skips uncommitted changes
   PROJECT_DEPLOY_VERIFY: 'project:deployVerify',  // Verify command after a batch merge; AI fixes collisions
+  PROJECT_DEPLOY_PLAN: 'project:deployPlan',  // Steps the Kanban Deploy button runs now
   PROJECT_DEPLOY_PREFLIGHT: 'project:deployPreflight',      // Branch + uncommitted-changes check before a deploy
   PROJECT_RESOLVE_TASK_DEPLOYMENTS: 'project:resolveTaskDeployments',  // Read finished deploy logs into task_metadata.json
   PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json

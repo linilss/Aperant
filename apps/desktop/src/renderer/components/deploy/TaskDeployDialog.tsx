@@ -11,7 +11,7 @@ import { useTaskStore } from '../../stores/task-store';
 import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
 import { toast } from '../../hooks/use-toast';
 import { getLastDeployment, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
-import { buildCleanCheckoutDeployCommand, buildDeployCommand, newDeployLogPath, withDeployLog } from './deploy-command';
+import { buildChainCommand, buildCleanCheckoutDeployCommand, newDeployLogPath, withDeployLog } from './deploy-command';
 import type { DeployPreflight, DeployScript, Task } from '../../../shared/types';
 
 interface TaskDeployDialogProps {
@@ -22,8 +22,15 @@ interface TaskDeployDialogProps {
 }
 
 /** Saves a started deploy on the task (task_metadata.json) and in the task store. */
-async function recordDeployment(task: Task, script: string, args: string, log: string): Promise<void> {
-  const result = await window.electronAPI.recordTaskDeployment(task.projectId, task.id, { script, args, log });
+async function recordDeployment(
+  task: Task,
+  script: string,
+  args: string,
+  log: string,
+  commit?: string,
+  steps?: string[]
+): Promise<void> {
+  const result = await window.electronAPI.recordTaskDeployment(task.projectId, task.id, { script, args, log, commit, steps });
   if (result.success && result.data) {
     const current = useTaskStore.getState().tasks.find((x) => x.id === task.id);
     useTaskStore.getState().updateTask(task.id, {
@@ -66,22 +73,21 @@ function isOffMainBranch(preflight: DeployPreflight | null | undefined): boolean
  */
 async function buildTaskDeployCommand(
   projectId: string,
-  script: DeployScript,
-  args: string,
+  deployCommand: string,
   preflight: DeployPreflight | null | undefined
 ): Promise<{ command: string; log: string }> {
   const projectPath = useProjectStore.getState().projects.find((p) => p.id === projectId)?.path;
   if (!projectPath) throw new Error('Project not found');
   const log = newDeployLogPath();
   if (!preflight?.hasUncommittedChanges) {
-    return { command: withDeployLog(buildDeployCommand(script, args), projectPath, log), log };
+    return { command: withDeployLog(deployCommand, projectPath, log), log };
   }
   const checkout = await window.electronAPI.prepareDeployCheckout(projectId);
   if (!checkout.success || !checkout.data) {
     throw new Error(checkout.error || 'Could not prepare a clean checkout to deploy from');
   }
   return {
-    command: withDeployLog(buildCleanCheckoutDeployCommand(script, args, checkout.data, projectPath), projectPath, log),
+    command: withDeployLog(buildCleanCheckoutDeployCommand(deployCommand, checkout.data, projectPath), projectPath, log),
     log
   };
 }
@@ -111,27 +117,39 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
     async (tasks: Task[]) => {
       const last = tasks[tasks.length - 1];
       const projectId = last.projectId;
-      const [scriptsResult, preflightResult] = await Promise.all([
-        window.electronAPI.listDeployScripts(projectId),
+      const [planResult, preflightResult] = await Promise.all([
+        window.electronAPI.getDeployPlan(projectId),
         window.electronAPI.getDeployPreflight(projectId)
       ]);
       const fresh = (task: Task) => useTaskStore.getState().tasks.find((x) => x.id === task.id) ?? task;
       const settings = useProjectStore.getState().projects.find((p) => p.id === projectId)?.settings;
-      const script = scriptsResult.success ? resolveProjectDeployScript(scriptsResult.data ?? [], settings) : null;
+      const plan = planResult.success ? planResult.data : undefined;
       const preflight = preflightResult.success ? preflightResult.data : null;
-      if (!script || isOffMainBranch(preflight)) {
+      if (!plan || plan.steps.length === 0 || isOffMainBranch(preflight)) {
         useDeployDialogStore.getState().openForTask(fresh(last));
         return;
       }
+      const steps = plan.steps.filter((s) => s.run).map((s) => s.script);
+      const skipped = plan.steps.filter((s) => !s.run).map((s) => s.script);
+      if (steps.length === 0) {
+        toast({ title: t('chain.nothingChanged', { skipped: skipped.join(', ') }) });
+        return;
+      }
       const args = settings?.deployArgs ?? '';
-      const { command, log } = await buildTaskDeployCommand(projectId, script, args, preflight);
-      if (!runInTerminal.current(command, `${t('title')}: ${script.name}`)) {
+      const label = steps.join(' → ');
+      const { command, log } = await buildTaskDeployCommand(projectId, buildChainCommand(steps, args), preflight);
+      if (!runInTerminal.current(command, `${t('title')}: ${label}`)) {
         toast({ title: t('terminalLimit'), variant: 'destructive' });
         return;
       }
-      for (const task of tasks) await recordDeployment(fresh(task), script.relativePath, args, log);
+      for (const task of tasks) {
+        await recordDeployment(fresh(task), label, steps.length === 1 ? args : '', log, plan.commit, steps);
+      }
       watchDeployments(projectId, tasks.map((task) => task.id));
-      toast({ title: t('task.started', { script: script.name }) });
+      toast({
+        title: t('task.started', { script: label }),
+        ...(skipped.length > 0 ? { description: t('chain.skipped', { skipped: skipped.join(', ') }) } : {})
+      });
     },
     [t]
   );
@@ -309,7 +327,7 @@ function TaskDeployDialogBody({
     let command: string;
     let log: string;
     try {
-      ({ command, log } = await buildTaskDeployCommand(task.projectId, selected, args, preflight));
+      ({ command, log } = await buildTaskDeployCommand(task.projectId, buildChainCommand([selected.relativePath], args), preflight));
     } catch (err) {
       setConfirming(false);
       setError(err instanceof Error ? err.message : String(err));
@@ -323,7 +341,8 @@ function TaskDeployDialogBody({
     if (makeDefault) {
       await updateProjectSettings(task.projectId, { deployScript: selected.relativePath, deployArgs: args.trim() });
     }
-    await recordDeployment(task, selected.relativePath, args, log);
+    const plan = await window.electronAPI.getDeployPlan(task.projectId).catch(() => null);
+    await recordDeployment(task, selected.relativePath, args, log, plan?.data?.commit, [selected.relativePath]);
     watchDeployments(task.projectId, [task.id]);
     onClose();
   };

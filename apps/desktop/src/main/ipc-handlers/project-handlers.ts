@@ -14,11 +14,13 @@ import type {
   DeployScript,
   DeployPreflight,
   DeployVerifyResult,
+  DeployPlan,
   TaskDeployment
 } from '../../shared/types';
 import { projectStore } from '../project-store';
 import { findDeployScripts } from '../deploy-scripts';
 import { verifyAndFixAfterMerge } from '../deploy-verify';
+import { buildDeployPlan } from '../deploy-plan';
 import { appendTaskDeployment, resolveTaskDeployments } from '../task-deployments';
 import { findAllSpecPaths } from '../utils/spec-path-helpers';
 import {
@@ -482,6 +484,30 @@ export function registerProjectHandlers(
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_PLAN,
+    async (_, projectId: string): Promise<IPCResult<DeployPlan>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      try {
+        const discovered = (await findDeployScripts(project.path)).map((s) => s.relativePath);
+        const deployments = projectStore.getTasks(projectId).flatMap((t) => t.metadata?.deployments ?? []);
+        return {
+          success: true,
+          data: buildDeployPlan(
+            project.path,
+            project.settings?.deployChain,
+            discovered,
+            deployments,
+            project.settings?.deployScript
+          )
+        };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not plan the deploy' };
+      }
+    }
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.PROJECT_DEPLOY_VERIFY,
     async (_, projectId: string, mergedTitles: string[]): Promise<IPCResult<DeployVerifyResult>> => {
       const project = projectStore.getProject(projectId);
@@ -542,7 +568,7 @@ export function registerProjectHandlers(
       _,
       projectId: string,
       taskId: string,
-      deployment: { script: string; args?: string; log?: string }
+      deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
     ): Promise<IPCResult<TaskDeployment[]>> => {
       try {
         const project = projectStore.getProject(projectId);
@@ -554,7 +580,9 @@ export function registerProjectHandlers(
           script: deployment.script,
           ...(deployment.args?.trim() ? { args: deployment.args.trim() } : {}),
           at: new Date().toISOString(),
-          ...(deployment.log ? { log: deployment.log, status: 'running' as const } : {})
+          ...(deployment.log ? { log: deployment.log, status: 'running' as const } : {}),
+          ...(deployment.commit ? { commit: deployment.commit } : {}),
+          ...(deployment.steps?.length ? { steps: deployment.steps } : {})
         };
         const deployments = appendTaskDeployment(specPaths, entry);
         if (!deployments) {

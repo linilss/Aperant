@@ -62,8 +62,10 @@ export interface ProjectAPI {
   recordTaskDeployment: (
     projectId: string,
     taskId: string,
-    deployment: { script: string; args?: string; log?: string }
+    deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
   ) => Promise<IPCResult<TaskDeployment[]>>;
+  /** Steps the Kanban Deploy button runs now (subfolder deploys skipped when unchanged) */
+  getDeployPlan: (projectId: string) => Promise<IPCResult<import('../../shared/types').DeployPlan>>;
   /** Read finished deploy logs into the tasks' deployments (taskId → deployments) */
   resolveTaskDeployments: (projectId: string, taskIds: string[]) => Promise<IPCResult<Record<string, TaskDeployment[]>>>;
 
@@ -250,9 +252,10 @@ export const createProjectAPI = (): ProjectAPI => ({
   recordTaskDeployment: (
     projectId: string,
     taskId: string,
-    deployment: { script: string; args?: string; log?: string }
+    deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
   ): Promise<IPCResult<TaskDeployment[]>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT, projectId, taskId, deployment),
+  getDeployPlan: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_PLAN, projectId),
   resolveTaskDeployments: (projectId: string, taskIds: string[]): Promise<IPCResult<Record<string, TaskDeployment[]>>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RESOLVE_TASK_DEPLOYMENTS, projectId, taskIds),
 
