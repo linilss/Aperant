@@ -20,6 +20,8 @@ import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
 import { normalizeIdeationFocus } from '../../../shared/utils/ideation-config';
 import { loadIdeaDirectionTaggingSection, loadStrategyGuidance } from './competitors/guidance';
+import { buildCompetitorIdeasSection, loadFunnelContextSection } from './roadmap-funnel-context';
+import { AUTO_BUILD_PATHS } from '../../../shared/constants';
 import {
   buildKanbanContextSection,
   buildRoadmapContextSection,
@@ -185,6 +187,12 @@ export async function runIdeation(
   }
   prompt += buildFocusSection(config.focus);
   prompt += loadIdeaDirectionTaggingSection(projectDir);
+  // Funnel context: developer pointers, docs map, design system, and competitors for product ideas
+  prompt += await loadFunnelContextSection(projectDir);
+  const competitorFile = join(projectDir, AUTO_BUILD_PATHS.ROADMAP_DIR, AUTO_BUILD_PATHS.COMPETITOR_ANALYSIS);
+  if ((ideationType === 'features' || ideationType === 'ui_ux_improvements') && existsSync(competitorFile)) {
+    prompt += buildCompetitorIdeasSection(competitorFile);
+  }
   // Existing work, so ideas don't duplicate what is already planned
   if (config.includeRoadmapContext) {
     prompt += buildRoadmapContextSection(loadRoadmapFeaturesForContext(projectDir));

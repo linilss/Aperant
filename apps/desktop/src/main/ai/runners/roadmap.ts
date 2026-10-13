@@ -25,6 +25,7 @@ import { tryLoadPrompt } from '../prompts/prompt-loader';
 import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
+import { buildCompetitorSection, loadFunnelContextSection } from './roadmap-funnel-context';
 import {
   createMemoryStore,
   emptyCompetitorState,
@@ -458,7 +459,7 @@ async function runFeaturesPhase(
   abortSignal?: AbortSignal,
   onStream?: RoadmapStreamCallback,
   guidance?: string,
-  useCompetitorAnalysis: boolean = false,
+  _useCompetitorAnalysis: boolean = false,
 ): Promise<RoadmapPhaseResult> {
   const roadmapFile = join(outputDir, 'roadmap.json');
   const competitorFile = join(outputDir, 'competitor_analysis.json');
@@ -487,11 +488,9 @@ async function runFeaturesPhase(
       `\n**EXISTING FEATURES TO PRESERVE** (do NOT regenerate these — generate NEW complementary features):\n${preservedInfo}\n`;
   }
 
-  const competitorSection = useCompetitorAnalysis && existsSync(competitorFile)
-    ? `**Competitor Analysis File**: ${competitorFile}\n` +
-      `Read it and prioritize features that address competitor pain points and market gaps; ` +
-      `put the addressed pain point / gap IDs in each feature's "competitor_insight_ids".\n`
-    : '';
+  // The Competitors page's analysis counts even when this run didn't (re)run that phase
+  const competitorSection = existsSync(competitorFile) ? buildCompetitorSection(competitorFile) : '';
+  const funnelContext = await loadFunnelContextSection(projectDir);
 
   const contextBlock =
     `\n\n**Discovery File**: ${discoveryFile}\n` +
@@ -501,6 +500,7 @@ async function runFeaturesPhase(
     buildGuidanceSection(guidance) +
     loadStrategyGuidance(projectDir, { valuesAlreadyShown: true }) +
     loadDirectionTaggingSection(projectDir) +
+    funnelContext +
     `\nRead the discovery file first, then output your complete roadmap wrapped in <roadmap_features> tags as instructed above.`;
 
   const systemPrompt = loadedFeaturesPrompt
