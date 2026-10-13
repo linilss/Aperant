@@ -23,7 +23,8 @@ import type { QAIssue, QAIterationRecord } from './qa-loop';
 
 const RECURRING_ISSUE_THRESHOLD = 3;
 const ISSUE_SIMILARITY_THRESHOLD = 0.8;
-const MAX_QA_ITERATIONS = 50;
+/** Keep in sync with MAX_QA_ITERATIONS in qa-loop.ts */
+const MAX_QA_ITERATIONS = 5;
 
 // =============================================================================
 // Issue Similarity
@@ -188,7 +189,7 @@ export function generateQAReport(
   if (finalStatus === 'approved') {
     report += `## Result\n\nQA validation passed successfully. The implementation meets all acceptance criteria.\n`;
   } else if (finalStatus === 'max_iterations') {
-    report += `## Result\n\nQA validation reached the maximum of ${MAX_QA_ITERATIONS} iterations without approval. Human review required.\n`;
+    report += `## Result\n\nQA did not converge after ${iterations.length} rounds (maximum ${MAX_QA_ITERATIONS}) without approval. Human review required.\n`;
   } else {
     report += `## Result\n\nQA validation was escalated to human review due to recurring issues. See QA_ESCALATION.md for details.\n`;
   }

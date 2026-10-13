@@ -739,6 +739,7 @@ async function runBuildOrchestrator(
     projectDir: session.projectDir,
     sourceSpecDir: session.sourceSpecDir,
     abortSignal: abortController.signal,
+    verifyCommand: session.verifyCommand,
 
     generatePrompt: async (agentType, _phase, context) => {
       const promptName = agentType === 'coder' ? 'coder' : agentType;

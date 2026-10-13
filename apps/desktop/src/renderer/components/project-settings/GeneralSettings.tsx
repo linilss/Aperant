@@ -221,6 +221,23 @@ export function GeneralSettings({
                 </p>
               )}
             </div>
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="verifyCommand" className="text-sm font-medium text-foreground">
+                {t('projectSections.general.verifyCommand')}
+              </Label>
+              <Input
+                id="verifyCommand"
+                className="font-mono"
+                value={settings.verifyCommand ?? ''}
+                placeholder={t('projectSections.general.verifyCommandPlaceholder')}
+                onChange={(e) =>
+                  setSettings({ ...settings, verifyCommand: e.target.value || undefined })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('projectSections.general.verifyCommandDescription')}
+              </p>
+            </div>
           </section>
 
           <Separator />

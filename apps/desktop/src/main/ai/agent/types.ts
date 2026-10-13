@@ -87,6 +87,11 @@ export interface SerializableSessionConfig {
    * Absent when memory is disabled or nothing relevant was found.
    */
   memoryContext?: string;
+  /**
+   * Project verify command (ProjectSettings.verifyCommand) for the build orchestrator's
+   * quality gate. Absent = no gate.
+   */
+  verifyCommand?: string;
   /** Tool context serialized fields */
   toolContext: {
     cwd: string;

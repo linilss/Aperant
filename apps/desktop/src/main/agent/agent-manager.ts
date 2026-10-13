@@ -597,6 +597,7 @@ export class AgentManager extends EventEmitter {
       },
       useClaudeMd: project?.settings?.useClaudeMd !== false,
       memoryContext,
+      verifyCommand: project?.settings?.verifyCommand?.trim() || undefined,
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,

@@ -358,6 +358,9 @@
       "branchPrefix": "Task branch prefix",
       "branchPrefixDescription": "Tasks run on branches named {{example}}. Branches created with the old malvy/ prefix keep working.",
       "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used.",
+      "verifyCommand": "Verify command",
+      "verifyCommandPlaceholder": "npm run typecheck && npm test",
+      "verifyCommandDescription": "Optional. Runs in the task worktree after each subtask and before QA. If it fails, the agent gets the output and must fix it. Stored in Malvy only, never in your repo.",
       "claudeAccount": {
         "title": "Claude account",
         "description": "The Claude subscription this project's agents, runners and terminals use.",

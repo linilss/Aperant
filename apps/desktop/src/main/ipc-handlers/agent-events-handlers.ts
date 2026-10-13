@@ -24,6 +24,7 @@ import { safeSendToRenderer } from "./utils";
 import { getClaudeProfileManager } from "../claude-profile-manager";
 import { getStrictProjectPin } from "../claude-profile/project-profile";
 import { taskStateManager } from "../task-state-manager";
+import { readAssessedComplexity, shouldRequirePlanReview } from "../agent/plan-review-policy";
 
 // Timeout for fallback safety net to check if task is still stuck after process exit
 const STUCK_TASK_FALLBACK_TIMEOUT_MS = 500;
@@ -212,7 +213,22 @@ export function registerAgenteventsHandlers(
           const specsBaseDir = getSpecsDir(specProject.autoBuildPath);
           const specDir = path.join(specProject.path, specsBaseDir, specTask.specId);
           const specFilePath = path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE);
-          if (existsSync(specFilePath)) {
+          // Plan checkpoint: explicit per-task option wins, otherwise complex tasks wait for approval
+          const complexity = readAssessedComplexity(specDir);
+          const planHasSubtasks = hasPlanWithSubtasks(specProject, specTask);
+          if (
+            existsSync(specFilePath) &&
+            planHasSubtasks &&
+            shouldRequirePlanReview(specTask.metadata?.requireReviewBeforeCoding, complexity)
+          ) {
+            console.warn(`[Task ${taskId}] Spec created (complexity: ${complexity ?? 'unknown'}) — waiting for plan approval`);
+            taskStateManager.handleUiEvent(taskId, {
+              type: 'PLANNING_COMPLETE',
+              hasSubtasks: true,
+              subtaskCount: specTask.subtasks?.length ?? 0,
+              requireReviewBeforeCoding: true,
+            }, specTask, specProject);
+          } else if (existsSync(specFilePath)) {
             console.warn(`[Task ${taskId}] Spec created successfully — starting task execution`);
             // Re-watch the spec directory for the build phase
             fileWatcher.watch(taskId, specDir).catch((err) => {

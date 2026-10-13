@@ -36,8 +36,8 @@ import type { SessionResult } from '../session/types';
 // Constants
 // =============================================================================
 
-/** Maximum QA review/fix iterations before escalating to human */
-const MAX_QA_ITERATIONS = 50;
+/** Maximum QA review/fix iterations before escalating to human (Human Review) */
+export const MAX_QA_ITERATIONS = 5;
 
 /** Stop after this many consecutive errors without progress */
 const MAX_CONSECUTIVE_ERRORS = 3;
@@ -350,9 +350,15 @@ export class QALoop extends EventEmitter {
         this.emitTyped('log', `QA error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}), retrying with error feedback...`);
       }
 
-      // Max iterations reached
+      // Max iterations reached — worker emits QA_MAX_ITERATIONS → Human Review (reviewReason: errors)
       await this.writeReports('max_iterations');
-      return this.outcome(false, maxIterations, Date.now() - startTime, 'max_iterations');
+      return this.outcome(
+        false,
+        maxIterations,
+        Date.now() - startTime,
+        'max_iterations',
+        `QA did not converge after ${maxIterations} rounds — human review needed`,
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return this.outcome(false, 0, Date.now() - startTime, 'error', message);

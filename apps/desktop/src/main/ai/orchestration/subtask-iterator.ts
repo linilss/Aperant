@@ -51,6 +51,12 @@ export interface SubtaskIteratorConfig {
   onSubtaskComplete?: (subtask: SubtaskInfo, result: SessionResult) => void;
   /** Called when a subtask is marked stuck */
   onSubtaskStuck?: (subtask: SubtaskInfo, reason: string) => void;
+  /**
+   * Optional quality gate run after a subtask is marked completed (project verify
+   * command). Returning false puts the subtask back to "pending" so it is retried
+   * (counting towards maxRetries).
+   */
+  verifySubtask?: (subtask: SubtaskInfo) => Promise<boolean>;
   /** Called when insight extraction completes for a subtask (optional). */
   onInsightsExtracted?: (subtaskId: string, insights: ExtractedInsights) => void;
   /**
@@ -235,6 +241,11 @@ export async function iterateSubtasks(
     if (result.outcome === 'completed' || result.outcome === 'max_steps' || result.outcome === 'context_window') {
       await ensureSubtaskMarkedCompleted(config.specDir, subtask.id);
 
+      // Verify gate: a failing project verify command means the subtask is not done
+      if (config.verifySubtask && !(await config.verifySubtask(subtaskInfo))) {
+        await markSubtaskPending(config.specDir, subtask.id);
+      }
+
       // Re-stamp executionPhase on the worktree plan after the coder session.
       // The coder model's Edit/Write calls can overwrite executionPhase with a
       // stale value (read before persistPlanPhaseSync ran). Since the model is
@@ -316,6 +327,29 @@ async function ensureSubtaskMarkedCompleted(
     }
   } catch {
     // Non-fatal: if we can't update the plan the loop will retry or mark stuck
+  }
+}
+
+/**
+ * Put a subtask back to "pending" (verify gate failed) so the iterator retries it.
+ */
+async function markSubtaskPending(specDir: string, subtaskId: string): Promise<void> {
+  const planPath = join(specDir, 'implementation_plan.json');
+  try {
+    const raw = await readFile(planPath, 'utf-8');
+    const plan = safeParseJson<ImplementationPlan>(raw);
+    if (!plan) return;
+    for (const phase of plan.phases) {
+      for (const subtask of phase.subtasks) {
+        if (subtask.id === subtaskId) {
+          subtask.status = 'pending';
+          delete (subtask as PlanSubtask & { completed_at?: string }).completed_at;
+        }
+      }
+    }
+    await writeFile(planPath, JSON.stringify(plan, null, 2));
+  } catch {
+    // Non-fatal: worst case the subtask stays completed and QA's verify gate catches it
   }
 }
 

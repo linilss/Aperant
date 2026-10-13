@@ -66,6 +66,11 @@ export interface ProjectSettings {
   deployScript?: string;
   /** Arguments passed to deployScript */
   deployArgs?: string;
+  /**
+   * Shell command that proves the build is healthy (e.g. "npm run typecheck && npm test").
+   * Run in the task worktree after each subtask and before QA. Malvy-only, never written to the repo.
+   */
+  verifyCommand?: string;
 }
 
 export interface NotificationSettings {
