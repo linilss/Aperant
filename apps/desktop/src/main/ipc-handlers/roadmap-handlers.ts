@@ -26,6 +26,7 @@ import { AgentManager } from "../agent";
 import { debugLog, debugError } from "../../shared/utils/debug-logger";
 import { safeSendToRenderer } from "./utils";
 import { notifyFunnelChanged } from "./funnel-handlers";
+import { recordRemovedFeatures } from "../roadmap-removed";
 import { writeFileWithRetry, readFileWithRetry } from "../utils/atomic-file";
 import { withFileLock } from "../utils/file-lock";
 import { getActiveProviderFeatureSettings, resolveClaudeCliFeatureModel } from "./feature-settings-helper";
@@ -376,6 +377,12 @@ export function registerRoadmapHandlers(
           const incomingFeatures = roadmapData.features.map(featureToSnakeCase);
           // Don't roll back an AI refinement the renderer hasn't received yet
           keepNewerRefinements(existingRoadmap.features, incomingFeatures);
+          // Features the user deleted: remember them so a regenerate doesn't bring them back
+          try {
+            recordRemovedFeatures(path.dirname(roadmapPath), existingRoadmap.features ?? [], incomingFeatures);
+          } catch (err) {
+            debugError("[Roadmap] Failed to record removed features:", err);
+          }
           existingRoadmap.features = incomingFeatures;
 
           // Update metadata timestamp

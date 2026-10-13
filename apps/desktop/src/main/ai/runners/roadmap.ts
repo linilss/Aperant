@@ -26,6 +26,7 @@ import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
 import { buildCompetitorSection, loadFunnelContextSection } from './roadmap-funnel-context';
+import { buildRemovedFeaturesSection, readRemovedFeatures } from '../../roadmap-removed';
 import {
   createMemoryStore,
   emptyCompetitorState,
@@ -497,6 +498,7 @@ async function runFeaturesPhase(
     `**Project Index File**: ${projectIndexFile}\n` +
     competitorSection +
     preservedSection +
+    buildRemovedFeaturesSection(readRemovedFeatures(outputDir)) +
     buildGuidanceSection(guidance) +
     loadStrategyGuidance(projectDir, { valuesAlreadyShown: true }) +
     loadDirectionTaggingSection(projectDir) +
