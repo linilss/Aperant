@@ -40,7 +40,11 @@
     "mergeFailed": "Merge failed, nothing was deployed",
     "failed": "Deploy failed",
     "makeDefault": "Use for this project's Deploy button (no question next time)",
-    "cleanCheckout": "The project has uncommitted changes. They stay out of this deploy: the script runs in a clean copy of the merged code, and file changes it makes (like a version bump) are copied back."
+    "cleanCheckout": "The project has uncommitted changes. They stay out of this deploy: the script runs in a clean copy of the merged code, and file changes it makes (like a version bump) are copied back.",
+    "deployingNow": "Deploying…",
+    "deployFailed": "Deploy failed {{time}}",
+    "inTestFlight": "TestFlight {{version}}",
+    "liveVersion": "Live {{version}}"
   },
   "notDeployed": "{{count}} merged, not deployed",
   "default": "Project default",

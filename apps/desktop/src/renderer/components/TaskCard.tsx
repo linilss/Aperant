@@ -37,7 +37,7 @@ import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, 
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
-import { getLastDeployment } from '../../shared/utils/task-deployments';
+import { formatDeployedVersion, getLastDeployment, isAppStoreDeployment } from '../../shared/utils/task-deployments';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
 
 // Category icon mapping
@@ -112,6 +112,8 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
     prevTask.metadata?.prUrl === nextTask.metadata?.prUrl &&
     prevTask.metadata?.refined === nextTask.metadata?.refined &&
     prevTask.metadata?.deployments?.length === nextTask.metadata?.deployments?.length &&
+    prevTask.metadata?.deployments?.at(-1)?.status === nextTask.metadata?.deployments?.at(-1)?.status &&
+    prevTask.metadata?.deployments?.at(-1)?.version === nextTask.metadata?.deployments?.at(-1)?.version &&
     // Check if any subtask statuses changed (compare all subtasks)
     prevTask.subtasks.every((s, i) => s.status === nextTask.subtasks[i]?.status)
   );
@@ -601,19 +603,7 @@ export const TaskCard = memo(function TaskCard({
               </Badge>
             )}
             {/* Deployed indicator - last deploy started from the Deploy button */}
-            {lastDeployment && (
-              <Badge
-                variant="outline"
-                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
-                title={t('deploy:task.deployedTooltip', {
-                  time: formatRelativeTime(new Date(lastDeployment.at)),
-                  script: lastDeployment.script
-                })}
-              >
-                <Rocket className="h-2.5 w-2.5" />
-                {t('deploy:task.deployed', { time: formatRelativeTime(new Date(lastDeployment.at)) })}
-              </Badge>
-            )}
+            {lastDeployment && <DeploymentBadge deployment={lastDeployment} />}
             {/* Execution phase badge - shown when actively running */}
             {hasActiveExecution && executionPhase && !isStuck && !isIncomplete && (
               <Badge
@@ -996,3 +986,38 @@ export const TaskCard = memo(function TaskCard({
     </>
   );
 }, taskCardPropsAreEqual);
+
+/** Last deploy of a task: running, failed, or what shipped (TestFlight / web version) */
+export function DeploymentBadge({ deployment }: { deployment: import('../../shared/types').TaskDeployment }) {
+  const { t } = useTranslation(['deploy']);
+  const time = formatRelativeTime(new Date(deployment.at));
+  const version = formatDeployedVersion(deployment);
+  const failed = deployment.status === 'failed';
+  const running = deployment.status === 'running';
+  const label = running
+    ? t('deploy:task.deployingNow')
+    : failed
+      ? t('deploy:task.deployFailed', { time })
+      : version
+        ? t(isAppStoreDeployment(deployment) ? 'deploy:task.inTestFlight' : 'deploy:task.liveVersion', { version })
+        : t('deploy:task.deployed', { time });
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1',
+        failed
+          ? 'bg-destructive/10 text-destructive border-destructive/30'
+          : running
+            ? 'bg-info/10 text-info border-info/30'
+            : 'bg-success/10 text-success border-success/30'
+      )}
+      title={[t('deploy:task.deployedTooltip', { time, script: deployment.script }), deployment.summary]
+        .filter(Boolean)
+        .join('\n')}
+    >
+      {running ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Rocket className="h-2.5 w-2.5" />}
+      {label}
+    </Badge>
+  );
+}

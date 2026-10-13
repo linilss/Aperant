@@ -62,8 +62,10 @@ export interface ProjectAPI {
   recordTaskDeployment: (
     projectId: string,
     taskId: string,
-    deployment: { script: string; args?: string }
+    deployment: { script: string; args?: string; log?: string }
   ) => Promise<IPCResult<TaskDeployment[]>>;
+  /** Read finished deploy logs into the tasks' deployments (taskId → deployments) */
+  resolveTaskDeployments: (projectId: string, taskIds: string[]) => Promise<IPCResult<Record<string, TaskDeployment[]>>>;
 
   // Plan funnel (project tab progress, sidebar checks)
   getFunnelProgress: (projectIds: string[]) => Promise<IPCResult<Record<string, FunnelProgress>>>;
@@ -248,9 +250,11 @@ export const createProjectAPI = (): ProjectAPI => ({
   recordTaskDeployment: (
     projectId: string,
     taskId: string,
-    deployment: { script: string; args?: string }
+    deployment: { script: string; args?: string; log?: string }
   ): Promise<IPCResult<TaskDeployment[]>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT, projectId, taskId, deployment),
+  resolveTaskDeployments: (projectId: string, taskIds: string[]): Promise<IPCResult<Record<string, TaskDeployment[]>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RESOLVE_TASK_DEPLOYMENTS, projectId, taskIds),
 
   getFunnelProgress: (projectIds: string[]): Promise<IPCResult<Record<string, FunnelProgress>>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_FUNNEL_PROGRESS, projectIds),

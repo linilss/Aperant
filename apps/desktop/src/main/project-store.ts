@@ -1,3 +1,4 @@
+import { resolveDeployment } from './deploy-log';
 import { app } from 'electron';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, Dirent } from 'fs';
 import { execFileSync } from 'child_process';
@@ -586,6 +587,11 @@ export class ProjectStore {
           } catch {
             // Ignore parse errors
           }
+        }
+
+        // Deploys still marked running: read their logs (logs live under the project root)
+        if (location === 'main' && Array.isArray(metadata?.deployments) && metadata.deployments.some((d) => d.status === 'running')) {
+          metadata.deployments = metadata.deployments.map((d) => resolveDeployment(_basePath, d));
         }
 
         // Detect refined status from refine_session.json if not already set in metadata

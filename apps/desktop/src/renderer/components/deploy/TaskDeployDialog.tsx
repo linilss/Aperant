@@ -11,7 +11,7 @@ import { useTaskStore } from '../../stores/task-store';
 import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
 import { toast } from '../../hooks/use-toast';
 import { getLastDeployment, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
-import { buildCleanCheckoutDeployCommand, buildDeployCommand } from './deploy-command';
+import { buildCleanCheckoutDeployCommand, buildDeployCommand, newDeployLogPath, withDeployLog } from './deploy-command';
 import type { DeployPreflight, DeployScript, Task } from '../../../shared/types';
 
 interface TaskDeployDialogProps {
@@ -22,14 +22,38 @@ interface TaskDeployDialogProps {
 }
 
 /** Saves a started deploy on the task (task_metadata.json) and in the task store. */
-async function recordDeployment(task: Task, script: string, args: string): Promise<void> {
-  const result = await window.electronAPI.recordTaskDeployment(task.projectId, task.id, { script, args });
+async function recordDeployment(task: Task, script: string, args: string, log: string): Promise<void> {
+  const result = await window.electronAPI.recordTaskDeployment(task.projectId, task.id, { script, args, log });
   if (result.success && result.data) {
     const current = useTaskStore.getState().tasks.find((x) => x.id === task.id);
     useTaskStore.getState().updateTask(task.id, {
       metadata: { ...(current?.metadata ?? task.metadata), deployments: result.data }
     });
   }
+}
+
+const DEPLOY_POLL_MS = 10_000;
+const DEPLOY_POLL_MAX_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Poll the deploy log until the run finishes, then put its outcome (status, version,
+ * build) on the tasks. Runs in the background; harmless if the window reloads.
+ */
+function watchDeployments(projectId: string, taskIds: string[]): void {
+  const started = Date.now();
+  const tick = async () => {
+    const result = await window.electronAPI.resolveTaskDeployments(projectId, taskIds).catch(() => null);
+    let running = false;
+    if (result?.success && result.data) {
+      for (const [taskId, deployments] of Object.entries(result.data)) {
+        const current = useTaskStore.getState().tasks.find((x) => x.id === taskId);
+        if (current) useTaskStore.getState().updateTask(taskId, { metadata: { ...current.metadata, deployments } });
+        if (deployments[deployments.length - 1]?.status === 'running') running = true;
+      }
+    }
+    if (running && Date.now() - started < DEPLOY_POLL_MAX_MS) setTimeout(tick, DEPLOY_POLL_MS);
+  };
+  setTimeout(tick, DEPLOY_POLL_MS);
 }
 
 function isOffMainBranch(preflight: DeployPreflight | null | undefined): boolean {
@@ -45,14 +69,21 @@ async function buildTaskDeployCommand(
   script: DeployScript,
   args: string,
   preflight: DeployPreflight | null | undefined
-): Promise<string> {
-  if (!preflight?.hasUncommittedChanges) return buildDeployCommand(script, args);
+): Promise<{ command: string; log: string }> {
   const projectPath = useProjectStore.getState().projects.find((p) => p.id === projectId)?.path;
+  if (!projectPath) throw new Error('Project not found');
+  const log = newDeployLogPath();
+  if (!preflight?.hasUncommittedChanges) {
+    return { command: withDeployLog(buildDeployCommand(script, args), projectPath, log), log };
+  }
   const checkout = await window.electronAPI.prepareDeployCheckout(projectId);
-  if (!projectPath || !checkout.success || !checkout.data) {
+  if (!checkout.success || !checkout.data) {
     throw new Error(checkout.error || 'Could not prepare a clean checkout to deploy from');
   }
-  return buildCleanCheckoutDeployCommand(script, args, checkout.data, projectPath);
+  return {
+    command: withDeployLog(buildCleanCheckoutDeployCommand(script, args, checkout.data, projectPath), projectPath, log),
+    log
+  };
 }
 
 /**
@@ -93,12 +124,13 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
         return;
       }
       const args = settings?.deployArgs ?? '';
-      const command = await buildTaskDeployCommand(projectId, script, args, preflight);
+      const { command, log } = await buildTaskDeployCommand(projectId, script, args, preflight);
       if (!runInTerminal.current(command, `${t('title')}: ${script.name}`)) {
         toast({ title: t('terminalLimit'), variant: 'destructive' });
         return;
       }
-      for (const task of tasks) await recordDeployment(fresh(task), script.relativePath, args);
+      for (const task of tasks) await recordDeployment(fresh(task), script.relativePath, args, log);
+      watchDeployments(projectId, tasks.map((task) => task.id));
       toast({ title: t('task.started', { script: script.name }) });
     },
     [t]
@@ -275,8 +307,9 @@ function TaskDeployDialogBody({
   const handleDeploy = async () => {
     if (!selected) return;
     let command: string;
+    let log: string;
     try {
-      command = await buildTaskDeployCommand(task.projectId, selected, args, preflight);
+      ({ command, log } = await buildTaskDeployCommand(task.projectId, selected, args, preflight));
     } catch (err) {
       setConfirming(false);
       setError(err instanceof Error ? err.message : String(err));
@@ -290,7 +323,8 @@ function TaskDeployDialogBody({
     if (makeDefault) {
       await updateProjectSettings(task.projectId, { deployScript: selected.relativePath, deployArgs: args.trim() });
     }
-    await recordDeployment(task, selected.relativePath, args);
+    await recordDeployment(task, selected.relativePath, args, log);
+    watchDeployments(task.projectId, [task.id]);
     onClose();
   };
 

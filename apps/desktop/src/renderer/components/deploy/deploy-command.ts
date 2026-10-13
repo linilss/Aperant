@@ -23,3 +23,22 @@ export function buildCleanCheckoutDeployCommand(
   const copyBack = `git diff --quiet || { git diff --binary | git -C ${project} apply --3way && echo "==> Copied the script's file changes back to the project" || echo "==> The script changed files in the clean checkout; copy them back by hand"; }`;
   return `cd ${checkout} && { ${buildDeployCommand(script, args)}; ${copyBack}; }; cd ${project}`;
 }
+
+/**
+ * Wraps a deploy command so its output is also written to `<project>/<logRel>`, ending
+ * with an exit-code marker Malvy reads back (see main/deploy-log.ts). Runs in bash with
+ * pipefail so the marker carries the script's own exit code, whatever the user's shell.
+ */
+export function withDeployLog(command: string, projectPath: string, logRel: string): string {
+  const log = `${projectPath.replace(/\/$/, '')}/${logRel}`;
+  const dir = log.slice(0, log.lastIndexOf('/'));
+  const inner =
+    `mkdir -p ${escapeShellPath(dir)}; set -o pipefail; { ${command}; } 2>&1 | tee ${escapeShellPath(log)}; ` +
+    `echo "__MALVY_DEPLOY_EXIT=$?" >> ${escapeShellPath(log)}`;
+  return `bash -c ${escapeShellPath(inner)}`;
+}
+
+/** New log path for a deploy run, relative to the project root */
+export function newDeployLogPath(now = new Date()): string {
+  return `.malvy/deploys/${now.toISOString().replace(/[:.]/g, '-')}.log`;
+}

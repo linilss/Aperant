@@ -2,6 +2,31 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import type { TaskDeployment, TaskMetadata } from '../shared/types';
 import { writeFileAtomicSync } from './utils/atomic-file';
+import { resolveDeployment } from './deploy-log';
+
+/**
+ * Resolve running deployments from their logs and save any that finished, in every spec
+ * location. Returns the (possibly updated) deployments of the first location.
+ */
+export function resolveTaskDeployments(projectPath: string, specPaths: string[]): TaskDeployment[] {
+  let result: TaskDeployment[] | null = null;
+  for (const specPath of specPaths) {
+    const metadataPath = path.join(specPath, 'task_metadata.json');
+    let metadata: TaskMetadata;
+    try {
+      metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
+    } catch {
+      continue;
+    }
+    const before = Array.isArray(metadata.deployments) ? metadata.deployments : [];
+    const after = before.map((d) => resolveDeployment(projectPath, d));
+    if (after.some((d, i) => d !== before[i])) {
+      writeFileAtomicSync(metadataPath, JSON.stringify({ ...metadata, deployments: after }, null, 2));
+    }
+    result ??= after;
+  }
+  return result ?? [];
+}
 
 /**
  * Appends a user-confirmed deploy to `task_metadata.json` in every location of the spec

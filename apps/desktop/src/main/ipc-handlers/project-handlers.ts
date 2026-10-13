@@ -19,7 +19,7 @@ import type {
 import { projectStore } from '../project-store';
 import { findDeployScripts } from '../deploy-scripts';
 import { verifyAndFixAfterMerge } from '../deploy-verify';
-import { appendTaskDeployment } from '../task-deployments';
+import { appendTaskDeployment, resolveTaskDeployments } from '../task-deployments';
 import { findAllSpecPaths } from '../utils/spec-path-helpers';
 import {
   initializeProject,
@@ -522,12 +522,27 @@ export function registerProjectHandlers(
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.PROJECT_RESOLVE_TASK_DEPLOYMENTS,
+    async (_, projectId: string, taskIds: string[]): Promise<IPCResult<Record<string, TaskDeployment[]>>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      const data: Record<string, TaskDeployment[]> = {};
+      for (const taskId of taskIds) {
+        const specPaths = findAllSpecPaths(project.path, getSpecsDir(project.autoBuildPath), taskId);
+        data[taskId] = resolveTaskDeployments(project.path, specPaths);
+      }
+      projectStore.invalidateTasksCache(projectId);
+      return { success: true, data };
+    }
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT,
     async (
       _,
       projectId: string,
       taskId: string,
-      deployment: { script: string; args?: string }
+      deployment: { script: string; args?: string; log?: string }
     ): Promise<IPCResult<TaskDeployment[]>> => {
       try {
         const project = projectStore.getProject(projectId);
@@ -538,7 +553,8 @@ export function registerProjectHandlers(
         const entry: TaskDeployment = {
           script: deployment.script,
           ...(deployment.args?.trim() ? { args: deployment.args.trim() } : {}),
-          at: new Date().toISOString()
+          at: new Date().toISOString(),
+          ...(deployment.log ? { log: deployment.log, status: 'running' as const } : {})
         };
         const deployments = appendTaskDeployment(specPaths, entry);
         if (!deployments) {

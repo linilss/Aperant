@@ -19,6 +19,8 @@ export interface ChangelogTask {
   description: string;
   completedAt: Date;
   hasSpecs: boolean;
+  /** Latest deploy of the task, if any (shows what shipped it, e.g. a TestFlight build) */
+  lastDeployment?: import('./task').TaskDeployment;
 }
 
 export interface TaskSpecContent {

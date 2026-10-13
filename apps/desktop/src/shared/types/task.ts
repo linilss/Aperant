@@ -277,6 +277,16 @@ export interface TaskDeployment {
   args?: string;
   /** ISO timestamp */
   at: string;
+  /** Log of the run, relative to the project root (`.malvy/deploys/<id>.log`) */
+  log?: string;
+  /** From the log; absent on deploys recorded before logging existed */
+  status?: 'running' | 'succeeded' | 'failed';
+  /** What went out, read from the script's output (App Store version or web version) */
+  version?: string;
+  /** App Store / TestFlight build number */
+  build?: string;
+  /** The script's own result line */
+  summary?: string;
 }
 
 export interface Task {

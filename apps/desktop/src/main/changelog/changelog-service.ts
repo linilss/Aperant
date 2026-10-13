@@ -252,7 +252,10 @@ export class ChangelogService extends EventEmitter {
           title: task.title,
           description: task.description,
           completedAt: task.updatedAt,
-          hasSpecs
+          hasSpecs,
+          ...(task.metadata?.deployments?.length
+            ? { lastDeployment: task.metadata.deployments[task.metadata.deployments.length - 1] }
+            : {})
         };
       })
       .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
