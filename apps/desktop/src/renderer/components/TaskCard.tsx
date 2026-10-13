@@ -742,13 +742,14 @@ export const TaskCard = memo(function TaskCard({
         )}
 
         {/* Footer */}
-        <div className="mt-4 flex items-center justify-between">
+        {/* Wraps on narrow columns so the actions (incl. the ⋮ menu) stay inside the card */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             <span>{relativeTime}</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5">
             {/* Action buttons */}
             {rateLimitPause ? (
               <Button
