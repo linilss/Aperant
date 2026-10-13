@@ -31,6 +31,9 @@ import type { ClaudeUsageSnapshot, ProfileUsageSummary } from '../../shared/type
 import type { AppSection } from './settings/AppSettings';
 import { useSettingsStore, saveSettings } from '../stores/settings-store';
 import { useActiveProvider } from '../hooks/useActiveProvider';
+import { useProjectStore } from '../stores/project-store';
+import { useClaudeProfileStore } from '../stores/claude-profile-store';
+import { pickProjectProfile } from '../../shared/utils/project-claude-profile';
 import { PROVIDER_REGISTRY } from '@shared/constants/providers';
 import type { ProviderAccount, BuiltinProvider } from '../../shared/types/provider-account';
 
@@ -126,10 +129,59 @@ const accountHasUsageMonitoring = (account: { provider: string; authType?: strin
   return false;
 };
 
+/**
+ * Re-centre the usage data on another profile: it becomes the "active" snapshot and the
+ * app's active profile moves into the others list. Unchanged when the profile is already
+ * active or has no usage data.
+ */
+function centreUsageOnProfile(
+  usage: ClaudeUsageSnapshot | null,
+  otherProfiles: ProfileUsageSummary[],
+  profileId: string | null
+): { usage: ClaudeUsageSnapshot | null; otherProfiles: ProfileUsageSummary[] } {
+  if (!profileId || !usage || usage.profileId === profileId) return { usage, otherProfiles };
+  const target = otherProfiles.find((p) => p.profileId === profileId);
+  if (!target) return { usage, otherProfiles };
+  const previousActive: ProfileUsageSummary = {
+    profileId: usage.profileId,
+    profileName: usage.profileName,
+    profileEmail: usage.profileEmail,
+    sessionPercent: usage.sessionPercent,
+    weeklyPercent: usage.weeklyPercent,
+    sessionResetTimestamp: usage.sessionResetTimestamp,
+    weeklyResetTimestamp: usage.weeklyResetTimestamp,
+    isAuthenticated: true,
+    isRateLimited: false,
+    availabilityScore: 100 - Math.max(usage.sessionPercent, usage.weeklyPercent),
+    isActive: false,
+    needsReauthentication: usage.needsReauthentication
+  };
+  return {
+    usage: {
+      ...usage,
+      profileId: target.profileId,
+      profileName: target.profileName,
+      profileEmail: target.profileEmail,
+      sessionPercent: target.sessionPercent,
+      weeklyPercent: target.weeklyPercent,
+      sessionResetTime: undefined,
+      weeklyResetTime: undefined,
+      sessionResetTimestamp: target.sessionResetTimestamp,
+      weeklyResetTimestamp: target.weeklyResetTimestamp,
+      needsReauthentication: target.needsReauthentication
+    },
+    otherProfiles: otherProfiles
+      .filter((p) => p.profileId !== profileId)
+      .concat([previousActive])
+      .sort((a, b) => b.availabilityScore - a.availabilityScore)
+  };
+}
+
 export function UsageIndicator() {
   const { t, i18n } = useTranslation(['common']);
-  const [usage, setUsage] = useState<ClaudeUsageSnapshot | null>(null);
-  const [otherProfiles, setOtherProfiles] = useState<ProfileUsageSummary[]>([]);
+  // Raw data is about the app's active profile; usage/otherProfiles below are re-centred on the selected project's account
+  const [rawUsage, setUsage] = useState<ClaudeUsageSnapshot | null>(null);
+  const [rawOtherProfiles, setOtherProfiles] = useState<ProfileUsageSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(false);
   const [activeProfileNeedsReauth, setActiveProfileNeedsReauth] = useState(false);
@@ -139,8 +191,39 @@ export function UsageIndicator() {
 
   const { providerAccounts, settings, setQueueOrder } = useSettingsStore();
 
-  const { account: activeAccount, orderedAccounts, crossProviderOrderedAccounts } = useActiveProvider();
+  const {
+    account: globalActiveAccount,
+    orderedAccounts: globalOrderedAccounts,
+    crossProviderOrderedAccounts
+  } = useActiveProvider();
+
+  // The account the selected project actually runs on (its pinned profile), shown as the active one
+  const selectedProject = useProjectStore((s) => s.projects.find((p) => p.id === s.selectedProjectId));
+  const claudeProfiles = useClaudeProfileStore((s) => s.profiles);
+  const activeClaudeProfileId = useClaudeProfileStore((s) => s.activeProfileId);
+  const projectProfileId = useMemo(() => {
+    if (!selectedProject?.settings?.claudeProfileId) return null;
+    const activeProfile = claudeProfiles.find((p) => p.id === activeClaudeProfileId);
+    return pickProjectProfile(selectedProject.settings, claudeProfiles, activeProfile).profile?.id ?? null;
+  }, [selectedProject?.settings, claudeProfiles, activeClaudeProfileId]);
+
+  const projectAccount = projectProfileId
+    ? globalOrderedAccounts.find((a) => a.claudeProfileId === projectProfileId)
+    : undefined;
+  const activeAccount = projectAccount ?? globalActiveAccount;
+  const orderedAccounts = useMemo(
+    () =>
+      projectAccount
+        ? [projectAccount, ...globalOrderedAccounts.filter((a) => a.id !== projectAccount.id)]
+        : globalOrderedAccounts,
+    [projectAccount, globalOrderedAccounts]
+  );
   const otherAccounts = orderedAccounts.slice(1);
+
+  const { usage, otherProfiles } = useMemo(
+    () => centreUsageOnProfile(rawUsage, rawOtherProfiles, projectProfileId),
+    [rawUsage, rawOtherProfiles, projectProfileId]
+  );
 
   // Usage monitoring is available for Anthropic/OpenAI OAuth accounts and Z.AI API key accounts
   const hasUsageMonitoring = activeAccount ? accountHasUsageMonitoring(activeAccount) : false;
@@ -246,7 +329,7 @@ export function UsageIndicator() {
         <div className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground font-medium">
-              {t('common:usage.activeAccount')}
+              {projectAccount ? t('common:usage.projectAccount') : t('common:usage.activeAccount')}
             </span>
             {showReauth && (
               <span className="text-[9px] px-1.5 py-0.5 bg-red-500/10 text-destructive rounded font-semibold">
