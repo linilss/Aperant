@@ -48,6 +48,8 @@ export interface RoadmapHeaderProps {
   onRefresh: () => void;
   onViewCompetitorAnalysis?: () => void;
   onRefineFeature: () => void;
+  /** Remove every feature that isn't done (asks first) */
+  onClearOpen: () => void;
 }
 
 export interface RoadmapEmptyStateProps {

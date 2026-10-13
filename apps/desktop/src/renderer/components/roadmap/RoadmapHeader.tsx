@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Target, Users, BarChart3, RefreshCw, Plus, TrendingUp, Sparkles } from 'lucide-react';
+import { Target, Users, BarChart3, RefreshCw, Plus, TrendingUp, Sparkles, Trash2 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { PageHeader, ChipRow, type PageHeaderAction } from '../ui/page-header';
@@ -7,7 +7,7 @@ import { getFeatureStats } from '../../stores/roadmap-store';
 import { ROADMAP_PRIORITY_COLORS } from '../../../shared/constants';
 import type { RoadmapHeaderProps } from './types';
 
-export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRefresh, onViewCompetitorAnalysis, onRefineFeature }: RoadmapHeaderProps) {
+export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRefresh, onViewCompetitorAnalysis, onRefineFeature, onClearOpen }: RoadmapHeaderProps) {
   const { t } = useTranslation('common');
   const stats = getFeatureStats(roadmap);
 
@@ -15,6 +15,14 @@ export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRef
     { id: 'add', label: t('roadmap.header.addFeature'), icon: Plus, onClick: onAddFeature, primary: true, tooltip: t('roadmap.header.addFeatureTooltip') },
     { id: 'refine', label: t('roadmap.header.refine'), icon: Sparkles, onClick: onRefineFeature, tooltip: t('roadmap.header.refineTooltip') },
     { id: 'regenerate', label: t('roadmap.header.regenerate'), icon: RefreshCw, onClick: onRefresh, iconOnly: true },
+    {
+      id: 'clear-open',
+      label: t('roadmap.header.clearOpen'),
+      icon: Trash2,
+      onClick: onClearOpen,
+      iconOnly: true,
+      disabled: roadmap.features.every((f) => f.status === 'done'),
+    },
   ];
 
   const titleAddon = (

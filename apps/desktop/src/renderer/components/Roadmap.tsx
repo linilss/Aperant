@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive } from 'lucide-react';
+import { Archive, Trash2 } from 'lucide-react';
 import { RoadmapGenerationProgress } from './RoadmapGenerationProgress';
 import { CompetitorAnalysisDialog } from './CompetitorAnalysisDialog';
 import { RegenerateGuidanceDialog } from './roadmap/RegenerateGuidanceDialog';
@@ -55,7 +55,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
   const { roadmap, competitorAnalysis, generationStatus } = useRoadmapData(projectId);
   const { convertFeatureToSpec } = useFeatureActions();
   const { saveRoadmap } = useRoadmapSave(projectId);
-  const { deleteFeature } = useFeatureDelete(projectId);
+  const { deleteFeature, deleteFeatures } = useFeatureDelete(projectId);
+  const [showClearOpen, setShowClearOpen] = useState(false);
   const {
     showCompetitorDialog,
     setShowCompetitorDialog,
@@ -151,6 +152,14 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
     }
   };
 
+  const openFeatures = roadmap?.features.filter((f) => f.status !== 'done') ?? [];
+  const confirmClearOpen = async () => {
+    const ids = openFeatures.map((f) => f.id);
+    setShowClearOpen(false);
+    if (selectedFeature && ids.includes(selectedFeature.id)) setSelectedFeature(null);
+    await deleteFeatures(ids);
+  };
+
   // Show generation progress
   if (generationStatus.phase !== 'idle' && generationStatus.phase !== 'complete') {
     return (
@@ -201,6 +210,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
         onRefresh={handleRefresh}
         onViewCompetitorAnalysis={() => setShowCompetitorViewer(true)}
         onRefineFeature={() => openRefine(projectId)}
+        onClearOpen={() => setShowClearOpen(true)}
       />
 
       {/* Content: tab row stays pinned on phones, the rest scrolls with the page */}
@@ -274,6 +284,33 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
         open={showAddFeatureDialog}
         onOpenChange={setShowAddFeatureDialog}
       />
+
+      {/* Clear open features confirmation */}
+      <AlertDialog open={showClearOpen} onOpenChange={setShowClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              <AlertDialogTitle>{t('roadmap.clearOpen.title', { count: openFeatures.length })}</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              {t('roadmap.clearOpen.description', {
+                done: roadmap.features.length - openFeatures.length,
+                inProgress: openFeatures.filter((f) => f.status === 'in_progress').length
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('buttons.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmClearOpen}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t('roadmap.clearOpen.confirm', { count: openFeatures.length })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Archive Confirmation Dialog */}
       <AlertDialog

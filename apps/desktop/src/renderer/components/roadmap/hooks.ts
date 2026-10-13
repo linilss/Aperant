@@ -112,7 +112,16 @@ export function useFeatureDelete(projectId: string) {
     }
   };
 
-  return { deleteFeature: handleDeleteFeature };
+  /** Delete several features and save once */
+  const handleDeleteFeatures = async (featureIds: string[]) => {
+    for (const id of featureIds) deleteFeature(id);
+    const roadmap = useRoadmapStore.getState().roadmap;
+    if (roadmap) {
+      await window.electronAPI.saveRoadmap(projectId, roadmap);
+    }
+  };
+
+  return { deleteFeature: handleDeleteFeature, deleteFeatures: handleDeleteFeatures };
 }
 
 

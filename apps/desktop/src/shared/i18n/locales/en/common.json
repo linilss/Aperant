@@ -850,7 +850,8 @@
       "morePersonas": "+{{count}} more personas",
       "secondaryPersonas": "Secondary Personas:",
       "features": "features",
-      "phases": "phases"
+      "phases": "phases",
+      "clearOpen": "Remove all features that aren't done"
     },
     "tabs": {
       "kanban": "Kanban",
@@ -943,6 +944,13 @@
         "avoidTooltip": "Direction #{{rank}} (avoid): {{title}}",
         "regenerateHint": "Regenerate the roadmap to tag features with directions"
       }
+    },
+    "clearOpen": {
+      "title_one": "Remove {{count}} open feature?",
+      "title_other": "Remove {{count}} open features?",
+      "description": "Every feature that isn't done is removed from the roadmap, including {{inProgress}} in progress. {{done}} done features stay. Tasks already created from features are not touched. This can't be undone.",
+      "confirm_one": "Remove {{count}} feature",
+      "confirm_other": "Remove {{count}} features"
     }
   },
   "roadmapGeneration": {
