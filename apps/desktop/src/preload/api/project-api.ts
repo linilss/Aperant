@@ -57,6 +57,8 @@ export interface ProjectAPI {
   getDeployPreflight: (projectId: string) => Promise<IPCResult<DeployPreflight>>;
   /** Path of a clean, detached checkout of the project's HEAD to deploy from */
   prepareDeployCheckout: (projectId: string) => Promise<IPCResult<string>>;
+  /** Run the project's verify command on the main checkout; an agent fixes collisions */
+  verifyBeforeDeploy: (projectId: string, mergedTitles: string[]) => Promise<IPCResult<import('../../shared/types').DeployVerifyResult>>;
   recordTaskDeployment: (
     projectId: string,
     taskId: string,
@@ -240,6 +242,8 @@ export const createProjectAPI = (): ProjectAPI => ({
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_PREFLIGHT, projectId),
   prepareDeployCheckout: (projectId: string): Promise<IPCResult<string>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_CLEAN_CHECKOUT, projectId),
+  verifyBeforeDeploy: (projectId: string, mergedTitles: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_VERIFY, projectId, mergedTitles),
 
   recordTaskDeployment: (
     projectId: string,

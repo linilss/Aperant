@@ -13,10 +13,12 @@ import type {
   GitBranchDetail,
   DeployScript,
   DeployPreflight,
+  DeployVerifyResult,
   TaskDeployment
 } from '../../shared/types';
 import { projectStore } from '../project-store';
 import { findDeployScripts } from '../deploy-scripts';
+import { verifyAndFixAfterMerge } from '../deploy-verify';
 import { appendTaskDeployment } from '../task-deployments';
 import { findAllSpecPaths } from '../utils/spec-path-helpers';
 import {
@@ -475,6 +477,22 @@ export function registerProjectHandlers(
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_VERIFY,
+    async (_, projectId: string, mergedTitles: string[]): Promise<IPCResult<DeployVerifyResult>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      try {
+        return {
+          success: true,
+          data: await verifyAndFixAfterMerge(project.path, project.settings?.verifyCommand, mergedTitles ?? [])
+        };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Verify failed' };
       }
     }
   );

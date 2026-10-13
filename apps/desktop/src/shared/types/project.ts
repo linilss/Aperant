@@ -457,6 +457,19 @@ export interface DeployScript {
   usage?: string;
 }
 
+/** Result of the verify-and-fix step before a batch deploy */
+export interface DeployVerifyResult {
+  ok: boolean;
+  /** No verify command configured */
+  skipped?: boolean;
+  /** An agent fixed a failure and the fix was committed */
+  fixed?: boolean;
+  /** Tail of the failing command's output */
+  output?: string;
+  /** uncommitted = not fixed because the checkout has the user's uncommitted work */
+  reason?: 'uncommitted' | 'still-failing';
+}
+
 /** Project working-tree state checked before deploying (non-blocking warnings). */
 export interface DeployPreflight {
   currentBranch: string | null;

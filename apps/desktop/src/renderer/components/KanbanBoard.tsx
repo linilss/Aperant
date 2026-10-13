@@ -20,7 +20,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2, PauseCircle } from 'lucide-react';
+import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2, PauseCircle, Rocket } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
@@ -32,6 +32,7 @@ import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants'
 import { cn } from '../lib/utils';
 import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, isRateLimitPaused, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
+import { useDeployDialogStore } from '../stores/deploy-dialog-store';
 import { useKanbanSettingsStore, DEFAULT_COLUMN_WIDTH, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, COLLAPSED_COLUMN_WIDTH_REM, MIN_COLUMN_WIDTH_REM, MAX_COLUMN_WIDTH_REM, DEFAULT_COLUMN_WIDTH_REM, BASE_FONT_SIZE, pxToRem } from '../stores/kanban-settings-store';
 import { useToast } from '../hooks/use-toast';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -193,6 +194,57 @@ function droppableColumnPropsAreEqual(
 function ColumnListScroller({ flat, children }: { flat?: boolean; children: ReactNode }) {
   if (flat) return <div className="px-3 pb-3 pt-2">{children}</div>;
   return <ScrollArea className="h-full px-3 pb-3 pt-2">{children}</ScrollArea>;
+}
+
+/**
+ * Pending Merge header rocket: merge every task oldest first (AI resolves conflicts),
+ * run the verify command (AI fixes collisions), then deploy once. Two clicks to start.
+ */
+function DeployAllButton({ tasks }: { tasks: Task[] }) {
+  const { t } = useTranslation(['deploy']);
+  const projectId = tasks[0]?.projectId;
+  const batch = useDeployDialogStore((s) => (projectId ? s.batches[projectId] : undefined));
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+
+  const label = batch
+    ? t(`deploy:batch.step.${batch.step}`, { index: batch.index, total: batch.total })
+    : armed
+      ? t('deploy:batch.confirm', { count: tasks.length })
+      : t('deploy:batch.button', { count: tasks.length });
+
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <Button
+          variant={armed ? 'destructive' : 'ghost'}
+          size={armed || batch ? 'sm' : 'icon'}
+          className={cn(
+            'h-7 max-md:h-9',
+            armed || batch ? 'px-2 text-xs' : 'w-7 max-md:w-9 hover:bg-primary/10 hover:text-primary'
+          )}
+          disabled={!!batch}
+          aria-label={label}
+          onClick={() => {
+            if (!armed) {
+              setArmed(true);
+              return;
+            }
+            setArmed(false);
+            useDeployDialogStore.getState().deployAll(tasks);
+          }}
+        >
+          {batch ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+          {(armed || batch) && <span className="ml-1.5 whitespace-nowrap">{label}</span>}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{t('deploy:batch.tooltip')}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 /** Horizontal swipe distance (px) that switches the phone column tab */
@@ -584,6 +636,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
               <Settings className="h-4 w-4" />
             </Button>
           )}
+          {status === 'pending_merge' && tasks.length > 0 && <DeployAllButton tasks={tasks} />}
           {status === 'done' && onArchiveAll && tasks.length > 0 && !showArchived && (
             <Button
               variant="ghost"

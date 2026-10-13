@@ -71,43 +71,63 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
   const runInTerminal = useRef(onRunInTerminal);
   runInTerminal.current = onRunInTerminal;
 
+  /**
+   * Deploy step shared by one-click and batch deploys: run the project's deploy script
+   * and record it on every task. Falls back to the dialog (for the last task) without a
+   * resolvable script or when the checkout is on the wrong branch.
+   */
+  const deployMerged = useCallback(
+    async (tasks: Task[]) => {
+      const last = tasks[tasks.length - 1];
+      const projectId = last.projectId;
+      const [scriptsResult, preflightResult] = await Promise.all([
+        window.electronAPI.listDeployScripts(projectId),
+        window.electronAPI.getDeployPreflight(projectId)
+      ]);
+      const fresh = (task: Task) => useTaskStore.getState().tasks.find((x) => x.id === task.id) ?? task;
+      const settings = useProjectStore.getState().projects.find((p) => p.id === projectId)?.settings;
+      const script = scriptsResult.success ? resolveProjectDeployScript(scriptsResult.data ?? [], settings) : null;
+      const preflight = preflightResult.success ? preflightResult.data : null;
+      if (!script || isOffMainBranch(preflight)) {
+        useDeployDialogStore.getState().openForTask(fresh(last));
+        return;
+      }
+      const args = settings?.deployArgs ?? '';
+      const command = await buildTaskDeployCommand(projectId, script, args, preflight);
+      if (!runInTerminal.current(command, `${t('title')}: ${script.name}`)) {
+        toast({ title: t('terminalLimit'), variant: 'destructive' });
+        return;
+      }
+      for (const task of tasks) await recordDeployment(fresh(task), script.relativePath, args);
+      toast({ title: t('task.started', { script: script.name }) });
+    },
+    [t]
+  );
+
+  const quickMerge = useCallback(
+    async (task: Task): Promise<boolean> => {
+      const merge = await window.electronAPI.mergeWorktree(task.id, { quickMerge: true });
+      if (merge.success && merge.data?.success) return true;
+      toast({
+        title: t('batch.mergeFailed', { title: task.title }),
+        description: merge.data?.message || merge.error,
+        variant: 'destructive'
+      });
+      return false;
+    },
+    [t]
+  );
+
   const deployOneClick = useCallback(
     async (task: Task) => {
-      const { setStage, openForTask } = useDeployDialogStore.getState();
+      const { setStage } = useDeployDialogStore.getState();
       try {
         if (task.status !== 'done') {
           setStage(task.id, 'merging');
-          const merge = await window.electronAPI.mergeWorktree(task.id, { quickMerge: true });
-          if (!(merge.success && merge.data?.success)) {
-            toast({
-              title: t('task.mergeFailed'),
-              description: merge.data?.message || merge.error,
-              variant: 'destructive'
-            });
-            return;
-          }
+          if (!(await quickMerge(task))) return;
         }
         setStage(task.id, 'deploying');
-        const [scriptsResult, preflightResult] = await Promise.all([
-          window.electronAPI.listDeployScripts(task.projectId),
-          window.electronAPI.getDeployPreflight(task.projectId)
-        ]);
-        const current = useTaskStore.getState().tasks.find((x) => x.id === task.id) ?? task;
-        const settings = useProjectStore.getState().projects.find((p) => p.id === task.projectId)?.settings;
-        const script = scriptsResult.success ? resolveProjectDeployScript(scriptsResult.data ?? [], settings) : null;
-        const preflight = preflightResult.success ? preflightResult.data : null;
-        if (!script || isOffMainBranch(preflight)) {
-          openForTask(current);
-          return;
-        }
-        const args = settings?.deployArgs ?? '';
-        const command = await buildTaskDeployCommand(task.projectId, script, args, preflight);
-        if (!runInTerminal.current(command, `${t('title')}: ${script.name}`)) {
-          toast({ title: t('terminalLimit'), variant: 'destructive' });
-          return;
-        }
-        await recordDeployment(current, script.relativePath, args);
-        toast({ title: t('task.started', { script: script.name }) });
+        await deployMerged([task]);
       } catch (err) {
         toast({
           title: t('task.failed'),
@@ -118,13 +138,71 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
         setStage(task.id, null);
       }
     },
-    [t]
+    [t, quickMerge, deployMerged]
+  );
+
+  /** Merge every task oldest first (AI resolves conflicts), verify + fix collisions, deploy once. */
+  const deployBatch = useCallback(
+    async (tasks: Task[]) => {
+      if (tasks.length === 0) return;
+      const { setStage, setBatch } = useDeployDialogStore.getState();
+      const projectId = tasks[0].projectId;
+      const ordered = [...tasks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const merged: Task[] = [];
+      try {
+        for (const [index, task] of ordered.entries()) {
+          setBatch(projectId, { step: 'merging', index: index + 1, total: ordered.length });
+          setStage(task.id, 'merging');
+          const ok = await quickMerge(task);
+          setStage(task.id, null);
+          if (!ok) {
+            if (merged.length > 0) toast({ title: t('batch.stopped', { merged: merged.length, total: ordered.length }) });
+            return;
+          }
+          merged.push(task);
+        }
+
+        setBatch(projectId, { step: 'verifying', index: ordered.length, total: ordered.length });
+        const verify = await window.electronAPI.verifyBeforeDeploy(
+          projectId,
+          merged.map((task) => task.title)
+        );
+        if (!verify.success || !verify.data?.ok) {
+          toast({
+            title:
+              verify.data?.reason === 'uncommitted' ? t('batch.verifyFailedUncommitted') : t('batch.verifyFailed'),
+            description: verify.data?.output?.split('\n').slice(-6).join('\n') || verify.error,
+            variant: 'destructive'
+          });
+          return;
+        }
+        if (verify.data.fixed) toast({ title: t('batch.fixed') });
+
+        setBatch(projectId, { step: 'deploying', index: ordered.length, total: ordered.length });
+        await deployMerged(merged);
+      } catch (err) {
+        toast({
+          title: t('task.failed'),
+          description: err instanceof Error ? err.message : String(err),
+          variant: 'destructive'
+        });
+      } finally {
+        for (const task of ordered) setStage(task.id, null);
+        setBatch(projectId, null);
+      }
+    },
+    [t, quickMerge, deployMerged]
   );
 
   useEffect(() => {
-    useDeployDialogStore.getState().setRunner(deployOneClick);
-    return () => useDeployDialogStore.getState().setRunner(null);
-  }, [deployOneClick]);
+    const store = useDeployDialogStore.getState();
+    store.setRunner(deployOneClick);
+    store.setBatchRunner(deployBatch);
+    return () => {
+      store.setRunner(null);
+      store.setBatchRunner(null);
+    };
+  }, [deployOneClick, deployBatch]);
 
   return (
     <Dialog open={!!task} onOpenChange={(open) => !open && close()}>

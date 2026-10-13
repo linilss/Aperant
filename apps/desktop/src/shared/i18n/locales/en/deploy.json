@@ -45,5 +45,20 @@
   "notDeployed": "{{count}} merged, not deployed",
   "default": "Project default",
   "makeDefault": "Use as default",
-  "defaultTooltip": "The Deploy button on task cards runs this script"
+  "defaultTooltip": "The Deploy button on task cards runs this script",
+  "batch": {
+    "button": "Merge all and deploy ({{count}})",
+    "confirm": "Merge {{count}} + deploy?",
+    "tooltip": "Merges every task here, oldest first (AI resolves conflicts), runs the project's verify command and lets AI fix collisions, then deploys once with the project's deploy script.",
+    "step": {
+      "merging": "Merging {{index}}/{{total}}…",
+      "verifying": "Verifying…",
+      "deploying": "Deploying…"
+    },
+    "mergeFailed": "Merge stopped at \"{{title}}\"",
+    "stopped": "{{merged}} of {{total}} tasks were merged before it stopped; nothing was deployed.",
+    "verifyFailed": "Verify still fails after merging; nothing was deployed",
+    "verifyFailedUncommitted": "Verify fails and the project has uncommitted changes, so AI didn't try to fix it; nothing was deployed",
+    "fixed": "AI fixed a collision between the merged tasks and committed the fix"
+  }
 }

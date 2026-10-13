@@ -52,6 +52,7 @@ export const projectMock = {
     data: { currentBranch: 'main', mainBranch: 'main', hasUncommittedChanges: false }
   }),
   prepareDeployCheckout: async () => ({ success: true, data: '/Users/demo/projects/demo/.malvy/worktrees/deploy' }),
+  verifyBeforeDeploy: async () => ({ success: true, data: { ok: true, skipped: true } }),
   recordTaskDeployment: async () => ({ success: true, data: [] }),
   getFunnelProgress: async (projectIds: string[]) => ({
     success: true,
