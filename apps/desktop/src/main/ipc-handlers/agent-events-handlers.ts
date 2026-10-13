@@ -1,3 +1,4 @@
+import { isBuildArtifactPath } from '../utils/build-artifact-paths';
 import type { BrowserWindow } from "electron";
 import path from "path";
 import { execFileSync } from "child_process";
@@ -283,7 +284,25 @@ export function registerAgenteventsHandlers(
               ['add', '.'],
               { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
             );
-            execFileSync(
+            // Keep build output the ignore rules missed out of the commit
+            const artifacts = execFileSync(
+              getToolPath('git'),
+              ['diff', '--cached', '--name-only', '-z'],
+              { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+            ).split('\0').filter((p) => p && isBuildArtifactPath(p));
+            if (artifacts.length > 0) {
+              execFileSync(
+                getToolPath('git'),
+                ['reset', '-q', '--pathspec-from-file=-', '--pathspec-file-nul'],
+                { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe', input: artifacts.map((p) => `:(literal)${p}`).join('\0') }
+              );
+            }
+            const stillStaged = execFileSync(
+              getToolPath('git'),
+              ['diff', '--cached', '--name-only'],
+              { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+            ).trim();
+            if (stillStaged) execFileSync(
               getToolPath('git'),
               ['commit', '-m', `Save uncommitted work for ${taskTitle}`],
               { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
