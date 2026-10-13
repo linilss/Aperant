@@ -42,31 +42,13 @@ You must fix these issues so QA can approve.
 
 ## PHASE 0: LOAD CONTEXT (MANDATORY)
 
-```bash
-# 1. Read the QA fix request (YOUR PRIMARY TASK)
-cat QA_FIX_REQUEST.md
+From the spec dir, read:
+1. `QA_FIX_REQUEST.md` — YOUR PRIMARY TASK: issues, locations, required fixes, how QA will verify
+2. `qa_report.md` (if present) — full context on each issue (read-only for you)
+3. `spec.md` and `implementation_plan.json` (see `qa_signoff`, including earlier rounds' issues)
+4. `QA_ESCALATION.md` and `build-progress.txt`, if present
 
-# 2. Read the QA report (full context on issues)
-cat qa_report.md 2>/dev/null || echo "No detailed report"
-
-# 3. Read the spec (requirements)
-cat spec.md
-
-# 4. Read the implementation plan (see qa_signoff status)
-cat implementation_plan.json
-
-# 5. Check current state
-git status
-git log --oneline -5
-```
-
-**CRITICAL**: The `QA_FIX_REQUEST.md` file contains:
-- Exact issues to fix
-- File locations
-- Required fixes
-- Verification criteria
-
----
+Then look at what the branch already changed: `git status`, `git log --oneline -5`, and `git diff <base>...HEAD --stat` (base = `baseBranch` in `task_metadata.json`, else `main`/`master`/`develop`). Read only the files and regions the issues point at; don't re-read files already in context.
 
 ## PHASE 1: PARSE FIX REQUIREMENTS
 
@@ -100,124 +82,10 @@ lsof -iTCP -sTCP:LISTEN | grep -E "node|python|next|vite"
 
 ---
 
-## 🚨 CRITICAL: PATH CONFUSION PREVENTION 🚨
+## PATHS AND WORKTREE ISOLATION
 
-**THE #1 BUG IN MONOREPOS: Doubled paths after `cd` commands**
-
-### The Problem
-
-After running `cd ./apps/desktop`, your current directory changes. If you then use paths like `apps/desktop/src/file.ts`, you're creating **doubled paths** like `apps/desktop/apps/desktop/src/file.ts`.
-
-### The Solution: ALWAYS CHECK YOUR CWD
-
-**BEFORE every git command or file operation:**
-
-```bash
-# Step 1: Check where you are
-pwd
-
-# Step 2: Use paths RELATIVE TO CURRENT DIRECTORY
-# If pwd shows: /path/to/project/apps/desktop
-# Then use: git add src/file.ts
-# NOT: git add apps/desktop/src/file.ts
-```
-
-### Examples
-
-**❌ WRONG - Path gets doubled:**
-```bash
-cd ./apps/desktop
-git add apps/desktop/src/file.ts  # Looks for apps/desktop/apps/desktop/src/file.ts
-```
-
-**✅ CORRECT - Use relative path from current directory:**
-```bash
-cd ./apps/desktop
-pwd  # Shows: /path/to/project/apps/desktop
-git add src/file.ts  # Correctly adds apps/desktop/src/file.ts from project root
-```
-
-**✅ ALSO CORRECT - Stay at root, use full relative path:**
-```bash
-# Don't change directory at all
-git add ./apps/desktop/src/file.ts  # Works from project root
-```
-
-### Mandatory Pre-Command Check
-
-**Before EVERY git add, git commit, or file operation in a monorepo:**
-
-```bash
-# 1. Where am I?
-pwd
-
-# 2. What files am I targeting?
-ls -la [target-path]  # Verify the path exists
-
-# 3. Only then run the command
-git add [verified-path]
-```
-
-**This check takes 2 seconds and prevents hours of debugging.**
-
----
-
-## 🚨 CRITICAL: WORKTREE ISOLATION 🚨
-
-**You may be in an ISOLATED GIT WORKTREE environment.**
-
-Check the "YOUR ENVIRONMENT" section at the top of this prompt. If you see an
-**"ISOLATED WORKTREE - CRITICAL"** section, you are in a worktree.
-
-### What is a Worktree?
-
-A worktree is a **complete copy of the project** isolated from the main project.
-This allows safe development without affecting the main branch.
-
-### Worktree Rules (CRITICAL)
-
-**If you are in a worktree, the environment section will show:**
-
-* **YOUR LOCATION:** The path to your isolated worktree
-* **FORBIDDEN PATH:** The parent project path you must NEVER `cd` to
-
-**CRITICAL RULES:**
-* **NEVER** `cd` to the forbidden parent path
-* **NEVER** use `cd ../..` to escape the worktree
-* **STAY** within your working directory at all times
-* **ALL** file operations use paths relative to your current location
-
-### Why This Matters
-
-Escaping the worktree causes:
-* ❌ Git commits going to the wrong branch
-* ❌ Files created/modified in the wrong location
-* ❌ Breaking worktree isolation guarantees
-* ❌ Losing the safety of isolated development
-
-### How to Stay Safe
-
-**Before ANY `cd` command:**
-
-```bash
-# 1. Check where you are
-pwd
-
-# 2. Verify the target is within your worktree
-# If pwd shows: /path/to/.malvy/worktrees/tasks/spec-name/
-# Then: cd ./apps/desktop  ✅ SAFE
-# But:  cd /path/to/parent/project  ❌ FORBIDDEN - ESCAPES ISOLATION
-
-# 3. When in doubt, don't use cd at all
-# Use relative paths from your current directory instead
-git add ./apps/desktop/src/file.ts  # Works from anywhere in worktree
-```
-
-### The Golden Rule in Worktrees
-
-**If you're in a worktree, pretend the parent project doesn't exist.**
-
-Everything you need is in your worktree, accessible via relative paths.
+- If your environment shows an isolated worktree / `FORBIDDEN PATH`, never `cd` to the parent project or out of the worktree (`cd ../..`): commits there land on the wrong branch. Convert absolute parent-project paths to relative ones.
+- No doubled paths: after `cd apps/desktop`, use `git add src/x.ts`, not `apps/desktop/src/x.ts`. Prefer staying at the root; run `pwd` before git commands if you changed directory.
 
 ---
 
@@ -282,7 +150,9 @@ After all fixes are applied:
 [failed test commands from QA report]
 ```
 
-**All tests must pass before proceeding.**
+If your prompt or task context provides a project verify command, run it too.
+
+**All tests and the verify command must pass before proceeding.** Then review `git diff` of your fixes for debug leftovers, unrelated edits and missing tests.
 
 ---
 
@@ -307,30 +177,7 @@ If any issue is not fixed, go back to Phase 3.
 
 ## PHASE 6: COMMIT FIXES
 
-### Path Verification (MANDATORY FIRST STEP)
-
-**🚨 BEFORE running ANY git commands, verify your current directory:**
-
-```bash
-# Step 1: Where am I?
-pwd
-
-# Step 2: What files do I want to commit?
-# If you changed to a subdirectory (e.g., cd apps/desktop),
-# you need to use paths RELATIVE TO THAT DIRECTORY, not from project root
-
-# Step 3: Verify paths exist
-ls -la [path-to-files]  # Make sure the path is correct from your current location
-
-# Example in a monorepo:
-# If pwd shows: /project/apps/desktop
-# Then use: git add src/file.ts
-# NOT: git add apps/desktop/src/file.ts (this would look for apps/desktop/apps/desktop/src/file.ts)
-```
-
-**CRITICAL RULE:** If you're in a subdirectory, either:
-- **Option A:** Return to project root: `cd [back to working directory]`
-- **Option B:** Use paths relative to your CURRENT directory (check with `pwd`)
+Commit from the working-directory root (check `pwd`).
 
 ### Create the Commit
 
@@ -501,16 +348,11 @@ The repository inherits the user's configured git identity. Do NOT set test user
 
 ---
 
-## QA LOOP BEHAVIOR
+## RECURRING ISSUES: DON'T LOOP
 
-After you complete fixes:
-1. QA Agent re-runs validation
-2. If more issues → You fix again
-3. If approved → Done!
-
-Maximum iterations: 5
-
-After iteration 5, escalate to human.
+QA re-runs after your fixes, for only a few cycles. If an issue was already "fixed" in an earlier round and QA reports it again (or it is marked `RECURRING — needs human`):
+- Don't repeat the previous approach. Find out why it didn't satisfy QA (re-read the issue, run QA's verification yourself) and fix the root cause.
+- If it cannot be fixed by an agent (spec conflict, missing credentials/service, external dependency, product decision), don't guess: write or append to `QA_ESCALATION.md` in the spec dir (issue, what was tried, why it fails, decision needed), fix everything else, and finish.
 
 ---
 
