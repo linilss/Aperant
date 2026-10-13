@@ -6,7 +6,7 @@
  *   complexity_assessment → [phases based on tier]
  *
  * Complexity assessment runs FIRST to gate the workflow:
- *   - SIMPLE: quick_spec → validation (2 phases — no discovery/requirements)
+ *   - SIMPLE: quick_spec (1 phase — no discovery/requirements/critique/validation pass)
  *   - STANDARD: discovery → requirements → spec_writing → planning → validation
  *   - COMPLEX: Full pipeline including research and self-critique
  *
@@ -82,12 +82,14 @@ const PHASE_AGENT_MAP: Record<SpecPhase, AgentType> = {
  * Complexity assessment runs BEFORE these phases as the gating step.
  *
  * - SIMPLE: skip discovery & requirements entirely — quick_spec handles everything.
+ *   No AI validation pass: quick_spec's outputs are already checked deterministically
+ *   (files exist + implementation_plan.json schema), and QA reviews the build.
  * - STANDARD: discovery builds context.json, requirements gathers formal reqs,
  *   then spec_writing + planning. 'context' phase removed (redundant with discovery).
  * - COMPLEX: full pipeline including research and self-critique.
  */
 const COMPLEXITY_PHASES: Record<ComplexityTier, SpecPhase[]> = {
-  simple: ['quick_spec', 'validation'],
+  simple: ['quick_spec'],
   standard: ['discovery', 'requirements', 'spec_writing', 'planning', 'validation'],
   complex: [
     'discovery',
@@ -100,6 +102,38 @@ const COMPLEXITY_PHASES: Record<ComplexityTier, SpecPhase[]> = {
     'validation',
   ],
 } as const;
+
+/**
+ * Phases to run after complexity assessment. Research / self-critique flagged by
+ * the assessor are added for STANDARD; SIMPLE stays a single quick_spec pass.
+ */
+export function selectSpecPhases(
+  complexity: ComplexityTier,
+  assessment?: Pick<ComplexityAssessment, 'needs_research' | 'needs_self_critique'> | null,
+): SpecPhase[] {
+  const phasesToRun = [...COMPLEXITY_PHASES[complexity]];
+  if (complexity === 'simple') return phasesToRun;
+
+  // Inject research/self-critique if flagged but not already in the tier
+  if (assessment?.needs_research && !phasesToRun.includes('research')) {
+    // Insert research before context (or before spec_writing if no context phase)
+    const insertBefore = phasesToRun.indexOf('context') !== -1
+      ? phasesToRun.indexOf('context')
+      : phasesToRun.indexOf('spec_writing');
+    if (insertBefore !== -1) {
+      phasesToRun.splice(insertBefore, 0, 'research');
+    }
+  }
+
+  if (assessment?.needs_self_critique && !phasesToRun.includes('self_critique')) {
+    const planningIdx = phasesToRun.indexOf('planning');
+    if (planningIdx !== -1) {
+      phasesToRun.splice(planningIdx, 0, 'self_critique');
+    }
+  }
+
+  return phasesToRun;
+}
 
 /** Maps each phase to the output files it typically produces */
 const PHASE_OUTPUTS: Partial<Record<SpecPhase, string[]>> = {
@@ -126,7 +160,7 @@ export interface SpecOrchestratorConfig {
   complexityOverride?: ComplexityTier;
   /** Whether to use AI for complexity assessment (default: true) */
   useAiAssessment?: boolean;
-  /** Pre-generated project index JSON content (injected into all phases) */
+  /** Pre-generated project index summary (markdown + path to the full JSON) (injected into all phases) */
   projectIndex?: string;
   /** CLI model override */
   cliModel?: string;
@@ -152,7 +186,7 @@ export interface SpecPromptContext {
   taskDescription?: string;
   /** Complexity tier (after assessment) */
   complexity?: ComplexityTier;
-  /** Pre-generated project index (JSON string) */
+  /** Pre-generated project index summary (markdown + path to the full JSON) */
   projectIndex?: string;
   /** Accumulated outputs from prior phases (filename → content) */
   priorPhaseOutputs?: Record<string, string>;
@@ -177,7 +211,7 @@ export interface SpecSessionRunConfig {
   cliThinking?: string;
   /** Accumulated outputs from prior phases (filename → content) for kickoff enrichment */
   priorPhaseOutputs?: Record<string, string>;
-  /** Pre-generated project index (JSON string) */
+  /** Pre-generated project index summary (markdown + path to the full JSON) */
   projectIndex?: string;
   /** Optional Zod schema for structured output (uses AI SDK Output.object()) */
   outputSchema?: ZodSchema;
@@ -320,25 +354,7 @@ export class SpecOrchestrator extends EventEmitter {
       // ===================================================================
       // Step 2: Determine and run phases based on assessed complexity
       // ===================================================================
-      const phasesToRun = [...COMPLEXITY_PHASES[complexity]];
-
-      // Inject research/self-critique if flagged but not already in the tier
-      if (this.assessment?.needs_research && !phasesToRun.includes('research')) {
-        // Insert research before context (or before spec_writing if no context phase)
-        const insertBefore = phasesToRun.indexOf('context') !== -1
-          ? phasesToRun.indexOf('context')
-          : phasesToRun.indexOf('spec_writing');
-        if (insertBefore !== -1) {
-          phasesToRun.splice(insertBefore, 0, 'research');
-        }
-      }
-
-      if (this.assessment?.needs_self_critique && !phasesToRun.includes('self_critique')) {
-        const planningIdx = phasesToRun.indexOf('planning');
-        if (planningIdx !== -1) {
-          phasesToRun.splice(planningIdx, 0, 'self_critique');
-        }
-      }
+      const phasesToRun = selectSpecPhases(complexity, this.assessment);
 
       this.emitTyped('log', `Running ${complexity} workflow: ${phasesToRun.join(' → ')}`);
 

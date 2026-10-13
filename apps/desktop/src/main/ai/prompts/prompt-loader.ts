@@ -277,46 +277,35 @@ export const RELEASE_POLICY_SECTION =
 /**
  * Inject dynamic sections into a prompt template.
  *
- * Handles:
- * - CORE VALUES first (highest priority, overrides everything below)
- * - RELEASE POLICY (always): agents never deploy/publish/push
- * - SPEC LOCATION header with file paths
- * - CLAUDE.md injection if provided
- * - Project memory (built-in memory system) if provided
- * - Human input (HUMAN_INPUT.md) injection
+ * Ordered for prompt caching: content that is identical across tasks and
+ * sessions of a project comes first (it forms the cacheable prefix), and
+ * task-specific content (paths, memory, human input) comes last.
+ *
+ * 1. CORE VALUES (highest priority, overrides everything below)
+ * 2. RELEASE POLICY (always): agents never deploy/publish/push
+ * 3. PROJECT INSTRUCTIONS (AGENTS.md/CLAUDE.md, doc map, malvy docs, pointers)
+ * 4. Base agent prompt
+ * 5. PROJECT MEMORY (task-relevant notes) if provided
+ * 6. SPEC LOCATION header with file paths
+ * 7. HUMAN INPUT (HUMAN_INPUT.md) if provided
  *
  * @param promptTemplate - Base prompt content from .md file
  * @param context - Dynamic context to inject
- * @returns Assembled prompt with all context prepended
+ * @returns Assembled prompt
  */
 export function injectContext(promptTemplate: string, context: PromptContext): string {
   const sections: string[] = [];
 
-  // 0. Core values — first, they override every other instruction
+  // --- Stable prefix (same for every task in the project) ---
+
+  // 1. Core values — first, they override every other instruction
   const coreValues = formatCoreValuesSection(context.coreValues ?? '');
   if (coreValues) {
     sections.push(`${coreValues}---\n\n`);
   }
 
-  // 0b. Release policy — agents never deploy/publish/push; the user does via Deploy
+  // 2. Release policy — agents never deploy/publish/push; the user does via Deploy
   sections.push(RELEASE_POLICY_SECTION);
-
-  // 1. Spec location header
-  const specContext = buildSpecLocationHeader(context);
-  if (specContext) {
-    sections.push(specContext);
-  }
-
-  // 2. Human input
-  if (context.humanInput) {
-    sections.push(
-      `## HUMAN INPUT (READ THIS FIRST!)\n\n` +
-      `The human has left you instructions. READ AND FOLLOW THESE CAREFULLY:\n\n` +
-      `${context.humanInput}\n\n` +
-      `After addressing this input, you may delete or clear the HUMAN_INPUT.md file.\n\n` +
-      `---\n\n`
-    );
-  }
 
   // 3. Project instructions (AGENTS.md or CLAUDE.md fallback)
   if (context.projectInstructions) {
@@ -327,19 +316,41 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 4. Project memory (learned from previous tasks)
+  // 4. Base prompt
+  sections.push(promptTemplate);
+
+  // --- Task-specific suffix ---
+  const taskSections: string[] = [];
+
+  // 5. Project memory (learned from previous tasks, selected for this task)
   if (context.memoryContext) {
-    sections.push(
+    taskSections.push(
       `${PROJECT_MEMORY_HEADING}\n\n` +
       `Notes learned from earlier work in this project. They may be outdated: check them against ` +
       `the current code before relying on them. Items marked [unverified] have not been reviewed by a developer.\n\n` +
-      `${context.memoryContext}\n\n` +
-      `---\n\n`
+      `${context.memoryContext}\n\n`
     );
   }
 
-  // 5. Base prompt
-  sections.push(promptTemplate);
+  // 6. Spec location header
+  const specContext = buildSpecLocationHeader(context);
+  if (specContext) {
+    taskSections.push(specContext);
+  }
+
+  // 7. Human input
+  if (context.humanInput) {
+    taskSections.push(
+      `## HUMAN INPUT (READ THIS FIRST!)\n\n` +
+      `The human has left you instructions. READ AND FOLLOW THESE CAREFULLY:\n\n` +
+      `${context.humanInput}\n\n` +
+      `After addressing this input, you may delete or clear the HUMAN_INPUT.md file.\n\n`
+    );
+  }
+
+  if (taskSections.length > 0) {
+    sections.push(`\n\n---\n\n${taskSections.join('---\n\n')}`);
+  }
 
   return sections.join('');
 }
@@ -358,8 +369,7 @@ function buildSpecLocationHeader(context: PromptContext): string {
     `- Progress notes: \`${context.specDir}/build-progress.txt\`\n` +
     `- QA report output: \`${context.specDir}/qa_report.md\`\n` +
     `- Fix request output: \`${context.specDir}/QA_FIX_REQUEST.md\`\n\n` +
-    `The project root is: \`${context.projectDir}\`\n\n` +
-    `---\n\n`
+    `The project root is: \`${context.projectDir}\`\n\n`
   );
 }
 

@@ -8,7 +8,7 @@ const base = '# PLANNER PROMPT\nDo the planning.';
 const memoryContext = '- [gotcha] Run migrations before seeding (files: db/seed.ts)\n- [pattern] [unverified] Use zod for input';
 
 describe('injectContext — project memory', () => {
-  it('adds the PROJECT MEMORY section after project instructions and before the base prompt', () => {
+  it('adds the PROJECT MEMORY section after project instructions and the base prompt', () => {
     const prompt = injectContext(base, {
       specDir: '/p/.malvy/specs/001',
       projectDir: '/p',
@@ -21,15 +21,16 @@ describe('injectContext — project memory', () => {
     const basePos = prompt.indexOf('# PLANNER PROMPT');
     expect(PROJECT_MEMORY_HEADING).toBe('## PROJECT MEMORY (from previous work — verify before relying on it)');
     expect(instructions).toBeGreaterThanOrEqual(0);
-    expect(memory).toBeGreaterThan(instructions);
-    expect(basePos).toBeGreaterThan(memory);
+    expect(basePos).toBeGreaterThan(instructions);
+    expect(memory).toBeGreaterThan(basePos);
     expect(prompt).toContain(memoryContext);
     expect(prompt).toContain('[unverified]');
   });
 
   it('adds the section even without project instructions', () => {
     const prompt = injectContext(base, { specDir: '', projectDir: '/p', memoryContext });
-    expect(prompt.startsWith(RELEASE_POLICY_SECTION + PROJECT_MEMORY_HEADING)).toBe(true);
+    expect(prompt.startsWith(RELEASE_POLICY_SECTION + base)).toBe(true);
+    expect(prompt).toContain(PROJECT_MEMORY_HEADING);
   });
 
   it('omits the section when there is no memory context (memory off or nothing relevant)', () => {
@@ -42,7 +43,7 @@ describe('injectContext — project memory', () => {
 });
 
 describe('injectContext — human input', () => {
-  it('adds HUMAN_INPUT.md content before project instructions and the base prompt', () => {
+  it('adds HUMAN_INPUT.md content last, after project instructions and the base prompt', () => {
     const prompt = injectContext(base, {
       specDir: '',
       projectDir: '/p',
@@ -53,8 +54,8 @@ describe('injectContext — human input', () => {
     const human = prompt.indexOf('## HUMAN INPUT (READ THIS FIRST!)');
     expect(human).toBeGreaterThanOrEqual(0);
     expect(prompt.indexOf('Skip the migration subtask.')).toBeGreaterThan(human);
-    expect(prompt.indexOf('## PROJECT INSTRUCTIONS')).toBeGreaterThan(human);
-    expect(prompt.indexOf('# PLANNER PROMPT')).toBeGreaterThan(human);
+    expect(prompt.indexOf('## PROJECT INSTRUCTIONS')).toBeLessThan(human);
+    expect(prompt.indexOf('# PLANNER PROMPT')).toBeLessThan(human);
   });
 
   it('omits the section when there is no human input', () => {
@@ -102,13 +103,49 @@ describe('injectContext — release policy', () => {
     });
     const policy = prompt.indexOf('## RELEASE POLICY');
     expect(policy).toBeGreaterThan(prompt.indexOf('- No ads.'));
-    expect(policy).toBeLessThan(prompt.indexOf('## SPEC LOCATION'));
     expect(policy).toBeLessThan(prompt.indexOf('## PROJECT INSTRUCTIONS'));
+    expect(policy).toBeLessThan(prompt.indexOf('## SPEC LOCATION'));
     expect(prompt).toContain('git push');
     expect(prompt).toContain('TestFlight');
   });
 
   it('is first when there are no core values', () => {
     expect(injectContext(base, { specDir: '', projectDir: '/p' }).startsWith('## RELEASE POLICY')).toBe(true);
+  });
+});
+
+describe('injectContext — prompt-cache ordering', () => {
+  const stable = {
+    projectDir: '/p',
+    coreValues: '- No ads.',
+    projectInstructions: 'Team rules',
+  };
+
+  it('puts stable sections first and task-specific sections after the base prompt', () => {
+    const prompt = injectContext(base, {
+      ...stable,
+      specDir: '/p/.malvy/specs/001',
+      memoryContext,
+      humanInput: 'Do X',
+    });
+    const order = [
+      '## CORE VALUES',
+      '## RELEASE POLICY',
+      '## PROJECT INSTRUCTIONS',
+      '# PLANNER PROMPT',
+      PROJECT_MEMORY_HEADING,
+      '## SPEC LOCATION',
+      '## HUMAN INPUT',
+    ].map((marker) => prompt.indexOf(marker));
+    expect(order.every((pos) => pos >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('shares the whole stable prefix (through the base prompt) between different tasks', () => {
+    const a = injectContext(base, { ...stable, specDir: '/p/.malvy/specs/001', humanInput: 'A' });
+    const b = injectContext(base, { ...stable, specDir: '/p/.malvy/specs/002', memoryContext });
+    const prefixEnd = a.indexOf(base) + base.length;
+    expect(b.slice(0, prefixEnd)).toBe(a.slice(0, prefixEnd));
+    expect(a.slice(0, prefixEnd)).not.toContain('specs/001');
   });
 });

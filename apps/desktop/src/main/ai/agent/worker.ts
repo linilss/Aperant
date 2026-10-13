@@ -51,6 +51,7 @@ import { loadProjectInstructions, injectContext } from '../prompts/prompt-loader
 import { createMcpClientsForAgent, mergeMcpTools, closeAllMcpClients } from '../mcp/client';
 import type { McpClientResult } from '../mcp/types';
 import { runProjectIndexer } from '../project/project-indexer';
+import { summarizeProjectIndex } from '../project/project-index-summary';
 import { taskAgentCliToolArgs } from '../security/release-guard';
 
 // =============================================================================
@@ -982,6 +983,30 @@ async function runQALoop(
 }
 
 /**
+ * Regenerate `<specDir>/project_index.json` and return a compact summary of it
+ * (plus the file path, so agents can Read the full index on demand).
+ * Non-fatal: returns undefined when indexing fails.
+ */
+function generateProjectIndexSummary(specDir: string, projectDir: string): string | undefined {
+  try {
+    const indexOutputPath = join(specDir, 'project_index.json');
+    postLog('Generating project index...');
+    runProjectIndexer(projectDir, indexOutputPath);
+    const fullIndex = readFileSync(indexOutputPath, 'utf-8');
+    const summary = summarizeProjectIndex(fullIndex);
+    if (!summary) return undefined;
+    postLog(`Project index generated (${(fullIndex.length / 1024).toFixed(1)}KB, summary ${(summary.length / 1024).toFixed(1)}KB)`);
+    return (
+      `${summary}\n\n` +
+      `Full index (dependencies, routes, models, env vars): \`${indexOutputPath}\` — Read it only if you need those details.`
+    );
+  } catch (error) {
+    postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
+/**
  * Run the spec creation orchestration pipeline with complexity-based phase routing.
  */
 async function runSpecOrchestrator(
@@ -999,16 +1024,7 @@ async function runSpecOrchestrator(
   postLog(`Starting SpecOrchestrator pipeline (complexity-first phase routing)`);
 
   // Generate project index BEFORE any agent runs — gives all phases project context
-  let projectIndexContent: string | undefined;
-  try {
-    const indexOutputPath = join(session.specDir, 'project_index.json');
-    postLog('Generating project index...');
-    runProjectIndexer(session.projectDir, indexOutputPath);
-    projectIndexContent = readFileSync(indexOutputPath, 'utf-8');
-    postLog(`Project index generated (${(projectIndexContent.length / 1024).toFixed(1)}KB)`);
-  } catch (error) {
-    postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const projectIndexContent = generateProjectIndexSummary(session.specDir, session.projectDir);
 
   const orchestrator = new SpecOrchestrator({
     specDir: session.specDir,
@@ -1145,16 +1161,7 @@ async function runAgenticSpecOrchestrator(
   postLog('Starting Agentic SpecOrchestrator (AI-driven pipeline via SpawnSubagent)');
 
   // Generate project index
-  let projectIndexContent: string | undefined;
-  try {
-    const indexOutputPath = join(session.specDir, 'project_index.json');
-    postLog('Generating project index...');
-    runProjectIndexer(session.projectDir, indexOutputPath);
-    projectIndexContent = readFileSync(indexOutputPath, 'utf-8');
-    postLog(`Project index generated (${(projectIndexContent.length / 1024).toFixed(1)}KB)`);
-  } catch (error) {
-    postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const projectIndexContent = generateProjectIndexSummary(session.specDir, session.projectDir);
 
   // Create the SubagentExecutor
   const model = createProvider({
@@ -1199,7 +1206,7 @@ async function runAgenticSpecOrchestrator(
   ];
 
   if (projectIndexContent) {
-    kickoffParts.push(`\n\n## PROJECT INDEX\n\n\`\`\`json\n${projectIndexContent}\n\`\`\``);
+    kickoffParts.push(`\n\n## PROJECT INDEX\n\n${projectIndexContent}`);
   }
 
   const kickoffMessage = kickoffParts.join('');
@@ -1359,7 +1366,7 @@ function buildSpecKickoffMessage(
   const contextSections: string[] = [baseMessage];
 
   if (projectIndex) {
-    contextSections.push(`\n\n## PROJECT INDEX (pre-generated)\n\nThe following project structure analysis has been pre-generated for you. Use this as your starting point instead of scanning the entire project:\n\n\`\`\`json\n${projectIndex}\n\`\`\``);
+    contextSections.push(`\n\n## PROJECT INDEX (pre-generated)\n\nThe following project structure summary has been pre-generated for you. Use this as your starting point instead of scanning the entire project:\n\n${projectIndex}`);
   }
 
   if (priorPhaseOutputs && Object.keys(priorPhaseOutputs).length > 0) {
