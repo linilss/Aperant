@@ -728,6 +728,8 @@ async function reconcileLinkedFeatures(projectId: string, roadmap: Roadmap): Pro
   // Fetch current tasks for the project
   const tasksResult = await window.electronAPI.getTasks(projectId);
   if (!tasksResult.success || !tasksResult.data) return;
+  // The user may have switched project while tasks loaded; never touch another project's roadmap
+  if (useRoadmapStore.getState().roadmap?.projectId !== projectId) return;
 
   // Guard against empty task list (e.g., specs directory temporarily inaccessible)
   // to avoid falsely marking all linked features as 'deleted'
@@ -857,6 +859,8 @@ export async function loadRoadmap(projectId: string): Promise<void> {
   }
 
   const result = await window.electronAPI.getRoadmap(projectId);
+  // A later loadRoadmap (project switch) owns the store now
+  if (useRoadmapStore.getState().currentProjectId !== projectId) return;
   if (result.success && result.data) {
     // Migrate roadmap to latest schema if needed
     const migratedRoadmap = migrateRoadmapIfNeeded(result.data);

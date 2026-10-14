@@ -354,6 +354,10 @@ export function registerRoadmapHandlers(
       if (!project) {
         return { success: false, error: "Project not found" };
       }
+      // The renderer keeps one roadmap in memory; never write it into another project's file
+      if (roadmapData?.projectId && roadmapData.projectId !== projectId) {
+        return { success: false, error: "Roadmap belongs to another project" };
+      }
 
       const roadmapPath = path.join(
         project.path,
