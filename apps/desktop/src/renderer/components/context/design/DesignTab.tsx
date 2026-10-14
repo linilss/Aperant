@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Palette, Pencil, RefreshCw, Upload } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Palette, Pencil, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/button';
 import { ScrollArea } from '../../ui/scroll-area';
@@ -92,13 +92,22 @@ export function DesignTab({ projectId }: DesignTabProps) {
     const result =
       operation === 'sync'
         ? await window.electronAPI.syncDesignSystem(projectId)
-        : await window.electronAPI.publishDesignSystem(projectId, paths);
+        : operation === 'generate'
+          ? await window.electronAPI.generateDesignSystem(projectId)
+          : await window.electronAPI.publishDesignSystem(projectId, paths);
     setRunning(null);
     if (result.success && result.data) {
       const count = result.data.files.length;
       setNotice({
         kind: 'success',
-        text: t(operation === 'sync' ? 'context:design.syncDone' : 'context:design.publishDone', { count }),
+        text: t(
+          operation === 'sync'
+            ? 'context:design.syncDone'
+            : operation === 'generate'
+              ? 'context:design.generateDone'
+              : 'context:design.publishDone',
+          { count }
+        ),
       });
     } else {
       setNotice({ kind: 'error', text: result.error ?? '' });
@@ -133,6 +142,32 @@ export function DesignTab({ projectId }: DesignTabProps) {
   const config = state?.config ?? {};
   const nothingFound = !detection?.artifactUrl && !detection?.sourceDir && (!data || data.origin === 'none');
 
+  const runFeedback = (
+    <>
+      {notice && (
+        <p className={`flex items-start gap-2 text-sm ${notice.kind === 'success' ? 'text-success' : 'text-destructive'}`}>
+          {notice.kind === 'success' ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          <span className="min-w-0 break-words">{notice.text}</span>
+        </p>
+      )}
+      {(running || progress) && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{t('context:design.progress')}</p>
+          <pre
+            ref={progressRef}
+            className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-2 font-mono text-[11px] text-muted-foreground"
+          >
+            {progress || '…'}
+          </pre>
+        </div>
+      )}
+    </>
+  );
+
   const body = (() => {
     if (loadError || !state || !detection || !data) {
       return (
@@ -153,6 +188,18 @@ export function DesignTab({ projectId }: DesignTabProps) {
             <h3 className="text-base font-semibold text-foreground">{t('context:design.empty.title')}</h3>
           </div>
           <p className="text-sm text-muted-foreground">{t('context:design.empty.description')}</p>
+          <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <p className="text-sm text-foreground">{t('context:design.generateDescription')}</p>
+            <Button size="sm" onClick={() => void run('generate')} disabled={running !== null} className="max-md:h-10 max-md:w-full">
+              {running === 'generate' ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-4 w-4" />
+              )}
+              {running === 'generate' ? t('context:design.generating') : t('context:design.generate')}
+            </Button>
+            {runFeedback}
+          </div>
           <p className="text-xs text-muted-foreground">{t('context:design.empty.hint')}</p>
           <DesignSourceForm projectId={projectId} state={state} onSaved={setState} />
         </div>

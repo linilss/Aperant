@@ -318,6 +318,7 @@ export const IPC_CHANNELS = {
   CONTEXT_DESIGN_PUBLISH_PLAN: 'context:design:publishPlan',
   CONTEXT_DESIGN_SYNC: 'context:design:sync',
   CONTEXT_DESIGN_PUBLISH: 'context:design:publish',
+  CONTEXT_DESIGN_GENERATE: 'context:design:generate', // Agent writes a design system from the UI code into .malvy/design-system
   CONTEXT_DESIGN_PROGRESS: 'context:design:progress', // main → renderer
 
   // Environment configuration

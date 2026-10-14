@@ -22,6 +22,8 @@ import {
   writeSnapshotFromSaved,
 } from '../../design-system';
 import { runDesignPublish, runDesignSync } from '../../ai/runners/design-system';
+import { runDesignGenerate } from '../../ai/runners/design-system-generate';
+import { resolveModelId } from '../../ai/config/phase-config';
 import { resolveClaudeCliFeatureModel } from '../feature-settings-helper';
 import { safeSendToRenderer } from '../utils';
 import { notifyFunnelChanged } from '../funnel-handlers';
@@ -130,6 +132,34 @@ export function registerDesignSystemHandlers(getMainWindow: () => BrowserWindow 
         return { success: true, data: { operation: 'sync', files, at: new Date().toISOString() } };
       } catch (error) {
         return { success: false, error: errorMessage(error, 'Sync failed') };
+      } finally {
+        running.delete(projectId);
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CONTEXT_DESIGN_GENERATE,
+    async (_, projectId: string): Promise<IPCResult<DesignSystemRunResult>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      if (running.has(projectId)) return { success: false, error: 'Already running' };
+      running.set(projectId, 'generate');
+      try {
+        const result = await runDesignGenerate({
+          projectDir: project.path,
+          projectName: project.name,
+          modelId: resolveModelId('opus'),
+          onProgress: (text) => progress(projectId, text),
+        });
+        notifyFunnelChanged(projectId);
+        if (!result.ok) return { success: false, error: result.message };
+        if (result.strayChanges.length > 0) {
+          progress(projectId, `\nWarning: files outside .malvy changed: ${result.strayChanges.join(', ')}\n`);
+        }
+        return { success: true, data: { operation: 'generate', files: [], at: new Date().toISOString() } };
+      } catch (error) {
+        return { success: false, error: errorMessage(error, 'Generate failed') };
       } finally {
         running.delete(projectId);
       }

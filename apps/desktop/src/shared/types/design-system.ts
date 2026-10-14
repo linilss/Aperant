@@ -106,7 +106,7 @@ export interface DesignSystemData {
   rawFiles: string[];
 }
 
-export type DesignSystemOperation = 'sync' | 'publish';
+export type DesignSystemOperation = 'sync' | 'publish' | 'generate';
 
 export interface DesignSystemState {
   detection: DesignSystemDetection;

@@ -124,6 +124,8 @@ export interface ProjectAPI {
   getDesignPublishPlan: (projectId: string) => Promise<IPCResult<DesignPublishPlan | null>>;
   /** Read-only: snapshot the artifact into .malvy/design-system/ */
   syncDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemRunResult>>;
+  /** Agent writes a design system from the project's UI code into .malvy/design-system */
+  generateDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemRunResult>>;
   /** User-confirmed publish of these artifact paths */
   publishDesignSystem: (projectId: string, paths: string[]) => Promise<IPCResult<DesignSystemRunResult>>;
   onDesignSystemProgress: (cb: (projectId: string, text: string) => void) => () => void;
@@ -346,6 +348,9 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   syncDesignSystem: (projectId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_SYNC, projectId),
+
+  generateDesignSystem: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_GENERATE, projectId),
 
   publishDesignSystem: (projectId: string, paths: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_PUBLISH, projectId, paths),

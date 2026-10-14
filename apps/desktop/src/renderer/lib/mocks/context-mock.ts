@@ -118,6 +118,7 @@ export const contextMock = {
   readDesignSystemFile: async () => ({ success: false, error: 'Not available in browser mock' }),
   getDesignPublishPlan: async () => ({ success: true, data: null }),
   syncDesignSystem: async () => ({ success: false, error: 'Not available in browser mock' }),
+  generateDesignSystem: async () => ({ success: false, error: 'Not available in browser mock' }),
   publishDesignSystem: async () => ({ success: false, error: 'Not available in browser mock' }),
   onDesignSystemProgress: () => noop
 };
