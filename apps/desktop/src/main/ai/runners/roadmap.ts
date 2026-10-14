@@ -26,6 +26,7 @@ import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
 import { buildCompetitorSection, loadFunnelContextSection } from './roadmap-funnel-context';
+import { backupRoadmapFile } from '../../roadmap-backup';
 import { buildRemovedFeaturesSection, readRemovedFeatures, type RemovedFeature } from '../../roadmap-removed';
 import {
   createMemoryStore,
@@ -554,6 +555,7 @@ async function runFeaturesPhase(
             if (preservedFeatures.length > 0) {
               data.features = mergeFeatures(data.features as Record<string, unknown>[], preservedFeatures);
             }
+            backupRoadmapFile(roadmapFile);
             writeFileSync(roadmapFile, JSON.stringify(data, null, 2), 'utf-8');
             return { phase: 'features', success: true, outputs: [roadmapFile], errors: [] };
           }
