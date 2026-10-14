@@ -3,9 +3,9 @@
  * prompts, so the CLI needs no Read turns. Each section names its source file
  * so the directions pass can cite it.
  *
- * Order: .malvy/docs/project_summary.json, else .malvy/docs/CLAUDE.md, else the
- * team CLAUDE.md / README.md; plus roadmap discovery output and a tiny slice of
- * project_index.json when present.
+ * Order: .malvy/docs/project_summary.json, else .malvy/docs/CLAUDE.md; then the
+ * team CLAUDE.md / README.md (always — it often says what the product is modeled
+ * on); plus roadmap discovery output and a tiny slice of project_index.json.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -48,8 +48,8 @@ function summarySection(projectDir: string): string | null {
     .join('\n');
 }
 
-function docSection(projectDir: string): string | null {
-  for (const rel of ['.malvy/docs/CLAUDE.md', 'CLAUDE.md', 'README.md', 'readme.md']) {
+function docSection(projectDir: string, candidates: string[]): string | null {
+  for (const rel of candidates) {
     const text = read(join(projectDir, rel));
     if (text?.trim()) return `### Source: ${rel}\n${clip(text.trim(), MAX_DOC_CHARS)}`;
   }
@@ -82,7 +82,8 @@ function indexSection(projectDir: string): string | null {
 /** Build the brief; '' when nothing describes the project */
 export function buildProjectBrief(projectDir: string): string {
   const sections = [
-    summarySection(projectDir) ?? docSection(projectDir),
+    summarySection(projectDir) ?? docSection(projectDir, ['.malvy/docs/CLAUDE.md']),
+    docSection(projectDir, ['CLAUDE.md', 'README.md', 'readme.md']),
     discoverySection(projectDir),
     indexSection(projectDir),
   ].filter((s): s is string => !!s);
