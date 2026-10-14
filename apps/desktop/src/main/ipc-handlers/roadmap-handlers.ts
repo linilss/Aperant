@@ -27,6 +27,7 @@ import { debugLog, debugError } from "../../shared/utils/debug-logger";
 import { safeSendToRenderer } from "./utils";
 import { notifyFunnelChanged } from "./funnel-handlers";
 import { recordRemovedFeatures } from "../roadmap-removed";
+import { buildDecisionsSection } from "../refine-transcript";
 import { writeFileWithRetry, readFileWithRetry } from "../utils/atomic-file";
 import { withFileLock } from "../utils/file-lock";
 import { getActiveProviderFeatureSettings, resolveClaudeCliFeatureModel } from "./feature-settings-helper";
@@ -588,7 +589,7 @@ ${(feature.user_stories || []).map((s: string) => `- ${s}`).join("\n") || "N/A"}
 
 ## Acceptance Criteria
 ${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n") || "N/A"}
-`;
+${buildDecisionsSection(project.path, feature.id)}`;
 
         // Generate proper spec directory (like task creation)
         const specsBaseDir = getSpecsDir(project.autoBuildPath);
