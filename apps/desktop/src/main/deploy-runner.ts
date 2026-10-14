@@ -75,6 +75,18 @@ export function commandIsFromRunbook(command: string, runbook: string): boolean 
   return runbook.includes(target);
 }
 
+/** The planner stopped the deploy because a runbook rule needs the user first */
+export function parsePlanStop(text: string): string | null {
+  const match = text.match(/<deploy_plan>([\s\S]*?)<\/deploy_plan>/);
+  if (!match) return null;
+  try {
+    const raw = JSON.parse(match[1].trim());
+    return raw && !Array.isArray(raw) && typeof raw.stop === 'string' && raw.stop.trim() ? raw.stop.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parsePlan(text: string, runbook: string): PlannedStep[] | null {
   const match = text.match(/<deploy_plan>([\s\S]*?)<\/deploy_plan>/);
   if (!match) return null;
@@ -127,7 +139,9 @@ export function buildPlanPrompt(runbook: string, context: string, taskTitles: st
     '- Apply each step\'s conditions to the changes above; when unsure, run the step. Never drop an unconditional step.\n' +
     '- You may read files to judge a condition. Do not run anything.\n' +
     '- Answer with only:\n<deploy_plan>[{"name": "web", "command": "./deploy.sh", "run": true, "reason": "backend changed"}]</deploy_plan>\n' +
-    'Include every runbook step, with "run": false and the reason for the ones you skip.'
+    'Include every runbook step, with "run": false and the reason for the ones you skip.\n' +
+    '- If a runbook rule says to stop or ask the user first about something these changes contain, answer only:\n' +
+    '<deploy_plan>{"stop": "what the user must decide or approve"}</deploy_plan>'
   );
 }
 
@@ -188,6 +202,8 @@ export async function runDeploy(options: DeployRunOptions): Promise<DeployRunRec
           abortSignal: options.abortSignal
         })
       ).text;
+  const stop = parsePlanStop(planText);
+  if (stop) return fail(`Needs you first: ${stop}`);
   const planned = parsePlan(planText, runbook);
   if (!planned) return fail('Could not plan the deploy from the runbook (no valid plan, or a command not in the runbook).');
   const isPush = (command: string) => /^git\s+push\b/.test(command);

@@ -67,6 +67,11 @@ export interface ProjectSettings {
   /** Arguments passed to deployScript */
   deployArgs?: string;
   /**
+   * What the Kanban Deploy button does: 'deploy' (default) merges and runs the deploy
+   * runbook; 'merge' only merges the task into the main branch (no deploy, no Not live).
+   */
+  kanbanDeployAction?: 'deploy' | 'merge';
+  /**
    * Shell command that proves the build is healthy (e.g. "npm run typecheck && npm test").
    * Run in the task worktree after each subtask and before QA. Malvy-only, never written to the repo.
    */

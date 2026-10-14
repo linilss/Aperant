@@ -37,7 +37,7 @@ import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, 
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
-import { formatDeployedVersion, getLastDeployment, isAppStoreDeployment, isTaskNotLive } from '../../shared/utils/task-deployments';
+import { formatDeployedVersion, getLastDeployment, isAppStoreDeployment, isMergeOnly, isTaskNotLive } from '../../shared/utils/task-deployments';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
 
 // Category icon mapping
@@ -372,6 +372,7 @@ export const TaskCard = memo(function TaskCard({
   const lastDeployment = getLastDeployment(task);
 
   const deployStage = useDeployDialogStore((s) => s.inFlight[task.id]);
+  const mergeOnly = useProjectStore((s) => isMergeOnly(s.projects.find((p) => p.id === task.projectId)?.settings));
   // Deploy is outward-facing: first click arms, second click merges (if needed) and deploys
   const [deployArmed, setDeployArmed] = useState(false);
   useEffect(() => {
@@ -485,23 +486,30 @@ export const TaskCard = memo(function TaskCard({
   const isArchived = !!task.metadata?.archivedAt;
 
   // Finished tasks deploy in one go: unmerged ones are merged first. Re-deploys stay available.
+  // In merge-only projects the button just merges into the main branch.
   const needsMerge = task.status !== 'done';
   const deployLabel = deployStage
     ? t(deployStage === 'merging' ? 'deploy:task.merging' : 'deploy:task.deploying')
     : deployArmed
-      ? t(needsMerge ? 'deploy:task.confirmMerge' : 'deploy:task.confirmShort')
-      : t('deploy:task.button');
-  const deployButton = (
+      ? t(mergeOnly ? 'deploy:task.confirmMergeOnly' : needsMerge ? 'deploy:task.confirmMerge' : 'deploy:task.confirmShort')
+      : t(mergeOnly ? 'deploy:task.mergeButton' : 'deploy:task.button');
+  const deployButton = mergeOnly && !needsMerge ? null : (
     <Button
       variant={deployArmed ? 'destructive' : needsMerge ? 'default' : 'outline'}
       size="sm"
       className="h-7 px-2.5 text-xs max-md:h-9 max-md:px-3"
       onClick={handleDeploy}
       disabled={!!deployStage}
-      title={t(needsMerge ? 'deploy:task.mergeAndDeployTooltip' : 'deploy:task.buttonTooltip')}
+      title={t(mergeOnly ? 'deploy:task.mergeOnlyTooltip' : needsMerge ? 'deploy:task.mergeAndDeployTooltip' : 'deploy:task.buttonTooltip')}
       aria-label={deployLabel}
     >
-      {deployStage ? <Loader2 className="h-3 w-3 animate-spin md:mr-1.5" /> : <Rocket className="h-3 w-3 md:mr-1.5" />}
+      {deployStage ? (
+        <Loader2 className="h-3 w-3 animate-spin md:mr-1.5" />
+      ) : mergeOnly ? (
+        <GitBranch className="h-3 w-3 md:mr-1.5" />
+      ) : (
+        <Rocket className="h-3 w-3 md:mr-1.5" />
+      )}
       <span className={deployArmed || deployStage ? undefined : 'max-md:hidden'}>{deployLabel}</span>
     </Button>
   );
@@ -605,7 +613,7 @@ export const TaskCard = memo(function TaskCard({
             )}
             {/* Deployed indicator - last deploy started from the Deploy button */}
             {lastDeployment && <DeploymentBadge deployment={lastDeployment} />}
-            {isTaskNotLive(task) && lastDeployment?.status !== 'running' && lastDeployment?.status !== 'failed' && (
+            {!mergeOnly && isTaskNotLive(task) && lastDeployment?.status !== 'running' && lastDeployment?.status !== 'failed' && (
               <Badge
                 variant="outline"
                 className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"

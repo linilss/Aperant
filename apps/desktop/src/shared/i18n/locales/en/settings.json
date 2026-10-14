@@ -381,7 +381,11 @@
       "mainBranchPlaceholder": "Auto-detect ({{branch}})",
       "mainBranchPick": "Pick an existing branch",
       "mainBranchNoBranches": "No branches found",
-      "mainBranchMissing": "{{branch}} doesn't exist in this repository yet."
+      "mainBranchMissing": "{{branch}} doesn't exist in this repository yet.",
+      "deployAction": "Kanban Deploy button",
+      "deployActionDescription": "Deploy merges the task and runs the deploy runbook (Ship → Deploy). Merge only merges into the main branch and stops.",
+      "deployActionDeploy": "Merge + deploy (runbook)",
+      "deployActionMerge": "Merge only"
     },
     "claude": {
       "title": "Claude Auth",

@@ -196,6 +196,26 @@ export function GeneralSettings({
             </div>
             <MainBranchField project={project} settings={settings} setSettings={setSettings} />
             <div className="space-y-2 pt-2">
+              <Label htmlFor="deployAction" className="text-sm font-medium text-foreground">
+                {t('projectSections.general.deployAction')}
+              </Label>
+              <Select
+                value={settings.kanbanDeployAction ?? 'deploy'}
+                onValueChange={(value) =>
+                  setSettings((prev) => ({ ...prev, kanbanDeployAction: value === 'merge' ? 'merge' : undefined }))
+                }
+              >
+                <SelectTrigger id="deployAction">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deploy">{t('projectSections.general.deployActionDeploy')}</SelectItem>
+                  <SelectItem value="merge">{t('projectSections.general.deployActionMerge')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t('projectSections.general.deployActionDescription')}</p>
+            </div>
+            <div className="space-y-2 pt-2">
               <Label htmlFor="branchPrefix" className="text-sm font-medium text-foreground">
                 {t('projectSections.general.branchPrefix')}
               </Label>

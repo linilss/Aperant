@@ -123,6 +123,14 @@ describe('runDeploy', () => {
     expect(out.reason).toContain('Azure login expired');
   });
 
+  it('stops when a runbook rule needs the user first', async () => {
+    const out = await runDeploy({
+      projectPath: dir, cwd: dir, cleanCheckout: false, taskTitles: [], record: record(),
+      plan: async () => '<deploy_plan>{"stop": "new sounds need approval"}</deploy_plan>'
+    });
+    expect(out).toMatchObject({ status: 'failed', reason: 'Needs you first: new sounds need approval' });
+  });
+
   it('commits version bumps a step makes', async () => {
     writeFileSync(path.join(dir, 'version.txt'), '1.0.4\n');
     script('apple/deploy-ios.sh', 'echo 1.0.5 > version.txt; echo "==> Version 1.0.4 -> 1.0.5"; echo "TestFlight: 1.0.5 (202610140900) is VALID"; touch deployed.txt');

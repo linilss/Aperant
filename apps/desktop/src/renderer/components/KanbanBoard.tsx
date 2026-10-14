@@ -32,7 +32,7 @@ import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants'
 import { cn } from '../lib/utils';
 import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, isRateLimitPaused, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
-import { isTaskNotLive } from '../../shared/utils/task-deployments';
+import { isMergeOnly, isTaskNotLive } from '../../shared/utils/task-deployments';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
 import { useKanbanSettingsStore, DEFAULT_COLUMN_WIDTH, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, COLLAPSED_COLUMN_WIDTH_REM, MIN_COLUMN_WIDTH_REM, MAX_COLUMN_WIDTH_REM, DEFAULT_COLUMN_WIDTH_REM, BASE_FONT_SIZE, pxToRem } from '../stores/kanban-settings-store';
 import { useToast } from '../hooks/use-toast';
@@ -204,6 +204,7 @@ function ColumnListScroller({ flat, children }: { flat?: boolean; children: Reac
 function DeployAllButton({ tasks }: { tasks: Task[] }) {
   const { t } = useTranslation(['deploy']);
   const projectId = tasks[0]?.projectId;
+  const mergeOnly = useProjectStore((s) => isMergeOnly(s.projects.find((p) => p.id === projectId)?.settings));
   const batch = useDeployDialogStore((s) => (projectId ? s.batches[projectId] : undefined));
   const [armed, setArmed] = useState(false);
   useEffect(() => {
@@ -215,8 +216,8 @@ function DeployAllButton({ tasks }: { tasks: Task[] }) {
   const label = batch
     ? t(`deploy:batch.step.${batch.step}`, { index: batch.index, total: batch.total })
     : armed
-      ? t('deploy:batch.confirm', { count: tasks.length })
-      : t('deploy:batch.button', { count: tasks.length });
+      ? t(mergeOnly ? 'deploy:batch.confirmMergeOnly' : 'deploy:batch.confirm', { count: tasks.length })
+      : t(mergeOnly ? 'deploy:batch.mergeButton' : 'deploy:batch.button', { count: tasks.length });
 
   return (
     <Tooltip delayDuration={200}>
@@ -243,7 +244,7 @@ function DeployAllButton({ tasks }: { tasks: Task[] }) {
           {(armed || batch) && <span className="ml-1.5 whitespace-nowrap">{label}</span>}
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{t('deploy:batch.tooltip')}</TooltipContent>
+      <TooltipContent className="max-w-xs">{t(mergeOnly ? 'deploy:batch.mergeOnlyTooltip' : 'deploy:batch.tooltip')}</TooltipContent>
     </Tooltip>
   );
 }
@@ -251,6 +252,7 @@ function DeployAllButton({ tasks }: { tasks: Task[] }) {
 /** Done header: how many merged tasks are not live yet, and a rocket to deploy them (two clicks). */
 function DeployNotLiveButton({ tasks }: { tasks: Task[] }) {
   const { t } = useTranslation(['deploy']);
+  const mergeOnly = useProjectStore((s) => isMergeOnly(s.projects.find((p) => p.id === tasks[0]?.projectId)?.settings));
   const notLive = tasks.filter(isTaskNotLive);
   const projectId = tasks[0]?.projectId;
   const running = useDeployDialogStore((s) => (projectId ? s.runs[projectId] : undefined));
@@ -260,7 +262,7 @@ function DeployNotLiveButton({ tasks }: { tasks: Task[] }) {
     const timer = setTimeout(() => setArmed(false), 3000);
     return () => clearTimeout(timer);
   }, [armed]);
-  if (!running && notLive.length === 0) return null;
+  if (mergeOnly || (!running && notLive.length === 0)) return null;
   const label = running
     ? t(`deploy:runs.phase.${running.phase ?? 'running'}`, { step: running.currentStep ?? '' })
     : armed

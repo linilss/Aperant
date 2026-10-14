@@ -10,7 +10,7 @@ import { useDeployDialogStore } from '../../stores/deploy-dialog-store';
 import { useTaskStore } from '../../stores/task-store';
 import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
 import { toast } from '../../hooks/use-toast';
-import { getLastDeployment, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
+import { getLastDeployment, isMergeOnly, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
 import { buildChainCommand, buildCleanCheckoutDeployCommand, newDeployLogPath, withDeployLog } from './deploy-command';
 import type { DeployPreflight, DeployScript, Task } from '../../../shared/types';
 
@@ -165,6 +165,10 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
           setStage(task.id, 'merging');
           if (!(await quickMerge(task))) return;
         }
+        if (isMergeOnly(useProjectStore.getState().projects.find((p) => p.id === task.projectId)?.settings)) {
+          toast({ title: t('task.merged', { title: task.title }) });
+          return;
+        }
         setStage(task.id, 'deploying');
         await deployMerged([task]);
       } catch (err) {
@@ -216,6 +220,10 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
           return;
         }
         if (verify.data.fixed) toast({ title: t('batch.fixed') });
+        if (isMergeOnly(useProjectStore.getState().projects.find((p) => p.id === projectId)?.settings)) {
+          toast({ title: t('batch.mergedAll', { count: merged.length }) });
+          return;
+        }
 
         setBatch(projectId, { step: 'deploying', index: ordered.length, total: ordered.length });
         await deployMerged(merged);

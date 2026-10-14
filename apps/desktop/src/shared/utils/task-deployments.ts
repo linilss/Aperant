@@ -45,3 +45,8 @@ export function isTaskNotLive(task: Pick<Task, 'status' | 'metadata'>): boolean 
   if (task.status !== 'done' || !mergedAt || task.metadata?.archivedAt) return false;
   return !(task.metadata?.deployments ?? []).some((d) => d.status === 'succeeded' && d.at >= mergedAt);
 }
+
+/** The project's Kanban Deploy button only merges (no deploy) */
+export function isMergeOnly(settings: Pick<ProjectSettings, 'kanbanDeployAction'> | undefined): boolean {
+  return settings?.kanbanDeployAction === 'merge';
+}

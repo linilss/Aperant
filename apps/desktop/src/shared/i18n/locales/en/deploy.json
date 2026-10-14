@@ -46,7 +46,11 @@
     "inTestFlight": "TestFlight {{version}}",
     "liveVersion": "Live {{version}}",
     "notLive": "Not live",
-    "notLiveTooltip": "Merged into the main branch but not in a verified deploy yet"
+    "notLiveTooltip": "Merged into the main branch but not in a verified deploy yet",
+    "mergeButton": "Merge",
+    "confirmMergeOnly": "Merge?",
+    "mergeOnlyTooltip": "Merge this task into the main branch (this project's Deploy button only merges)",
+    "merged": "Merged \"{{title}}\" into the main branch"
   },
   "notDeployed": "{{count}} merged, not deployed",
   "default": "Project default",
@@ -65,7 +69,11 @@
     "stopped": "{{merged}} of {{total}} tasks were merged before it stopped; nothing was deployed.",
     "verifyFailed": "Verify still fails after merging; nothing was deployed",
     "verifyFailedUncommitted": "Verify fails and the project has uncommitted changes, so AI didn't try to fix it; nothing was deployed",
-    "fixed": "AI fixed a collision between the merged tasks and committed the fix"
+    "fixed": "AI fixed a collision between the merged tasks and committed the fix",
+    "mergeButton": "Merge all ({{count}})",
+    "confirmMergeOnly": "Merge {{count}}?",
+    "mergeOnlyTooltip": "Merges every task here into the main branch, oldest first (AI resolves conflicts), then runs the verify command. No deploy.",
+    "mergedAll": "Merged {{count}} tasks into the main branch"
   },
   "notLive": {
     "count_one": "{{count}} not live",
