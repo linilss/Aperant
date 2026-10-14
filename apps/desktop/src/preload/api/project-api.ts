@@ -64,8 +64,14 @@ export interface ProjectAPI {
     taskId: string,
     deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
   ) => Promise<IPCResult<TaskDeployment[]>>;
-  /** Steps the Kanban Deploy button runs now (subfolder deploys skipped when unchanged) */
-  getDeployPlan: (projectId: string) => Promise<IPCResult<import('../../shared/types').DeployPlan>>;
+  /** `.malvy/deploy.md`, or a generated first version (exists: false) */
+  getDeployRunbook: (projectId: string) => Promise<IPCResult<{ content: string; exists: boolean }>>;
+  saveDeployRunbook: (projectId: string, content: string) => Promise<IPCResult>;
+  /** Start a runbook deploy (includes every merged task that is not live yet) */
+  startDeploy: (projectId: string, taskIds: string[]) => Promise<IPCResult<import('../../shared/types').DeployRunRecord>>;
+  getDeployStatus: (projectId: string) => Promise<IPCResult<{ active: import('../../shared/types').DeployRunRecord | null; history: import('../../shared/types').DeployRunRecord[] }>>;
+  getDeployLog: (projectId: string, deployId: string) => Promise<IPCResult<string>>;
+  cancelDeploy: (projectId: string) => Promise<IPCResult<boolean>>;
   /** Read finished deploy logs into the tasks' deployments (taskId → deployments) */
   resolveTaskDeployments: (projectId: string, taskIds: string[]) => Promise<IPCResult<Record<string, TaskDeployment[]>>>;
 
@@ -255,7 +261,13 @@ export const createProjectAPI = (): ProjectAPI => ({
     deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
   ): Promise<IPCResult<TaskDeployment[]>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT, projectId, taskId, deployment),
-  getDeployPlan: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_PLAN, projectId),
+  getDeployRunbook: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_GET, projectId),
+  saveDeployRunbook: (projectId: string, content: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_SAVE, projectId, content),
+  startDeploy: (projectId: string, taskIds: string[]) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_START, projectId, taskIds),
+  getDeployStatus: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_STATUS, projectId),
+  getDeployLog: (projectId: string, deployId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_LOG, projectId, deployId),
+  cancelDeploy: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_CANCEL, projectId),
   resolveTaskDeployments: (projectId: string, taskIds: string[]): Promise<IPCResult<Record<string, TaskDeployment[]>>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RESOLVE_TASK_DEPLOYMENTS, projectId, taskIds),
 

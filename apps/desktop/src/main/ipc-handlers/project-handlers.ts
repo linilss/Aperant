@@ -14,13 +14,15 @@ import type {
   DeployScript,
   DeployPreflight,
   DeployVerifyResult,
-  DeployPlan,
+  DeployRunRecord,
   TaskDeployment
 } from '../../shared/types';
 import { projectStore } from '../project-store';
 import { findDeployScripts } from '../deploy-scripts';
 import { verifyAndFixAfterMerge } from '../deploy-verify';
-import { buildDeployPlan } from '../deploy-plan';
+import { prepareDeployCheckout, startDeploy, getActiveDeploy, getDeployHistory, cancelDeploy } from '../deploy-manager';
+import { readRunbook, seedRunbook, writeRunbook } from '../deploy-runbook';
+import { readFileSync as readFileSyncFs } from 'fs';
 import { appendTaskDeployment, resolveTaskDeployments } from '../task-deployments';
 import { findAllSpecPaths } from '../utils/spec-path-helpers';
 import {
@@ -236,34 +238,6 @@ function getDeployPreflight(projectPath: string, configuredMainBranch?: string):
     mainBranch,
     hasUncommittedChanges: !!status
   };
-}
-
-/**
- * A detached worktree at the project's HEAD (`<autoBuildPath>/worktrees/deploy`), reset and
- * cleaned of untracked files, so a deploy builds exactly what is committed while someone has
- * uncommitted work in the main checkout. Ignored files (build caches) are kept.
- */
-function prepareDeployCheckout(projectPath: string, autoBuildPath: string): string {
-  const git = (cwd: string, args: string[]) =>
-    execFileSync(getToolPath('git'), args, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 60000 });
-  const head = git(projectPath, ['rev-parse', 'HEAD']).trim();
-  const checkout = path.join(projectPath, autoBuildPath, 'worktrees', 'deploy');
-  let reusable = false;
-  if (existsSync(checkout)) {
-    try {
-      reusable = git(checkout, ['rev-parse', '--is-inside-work-tree']).trim() === 'true';
-    } catch {
-      reusable = false;
-    }
-  }
-  if (reusable) {
-    git(checkout, ['checkout', '--detach', '--force', head]);
-    git(checkout, ['clean', '-fdq']);
-  } else {
-    git(projectPath, ['worktree', 'prune']);
-    git(projectPath, ['worktree', 'add', '--detach', '--force', checkout, head]);
-  }
-  return checkout;
 }
 
 /**
@@ -484,28 +458,78 @@ export function registerProjectHandlers(
   );
 
   ipcMain.handle(
-    IPC_CHANNELS.PROJECT_DEPLOY_PLAN,
-    async (_, projectId: string): Promise<IPCResult<DeployPlan>> => {
+    IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_GET,
+    async (_, projectId: string): Promise<IPCResult<{ content: string; exists: boolean }>> => {
       const project = projectStore.getProject(projectId);
       if (!project) return { success: false, error: 'Project not found' };
+      const existing = readRunbook(project.path);
+      if (existing !== null) return { success: true, data: { content: existing, exists: true } };
+      const scripts = (await findDeployScripts(project.path)).map((s) => s.relativePath);
+      const smoke = ['scripts/smoke-prod.sh', 'scripts/smoke.sh', 'smoke.sh'].filter((f) => existsSync(path.join(project.path, f)));
+      let claudeMd = '';
       try {
-        const discovered = (await findDeployScripts(project.path)).map((s) => s.relativePath);
-        const deployments = projectStore.getTasks(projectId).flatMap((t) => t.metadata?.deployments ?? []);
-        return {
-          success: true,
-          data: buildDeployPlan(
-            project.path,
-            project.settings?.deployChain,
-            discovered,
-            deployments,
-            project.settings?.deployScript
-          )
-        };
+        claudeMd = readFileSyncFs(path.join(project.path, 'CLAUDE.md'), 'utf-8');
+      } catch {
+        claudeMd = '';
+      }
+      return { success: true, data: { content: seedRunbook(project.name, scripts, smoke, claudeMd), exists: false } };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_SAVE,
+    async (_, projectId: string, content: string): Promise<IPCResult> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      writeRunbook(project.path, content);
+      return { success: true };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_START,
+    async (_, projectId: string, taskIds: string[]): Promise<IPCResult<DeployRunRecord>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      if (readRunbook(project.path) === null) {
+        return { success: false, error: 'No deploy runbook yet. Open Ship → Deploy, check the generated runbook and save it.' };
+      }
+      try {
+        return { success: true, data: startDeploy(project, taskIds ?? []) };
       } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Could not plan the deploy' };
+        return { success: false, error: error instanceof Error ? error.message : 'Could not start the deploy' };
       }
     }
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_STATUS,
+    async (_, projectId: string): Promise<IPCResult<{ active: DeployRunRecord | null; history: DeployRunRecord[] }>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      return { success: true, data: { active: getActiveDeploy(projectId), history: getDeployHistory(project).slice(0, 10) } };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_LOG,
+    async (_, projectId: string, deployId: string): Promise<IPCResult<string>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      if (!/^[\w-]+$/.test(deployId)) return { success: false, error: 'Bad deploy id' };
+      try {
+        const text = readFileSyncFs(path.join(project.path, '.malvy', 'deploys', `${deployId}.log`), 'utf-8');
+        return { success: true, data: text.split('\n').slice(-600).join('\n') };
+      } catch {
+        return { success: true, data: '' };
+      }
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PROJECT_DEPLOY_CANCEL, async (_, projectId: string): Promise<IPCResult<boolean>> => ({
+    success: true,
+    data: cancelDeploy(projectId)
+  }));
 
   ipcMain.handle(
     IPC_CHANNELS.PROJECT_DEPLOY_VERIFY,

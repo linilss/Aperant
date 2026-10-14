@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task } from '../../shared/types';
+import type { DeployRunRecord, Task } from '../../shared/types';
 
 export type TaskDeployStage = 'merging' | 'deploying';
 
@@ -36,6 +36,10 @@ interface DeployDialogState {
   setBatchRunner: (runner: ((tasks: Task[]) => Promise<void>) | null) => void;
   /** Merge all tasks oldest first, verify (AI fixes collisions), then deploy once */
   deployAll: (tasks: Task[]) => void;
+
+  /** projectId → runbook deploy in progress (polled from main) */
+  runs: Record<string, DeployRunRecord>;
+  setRun: (projectId: string, run: DeployRunRecord | null) => void;
 }
 
 export const useDeployDialogStore = create<DeployDialogState>((set, get) => ({
@@ -74,5 +78,14 @@ export const useDeployDialogStore = create<DeployDialogState>((set, get) => ({
     const { batchRunner, batches } = get();
     if (tasks.length === 0 || batches[tasks[0].projectId] || !batchRunner) return;
     void batchRunner(tasks);
-  }
+  },
+
+  runs: {},
+  setRun: (projectId, run) =>
+    set((s) => {
+      const runs = { ...s.runs };
+      if (run) runs[projectId] = run;
+      else delete runs[projectId];
+      return { runs };
+    })
 }));

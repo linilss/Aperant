@@ -37,7 +37,7 @@ import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, 
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
-import { formatDeployedVersion, getLastDeployment, isAppStoreDeployment } from '../../shared/utils/task-deployments';
+import { formatDeployedVersion, getLastDeployment, isAppStoreDeployment, isTaskNotLive } from '../../shared/utils/task-deployments';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
 
 // Category icon mapping
@@ -113,6 +113,7 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
     prevTask.metadata?.refined === nextTask.metadata?.refined &&
     prevTask.metadata?.deployments?.length === nextTask.metadata?.deployments?.length &&
     prevTask.metadata?.deployments?.at(-1)?.status === nextTask.metadata?.deployments?.at(-1)?.status &&
+    prevTask.metadata?.mergedAt === nextTask.metadata?.mergedAt &&
     prevTask.metadata?.deployments?.at(-1)?.version === nextTask.metadata?.deployments?.at(-1)?.version &&
     // Check if any subtask statuses changed (compare all subtasks)
     prevTask.subtasks.every((s, i) => s.status === nextTask.subtasks[i]?.status)
@@ -604,6 +605,16 @@ export const TaskCard = memo(function TaskCard({
             )}
             {/* Deployed indicator - last deploy started from the Deploy button */}
             {lastDeployment && <DeploymentBadge deployment={lastDeployment} />}
+            {isTaskNotLive(task) && lastDeployment?.status !== 'running' && lastDeployment?.status !== 'failed' && (
+              <Badge
+                variant="outline"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
+                title={t('deploy:task.notLiveTooltip')}
+              >
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {t('deploy:task.notLive')}
+              </Badge>
+            )}
             {/* Execution phase badge - shown when actively running */}
             {hasActiveExecution && executionPhase && !isStuck && !isIncomplete && (
               <Badge
@@ -1012,7 +1023,7 @@ export function DeploymentBadge({ deployment }: { deployment: import('../../shar
             ? 'bg-info/10 text-info border-info/30'
             : 'bg-success/10 text-success border-success/30'
       )}
-      title={[t('deploy:task.deployedTooltip', { time, script: deployment.script }), deployment.summary]
+      title={[t('deploy:task.deployedTooltip', { time, script: deployment.script }), deployment.summary, deployment.reason]
         .filter(Boolean)
         .join('\n')}
     >

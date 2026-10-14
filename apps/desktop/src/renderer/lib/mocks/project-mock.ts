@@ -54,7 +54,12 @@ export const projectMock = {
   prepareDeployCheckout: async () => ({ success: true, data: '/Users/demo/projects/demo/.malvy/worktrees/deploy' }),
   verifyBeforeDeploy: async () => ({ success: true, data: { ok: true, skipped: true } }),
   resolveTaskDeployments: async () => ({ success: true, data: {} }),
-  getDeployPlan: async () => ({ success: true, data: { steps: [], commit: '' } }),
+  getDeployRunbook: async () => ({ success: true, data: { content: '# Deploy runbook\n\n## Steps\n\n1. `./deploy.sh`\n', exists: true } }),
+  saveDeployRunbook: async () => ({ success: true }),
+  startDeploy: async () => ({ success: false, error: 'Not available in the browser mock' }),
+  getDeployStatus: async () => ({ success: true, data: { active: null, history: [] } }),
+  getDeployLog: async () => ({ success: true, data: '' }),
+  cancelDeploy: async () => ({ success: true, data: false }),
   recordTaskDeployment: async () => ({ success: true, data: [] }),
   getFunnelProgress: async (projectIds: string[]) => ({
     success: true,

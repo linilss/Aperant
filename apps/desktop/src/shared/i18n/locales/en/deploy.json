@@ -44,7 +44,9 @@
     "deployingNow": "Deploying…",
     "deployFailed": "Deploy failed {{time}}",
     "inTestFlight": "TestFlight {{version}}",
-    "liveVersion": "Live {{version}}"
+    "liveVersion": "Live {{version}}",
+    "notLive": "Not live",
+    "notLiveTooltip": "Merged into the main branch but not in a verified deploy yet"
   },
   "notDeployed": "{{count}} merged, not deployed",
   "default": "Project default",
@@ -65,18 +67,38 @@
     "verifyFailedUncommitted": "Verify fails and the project has uncommitted changes, so AI didn't try to fix it; nothing was deployed",
     "fixed": "AI fixed a collision between the merged tasks and committed the fix"
   },
-  "chain": {
-    "title": "Deploy button runs",
-    "description": "Kanban Deploy (cards and Pending Merge rocket) runs these in order and stops at the first failure. A deploy script in a subfolder only runs when that folder changed since its last successful deploy.",
-    "auto": "Automatic: every deploy script, root first",
-    "ask": "Not set: several deploy scripts share a folder, so pick which ones the Deploy button runs",
-    "include": "In Deploy button",
-    "addPlaceholder": "Add a step, e.g. scripts/smoke-prod.sh",
-    "add": "Add",
-    "remove": "Remove {{script}}",
-    "reset": "Back to automatic",
-    "watches": "only when {{folder}}/ changed",
-    "nothingChanged": "Nothing to deploy: {{skipped}} unchanged since the last deploy",
-    "skipped": "Skipped (unchanged): {{skipped}}"
+  "notLive": {
+    "count_one": "{{count}} not live",
+    "count_other": "{{count}} not live",
+    "confirm": "Deploy {{count}}?",
+    "tooltip": "Merged tasks not in a verified deploy yet. Deploys the main branch with the project's runbook."
+  },
+  "runbook": {
+    "title": "Deploy runbook",
+    "description": "The Kanban Deploy button follows this: an agent reads it and picks the steps for what changed, Malvy runs them and reads their exit codes, a failing step gets a code fix and a retry, then Malvy runs the Verify commands. Only a verified deploy marks tasks live.",
+    "generated": "Generated from the project's deploy scripts and CLAUDE.md. Check it and save to enable the Deploy button.",
+    "save": "Save",
+    "saveGenerated": "Save runbook",
+    "reviewFirst": "Check and save the deploy runbook first",
+    "started": "Deploy started",
+    "startedHint": "Follow it under Ship → Deploy.",
+    "succeeded": "Deploy verified",
+    "failed": "Deploy failed"
+  },
+  "runs": {
+    "title": "Recent deploys",
+    "cancel": "Cancel",
+    "log": "Log",
+    "logTitle": "Deploy log",
+    "logEmpty": "No output yet.",
+    "phase": {
+      "planning": "Planning…",
+      "running": "Running {{step}}…",
+      "fixing": "Fixing {{step}}…",
+      "verifying": "Verifying…"
+    }
+  },
+  "scripts": {
+    "title": "Run a script manually (in a terminal)"
   }
 }

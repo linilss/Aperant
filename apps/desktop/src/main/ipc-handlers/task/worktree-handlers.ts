@@ -1,3 +1,4 @@
+import { markTaskMerged } from '../../task-deployments';
 import { ipcMain, BrowserWindow, shell, app } from 'electron';
 import { IPC_CHANNELS, AUTO_BUILD_PATHS, DEFAULT_APP_SETTINGS, DEFAULT_FEATURE_MODELS, DEFAULT_FEATURE_THINKING, MODEL_ID_MAP, THINKING_BUDGET_MAP, getSpecsDir } from '../../../shared/constants';
 import type { IPCResult, WorktreeStatus, WorktreeDiff, WorktreeDiffFile, WorktreeMergeResult, WorktreeDiscardResult, WorktreeListResult, WorktreeListItem, WorktreeCreatePROptions, WorktreeCreatePRResult, SupportedIDE, SupportedTerminal, SupportedCLI, AppSettings } from '../../../shared/types';
@@ -2412,6 +2413,8 @@ export function registerWorktreeHandlers(
             for (const { path: planPath } of quickMergePlanPaths) {
               try { await persistPlanStatus(planPath, planStatus as any, project.id); } catch { /* non-fatal */ }
             }
+            // Not live until a verified deploy after this point
+            try { markTaskMerged(quickMergePlanPaths.map(({ path: planPath }) => path.dirname(planPath))); } catch { /* non-fatal */ }
 
             const taskForTransition = (task.status === 'backlog' || task.status === 'in_progress' || task.status === 'queue')
               ? { ...task, status: 'pending_merge' as const }

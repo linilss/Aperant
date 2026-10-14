@@ -37,6 +37,8 @@ export interface VerifyCommandOptions {
   maxLines?: number;
   maxChars?: number;
   env?: NodeJS.ProcessEnv;
+  /** Every output chunk as it arrives (e.g. to stream it into a log file) */
+  onOutput?: (chunk: string) => void;
 }
 
 export interface VerifyCommandResult {
@@ -72,7 +74,9 @@ export function runVerifyCommand(
     let settled = false;
 
     const append = (chunk: Buffer | string) => {
-      buffer += chunk.toString();
+      const text = chunk.toString();
+      options.onOutput?.(text);
+      buffer += text;
       if (buffer.length > BUFFER_LIMIT_CHARS) {
         buffer = buffer.slice(-BUFFER_LIMIT_CHARS);
       }

@@ -52,3 +52,33 @@ export function appendTaskDeployment(specPaths: string[], entry: TaskDeployment)
 
   return result;
 }
+
+/** Patch the deployment entry of a deploy run (by deployId) in every spec location. */
+export function updateTaskDeployment(specPaths: string[], deployId: string, patch: Partial<TaskDeployment>): void {
+  for (const specPath of specPaths) {
+    const metadataPath = path.join(specPath, 'task_metadata.json');
+    let metadata: TaskMetadata;
+    try {
+      metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(metadata.deployments) || !metadata.deployments.some((d) => d.deployId === deployId)) continue;
+    const deployments = metadata.deployments.map((d) => (d.deployId === deployId ? { ...d, ...patch } : d));
+    writeFileAtomicSync(metadataPath, JSON.stringify({ ...metadata, deployments }, null, 2));
+  }
+}
+
+/** Record that Malvy merged the task into the main branch (it is Not live until a verified deploy). */
+export function markTaskMerged(specPaths: string[], at = new Date().toISOString()): void {
+  for (const specPath of specPaths) {
+    const metadataPath = path.join(specPath, 'task_metadata.json');
+    let metadata: TaskMetadata = {};
+    try {
+      metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') continue;
+    }
+    writeFileAtomicSync(metadataPath, JSON.stringify({ ...metadata, mergedAt: at }, null, 2));
+  }
+}

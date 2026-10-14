@@ -32,6 +32,7 @@ import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants'
 import { cn } from '../lib/utils';
 import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, isRateLimitPaused, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
+import { isTaskNotLive } from '../../shared/utils/task-deployments';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
 import { useKanbanSettingsStore, DEFAULT_COLUMN_WIDTH, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, COLLAPSED_COLUMN_WIDTH_REM, MIN_COLUMN_WIDTH_REM, MAX_COLUMN_WIDTH_REM, DEFAULT_COLUMN_WIDTH_REM, BASE_FONT_SIZE, pxToRem } from '../stores/kanban-settings-store';
 import { useToast } from '../hooks/use-toast';
@@ -244,6 +245,46 @@ function DeployAllButton({ tasks }: { tasks: Task[] }) {
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">{t('deploy:batch.tooltip')}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** Done header: how many merged tasks are not live yet, and a rocket to deploy them (two clicks). */
+function DeployNotLiveButton({ tasks }: { tasks: Task[] }) {
+  const { t } = useTranslation(['deploy']);
+  const notLive = tasks.filter(isTaskNotLive);
+  const projectId = tasks[0]?.projectId;
+  const running = useDeployDialogStore((s) => (projectId ? s.runs[projectId] : undefined));
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  if (!running && notLive.length === 0) return null;
+  const label = running
+    ? t(`deploy:runs.phase.${running.phase ?? 'running'}`, { step: running.currentStep ?? '' })
+    : armed
+      ? t('deploy:notLive.confirm', { count: notLive.length })
+      : t('deploy:notLive.count', { count: notLive.length });
+  return (
+    <Button
+      variant={armed ? 'destructive' : 'ghost'}
+      size="sm"
+      className={cn('h-7 px-2 text-xs max-md:h-9', !armed && !running && 'text-warning hover:bg-warning/10')}
+      disabled={!!running}
+      title={t('deploy:notLive.tooltip')}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        useDeployDialogStore.getState().deployTask(notLive[notLive.length - 1]);
+      }}
+    >
+      {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+      <span className="ml-1.5 whitespace-nowrap">{label}</span>
+    </Button>
   );
 }
 
@@ -637,6 +678,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
             </Button>
           )}
           {status === 'pending_merge' && tasks.length > 0 && <DeployAllButton tasks={tasks} />}
+          {status === 'done' && <DeployNotLiveButton tasks={tasks} />}
           {status === 'done' && onArchiveAll && tasks.length > 0 && !showArchived && (
             <Button
               variant="ghost"

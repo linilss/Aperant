@@ -39,33 +39,43 @@ async function recordDeployment(
   }
 }
 
-const DEPLOY_POLL_MS = 10_000;
-const DEPLOY_POLL_MAX_MS = 3 * 60 * 60 * 1000;
+const DEPLOY_POLL_MS = 5_000;
+
+/** Refresh the tasks' deployment entries from task_metadata.json */
+async function refreshTaskDeployments(projectId: string, taskIds: string[]): Promise<void> {
+  const result = await window.electronAPI.resolveTaskDeployments(projectId, taskIds).catch(() => null);
+  if (!result?.success || !result.data) return;
+  for (const [taskId, deployments] of Object.entries(result.data)) {
+    const current = useTaskStore.getState().tasks.find((x) => x.id === taskId);
+    if (current) useTaskStore.getState().updateTask(taskId, { metadata: { ...current.metadata, deployments } });
+  }
+}
 
 /**
- * Poll the deploy log until the run finishes, then put its outcome (status, version,
- * build) on the tasks. Runs in the background; harmless if the window reloads.
+ * Follow a running deploy until it finishes: keeps the project's run in the deploy store
+ * (cards and the Deploy view show its phase) and toasts the outcome.
  */
-function watchDeployments(projectId: string, taskIds: string[]): void {
-  const started = Date.now();
+export function followDeploy(projectId: string, taskIds: string[], t: (key: string, o?: Record<string, unknown>) => string): void {
+  void refreshTaskDeployments(projectId, taskIds);
   const tick = async () => {
-    const result = await window.electronAPI.resolveTaskDeployments(projectId, taskIds).catch(() => null);
-    let running = false;
-    if (result?.success && result.data) {
-      for (const [taskId, deployments] of Object.entries(result.data)) {
-        const current = useTaskStore.getState().tasks.find((x) => x.id === taskId);
-        if (current) useTaskStore.getState().updateTask(taskId, { metadata: { ...current.metadata, deployments } });
-        if (deployments[deployments.length - 1]?.status === 'running') running = true;
-      }
+    const status = await window.electronAPI.getDeployStatus(projectId).catch(() => null);
+    const activeRun = status?.success ? status.data?.active : null;
+    useDeployDialogStore.getState().setRun(projectId, activeRun ?? null);
+    if (activeRun) {
+      setTimeout(tick, DEPLOY_POLL_MS);
+      return;
     }
-    if (running && Date.now() - started < DEPLOY_POLL_MAX_MS) setTimeout(tick, DEPLOY_POLL_MS);
+    await refreshTaskDeployments(projectId, taskIds);
+    const last = status?.success ? status.data?.history[0] : undefined;
+    if (last?.status === 'succeeded') {
+      toast({ title: t('runbook.succeeded'), description: last.summary ?? last.version ?? undefined });
+    } else if (last?.status === 'failed') {
+      toast({ title: t('runbook.failed'), description: last.reason, variant: 'destructive' });
+    }
   };
-  setTimeout(tick, DEPLOY_POLL_MS);
+  setTimeout(tick, 1_000);
 }
 
-function isOffMainBranch(preflight: DeployPreflight | null | undefined): boolean {
-  return !!(preflight?.currentBranch && preflight.mainBranch && preflight.currentBranch !== preflight.mainBranch);
-}
 
 /**
  * The terminal command for a deploy. With uncommitted changes in the project checkout the
@@ -105,51 +115,30 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
   const { t } = useTranslation('deploy');
   const task = useDeployDialogStore((s) => s.task);
   const close = useDeployDialogStore((s) => s.close);
-  const runInTerminal = useRef(onRunInTerminal);
-  runInTerminal.current = onRunInTerminal;
+  const onOpenDeployViewRef = useRef(onOpenDeployView);
+  onOpenDeployViewRef.current = onOpenDeployView;
 
   /**
-   * Deploy step shared by one-click and batch deploys: run the project's deploy script
-   * and record it on every task. Falls back to the dialog (for the last task) without a
-   * resolvable script or when the checkout is on the wrong branch.
+   * Deploy step shared by one-click and batch deploys: start a runbook deploy for the
+   * project (Malvy plans from .malvy/deploy.md, runs the steps, fixes, verifies) and follow it.
+   * Without a runbook yet it opens Ship → Deploy to review the generated one.
    */
   const deployMerged = useCallback(
     async (tasks: Task[]) => {
-      const last = tasks[tasks.length - 1];
-      const projectId = last.projectId;
-      const [planResult, preflightResult] = await Promise.all([
-        window.electronAPI.getDeployPlan(projectId),
-        window.electronAPI.getDeployPreflight(projectId)
-      ]);
-      const fresh = (task: Task) => useTaskStore.getState().tasks.find((x) => x.id === task.id) ?? task;
-      const settings = useProjectStore.getState().projects.find((p) => p.id === projectId)?.settings;
-      const plan = planResult.success ? planResult.data : undefined;
-      const preflight = preflightResult.success ? preflightResult.data : null;
-      if (!plan || plan.steps.length === 0 || isOffMainBranch(preflight)) {
-        useDeployDialogStore.getState().openForTask(fresh(last));
+      const projectId = tasks[0].projectId;
+      const runbook = await window.electronAPI.getDeployRunbook(projectId);
+      if (runbook.success && runbook.data && !runbook.data.exists) {
+        toast({ title: t('runbook.reviewFirst') });
+        onOpenDeployViewRef.current();
         return;
       }
-      const steps = plan.steps.filter((s) => s.run).map((s) => s.script);
-      const skipped = plan.steps.filter((s) => !s.run).map((s) => s.script);
-      if (steps.length === 0) {
-        toast({ title: t('chain.nothingChanged', { skipped: skipped.join(', ') }) });
+      const started = await window.electronAPI.startDeploy(projectId, tasks.map((task) => task.id));
+      if (!started.success || !started.data) {
+        toast({ title: t('task.failed'), description: started.error, variant: 'destructive' });
         return;
       }
-      const args = settings?.deployArgs ?? '';
-      const label = steps.join(' → ');
-      const { command, log } = await buildTaskDeployCommand(projectId, buildChainCommand(steps, args), preflight);
-      if (!runInTerminal.current(command, `${t('title')}: ${label}`)) {
-        toast({ title: t('terminalLimit'), variant: 'destructive' });
-        return;
-      }
-      for (const task of tasks) {
-        await recordDeployment(fresh(task), label, steps.length === 1 ? args : '', log, plan.commit, steps);
-      }
-      watchDeployments(projectId, tasks.map((task) => task.id));
-      toast({
-        title: t('task.started', { script: label }),
-        ...(skipped.length > 0 ? { description: t('chain.skipped', { skipped: skipped.join(', ') }) } : {})
-      });
+      toast({ title: t('runbook.started'), description: t('runbook.startedHint') });
+      followDeploy(projectId, started.data.taskIds, t);
     },
     [t]
   );
@@ -243,6 +232,22 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
     },
     [t, quickMerge, deployMerged]
   );
+
+  // Pick up a deploy already running for the open project (e.g. after a reload)
+  const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    window.electronAPI
+      .getDeployStatus(selectedProjectId)
+      .then((status) => {
+        const run = status.success ? status.data?.active : null;
+        if (run && !useDeployDialogStore.getState().runs[selectedProjectId]) {
+          useDeployDialogStore.getState().setRun(selectedProjectId, run);
+          followDeploy(selectedProjectId, run.taskIds, t);
+        }
+      })
+      .catch(() => undefined);
+  }, [selectedProjectId, t]);
 
   useEffect(() => {
     const store = useDeployDialogStore.getState();
@@ -341,9 +346,7 @@ function TaskDeployDialogBody({
     if (makeDefault) {
       await updateProjectSettings(task.projectId, { deployScript: selected.relativePath, deployArgs: args.trim() });
     }
-    const plan = await window.electronAPI.getDeployPlan(task.projectId).catch(() => null);
-    await recordDeployment(task, selected.relativePath, args, log, plan?.data?.commit, [selected.relativePath]);
-    watchDeployments(task.projectId, [task.id]);
+    await recordDeployment(task, selected.relativePath, args, log, undefined, [selected.relativePath]);
     onClose();
   };
 

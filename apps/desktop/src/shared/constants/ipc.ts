@@ -15,7 +15,12 @@ export const IPC_CHANNELS = {
   PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
   PROJECT_DEPLOY_CLEAN_CHECKOUT: 'project:deployCleanCheckout',  // Detached worktree at HEAD so a deploy skips uncommitted changes
   PROJECT_DEPLOY_VERIFY: 'project:deployVerify',  // Verify command after a batch merge; AI fixes collisions
-  PROJECT_DEPLOY_PLAN: 'project:deployPlan',  // Steps the Kanban Deploy button runs now
+  PROJECT_DEPLOY_RUNBOOK_GET: 'project:deployRunbookGet',    // .malvy/deploy.md (or a generated first version)
+  PROJECT_DEPLOY_RUNBOOK_SAVE: 'project:deployRunbookSave',
+  PROJECT_DEPLOY_START: 'project:deployStart',              // Runbook deploy (plan → steps → fix → verify)
+  PROJECT_DEPLOY_STATUS: 'project:deployStatus',
+  PROJECT_DEPLOY_LOG: 'project:deployLog',
+  PROJECT_DEPLOY_CANCEL: 'project:deployCancel',
   PROJECT_DEPLOY_PREFLIGHT: 'project:deployPreflight',      // Branch + uncommitted-changes check before a deploy
   PROJECT_RESOLVE_TASK_DEPLOYMENTS: 'project:resolveTaskDeployments',  // Read finished deploy logs into task_metadata.json
   PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json

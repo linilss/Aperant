@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Rocket, RefreshCw, Play, AlertCircle, Check, Plus, X, ArrowRight } from 'lucide-react';
+import { Rocket, RefreshCw, Play, AlertCircle, FileText, Save, Square, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { PageHeader, PAGE_BODY, PAGE_ROOT } from '../ui/page-header';
 import { cn } from '../../lib/utils';
-import { useProjectStore, updateProjectSettings } from '../../stores/project-store';
+import { useProjectStore } from '../../stores/project-store';
 import { buildDeployCommand } from './deploy-command';
-import type { DeployPlan, DeployScript } from '../../../shared/types';
+import type { DeployRunRecord, DeployScript } from '../../../shared/types';
+import { Textarea } from '../ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { formatRelativeTime } from '../../lib/utils';
+import { useDeployDialogStore } from '../../stores/deploy-dialog-store';
 
 interface DeployProps {
   projectId: string;
@@ -22,25 +26,6 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const settings = useProjectStore((s) => s.projects.find((p) => p.id === projectId)?.settings);
-  const [plan, setPlan] = useState<DeployPlan | null>(null);
-  const chain = plan?.steps.map((step) => step.script) ?? [];
-
-  const loadPlan = useCallback(async () => {
-    const result = await window.electronAPI.getDeployPlan(projectId);
-    setPlan(result.success && result.data ? result.data : null);
-  }, [projectId]);
-
-  // Re-plan whenever the chain setting changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: settings.deployChain is the trigger
-  useEffect(() => {
-    void loadPlan();
-  }, [loadPlan, settings?.deployChain]);
-
-  const saveChain = (next: string[]) =>
-    updateProjectSettings(projectId, { deployChain: next.length > 0 ? next : undefined });
-  const toggleInChain = (script: string) =>
-    saveChain(chain.includes(script) ? chain.filter((s) => s !== script) : [...chain, script]);
-
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -103,20 +88,14 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
       ) : (
         <ScrollArea className={PAGE_BODY}>
           <div className="space-y-3 p-6 max-md:p-3">
-            <DeployChainPanel
-              plan={plan}
-              custom={!!settings?.deployChain?.length}
-              onRemove={(script) => saveChain(chain.filter((s) => s !== script))}
-              onAdd={(script) => saveChain(chain.includes(script) ? chain : [...chain, script])}
-              onReset={() => saveChain([])}
-            />
+            <RunbookPanel projectId={projectId} />
+            <DeployRunsPanel projectId={projectId} />
+            <h3 className="pt-2 text-sm font-semibold text-muted-foreground">{t('scripts.title')}</h3>
             {scripts.map((script) => (
               <DeployScriptCard
                 key={script.relativePath}
                 script={script}
-                inChain={chain.includes(script.relativePath)}
                 defaultArgs={script.relativePath === settings?.deployScript ? settings?.deployArgs : undefined}
-                onToggleChain={() => toggleInChain(script.relativePath)}
                 onRun={run}
               />
             ))}
@@ -129,15 +108,11 @@ export function Deploy({ projectId, onRunInTerminal }: DeployProps) {
 
 function DeployScriptCard({
   script,
-  inChain,
   defaultArgs,
-  onToggleChain,
   onRun
 }: {
   script: DeployScript;
-  inChain: boolean;
   defaultArgs?: string;
-  onToggleChain: () => void;
   onRun: (script: DeployScript, args: string) => void;
 }) {
   const { t } = useTranslation('deploy');
@@ -193,16 +168,6 @@ function DeployScriptCard({
           )}
           <Button
             size="sm"
-            variant={inChain ? 'secondary' : 'ghost'}
-            onClick={onToggleChain}
-            aria-pressed={inChain}
-            className="max-md:h-10 max-md:w-full"
-          >
-            {inChain ? <Check className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-            {t('chain.include')}
-          </Button>
-          <Button
-            size="sm"
             variant={armed ? 'destructive' : 'default'}
             onClick={handleClick}
             className="max-md:h-10 max-md:w-full"
@@ -216,88 +181,166 @@ function DeployScriptCard({
   );
 }
 
-/** What the Kanban Deploy button runs, in order; steps can be removed, added or reset. */
-function DeployChainPanel({
-  plan,
-  custom,
-  onRemove,
-  onAdd,
-  onReset
-}: {
-  plan: DeployPlan | null;
-  custom: boolean;
-  onRemove: (script: string) => void;
-  onAdd: (script: string) => void;
-  onReset: () => void;
-}) {
+/** The project's deploy runbook (.malvy/deploy.md): what the Kanban Deploy button follows. */
+function RunbookPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation('deploy');
-  const [draft, setDraft] = useState('');
-  const steps = plan?.steps ?? [];
-  const add = () => {
-    const value = draft.trim().replace(/^\.\//, '');
-    if (!value) return;
-    onAdd(value);
-    setDraft('');
+  const [content, setContent] = useState('');
+  const [saved, setSaved] = useState('');
+  const [exists, setExists] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI.getDeployRunbook(projectId).then((result) => {
+      if (cancelled || !result.success || !result.data) return;
+      setContent(result.data.content);
+      setSaved(result.data.exists ? result.data.content : '');
+      setExists(result.data.exists);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const save = async () => {
+    setSaving(true);
+    const result = await window.electronAPI.saveDeployRunbook(projectId, content);
+    setSaving(false);
+    if (result.success) {
+      setSaved(content);
+      setExists(true);
+    }
   };
+  const dirty = !exists || content !== saved;
 
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Rocket className="h-4 w-4 text-primary" />
-          {t('chain.title')}
+          <FileText className="h-4 w-4 text-primary" />
+          {t('runbook.title')}
+          <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">.malvy/deploy.md</code>
         </h3>
-        {custom && (
-          <Button size="sm" variant="ghost" onClick={onReset} className="h-7 text-xs">
-            {t('chain.reset')}
-          </Button>
-        )}
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{t('chain.description')}</p>
-      {steps.length === 0 ? (
-        <p className="mt-3 text-sm text-warning">{t('chain.ask')}</p>
-      ) : (
-        <ol className="mt-3 flex flex-wrap items-center gap-1.5">
-          {steps.map((step, i) => (
-            <li key={step.script} className="flex items-center gap-1.5">
-              {i > 0 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />}
-              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 font-mono text-xs">
-                {step.script}
-                {step.folder && (
-                  <span className="font-sans text-[10px] text-muted-foreground">
-                    ({t('chain.watches', { folder: step.folder })})
-                  </span>
-                )}
-                {custom && (
-                  <button
-                    type="button"
-                    onClick={() => onRemove(step.script)}
-                    aria-label={t('chain.remove', { script: step.script })}
-                    className="ml-0.5 rounded text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {!custom && steps.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{t('chain.auto')}</p>}
-      <div className="mt-3 flex gap-2">
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') add();
-          }}
-          placeholder={t('chain.addPlaceholder')}
-          className="h-8 font-mono text-xs max-md:h-10"
-        />
-        <Button size="sm" variant="outline" onClick={add} disabled={!draft.trim()} className="max-md:h-10">
-          {t('chain.add')}
+        <Button size="sm" onClick={save} disabled={!dirty || saving} className="h-8">
+          <Save className="mr-2 h-4 w-4" />
+          {exists ? t('runbook.save') : t('runbook.saveGenerated')}
         </Button>
       </div>
+      <p className="mt-1 text-xs text-muted-foreground">{t('runbook.description')}</p>
+      {!exists && <p className="mt-2 text-xs font-medium text-warning">{t('runbook.generated')}</p>}
+      <Textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        spellCheck={false}
+        className="mt-3 min-h-64 font-mono text-xs"
+      />
     </div>
+  );
+}
+
+/** Recent runbook deploys with status, versions and their log; cancel a running one. */
+function DeployRunsPanel({ projectId }: { projectId: string }) {
+  const { t } = useTranslation('deploy');
+  const [history, setHistory] = useState<DeployRunRecord[]>([]);
+  const activeRun = useDeployDialogStore((s) => s.runs[projectId]);
+  const [logFor, setLogFor] = useState<string | null>(null);
+
+  // Reload when a run starts or ends (activeRun id changes)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activeRun?.id is the trigger
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      const result = await window.electronAPI.getDeployStatus(projectId).catch(() => null);
+      if (cancelled || !result?.success || !result.data) return;
+      setHistory(result.data.history);
+      useDeployDialogStore.getState().setRun(projectId, result.data.active);
+      if (result.data.active) timer = setTimeout(load, 5000);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [projectId, activeRun?.id]);
+
+  if (history.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="text-sm font-semibold">{t('runs.title')}</h3>
+      <ul className="mt-2 divide-y divide-border">
+        {history.map((run) => {
+          const live = activeRun?.id === run.id ? activeRun : run;
+          const ran = live.steps?.filter((s) => s.run).map((s) => s.name) ?? [];
+          return (
+            <li key={run.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+              {live.status === 'running' ? (
+                <Loader2 className="h-4 w-4 animate-spin text-info" />
+              ) : live.status === 'succeeded' ? (
+                <CheckCircle2 className="h-4 w-4 text-success" />
+              ) : (
+                <XCircle className="h-4 w-4 text-destructive" />
+              )}
+              <span className="text-muted-foreground">{formatRelativeTime(new Date(run.startedAt))}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {live.status === 'running'
+                  ? t(`runs.phase.${live.phase ?? 'running'}`, { step: live.currentStep ?? '' })
+                  : live.status === 'failed'
+                    ? live.reason
+                    : [ran.join(' → '), live.version && `${live.version}${live.build ? ` (${live.build})` : ''}`]
+                        .filter(Boolean)
+                        .join(' · ')}
+              </span>
+              {live.status === 'running' && (
+                <Button size="sm" variant="ghost" className="h-7" onClick={() => window.electronAPI.cancelDeploy(projectId)}>
+                  <Square className="mr-1.5 h-3 w-3" />
+                  {t('runs.cancel')}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7" onClick={() => setLogFor(run.id)}>
+                {t('runs.log')}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      <DeployLogDialog projectId={projectId} deployId={logFor} onClose={() => setLogFor(null)} />
+    </div>
+  );
+}
+
+/** The log of one deploy run; refreshes while it is running. */
+export function DeployLogDialog({ projectId, deployId, onClose }: { projectId: string; deployId: string | null; onClose: () => void }) {
+  const { t } = useTranslation('deploy');
+  const [text, setText] = useState('');
+  const running = useDeployDialogStore((s) => s.runs[projectId]?.id === deployId);
+
+  useEffect(() => {
+    if (!deployId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      const result = await window.electronAPI.getDeployLog(projectId, deployId).catch(() => null);
+      if (!cancelled && result?.success) setText(result.data ?? '');
+      if (!cancelled && running) timer = setTimeout(load, 3000);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [projectId, deployId, running]);
+
+  return (
+    <Dialog open={!!deployId} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{t('runs.logTitle')}</DialogTitle>
+        </DialogHeader>
+        <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-mono text-[11px] leading-relaxed">
+          {text || t('runs.logEmpty')}
+        </pre>
+      </DialogContent>
+    </Dialog>
   );
 }

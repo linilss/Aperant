@@ -38,3 +38,10 @@ export function formatDeployedVersion(deployment: Pick<TaskDeployment, 'version'
 export function isAppStoreDeployment(deployment: Pick<TaskDeployment, 'build' | 'summary' | 'script'>): boolean {
   return !!deployment.build || /testflight/i.test(deployment.summary ?? '') || /ios|apple|testflight/i.test(deployment.script);
 }
+
+/** Merged by Malvy and not covered by a verified deploy that started after the merge */
+export function isTaskNotLive(task: Pick<Task, 'status' | 'metadata'>): boolean {
+  const mergedAt = task.metadata?.mergedAt;
+  if (task.status !== 'done' || !mergedAt || task.metadata?.archivedAt) return false;
+  return !(task.metadata?.deployments ?? []).some((d) => d.status === 'succeeded' && d.at >= mergedAt);
+}

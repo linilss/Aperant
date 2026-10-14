@@ -67,11 +67,6 @@ export interface ProjectSettings {
   /** Arguments passed to deployScript */
   deployArgs?: string;
   /**
-   * Scripts the Kanban Deploy button runs, in order (relative paths; may include non-deploy
-   * steps like a smoke test). Absent = every deploy*.sh, root first.
-   */
-  deployChain?: string[];
-  /**
    * Shell command that proves the build is healthy (e.g. "npm run typecheck && npm test").
    * Run in the task worktree after each subtask and before QA. Malvy-only, never written to the repo.
    */
@@ -460,22 +455,6 @@ export interface DeployScript {
   description: string;
   /** Text after a `# Usage:` comment line, if present */
   usage?: string;
-}
-
-/** One step of a Kanban deploy and whether it runs this time */
-export interface DeployPlanStep {
-  script: string;
-  run: boolean;
-  /** always = runs every deploy; first = never ran before; changed / unchanged = its folder */
-  reason: 'always' | 'first' | 'changed' | 'unchanged';
-  /** Folder a subfolder deploy script watches (e.g. apple) */
-  folder?: string;
-}
-
-export interface DeployPlan {
-  steps: DeployPlanStep[];
-  /** HEAD at planning time, recorded so the next deploy can tell what changed */
-  commit: string;
 }
 
 /** Result of the verify-and-fix step before a batch deploy */

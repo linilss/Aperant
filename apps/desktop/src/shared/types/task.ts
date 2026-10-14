@@ -190,7 +190,42 @@ export type TaskCategory =
   | 'infrastructure'
   | 'testing';
 
+/** One step of a runbook deploy */
+export interface DeployRunStep {
+  name: string;
+  command: string;
+  run: boolean;
+  reason?: string;
+  exitCode?: number;
+}
+
+/** A runbook deploy run (`.malvy/deploys/history.json`) */
+export interface DeployRunRecord {
+  id: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: 'running' | 'succeeded' | 'failed';
+  phase?: 'planning' | 'running' | 'fixing' | 'verifying';
+  currentStep?: string;
+  /** HEAD when it started; HEAD after (incl. fix/release commits) once succeeded */
+  commit: string;
+  taskIds: string[];
+  steps?: DeployRunStep[];
+  /** Log path relative to the project root */
+  log: string;
+  cleanCheckout?: boolean;
+  /** An agent fixed a failing step */
+  fixed?: boolean;
+  version?: string;
+  build?: string;
+  webVersion?: string;
+  summary?: string;
+  reason?: string;
+}
+
 export interface TaskMetadata {
+  /** When Malvy merged the task into the main branch (Not live until a verified deploy after it) */
+  mergedAt?: string;
   // Origin tracking
   sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab';
   ideationType?: string;  // e.g., 'code_improvements', 'security_hardening'
@@ -295,6 +330,10 @@ export interface TaskDeployment {
   stepsOk?: string[];
   /** Web version from a 'Live: <v>' line, when the chain also deployed a backend */
   webVersion?: string;
+  /** Deploy run (see .malvy/deploys/history.json) this entry belongs to */
+  deployId?: string;
+  /** Why it failed, in one line */
+  reason?: string;
 }
 
 export interface Task {
