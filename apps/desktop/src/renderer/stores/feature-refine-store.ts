@@ -119,9 +119,11 @@ export const useFeatureRefineStore = create<FeatureRefineState>((set, get) => ({
 
   setComplete: (result) => {
     set((state) => {
-      // Finalize any remaining streaming content before marking complete
+      // Finalize any remaining streaming content. Main sends this after every turn:
+      // only a turn that carries the refined feature data ends the session; otherwise
+      // the agent asked a question and waits for an answer.
       const updates: Partial<FeatureRefineState> = {
-        status: 'complete',
+        status: result ? 'complete' : 'idle',
         result,
         currentTool: null,
         streamingContent: '',

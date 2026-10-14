@@ -19,3 +19,17 @@ describe('splitRefineOptions', () => {
     expect(splitRefineOptions(text)).toEqual({ body: text, options: [] });
   });
 });
+
+import { useFeatureRefineStore } from '../../../stores/feature-refine-store';
+
+describe('feature refine store turn end', () => {
+  it('keeps the session open after a question, completes only with feature data', () => {
+    const store = useFeatureRefineStore.getState();
+    store.appendChunk('Where should the chart live?');
+    store.setComplete(null);
+    expect(useFeatureRefineStore.getState().status).toBe('idle');
+    expect(useFeatureRefineStore.getState().messages.at(-1)?.content).toBe('Where should the chart live?');
+    store.setComplete({ title: 'T' } as never);
+    expect(useFeatureRefineStore.getState().status).toBe('complete');
+  });
+});
