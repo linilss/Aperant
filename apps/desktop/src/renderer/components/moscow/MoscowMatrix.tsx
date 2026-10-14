@@ -136,6 +136,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
       ? filterFeaturesByDirection(allFeatures ?? [], directionFilter, directions)
       : (allFeatures ?? []);
     for (const feature of visible) {
+      if (feature.status === 'dismissed') continue;
       (grouped[feature.priority] ?? grouped.should).push(feature);
     }
     return grouped;

@@ -18,7 +18,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Eye, Calendar, Play, Check } from 'lucide-react';
+import { Plus, Inbox, Eye, Calendar, Play, Check, Ban } from 'lucide-react';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
@@ -62,7 +62,8 @@ const STATUS_DOT_CLASSES: Record<string, string> = {
   under_review: 'bg-muted-foreground/50',
   planned: 'bg-info',
   in_progress: 'bg-primary',
-  done: 'bg-success'
+  done: 'bg-success',
+  dismissed: 'bg-destructive/50'
 };
 
 // Get icon component for status
@@ -76,6 +77,8 @@ function getStatusIcon(iconName: string) {
       return <Play className="h-3.5 w-3.5" />;
     case 'Check':
       return <Check className="h-3.5 w-3.5" />;
+    case 'Ban':
+      return <Ban className="h-3.5 w-3.5" />;
     default:
       return null;
   }
@@ -120,6 +123,8 @@ function DroppableStatusColumn({
                 ? 'bg-primary/10 text-primary'
                 : column.id === 'planned'
                 ? 'bg-info/10 text-info'
+                : column.id === 'dismissed'
+                ? 'bg-destructive/10 text-destructive'
                 : 'bg-muted text-muted-foreground'
             )}
           >

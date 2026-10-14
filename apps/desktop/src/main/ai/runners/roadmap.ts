@@ -26,7 +26,7 @@ import { getAugmentedEnvAsync, findExecutableAsync } from '../../env-utils';
 import { getProjectProfileEnv } from '../../claude-profile/project-profile';
 import { loadCoreValuesSection } from '../../core-values';
 import { buildCompetitorSection, loadFunnelContextSection } from './roadmap-funnel-context';
-import { buildRemovedFeaturesSection, readRemovedFeatures } from '../../roadmap-removed';
+import { buildRemovedFeaturesSection, readRemovedFeatures, type RemovedFeature } from '../../roadmap-removed';
 import {
   createMemoryStore,
   emptyCompetitorState,
@@ -480,9 +480,18 @@ async function runFeaturesPhase(
 
   const loadedFeaturesPrompt = tryLoadPrompt('roadmap_features');
 
+  // Dismissed features stay on the board but are prompted as rejections, not as features to keep
+  const isDismissed = (f: Record<string, unknown>) => f.status === 'dismissed';
+  const keptFeatures = preservedFeatures.filter((f) => !isDismissed(f));
+  const dismissedFeatures: RemovedFeature[] = preservedFeatures.filter(isDismissed).map((f) => ({
+    title: String(f.title ?? ''),
+    description: typeof f.description === 'string' ? f.description.slice(0, 200) : undefined,
+    removedAt: '',
+  }));
+
   let preservedSection = '';
-  if (preservedFeatures.length > 0) {
-    const preservedInfo = preservedFeatures
+  if (keptFeatures.length > 0) {
+    const preservedInfo = keptFeatures
       .map((f) => `  - ${(f as Record<string, string>).id ?? 'unknown'}: ${(f as Record<string, string>).title ?? 'Untitled'}`)
       .join('\n');
     preservedSection =
@@ -498,7 +507,7 @@ async function runFeaturesPhase(
     `**Project Index File**: ${projectIndexFile}\n` +
     competitorSection +
     preservedSection +
-    buildRemovedFeaturesSection(readRemovedFeatures(outputDir)) +
+    buildRemovedFeaturesSection([...dismissedFeatures, ...readRemovedFeatures(outputDir)]) +
     buildGuidanceSection(guidance) +
     loadStrategyGuidance(projectDir, { valuesAlreadyShown: true }) +
     loadDirectionTaggingSection(projectDir) +
@@ -571,7 +580,7 @@ async function runFeaturesPhase(
 
 /**
  * Load features from existing roadmap that should be preserved.
- * Preserves features with status planned/in_progress/done, linked specs, or internal source.
+ * Preserves features with status planned/in_progress/done/dismissed, linked specs, or internal source.
  */
 function loadPreservedFeatures(roadmapFile: string): Record<string, unknown>[] {
   if (!existsSync(roadmapFile)) return [];
@@ -588,7 +597,7 @@ function loadPreservedFeatures(roadmapFile: string): Record<string, unknown>[] {
     const isInternal = typeof source === 'object' && source !== null && source.provider === 'internal';
 
     return (
-      status === 'planned' || status === 'in_progress' || status === 'done' ||
+      status === 'planned' || status === 'in_progress' || status === 'done' || status === 'dismissed' ||
       hasLinkedSpec || isInternal
     );
   });

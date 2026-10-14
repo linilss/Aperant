@@ -84,7 +84,7 @@ export interface CompetitorAnalysis {
 // ============================================
 
 export type RoadmapFeaturePriority = 'must' | 'should' | 'could' | 'wont';
-export type RoadmapFeatureStatus = 'under_review' | 'planned' | 'in_progress' | 'done';
+export type RoadmapFeatureStatus = 'under_review' | 'planned' | 'in_progress' | 'done' | 'dismissed';
 export type TaskOutcome = 'completed' | 'deleted' | 'archived';
 export type RoadmapPhaseStatus = 'planned' | 'in_progress' | 'completed';
 export type RoadmapStatus = 'draft' | 'active' | 'archived';

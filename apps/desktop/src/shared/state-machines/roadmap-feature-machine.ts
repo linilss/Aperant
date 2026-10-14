@@ -16,7 +16,8 @@ export type RoadmapFeatureEvent =
   | { type: 'TASK_DELETED' }
   | { type: 'TASK_ARCHIVED' }
   | { type: 'REVERT' }
-  | { type: 'MOVE_TO_REVIEW' };
+  | { type: 'MOVE_TO_REVIEW' }
+  | { type: 'DISMISS' };
 
 export const roadmapFeatureMachine = createMachine(
   {
@@ -35,6 +36,7 @@ export const roadmapFeatureMachine = createMachine(
       under_review: {
         on: {
           PLAN: 'planned',
+          DISMISS: 'dismissed',
           START_PROGRESS: 'in_progress',
           LINK_SPEC: {
             target: 'in_progress',
@@ -81,7 +83,8 @@ export const roadmapFeatureMachine = createMachine(
             target: 'done',
             actions: ['savePreviousPlanned', 'setTaskOutcomeArchived']
           },
-          MOVE_TO_REVIEW: 'under_review'
+          MOVE_TO_REVIEW: 'under_review',
+          DISMISS: 'dismissed'
         }
       },
       in_progress: {
@@ -160,6 +163,14 @@ export const roadmapFeatureMachine = createMachine(
             target: 'in_progress',
             actions: 'clearDoneContext'
           }
+        }
+      },
+      // Rejected by the user; kept so roadmap generation avoids similar features
+      dismissed: {
+        on: {
+          MOVE_TO_REVIEW: 'under_review',
+          PLAN: 'planned',
+          START_PROGRESS: 'in_progress'
         }
       }
     }

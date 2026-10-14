@@ -166,7 +166,8 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
     }
   };
 
-  const openFeatures = roadmap?.features.filter((f) => f.status !== 'done') ?? [];
+  // Dismissed ones stay: they steer future generations
+  const openFeatures = roadmap?.features.filter((f) => f.status !== 'done' && f.status !== 'dismissed') ?? [];
   const confirmClearOpen = async () => {
     const ids = openFeatures.map((f) => f.id);
     setShowClearOpen(false);
@@ -310,7 +311,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
             </div>
             <AlertDialogDescription>
               {t('roadmap.clearOpen.description', {
-                done: roadmap.features.length - openFeatures.length,
+                done: roadmap.features.filter((f) => f.status === 'done').length,
                 inProgress: openFeatures.filter((f) => f.status === 'in_progress').length
               })}
             </AlertDialogDescription>

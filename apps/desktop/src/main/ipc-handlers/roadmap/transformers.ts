@@ -110,6 +110,8 @@ const STATUS_MAP: Record<string, RoadmapFeature['status']> = {
   'planned': 'planned',
   'in_progress': 'in_progress',
   'done': 'done',
+  'dismissed': 'dismissed',
+  'rejected': 'dismissed',
   // Early-stage / ideation statuses → under_review
   'idea': 'under_review',
   'backlog': 'under_review',

@@ -384,7 +384,8 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
       planned: { type: 'PLAN' },
       in_progress: { type: 'START_PROGRESS' },
       done: { type: 'MARK_DONE' },
-      under_review: { type: 'MOVE_TO_REVIEW' }
+      under_review: { type: 'MOVE_TO_REVIEW' },
+      dismissed: { type: 'DISMISS' }
     };
 
     const actor = getOrCreateFeatureActor(featureId, feature.status, {
@@ -957,7 +958,7 @@ export function getFeaturesByPhase(
   phaseId: string
 ): RoadmapFeature[] {
   if (!roadmap) return [];
-  return roadmap.features.filter((f) => f.phaseId === phaseId);
+  return roadmap.features.filter((f) => f.phaseId === phaseId && f.status !== 'dismissed');
 }
 
 export function getFeaturesByPriority(

@@ -79,7 +79,7 @@ export function FeatureDetailPanel({
     }
   };
 
-  // Desktop: right-side sheet over a backdrop; phone: full screen. Esc / backdrop click close it.
+  // Desktop: centered dialog over a backdrop; phone: full screen. Esc / backdrop click close it.
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogPortal>
@@ -92,7 +92,7 @@ export function FeatureDetailPanel({
             e.preventDefault();
             contentRef.current?.focus();
           }}
-          className="fixed inset-y-0 right-0 z-50 flex w-[26rem] max-w-[calc(100vw-4rem)] flex-col border-l border-border bg-card shadow-2xl outline-none max-md:inset-x-0 max-md:w-full max-md:max-w-none max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[42rem] max-w-[calc(100vw-4rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl outline-none max-md:inset-0 max-md:max-h-none max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:border-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]"
         >
       {/* Header */}
       <div className="shrink-0 p-4 border-b border-border electron-no-drag max-md:p-3">

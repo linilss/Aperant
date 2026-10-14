@@ -38,7 +38,8 @@ export function buildRoadmapContextSection(features: Array<Record<string, unknow
   });
   return (
     '\n**EXISTING ROADMAP FEATURES** — do not propose ideas already covered by these; ' +
-    'you may propose an improvement to one if the idea names the feature it improves:\n' +
+    'you may propose an improvement to one if the idea names the feature it improves. ' +
+    'Status "dismissed" means the user rejected it: avoid that kind of idea entirely:\n' +
     `${lines.join('\n')}\n${moreSuffix(items.length)}`
   );
 }
