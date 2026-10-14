@@ -57,7 +57,28 @@ const ACCEPT_RECOMMENDATION_REPLY = 'Yes — go with your recommendation.';
 const MAX_AUTO_ACCEPT_ROUNDS = 8;
 
 /** Matches the recommendation line the refine prompt ends each question with */
-const RECOMMENDATION_PATTERN = /\*{0,2}Recommendation:?\*{0,2}/i;
+const RECOMMENDATION_PATTERN = /\*{0,2}(Recommendation|Options):?\*{0,2}/i;
+
+export interface RefineOption {
+  n: number;
+  text: string;
+}
+
+/**
+ * Split an assistant message into its body and the ranked options block
+ * ("**Options:**" followed by "1. …", "2. …"). Option 1 is the recommendation.
+ */
+export function splitRefineOptions(content: string): { body: string; options: RefineOption[] } {
+  const match = /\n?\s*\*{0,2}Options:?\*{0,2}\s*\n/i.exec(content);
+  if (!match) return { body: content, options: [] };
+  const options: RefineOption[] = [];
+  for (const line of content.slice(match.index + match[0].length).split('\n')) {
+    const m = /^\s*(\d+)[.)]\s+(.+)$/.exec(line);
+    if (m) options.push({ n: Number(m[1]), text: m[2].trim() });
+    else if (line.trim() && options.length > 0) break;
+  }
+  return options.length >= 2 ? { body: content.slice(0, match.index).trimEnd(), options } : { body: content, options: [] };
+}
 
 export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: RefineFeaturePanelProps) {
   const { t } = useTranslation(['common']);
@@ -174,7 +195,8 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
       return;
     }
     setAutoRounds((n) => n + 1);
-    sendMessage(ACCEPT_RECOMMENDATION_REPLY);
+    const first = splitRefineOptions(lastMessage.content).options[0];
+    sendMessage(first ? `${first.n}. ${first.text}` : ACCEPT_RECOMMENDATION_REPLY);
   }, [autoAccept, canAcceptRecommendation, lastMessage?.id]);
 
   // Stop auto mode on completion or error
@@ -260,9 +282,55 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
                 )}
               >
                 {msg.role === 'assistant' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                    {msg.content}
-                  </ReactMarkdown>
+                  (() => {
+                    const isLast = msg.id === lastMessage?.id;
+                    const { body, options } = splitRefineOptions(msg.content);
+                    const showButtons = isLast && canAcceptRecommendation && options.length > 0;
+                    return (
+                      <>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {showButtons ? body : msg.content}
+                        </ReactMarkdown>
+                        {showButtons && (
+                          <div className="mt-3 space-y-1.5">
+                            {options.map((option) => (
+                              <button
+                                key={option.n}
+                                type="button"
+                                disabled={autoAccept}
+                                onClick={() => sendMessage(`${option.n}. ${option.text}`)}
+                                className={cn(
+                                  'flex w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors',
+                                  option.n === 1
+                                    ? 'border-primary/50 bg-primary/10 hover:bg-primary/20'
+                                    : 'border-border bg-background/50 hover:bg-muted'
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                                    option.n === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                                  )}
+                                >
+                                  {option.n}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                    {option.text}
+                                  </ReactMarkdown>
+                                </span>
+                                {option.n === 1 && (
+                                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-primary">
+                                    {t('common:refineFeature.recommended')}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
                 ) : (
                   <span className="whitespace-pre-wrap">{msg.content}</span>
                 )}
@@ -351,7 +419,7 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
               : t('common:refineFeature.autoAccept', { max: MAX_AUTO_ACCEPT_ROUNDS })}
           </span>
         </label>
-        {canAcceptRecommendation && !autoAccept && (
+        {canAcceptRecommendation && !autoAccept && splitRefineOptions(lastMessage?.content ?? '').options.length === 0 && (
           <Button
             className="w-full gap-2 text-sm"
             onClick={() => sendMessage(ACCEPT_RECOMMENDATION_REPLY)}
@@ -378,8 +446,8 @@ export function RefineFeaturePanel({ projectId, onAddToRoadmap, onClose }: Refin
             onKeyDown={handleKeyDown}
             placeholder={
               isProcessing
-                ? 'AI is thinking...'
-                : 'Answer the question or describe changes...'
+                ? t('common:refineFeature.thinking')
+                : t('common:refineFeature.inputPlaceholder')
             }
             disabled={isProcessing}
             rows={2}
