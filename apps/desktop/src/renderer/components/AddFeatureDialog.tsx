@@ -65,6 +65,8 @@ interface AddFeatureDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Optional callback when feature is successfully added, receives the new feature ID */
   onFeatureAdded?: (featureId: string) => void;
+  /** Take the user to a feature this dialog added (on Done, or a click on an added row) */
+  onOpenFeature?: (featureId: string) => void;
   /** Optional default phase ID to pre-select */
   defaultPhaseId?: string;
 }
@@ -88,6 +90,7 @@ export function AddFeatureDialog({
   open,
   onOpenChange,
   onFeatureAdded,
+  onOpenFeature,
   defaultPhaseId
 }: AddFeatureDialogProps) {
   const { t } = useTranslation('dialogs');
@@ -177,6 +180,7 @@ export function AddFeatureDialog({
       onFeatureAdded?.(newFeatureId);
       if (showDetails) {
         onOpenChange(false);
+        onOpenFeature?.(newFeatureId);
       } else {
         // Quick add: stay open for the next line
         setAdded((prev) => [...prev, { id: newFeatureId, title: title.trim() }]);
@@ -193,6 +197,19 @@ export function AddFeatureDialog({
     if (!isSaving) {
       onOpenChange(false);
     }
+  };
+
+  // Done after quick adds: land on the last feature added
+  const handleDone = () => {
+    if (isSaving) return;
+    const last = added[added.length - 1];
+    onOpenChange(false);
+    if (last) onOpenFeature?.(last.id);
+  };
+
+  const openAdded = (featureId: string) => {
+    onOpenChange(false);
+    onOpenFeature?.(featureId);
   };
 
   // Form validation
@@ -240,7 +257,12 @@ export function AddFeatureDialog({
             {added.length > 0 && (
               <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
                 {added.map((feature) => (
-                  <AddedFeatureRow key={feature.id} featureId={feature.id} typedTitle={feature.title} />
+                  <AddedFeatureRow
+                    key={feature.id}
+                    featureId={feature.id}
+                    typedTitle={feature.title}
+                    onOpen={onOpenFeature ? () => openAdded(feature.id) : undefined}
+                  />
                 ))}
               </ul>
             )}
@@ -397,7 +419,7 @@ export function AddFeatureDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isSaving}>
+          <Button variant="outline" onClick={added.length > 0 ? handleDone : handleClose} disabled={isSaving}>
             {added.length > 0 ? t('addFeature.done') : t('addFeature.cancel')}
           </Button>
           <Button
@@ -420,7 +442,7 @@ export function AddFeatureDialog({
 }
 
 /** One quick-added feature: spinner while AI refines it, then the refined title */
-function AddedFeatureRow({ featureId, typedTitle }: { featureId: string; typedTitle: string }) {
+function AddedFeatureRow({ featureId, typedTitle, onOpen }: { featureId: string; typedTitle: string; onOpen?: () => void }) {
   const { t } = useTranslation('dialogs');
   const feature = useRoadmapStore((state) => state.roadmap?.features.find((f) => f.id === featureId));
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[featureId]);
@@ -436,7 +458,18 @@ function AddedFeatureRow({ featureId, typedTitle }: { featureId: string; typedTi
         ) : (
           <Check className="h-3.5 w-3.5 shrink-0 text-success" />
         )}
-        <span className="truncate">{feature?.title ?? typedTitle}</span>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            title={t('addFeature.openFeature')}
+            className="min-w-0 truncate text-left underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {feature?.title ?? typedTitle}
+          </button>
+        ) : (
+          <span className="truncate">{feature?.title ?? typedTitle}</span>
+        )}
         {!refining && feature?.refinedAt && (
           <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded border border-primary/30 px-1 text-[11px] text-primary max-md:text-xs">
             <Sparkles className="h-2.5 w-2.5" />

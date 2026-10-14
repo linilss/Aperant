@@ -140,6 +140,20 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
     openRefine(projectId, undefined, feature);
   };
 
+  // After adding: open the new feature and bring its card into view on the board
+  const openAddedFeature = (featureId: string) => {
+    const feature = useRoadmapStore.getState().roadmap?.features.find((f) => f.id === featureId);
+    if (!feature) return;
+    setSelectedFeature(feature);
+    requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`[data-feature-id="${CSS.escape(featureId)}"]`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      card.classList.add('ring-2', 'ring-primary', 'rounded-lg');
+      setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'rounded-lg'), 2500);
+    });
+  };
+
   const confirmArchiveFeature = async () => {
     if (!pendingArchiveFeatureId) return;
     try {
@@ -283,6 +297,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
         phases={roadmap.phases}
         open={showAddFeatureDialog}
         onOpenChange={setShowAddFeatureDialog}
+        onOpenFeature={openAddedFeature}
       />
 
       {/* Clear open features confirmation */}

@@ -119,7 +119,8 @@
     "done": "Done",
     "refining": "Refining…",
     "aiRefined": "AI refined",
-    "possibleDuplicate": "Possible duplicate of {{title}}"
+    "possibleDuplicate": "Possible duplicate of {{title}}",
+    "openFeature": "Open this feature"
   },
   "addProject": {
     "title": "Add Project",

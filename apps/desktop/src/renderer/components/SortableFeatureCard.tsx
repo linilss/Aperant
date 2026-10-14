@@ -85,6 +85,7 @@ export function SortableFeatureCard({
     <div
       ref={setNodeRef}
       style={style}
+      data-feature-id={feature.id}
       className={cn(
         'touch-none max-md:touch-manipulation max-md:select-none max-md:[-webkit-touch-callout:none] transition-all duration-200',
         isDragging && 'dragging-placeholder opacity-40 scale-[0.98]',
