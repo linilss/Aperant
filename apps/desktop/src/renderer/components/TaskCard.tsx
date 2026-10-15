@@ -156,6 +156,11 @@ export const TaskCard = memo(function TaskCard({
   // A rate-limit-paused task is still in_progress but idle — don't show a spinning
   // phase badge for work that isn't happening, and don't let it look like it's running.
   const rateLimitPause = useTaskStore((state) => state.rateLimitPauses[task.id]);
+  // CLI runs report no progress while planning; a running task without subtasks is planning, not idle
+  const displayPhase =
+    isRunning && !rateLimitPause && (!executionPhase || executionPhase === 'idle')
+      ? task.subtasks.length === 0 ? 'planning' : 'coding'
+      : executionPhase;
   const hasActiveExecution = !rateLimitPause && executionPhase && executionPhase !== 'idle' && executionPhase !== 'complete' && executionPhase !== 'failed';
 
   // Coarse countdown to the reset the provider reported. Ticks every 30s — the
@@ -741,7 +746,7 @@ export const TaskCard = memo(function TaskCard({
         {(task.subtasks.length > 0 || hasActiveExecution || isRunning || isStuck) && (
           <div className="mt-4">
             <PhaseProgressIndicator
-              phase={executionPhase}
+              phase={displayPhase}
               subtasks={task.subtasks}
               phaseProgress={task.executionProgress?.phaseProgress}
               isStuck={isStuck}
