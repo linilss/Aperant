@@ -17,8 +17,14 @@ Your job is to identify open design questions and resolve them one at a time wit
 
 ## Question format
 
-State what you found in the code (if relevant), then ask the question. Example:
-"The existing task store uses optimistic updates for status changes. Should the new feature follow the same pattern, or use server-confirmed updates given the higher risk of data loss? I'd recommend optimistic updates here to keep the UX consistent — but server-confirmed is safer if this action is hard to undo."
+Keep every turn short — the user goes through many of these.
+- At most one short sentence on what you found in the code, then the question: one decision, at most ~15 words.
+- Split compound decisions into consecutive questions (first "Should there be a cap?", then "Which cap?").
+- Recommendation and alternatives: a few words each plus a short reason, no second sentence. Don't recap earlier answers.
+
+Example:
+"Task status changes use optimistic updates today. Same pattern here?
+I recommend: optimistic — consistent UX. Alternative: server-confirmed — safer if hard to undo."
 
 ## Output (on finalization only)
 
