@@ -22,7 +22,6 @@ import { TaskOutcomeBadge } from './TaskOutcomeBadge';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { ScrollArea } from '../ui/scroll-area';
 import { DialogOverlay, DialogPortal } from '../ui/dialog';
 import {
   ROADMAP_PRIORITY_COLORS,
@@ -170,7 +169,8 @@ export function FeatureDetailPanel({
       </div>
 
       {/* Content */}
-      <ScrollArea className="min-h-0 flex-1">
+      {/* Plain overflow: a Radix ScrollArea viewport collapses under the dialog's max-height */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="p-4 space-y-6">
           {/* Description */}
           <div>
@@ -298,7 +298,7 @@ export function FeatureDetailPanel({
           </div>
         )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Actions */}
       {(() => {
