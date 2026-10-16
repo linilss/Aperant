@@ -197,9 +197,13 @@
     "selectFile": "Select a file to view its contents",
     "openInIDE": "Open in IDE"
   },
+  "refineTerminal": {
+    "runsInBackground": "Runs in the background — you can close this window and come back later."
+  },
   "metadata": {
     "fastMode": "Fast",
     "refined": "Refined",
+    "refining": "Refining · {{phase}}",
     "severity": "severity",
     "pullRequest": "Pull Request",
     "showMore": "Show more",

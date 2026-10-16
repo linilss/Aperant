@@ -5,6 +5,7 @@ import { useRoadmapStore } from '../stores/roadmap-store';
 import { useRateLimitStore } from '../stores/rate-limit-store';
 import { useAuthFailureStore } from '../stores/auth-failure-store';
 import { useProjectStore } from '../stores/project-store';
+import { refinePhaseLabel, useRefineRunStore } from '../stores/refine-run-store';
 import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, RoadmapFeature, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
 
 /** Maximum log entries to buffer in the batch queue between flushes (OOM prevention) */
@@ -374,6 +375,10 @@ export function useIpcListeners(): void {
         }
       }
     );
+    // Task refine pipelines run in main; cards show which are still going
+    const cleanupTaskRefinePhase = window.electronAPI.onTaskRefinePhaseChange((taskId, _phase, _index, phases) => {
+      useRefineRunStore.getState().setRun(taskId, refinePhaseLabel(phases));
+    });
     const cleanupFeatureRefineFailed = window.electronAPI.onRoadmapFeatureRefineFailed(
       (_projectId: string, featureId: string) => {
         useRoadmapStore.getState().setFeatureRefining(featureId, false);
@@ -444,6 +449,7 @@ export function useIpcListeners(): void {
       cleanupFeatureRefineStarted();
       cleanupFeatureRefined();
       cleanupFeatureRefineFailed();
+      cleanupTaskRefinePhase();
       cleanupRateLimit();
       cleanupSDKRateLimit();
       cleanupAuthFailure();

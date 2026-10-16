@@ -34,6 +34,7 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Input } from './ui/input';
 import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue, useTaskStore } from '../stores/task-store';
+import { useRefineRunStore } from '../stores/refine-run-store';
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
@@ -156,6 +157,7 @@ export const TaskCard = memo(function TaskCard({
   // A rate-limit-paused task is still in_progress but idle — don't show a spinning
   // phase badge for work that isn't happening, and don't let it look like it's running.
   const rateLimitPause = useTaskStore((state) => state.rateLimitPauses[task.id]);
+  const refinePhase = useRefineRunStore((state) => state.runs[task.id]);
   // CLI runs report no progress while planning; a running task without subtasks is planning, not idle
   const displayPhase =
     isRunning && !rateLimitPause && (!executionPhase || executionPhase === 'idle')
@@ -676,6 +678,16 @@ export const TaskCard = memo(function TaskCard({
               >
                 <Zap className="h-2.5 w-2.5" />
                 {t('metadata.fastMode')}
+              </Badge>
+            )}
+            {/* Refine pipeline still running in the background */}
+            {refinePhase && (
+              <Badge
+                variant="outline"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-primary/10 text-primary border-primary/30"
+              >
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                {t('metadata.refining', { phase: refinePhase })}
               </Badge>
             )}
             {/* Refined badge */}

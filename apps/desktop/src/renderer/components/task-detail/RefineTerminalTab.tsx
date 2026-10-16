@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, RotateCcw, Play } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal-store';
 import { useProjectStore } from '../../stores/project-store';
@@ -28,6 +29,7 @@ export function RefineTerminalTab({ taskId, taskTitle, taskDescription, autoMode
   const terminalId = getRefineTerminalId(taskId);
   const activeProject = useProjectStore(s => s.getActiveProject());
   const projectPath = activeProject?.path;
+  const { t } = useTranslation(['tasks']);
   const terminal = useTerminalStore(s => s.terminals.find(t => t.id === terminalId));
   const orchestratorStartedRef = useRef(false);
   const [phases, setPhases] = useState<PhaseInfo[]>([]);
@@ -171,6 +173,7 @@ export function RefineTerminalTab({ taskId, taskTitle, taskDescription, autoMode
           onSkip={handleSkip}
         />
       )}
+      <p className="shrink-0 px-3 py-1 text-xs text-muted-foreground">{t('tasks:refineTerminal.runsInBackground')}</p>
       <div className="flex-1 min-h-0">
         <Terminal
           id={terminalId}
