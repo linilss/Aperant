@@ -105,6 +105,8 @@ export function featureToSnakeCase(feature: RoadmapFeature): Record<string, unkn
     source_idea_id: feature.sourceIdeaId,
     refined_at: feature.refinedAt,
     duplicate_of: feature.duplicateOf,
+    proofread_note: feature.proofreadNote,
+    intake_at: feature.intakeAt,
   };
 }
 
@@ -136,6 +138,16 @@ export function applyFeaturePriorityPatch(
 /**
  * Converts a raw (snake_case) roadmap.json feature to the renderer (camelCase) shape.
  */
+/** Planning-proofread fields (proofread_note / intake_at) in camelCase, omitted when unset */
+export function intakeFieldsFromRaw(raw: Record<string, unknown>): Pick<RoadmapFeature, 'proofreadNote' | 'intakeAt'> {
+  const note = raw.proofread_note ?? raw.proofreadNote;
+  const at = raw.intake_at ?? raw.intakeAt;
+  return {
+    ...(typeof note === 'string' && note ? { proofreadNote: note } : {}),
+    ...(typeof at === 'string' && at ? { intakeAt: at } : {}),
+  };
+}
+
 export function featureFromSnakeCase(raw: Record<string, unknown>): RoadmapFeature {
   const duplicateOf = raw.duplicate_of ?? raw.duplicateOf;
   const refinedAt = raw.refined_at ?? raw.refinedAt;
@@ -160,6 +172,7 @@ export function featureFromSnakeCase(raw: Record<string, unknown>): RoadmapFeatu
     ...externalFieldsFromSnakeCase(raw),
     refinedAt: typeof refinedAt === 'string' && refinedAt ? refinedAt : undefined,
     duplicateOf: typeof duplicateOf === 'string' && duplicateOf ? duplicateOf : undefined,
+    ...intakeFieldsFromRaw(raw),
   };
 }
 
@@ -309,6 +322,19 @@ const REFINED_FIELDS = [
   'refined_at',
 ] as const;
 
+/** Fields the planning proofread owns (it also creates the task and moves the feature on) */
+const INTAKE_FIELDS = [
+  'title',
+  'description',
+  'rationale',
+  'acceptance_criteria',
+  'user_stories',
+  'status',
+  'linked_spec_id',
+  'proofread_note',
+  'intake_at',
+] as const;
+
 /**
  * Guards ROADMAP_SAVE against a renderer that hasn't seen a refinement yet: when the
  * file holds a newer `refined_at` than the incoming feature, the refined fields from
@@ -323,10 +349,19 @@ export function keepNewerRefinements(
     const stored = byId.get(feature.id);
     const storedAt = typeof stored?.refined_at === 'string' ? stored.refined_at : '';
     const incomingAt = typeof feature.refined_at === 'string' ? feature.refined_at : '';
-    if (!stored || !storedAt || storedAt <= incomingAt) continue;
-    for (const key of REFINED_FIELDS) {
-      if (key in stored) feature[key] = stored[key];
-      else delete feature[key];
+    if (stored && storedAt && storedAt > incomingAt) {
+      for (const key of REFINED_FIELDS) {
+        if (key in stored) feature[key] = stored[key];
+        else delete feature[key];
+      }
+    }
+    const storedIntake = typeof stored?.intake_at === 'string' ? stored.intake_at : '';
+    const incomingIntake = typeof feature.intake_at === 'string' ? feature.intake_at : '';
+    if (stored && storedIntake && storedIntake > incomingIntake) {
+      for (const key of INTAKE_FIELDS) {
+        if (key in stored) feature[key] = stored[key];
+        else delete feature[key];
+      }
     }
   }
 }

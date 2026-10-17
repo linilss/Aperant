@@ -138,10 +138,10 @@ export function SortableFeatureCard({
                 <Badge
                   variant="outline"
                   className="text-[11px] max-md:text-xs px-1.5 py-0 text-muted-foreground border-muted-foreground/30"
-                  title={t('roadmap.refiningTooltip')}
+                  title={t(feature.status === 'planned' ? 'roadmap.proofreadingTooltip' : 'roadmap.refiningTooltip')}
                 >
                   <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />
-                  {t('roadmap.refining')}
+                  {t(feature.status === 'planned' ? 'roadmap.proofreading' : 'roadmap.refining')}
                 </Badge>
               )}
               {hasCompetitorInsight && (
@@ -161,6 +161,10 @@ export function SortableFeatureCard({
               )}
             </div>
             <h3 className="font-medium text-sm leading-snug line-clamp-2">{feature.title}</h3>
+            {/* Why the planning proofread sent it back */}
+            {feature.status === 'under_review' && feature.proofreadNote && (
+              <p className="mt-1 text-xs text-warning line-clamp-2">{feature.proofreadNote}</p>
+            )}
             <DirectionTagChips feature={feature} projectId={roadmap?.projectId} />
           </div>
           <div className="shrink-0 flex items-center gap-1">

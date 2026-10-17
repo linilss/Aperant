@@ -838,6 +838,8 @@
     "viewTask": "View Task",
     "refining": "Refining…",
     "refiningTooltip": "AI is turning this into a full feature",
+    "proofreading": "Proofreading…",
+    "proofreadingTooltip": "An agent checks this feature is still relevant and fills gaps, then creates its task",
     "refineWithAI": "Refine with AI",
     "refineFailed": "AI refinement failed: {{error}}",
     "moveTo": "Move to…",
@@ -880,6 +882,7 @@
       "competitorInsight": "Competitor Insight"
     },
     "detail": {
+      "proofread": "Proofread",
       "back": "Back",
       "description": "Description",
       "rationale": "Rationale",

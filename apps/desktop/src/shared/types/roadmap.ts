@@ -158,6 +158,10 @@ export interface RoadmapFeature {
   refinedAt?: string;
   /** Existing feature id this one likely duplicates (set by AI refinement) */
   duplicateOf?: string;
+  /** Why the planning proofread held this feature back (or what it fixed) */
+  proofreadNote?: string;
+  /** When the planning proofread last changed this feature (ISO timestamp) */
+  intakeAt?: string;
 }
 
 /** Options for AI refinement of a single roadmap feature */

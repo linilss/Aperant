@@ -178,6 +178,13 @@ export function FeatureDetailPanel({
             <p className="text-sm text-muted-foreground">{feature.description}</p>
           </div>
 
+          {feature.proofreadNote && (
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+              <span className="font-medium">{t('roadmap.detail.proofread')}: </span>
+              <span className="text-muted-foreground">{feature.proofreadNote}</span>
+            </div>
+          )}
+
         {/* Rationale */}
         <div>
           <h3 className="text-sm font-medium mb-2 flex items-center gap-2">

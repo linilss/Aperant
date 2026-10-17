@@ -40,6 +40,8 @@ import {
 } from "./roadmap/feature-persistence";
 import { createFeatureRefineService } from "./roadmap/feature-refine-service";
 import { runRoadmapFeatureRefine } from "../ai/runners/roadmap-feature-refine";
+import { runFeatureProofread } from "../ai/runners/roadmap-feature-proofread";
+import { createPlanIntake, newlyPlannedFeatureIds } from "./roadmap/plan-intake";
 import { loadKnownDirectionIds } from "../ai/runners/competitors/guidance";
 
 /**
@@ -52,6 +54,172 @@ function getFeatureSettings(): { model?: string; thinkingLevel?: string } {
 /**
  * Register all roadmap-related IPC handlers
  */
+/**
+ * Turn a roadmap feature into a backlog task (spec dir + metadata) and link it.
+ * The feature gets `featureStatus` (the manual Build button keeps "planned";
+ * the planning intake moves it on to "in_progress").
+ */
+async function convertFeatureToSpec(
+  projectId: string,
+  featureId: string,
+  featureStatus: RoadmapFeatureStatus = "planned"
+): Promise<IPCResult<Task>> {
+      const project = projectStore.getProject(projectId);
+  if (!project) {
+    return { success: false, error: "Project not found" };
+  }
+
+  const roadmapPath = path.join(
+    project.path,
+    AUTO_BUILD_PATHS.ROADMAP_DIR,
+    AUTO_BUILD_PATHS.ROADMAP_FILE
+  );
+
+  try {
+    return await withFileLock(roadmapPath, async () => {
+    let content: string;
+    try {
+      content = await readFileWithRetry(roadmapPath, { encoding: "utf-8" }) as string;
+    } catch (readErr: unknown) {
+      if ((readErr as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { success: false, error: "Roadmap not found" };
+      }
+      throw readErr;
+    }
+    const roadmap = JSON.parse(content);
+
+    // Find the feature
+    const feature = roadmap.features?.find((f: { id: string }) => f.id === featureId);
+    if (!feature) {
+      return { success: false, error: "Feature not found" };
+    }
+
+    // Build task description from feature
+    const taskDescription = `# ${feature.title}
+
+${feature.description}
+
+## Rationale
+${feature.rationale || "N/A"}
+
+## User Stories
+${(feature.user_stories || []).map((s: string) => `- ${s}`).join("\n") || "N/A"}
+
+## Acceptance Criteria
+${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n") || "N/A"}
+${buildDecisionsSection(project.path, feature.id)}`;
+
+    // Generate proper spec directory (like task creation)
+    const specsBaseDir = getSpecsDir(project.autoBuildPath);
+    const specsDir = path.join(project.path, specsBaseDir);
+
+    // Ensure specs directory exists
+    if (!existsSync(specsDir)) {
+      mkdirSync(specsDir, { recursive: true });
+    }
+
+    // Find next available spec number
+    let specNumber = 1;
+    const existingDirs = existsSync(specsDir)
+      ? readdirSync(specsDir, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name)
+      : [];
+    const existingNumbers = existingDirs
+      .map((name) => {
+        const match = name.match(/^(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n) => n > 0);
+    if (existingNumbers.length > 0) {
+      specNumber = Math.max(...existingNumbers) + 1;
+    }
+
+    // Create spec ID with zero-padded number and slugified title
+    const slugifiedTitle = feature.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .substring(0, 50);
+    const specId = `${String(specNumber).padStart(3, "0")}-${slugifiedTitle}`;
+
+    // Create spec directory
+    const specDir = path.join(specsDir, specId);
+    mkdirSync(specDir, { recursive: true });
+
+    // Create initial implementation_plan.json
+    const now = new Date().toISOString();
+    const implementationPlan = {
+      feature: feature.title,
+      description: taskDescription,
+      created_at: now,
+      updated_at: now,
+      status: "pending",
+      phases: [],
+    };
+    await writeFileWithRetry(
+      path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN),
+      JSON.stringify(implementationPlan, null, 2),
+      { encoding: 'utf-8' }
+    );
+
+    // Create requirements.json
+    const requirements = {
+      task_description: taskDescription,
+      workflow_type: "feature",
+    };
+    await writeFileWithRetry(
+      path.join(specDir, AUTO_BUILD_PATHS.REQUIREMENTS),
+      JSON.stringify(requirements, null, 2),
+      { encoding: 'utf-8' }
+    );
+
+    // Create spec.md (required by backend spec creation process)
+    await writeFileWithRetry(path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE), taskDescription, { encoding: 'utf-8' });
+
+    // Build metadata
+    const metadata: TaskMetadata = {
+      sourceType: "roadmap",
+      featureId: feature.id,
+      category: "feature",
+    };
+    await writeFileWithRetry(path.join(specDir, "task_metadata.json"), JSON.stringify(metadata, null, 2), { encoding: 'utf-8' });
+
+    // NOTE: We do NOT auto-start spec creation here - user should explicitly start the task
+    // from the kanban board when they're ready
+
+    // Update feature with linked spec
+    feature.status = featureStatus;
+    feature.linked_spec_id = specId;
+    roadmap.metadata = roadmap.metadata || {};
+    roadmap.metadata.updated_at = new Date().toISOString();
+    await writeFileWithRetry(roadmapPath, JSON.stringify(roadmap, null, 2), { encoding: 'utf-8' });
+
+    // Create task object
+    const task: Task = {
+      id: specId,
+      specId: specId,
+      projectId,
+      title: feature.title,
+      description: taskDescription,
+      status: "backlog",
+      subtasks: [],
+      logs: [],
+      metadata,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    return { success: true, data: task };
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to convert feature to spec",
+    };
+  }
+}
+
 export function registerRoadmapHandlers(
   agentManager: AgentManager,
   getMainWindow: () => BrowserWindow | null
@@ -59,6 +227,15 @@ export function registerRoadmapHandlers(
   // ============================================
   // Roadmap Operations
   // ============================================
+
+  // Features moved to Planned: proofread by an agent, then turned into a task (In Progress)
+  const planIntake = createPlanIntake({
+    getProjectPath: (projectId) => projectStore.getProject(projectId)?.path ?? null,
+    runProofread: runFeatureProofread,
+    resolveModelId: () => resolveClaudeCliFeatureModel('roadmap'),
+    convert: convertFeatureToSpec,
+    emit: (channel, ...args) => safeSendToRenderer(getMainWindow, channel, ...args),
+  });
 
   ipcMain.handle(
     IPC_CHANNELS.ROADMAP_GET,
@@ -393,6 +570,7 @@ export function registerRoadmapHandlers(
           } catch (err) {
             debugError("[Roadmap] Failed to record removed features:", err);
           }
+          const plannedIds = newlyPlannedFeatureIds(existingRoadmap.features ?? [], incomingFeatures);
           existingRoadmap.features = incomingFeatures;
 
           // Update metadata timestamp
@@ -401,6 +579,7 @@ export function registerRoadmapHandlers(
 
           await writeFileWithRetry(roadmapPath, JSON.stringify(existingRoadmap, null, 2), { encoding: 'utf-8' });
           notifyFunnelChanged(projectId);
+          for (const featureId of plannedIds) void planIntake.run(projectId, featureId);
 
           return { success: true };
         });
@@ -554,162 +733,7 @@ export function registerRoadmapHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.ROADMAP_CONVERT_TO_SPEC,
-    async (_, projectId: string, featureId: string): Promise<IPCResult<Task>> => {
-      const project = projectStore.getProject(projectId);
-      if (!project) {
-        return { success: false, error: "Project not found" };
-      }
-
-      const roadmapPath = path.join(
-        project.path,
-        AUTO_BUILD_PATHS.ROADMAP_DIR,
-        AUTO_BUILD_PATHS.ROADMAP_FILE
-      );
-
-      try {
-        return await withFileLock(roadmapPath, async () => {
-        let content: string;
-        try {
-          content = await readFileWithRetry(roadmapPath, { encoding: "utf-8" }) as string;
-        } catch (readErr: unknown) {
-          if ((readErr as NodeJS.ErrnoException).code === 'ENOENT') {
-            return { success: false, error: "Roadmap not found" };
-          }
-          throw readErr;
-        }
-        const roadmap = JSON.parse(content);
-
-        // Find the feature
-        const feature = roadmap.features?.find((f: { id: string }) => f.id === featureId);
-        if (!feature) {
-          return { success: false, error: "Feature not found" };
-        }
-
-        // Build task description from feature
-        const taskDescription = `# ${feature.title}
-
-${feature.description}
-
-## Rationale
-${feature.rationale || "N/A"}
-
-## User Stories
-${(feature.user_stories || []).map((s: string) => `- ${s}`).join("\n") || "N/A"}
-
-## Acceptance Criteria
-${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n") || "N/A"}
-${buildDecisionsSection(project.path, feature.id)}`;
-
-        // Generate proper spec directory (like task creation)
-        const specsBaseDir = getSpecsDir(project.autoBuildPath);
-        const specsDir = path.join(project.path, specsBaseDir);
-
-        // Ensure specs directory exists
-        if (!existsSync(specsDir)) {
-          mkdirSync(specsDir, { recursive: true });
-        }
-
-        // Find next available spec number
-        let specNumber = 1;
-        const existingDirs = existsSync(specsDir)
-          ? readdirSync(specsDir, { withFileTypes: true })
-              .filter((d) => d.isDirectory())
-              .map((d) => d.name)
-          : [];
-        const existingNumbers = existingDirs
-          .map((name) => {
-            const match = name.match(/^(\d+)/);
-            return match ? parseInt(match[1], 10) : 0;
-          })
-          .filter((n) => n > 0);
-        if (existingNumbers.length > 0) {
-          specNumber = Math.max(...existingNumbers) + 1;
-        }
-
-        // Create spec ID with zero-padded number and slugified title
-        const slugifiedTitle = feature.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .substring(0, 50);
-        const specId = `${String(specNumber).padStart(3, "0")}-${slugifiedTitle}`;
-
-        // Create spec directory
-        const specDir = path.join(specsDir, specId);
-        mkdirSync(specDir, { recursive: true });
-
-        // Create initial implementation_plan.json
-        const now = new Date().toISOString();
-        const implementationPlan = {
-          feature: feature.title,
-          description: taskDescription,
-          created_at: now,
-          updated_at: now,
-          status: "pending",
-          phases: [],
-        };
-        await writeFileWithRetry(
-          path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN),
-          JSON.stringify(implementationPlan, null, 2),
-          { encoding: 'utf-8' }
-        );
-
-        // Create requirements.json
-        const requirements = {
-          task_description: taskDescription,
-          workflow_type: "feature",
-        };
-        await writeFileWithRetry(
-          path.join(specDir, AUTO_BUILD_PATHS.REQUIREMENTS),
-          JSON.stringify(requirements, null, 2),
-          { encoding: 'utf-8' }
-        );
-
-        // Create spec.md (required by backend spec creation process)
-        await writeFileWithRetry(path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE), taskDescription, { encoding: 'utf-8' });
-
-        // Build metadata
-        const metadata: TaskMetadata = {
-          sourceType: "roadmap",
-          featureId: feature.id,
-          category: "feature",
-        };
-        await writeFileWithRetry(path.join(specDir, "task_metadata.json"), JSON.stringify(metadata, null, 2), { encoding: 'utf-8' });
-
-        // NOTE: We do NOT auto-start spec creation here - user should explicitly start the task
-        // from the kanban board when they're ready
-
-        // Update feature with linked spec
-        feature.status = "planned";
-        feature.linked_spec_id = specId;
-        roadmap.metadata = roadmap.metadata || {};
-        roadmap.metadata.updated_at = new Date().toISOString();
-        await writeFileWithRetry(roadmapPath, JSON.stringify(roadmap, null, 2), { encoding: 'utf-8' });
-
-        // Create task object
-        const task: Task = {
-          id: specId,
-          specId: specId,
-          projectId,
-          title: feature.title,
-          description: taskDescription,
-          status: "backlog",
-          subtasks: [],
-          logs: [],
-          metadata,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        return { success: true, data: task };
-        });
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Failed to convert feature to spec",
-        };
-      }
-    }
+    (_, projectId: string, featureId: string): Promise<IPCResult<Task>> => convertFeatureToSpec(projectId, featureId)
   );
 
   // ============================================
