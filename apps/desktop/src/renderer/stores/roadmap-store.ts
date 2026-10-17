@@ -1012,3 +1012,20 @@ if (import.meta.hot) {
     resetActors();
   });
 }
+
+/**
+ * Plan a feature: move it to Planned so main proofreads it with an agent and
+ * creates its task (planning intake). Already planned without a task: rerun the intake.
+ */
+export async function planFeature(projectId: string, featureId: string): Promise<void> {
+  const store = useRoadmapStore.getState();
+  const feature = store.roadmap?.features.find((f) => f.id === featureId);
+  if (!feature || feature.linkedSpecId || store.roadmap?.projectId !== projectId) return;
+  if (feature.status === 'planned') {
+    await window.electronAPI.planRoadmapFeatures(projectId, [featureId]);
+    return;
+  }
+  store.updateFeatureStatus(featureId, 'planned');
+  const roadmap = useRoadmapStore.getState().roadmap;
+  if (roadmap) await window.electronAPI.saveRoadmap(projectId, roadmap);
+}

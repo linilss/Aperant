@@ -9,12 +9,12 @@ import {
   TooltipContent,
   TooltipTrigger
 } from './ui/tooltip';
-import { Play, ExternalLink, TrendingUp, Layers, ThumbsUp, Archive, Loader2 } from 'lucide-react';
+import { ExternalLink, TrendingUp, Layers, ThumbsUp, Archive, Loader2, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DirectionTagChips, useProjectDirections } from './competitors/DirectionTagChips';
 import { resolveFeatureDirections } from './moscow/direction-filter';
 import { MoveToMenu, type MoveToConfig } from './roadmap/MoveToMenu';
-import { useRoadmapStore } from '../stores/roadmap-store';
+import { planFeature, useRoadmapStore } from '../stores/roadmap-store';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './roadmap/TaskOutcomeBadge';
 import {
   ROADMAP_PRIORITY_COLORS,
@@ -195,13 +195,15 @@ export function SortableFeatureCard({
                   variant="outline"
                   size="sm"
                   className="h-7 px-2"
+                  disabled={refining || !roadmap?.projectId}
+                  title={t('roadmap.planAll.tooltip')}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onConvertToSpec(feature);
+                    if (roadmap?.projectId) void planFeature(roadmap.projectId, feature.id);
                   }}
                 >
-                  <Play className="h-3 w-3 mr-1" />
-                  {t('roadmap.build')}
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  {t('roadmap.plan')}
                 </Button>
               )
             )}

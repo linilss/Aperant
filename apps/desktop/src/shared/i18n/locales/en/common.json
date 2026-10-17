@@ -839,6 +839,7 @@
     "refining": "Refining…",
     "refiningTooltip": "AI is turning this into a full feature",
     "proofreading": "Proofreading…",
+    "plan": "Plan",
     "planAll": {
       "button": "Plan {{count}}",
       "tooltip": "Proofread these features with an agent (relevance, gaps, size, overlap) and create their tasks"
