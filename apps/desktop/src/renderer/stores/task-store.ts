@@ -740,6 +740,11 @@ export async function loadTasks(projectId: string, options?: { forceRefresh?: bo
       error: result.error
     });
 
+    // The user switched project while this loaded: its tasks must not replace the new project's
+    const { activeProjectId, selectedProjectId } = useProjectStore.getState();
+    const current = activeProjectId || selectedProjectId;
+    if (current && current !== projectId) return;
+
     if (result.success && result.data) {
       debugLog('[TaskStore.loadTasks] Tasks loaded successfully:', {
         count: result.data.length,

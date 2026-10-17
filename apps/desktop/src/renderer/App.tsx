@@ -495,7 +495,9 @@ export function App() {
   // Reload tasks when auto-refine completes in the background
   useEffect(() => {
     const unsub = window.electronAPI.onTaskRefineApplied((_taskId, projectId) => {
-      loadTasks(projectId, { forceRefresh: true });
+      // Only the project on screen: the store holds one project's tasks
+      const { activeProjectId: active, selectedProjectId: selected } = useProjectStore.getState();
+      if (projectId === (active || selected)) loadTasks(projectId, { forceRefresh: true });
     });
     return unsub;
   }, []);
