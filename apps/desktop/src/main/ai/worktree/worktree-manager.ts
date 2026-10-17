@@ -88,6 +88,20 @@ export interface WorktreeResult {
  * @param branchSettings Project settings providing the task branch prefix.
  *                       An existing branch with a legacy prefix is reused.
  */
+/** `baseBranch` when it exists locally or on origin; otherwise the checked-out branch */
+export async function resolveBaseBranch(projectPath: string, baseBranch: string): Promise<string> {
+  const exists = async (ref: string) => !!(await git(['rev-parse', '--verify', '--quiet', ref], projectPath, true));
+  if ((await exists(`refs/heads/${baseBranch}`)) || (await exists(`refs/remotes/origin/${baseBranch}`))) return baseBranch;
+  await git(['fetch', 'origin', baseBranch], projectPath, true);
+  if (await exists(`refs/remotes/origin/${baseBranch}`)) return baseBranch;
+  const current = await git(['rev-parse', '--abbrev-ref', 'HEAD'], projectPath, true);
+  if (current && current !== 'HEAD') {
+    console.warn(`[WorktreeManager] Base branch "${baseBranch}" not found; using "${current}"`);
+    return current;
+  }
+  return baseBranch;
+}
+
 export async function createOrGetWorktree(
   projectPath: string,
   specId: string,
@@ -169,6 +183,10 @@ export async function createOrGetWorktree(
       break;
     }
   }
+
+  // A base branch that exists neither locally nor on origin (e.g. "dev" in a
+  // main-only repo) falls back to the branch the project has checked out
+  baseBranch = await resolveBaseBranch(projectPath, baseBranch);
 
   // ------------------------------------------------------------------
   // Step 5: Fetch latest from remote (non-fatal — remote may not exist)

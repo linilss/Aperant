@@ -151,7 +151,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
       }
     } else if (task.status === 'backlog' || task.status === 'in_progress') {
       // Show branch confirmation modal before starting
-      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
       setShowBranchModal(true);
     } else {
       const result = await startTaskOrQueue(task.id);
@@ -167,7 +167,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     setShowBranchModal(false);
     // Persist baseBranch to task metadata before starting
     await window.electronAPI.updateTask(task.id, {
-      metadata: { ...task.metadata, baseBranch: baseBranchInput || 'dev' },
+      metadata: { ...task.metadata, baseBranch: baseBranchInput || activeProject?.settings?.mainBranch || 'main' },
     });
     const result = await startTaskOrQueue(task.id);
     if (!result.success) {
@@ -179,14 +179,14 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
 
   const handleStartRefine = (mode: 'interactive' | 'auto') => {
     setPendingRefineMode(mode);
-    setRefineBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+    setRefineBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
     setShowRefineBranchModal(true);
   };
 
   const handleConfirmRefineBranch = async () => {
     setShowRefineBranchModal(false);
     await window.electronAPI.updateTask(task.id, {
-      metadata: { ...task.metadata, baseBranch: refineBranchInput || 'dev' },
+      metadata: { ...task.metadata, baseBranch: refineBranchInput || activeProject?.settings?.mainBranch || 'main' },
     });
     setRefineTerminalMode(pendingRefineMode);
     state.setActiveTab('refine');
@@ -310,14 +310,14 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
   };
 
   const handleSyncWorktree = () => {
-    setRebaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+    setRebaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
     setShowRebaseBranchModal(true);
   };
 
   const handleConfirmRebase = async () => {
     setShowRebaseBranchModal(false);
     setIsSyncingWorktree(true);
-    const result = await window.electronAPI.syncWorktree(task.id, rebaseBranchInput || 'dev');
+    const result = await window.electronAPI.syncWorktree(task.id, rebaseBranchInput || activeProject?.settings?.mainBranch || 'main');
     setIsSyncingWorktree(false);
     if (result.success && result.data) {
       toast({

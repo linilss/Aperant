@@ -555,8 +555,11 @@ export class AgentManager extends EventEmitter {
         console.warn(`[AgentManager] Task ${taskId} will run in worktree: ${worktreePath}`);
       } catch (err) {
         console.error(`[AgentManager] Failed to create worktree for ${taskId}:`, err);
-        // Fall back to running in project root (non-fatal)
-        console.warn(`[AgentManager] Falling back to project root for ${taskId}`);
+        // Never build in the user's own checkout: their work and the agent's would mix,
+        // and there'd be no branch to review or merge
+        const reason = err instanceof Error ? err.message : String(err);
+        this.emit('error', taskId, `Couldn't create the task's worktree, so the task was not started: ${reason}`);
+        return;
       }
     }
 
