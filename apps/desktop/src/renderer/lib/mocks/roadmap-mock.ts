@@ -19,6 +19,7 @@ export const roadmapMock = {
   updateFeatureStatus: async () => ({ success: true }),
   updateFeaturePriority: async () => ({ success: true }),
   refineRoadmapFeature: async () => ({ success: false, error: 'Not available in browser mode' }),
+  planRoadmapFeatures: async () => ({ success: false, error: 'Not available in browser mode' }),
   onRoadmapFeatureRefineStarted: () => () => {},
   onRoadmapFeatureRefined: () => () => {},
   onRoadmapFeatureRefineFailed: () => () => {},

@@ -185,6 +185,17 @@ export function FeatureDetailPanel({
             </div>
           )}
 
+          {feature.relevantFiles && feature.relevantFiles.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-2">{t('roadmap.detail.relevantFiles')}</h3>
+              <ul className="space-y-1">
+                {feature.relevantFiles.map((file) => (
+                  <li key={file} className="font-mono text-xs text-muted-foreground break-all">{file}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
         {/* Rationale */}
         <div>
           <h3 className="text-sm font-medium mb-2 flex items-center gap-2">

@@ -9,7 +9,7 @@ import { IPC_CHANNELS } from '../../../../shared/constants';
 import type { FeatureProofread } from '../../../ai/runners/roadmap-feature-proofread';
 import { parseFeatureProofread } from '../../../ai/runners/roadmap-feature-proofread';
 import { keepNewerRefinements } from '../feature-persistence';
-import { createPlanIntake, newlyPlannedFeatureIds } from '../plan-intake';
+import { createPlanIntake, keepFreshSplitParts, newlyPlannedFeatureIds } from '../plan-intake';
 
 let dir = '';
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -32,6 +32,10 @@ const ready: FeatureProofread = {
   rationale: '',
   acceptanceCriteria: ['Works offline'],
   userStories: ['As a parent, I want X so that Y.'],
+  relevantFiles: ['src/Shelf.cs — where the shelf is built'],
+  dependsOn: [],
+  overlap: '',
+  parts: [],
 };
 
 function intake(proofread: FeatureProofread | Error, read: () => Array<Record<string, unknown>>, file: string) {
@@ -40,9 +44,9 @@ function intake(proofread: FeatureProofread | Error, read: () => Array<Record<st
     const roadmap = JSON.parse(readFileSync(file, 'utf-8'));
     const f = roadmap.features.find((x: Record<string, unknown>) => x.id === featureId);
     f.status = status;
-    f.linked_spec_id = '007-better-title';
+    f.linked_spec_id = `spec-${featureId}`;
     writeFileSync(file, JSON.stringify(roadmap));
-    return { success: true as const, data: { specId: '007-better-title' } as never };
+    return { success: true as const, data: { specId: `spec-${featureId}` } as never };
   });
   const service = createPlanIntake({
     getProjectPath: () => dir,
@@ -67,9 +71,39 @@ describe('plan intake', () => {
     expect(f.title).toBe('Better title');
     expect(f.acceptance_criteria).toEqual(['Works offline']);
     expect(f.status).toBe('in_progress');
-    expect(f.linked_spec_id).toBe('007-better-title');
+    expect(f.linked_spec_id).toBe('spec-f1');
+    expect(f.relevant_files).toEqual(['src/Shelf.cs — where the shelf is built']);
     expect(convert).toHaveBeenCalledWith('p', 'f1', 'in_progress');
-    expect(emit).toHaveBeenCalledWith(IPC_CHANNELS.TASK_REFINE_APPLIED, '007-better-title', 'p');
+    expect(emit).toHaveBeenCalledWith(IPC_CHANNELS.TASK_REFINE_APPLIED, 'spec-f1', 'p');
+  });
+
+  it('splits a too-big feature into parts in build order, each with its own task', async () => {
+    const { file, read } = setup([{ id: 'f1', title: 'Big', status: 'planned', priority: 'must' }]);
+    const part = { title: 'Part two', description: 'd', acceptanceCriteria: ['c'], userStories: [], relevantFiles: [] };
+    const { service, convert } = intake(
+      { ...ready, verdict: 'split', note: 'Two independent areas', parts: [part, { ...part, title: 'Part three' }] },
+      read,
+      file
+    );
+    await service.run('p', 'f1');
+
+    const features = read();
+    expect(features.map((f) => f.title)).toEqual(['Better title', 'Part two', 'Part three']);
+    expect(features[1]).toMatchObject({ split_from: 'f1', dependencies: ['f1'], priority: 'must', status: 'in_progress' });
+    expect(features[2].dependencies).toEqual([features[1].id]);
+    expect(convert.mock.calls.map((c) => c[1])).toEqual(['f1', features[1].id, features[2].id]);
+  });
+
+  it('records overlap as a dependency on an existing feature', async () => {
+    const { file, read } = setup([
+      { id: 'f1', title: 'Old', status: 'planned' },
+      { id: 'f2', title: 'Other', status: 'in_progress' },
+    ]);
+    const { service } = intake({ ...ready, dependsOn: ['f2', 'ghost'], overlap: 'Both change Shelf.cs.' }, read, file);
+    await service.run('p', 'f1');
+
+    expect(read()[0].dependencies).toEqual(['f2']);
+    expect(read()[0].proofread_note).toContain('Both change Shelf.cs.');
   });
 
   it('sends an obsolete feature back to under_review with the reason, without a task', async () => {
@@ -118,6 +152,20 @@ describe('newlyPlannedFeatureIds', () => {
   });
 });
 
+describe('keepFreshSplitParts', () => {
+  it('keeps split parts a renderer has not loaded yet, but lets older ones be deleted', () => {
+    const now = Date.parse('2026-10-18T10:00:00Z');
+    const existing = [
+      { id: 'a' },
+      { id: 'a-part-2', split_from: 'a', intake_at: '2026-10-18T09:59:30Z' },
+      { id: 'b-part-2', split_from: 'b', intake_at: '2026-10-18T09:00:00Z' },
+    ];
+    const incoming: Array<Record<string, unknown>> = [{ id: 'a' }];
+    keepFreshSplitParts(existing, incoming, now);
+    expect(incoming.map((f) => f.id)).toEqual(['a', 'a-part-2']);
+  });
+});
+
 describe('keepNewerRefinements (intake)', () => {
   it("doesn't let a stale renderer save undo the intake", () => {
     const stored = [{ id: 'f1', status: 'in_progress', linked_spec_id: '007', intake_at: '2026-10-17T10:00:00Z' }];
@@ -132,6 +180,11 @@ describe('parseFeatureProofread', () => {
     const text =
       '<feature_proofread>{"verdict":"ready","note":"ok","title":"T","description":"D","rationale":"","acceptance_criteria":["- [ ] A"],"user_stories":[]}</feature_proofread>';
     expect(parseFeatureProofread(text)?.acceptanceCriteria).toEqual(['A']);
+  });
+
+  it('treats a split without parts as ready', () => {
+    const text = '<feature_proofread>{"verdict":"split","note":"n","title":"T","parts":[]}</feature_proofread>';
+    expect(parseFeatureProofread(text)?.verdict).toBe('ready');
   });
 
   it('rejects unknown verdicts and obsolete without a reason', () => {

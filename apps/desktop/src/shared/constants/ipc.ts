@@ -270,6 +270,7 @@ export const IPC_CHANNELS = {
 
   // One-shot AI refinement of a single feature (quick add → proper feature)
   ROADMAP_REFINE_FEATURE: 'roadmap:refineFeature',
+  ROADMAP_PLAN_INTAKE: 'roadmap:planIntake',  // Proofread planned features and create their tasks
   // One-shot refinement events (main -> renderer)
   ROADMAP_FEATURE_REFINE_STARTED: 'roadmap:featureRefineStarted',
   ROADMAP_FEATURE_REFINED: 'roadmap:featureRefined',

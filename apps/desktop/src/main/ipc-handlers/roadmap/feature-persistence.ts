@@ -107,6 +107,8 @@ export function featureToSnakeCase(feature: RoadmapFeature): Record<string, unkn
     duplicate_of: feature.duplicateOf,
     proofread_note: feature.proofreadNote,
     intake_at: feature.intakeAt,
+    relevant_files: feature.relevantFiles,
+    split_from: feature.splitFrom,
   };
 }
 
@@ -139,12 +141,18 @@ export function applyFeaturePriorityPatch(
  * Converts a raw (snake_case) roadmap.json feature to the renderer (camelCase) shape.
  */
 /** Planning-proofread fields (proofread_note / intake_at) in camelCase, omitted when unset */
-export function intakeFieldsFromRaw(raw: Record<string, unknown>): Pick<RoadmapFeature, 'proofreadNote' | 'intakeAt'> {
+export function intakeFieldsFromRaw(
+  raw: Record<string, unknown>
+): Pick<RoadmapFeature, 'proofreadNote' | 'intakeAt' | 'relevantFiles' | 'splitFrom'> {
   const note = raw.proofread_note ?? raw.proofreadNote;
   const at = raw.intake_at ?? raw.intakeAt;
+  const files = raw.relevant_files ?? raw.relevantFiles;
+  const splitFrom = raw.split_from ?? raw.splitFrom;
   return {
     ...(typeof note === 'string' && note ? { proofreadNote: note } : {}),
     ...(typeof at === 'string' && at ? { intakeAt: at } : {}),
+    ...(Array.isArray(files) && files.length ? { relevantFiles: files.filter((f): f is string => typeof f === 'string') } : {}),
+    ...(typeof splitFrom === 'string' && splitFrom ? { splitFrom } : {}),
   };
 }
 
@@ -333,6 +341,9 @@ const INTAKE_FIELDS = [
   'linked_spec_id',
   'proofread_note',
   'intake_at',
+  'relevant_files',
+  'dependencies',
+  'split_from',
 ] as const;
 
 /**

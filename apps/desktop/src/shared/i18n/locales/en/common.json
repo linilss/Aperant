@@ -839,6 +839,10 @@
     "refining": "Refining…",
     "refiningTooltip": "AI is turning this into a full feature",
     "proofreading": "Proofreading…",
+    "planAll": {
+      "button": "Plan {{count}}",
+      "tooltip": "Proofread these features with an agent (relevance, gaps, size, overlap) and create their tasks"
+    },
     "proofreadingTooltip": "An agent checks this feature is still relevant and fills gaps, then creates its task",
     "refineWithAI": "Refine with AI",
     "refineFailed": "AI refinement failed: {{error}}",
@@ -883,6 +887,7 @@
     },
     "detail": {
       "proofread": "Proofread",
+      "relevantFiles": "Relevant files",
       "back": "Back",
       "description": "Description",
       "rationale": "Rationale",

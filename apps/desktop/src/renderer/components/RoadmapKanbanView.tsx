@@ -18,7 +18,9 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Eye, Calendar, Play, Check, Ban } from 'lucide-react';
+import { Plus, Inbox, Eye, Calendar, Play, Check, Ban, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
@@ -56,6 +58,8 @@ interface DroppableStatusColumnProps {
     options: MoveToOption[];
     onMove: (feature: RoadmapFeature, status: RoadmapFeatureStatus) => void;
   };
+  /** Planned column: proofread every feature without a task yet and create the tasks */
+  onPlanAll?: { count: number; run: () => void };
 }
 
 const STATUS_DOT_CLASSES: Record<string, string> = {
@@ -93,8 +97,10 @@ function DroppableStatusColumn({
   onGoToTask,
   onArchive,
   isOver,
-  mobileMove
+  mobileMove,
+  onPlanAll
 }: DroppableStatusColumnProps) {
+  const { t } = useTranslation(['common']);
   const { setNodeRef } = useDroppable({
     id: column.id
   });
@@ -137,6 +143,18 @@ function DroppableStatusColumn({
             {features.length}
           </span>
         </div>
+        {onPlanAll && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={onPlanAll.run}
+            title={t('roadmap.planAll.tooltip')}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {t('roadmap.planAll.button', { count: onPlanAll.count })}
+          </Button>
+        )}
       </div>
 
       {/* Features list */}
@@ -260,6 +278,16 @@ export function RoadmapKanbanView({
   // Get all status IDs for detecting column drops
   const statusIds = useMemo(() => ROADMAP_STATUS_COLUMNS.map((c) => c.id), []);
 
+  // Planned features that haven't been proofread into a task yet (and aren't being now)
+  const refiningIds = useRoadmapStore((state) => state.refiningFeatureIds);
+  const unplannedIds = (featuresByStatus.planned ?? [])
+    .filter((f) => !f.linkedSpecId && !refiningIds[f.id])
+    .map((f) => f.id);
+  const planAll =
+    unplannedIds.length > 0
+      ? { count: unplannedIds.length, run: () => void window.electronAPI.planRoadmapFeatures(roadmap.projectId, unplannedIds) }
+      : undefined;
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const feature = roadmap.features.find((f) => f.id === active.id);
@@ -359,6 +387,7 @@ export function RoadmapKanbanView({
               onArchive={onArchive}
               isOver={overColumnId === column.id}
               mobileMove={mobileMove}
+              onPlanAll={column.id === 'planned' ? planAll : undefined}
             />
           ))}
         </div>

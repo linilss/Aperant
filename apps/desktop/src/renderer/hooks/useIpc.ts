@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
 import { useTaskStore } from '../stores/task-store';
-import { useRoadmapStore } from '../stores/roadmap-store';
+import { loadRoadmap, useRoadmapStore } from '../stores/roadmap-store';
 import { useRateLimitStore } from '../stores/rate-limit-store';
 import { useAuthFailureStore } from '../stores/auth-failure-store';
 import { useProjectStore } from '../stores/project-store';
@@ -369,7 +369,9 @@ export function useIpcListeners(): void {
       (projectId: string, feature: RoadmapFeature) => {
         const store = useRoadmapStore.getState();
         if (isCurrentProject(projectId) && store.roadmap?.projectId === projectId) {
-          store.applyRefinedFeature(feature);
+          // A feature main just created (a split part) needs a reload to appear
+          if (!store.roadmap.features.some((f) => f.id === feature.id)) void loadRoadmap(projectId);
+          else store.applyRefinedFeature(feature);
         } else {
           store.setFeatureRefining(feature.id, false);
         }

@@ -162,6 +162,10 @@ export interface RoadmapFeature {
   proofreadNote?: string;
   /** When the planning proofread last changed this feature (ISO timestamp) */
   intakeAt?: string;
+  /** Files a coding agent should start from (set by the planning proofread) */
+  relevantFiles?: string[];
+  /** Feature this one was split from by the planning proofread */
+  splitFrom?: string;
 }
 
 /** Options for AI refinement of a single roadmap feature */

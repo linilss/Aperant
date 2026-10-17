@@ -49,6 +49,8 @@ export interface RoadmapAPI {
     featureId: string
   ) => Promise<IPCResult<Task>>;
   /** One-shot AI refinement of a feature; resolves with the updated feature when done */
+  /** Proofread planned features (no task yet) and create their tasks, in the background */
+  planRoadmapFeatures: (projectId: string, featureIds: string[]) => Promise<IPCResult>;
   refineRoadmapFeature: (
     projectId: string,
     featureId: string,
@@ -148,6 +150,8 @@ export const createRoadmapAPI = (): RoadmapAPI => ({
   ): Promise<IPCResult<Task>> =>
     invokeIpc(IPC_CHANNELS.ROADMAP_CONVERT_TO_SPEC, projectId, featureId),
 
+  planRoadmapFeatures: (projectId: string, featureIds: string[]): Promise<IPCResult> =>
+    invokeIpc(IPC_CHANNELS.ROADMAP_PLAN_INTAKE, projectId, featureIds),
   refineRoadmapFeature: (
     projectId: string,
     featureId: string,

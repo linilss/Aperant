@@ -41,7 +41,7 @@ import {
 import { createFeatureRefineService } from "./roadmap/feature-refine-service";
 import { runRoadmapFeatureRefine } from "../ai/runners/roadmap-feature-refine";
 import { runFeatureProofread } from "../ai/runners/roadmap-feature-proofread";
-import { createPlanIntake, newlyPlannedFeatureIds } from "./roadmap/plan-intake";
+import { createPlanIntake, keepFreshSplitParts, newlyPlannedFeatureIds } from "./roadmap/plan-intake";
 import { loadKnownDirectionIds } from "../ai/runners/competitors/guidance";
 
 /**
@@ -54,6 +54,22 @@ function getFeatureSettings(): { model?: string; thinkingLevel?: string } {
 /**
  * Register all roadmap-related IPC handlers
  */
+/** "Relevant files" from the planning proofread; '' when none */
+function relevantFilesSection(feature: Record<string, unknown>): string {
+  const files = Array.isArray(feature.relevant_files) ? feature.relevant_files.filter((f) => typeof f === "string") : [];
+  return files.length ? `\n## Relevant files\n${files.map((f) => `- ${f}`).join("\n")}\n` : "";
+}
+
+/** Features this one depends on, with their tasks, so the coder knows what to build on; '' when none */
+function coordinateSection(features: Array<Record<string, unknown>>, feature: Record<string, unknown>): string {
+  const ids = Array.isArray(feature.dependencies) ? feature.dependencies : [];
+  const lines = ids
+    .map((id) => features.find((f) => f.id === id))
+    .filter((f): f is Record<string, unknown> => !!f)
+    .map((f) => `- ${String(f.title)}${f.linked_spec_id ? ` (task ${String(f.linked_spec_id)})` : ""}`);
+  return lines.length ? `\n## Coordinate with\nBuilds on or touches the same code as:\n${lines.join("\n")}\n` : "";
+}
+
 /**
  * Turn a roadmap feature into a backlog task (spec dir + metadata) and link it.
  * The feature gets `featureStatus` (the manual Build button keeps "planned";
@@ -107,7 +123,7 @@ ${(feature.user_stories || []).map((s: string) => `- ${s}`).join("\n") || "N/A"}
 
 ## Acceptance Criteria
 ${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n") || "N/A"}
-${buildDecisionsSection(project.path, feature.id)}`;
+${relevantFilesSection(feature)}${coordinateSection(roadmap.features ?? [], feature)}${buildDecisionsSection(project.path, feature.id)}`;
 
     // Generate proper spec directory (like task creation)
     const specsBaseDir = getSpecsDir(project.autoBuildPath);
@@ -564,6 +580,7 @@ export function registerRoadmapHandlers(
           backupRoadmapFile(roadmapPath);
           // Don't roll back an AI refinement the renderer hasn't received yet
           keepNewerRefinements(existingRoadmap.features, incomingFeatures);
+          keepFreshSplitParts(existingRoadmap.features ?? [], incomingFeatures);
           // Features the user deleted: remember them so a regenerate doesn't bring them back
           try {
             recordRemovedFeatures(path.dirname(roadmapPath), existingRoadmap.features ?? [], incomingFeatures);
@@ -710,6 +727,17 @@ export function registerRoadmapHandlers(
     loadKnownDirectionIds,
     emit: (channel, ...args) => safeSendToRenderer(getMainWindow, channel, ...args),
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.ROADMAP_PLAN_INTAKE,
+    (_, projectId: string, featureIds: string[]): IPCResult => {
+      if (!projectStore.getProject(projectId)) return { success: false, error: "Project not found" };
+      for (const featureId of Array.isArray(featureIds) ? featureIds : []) {
+        void planIntake.run(projectId, String(featureId));
+      }
+      return { success: true };
+    }
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.ROADMAP_REFINE_FEATURE,
