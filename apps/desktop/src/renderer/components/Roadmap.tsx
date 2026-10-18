@@ -41,7 +41,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
 
   // State management
   const [selectedFeature, setSelectedFeature] = useState<RoadmapFeature | null>(null);
-  const [activeTab, setActiveTab] = useState(initialTab ?? 'kanban');
+  const [activeTab, setActiveTab] = useState(initialTab && initialTab !== 'kanban' ? initialTab : 'moscow');
 
   // Navigation from elsewhere (e.g. "View in MoSCoW") can ask for a specific tab
   useEffect(() => {

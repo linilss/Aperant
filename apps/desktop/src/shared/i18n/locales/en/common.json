@@ -1370,7 +1370,8 @@
     "columns": {
       "ideas": "Ideas",
       "underReview": "Under Review",
-      "planned": "Planned"
+      "planned": "Planned",
+      "dismissed": "Dismissed"
     },
     "toRoadmap": "To roadmap",
     "dismissIdea": "Dismiss idea",
@@ -1378,6 +1379,12 @@
     "openIdeation": "Open Ideation to generate more ideas",
     "emptyIdeas": "No new ideas",
     "emptyUnderReview": "Nothing to review",
-    "emptyPlanned": "Nothing planned — move a feature here or press Plan"
+    "emptyPlanned": "Nothing planned — move a feature here or press Plan",
+    "emptyDismissed": "Nothing dismissed",
+    "tabs": {
+      "flow": "Flow",
+      "roadmap": "Roadmap",
+      "ideas": "Ideas"
+    }
   }
 }

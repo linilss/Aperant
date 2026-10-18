@@ -32,6 +32,7 @@ import { MobileDrawer, MobileDrawerStatus, MobileTopBar } from './components/Mob
 import { useIsCompact, useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
 import { usePlanStageColumns } from './components/board/PlanStageColumns';
+import { BoardFrame } from './components/board/BoardFrame';
 import { TaskDetailModal } from './components/task-detail/TaskDetailModal';
 import { TaskDeployDialog } from './components/deploy/TaskDeployDialog';
 import { TaskCreationWizard } from './components/TaskCreationWizard';
@@ -1008,15 +1009,20 @@ export function App() {
             {selectedProject ? (
               <>
                 {activeView === 'kanban' && (
+                  <BoardFrame view="kanban" onSelect={setActiveView}>
                   <KanbanBoard
                     tasks={tasks}
                     projectId={boardProjectId}
                     leadingColumns={planStages.columns}
+                    trailingColumns={planStages.trailing}
+                    onForeignDrop={planStages.onDrop}
+                    renderForeignOverlay={planStages.renderOverlay}
                     onTaskClick={handleTaskClick}
                     onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
                     onRefresh={handleRefreshTasks}
                     isRefreshing={isRefreshingTasks}
                   />
+                  </BoardFrame>
                 )}
                 {activeView === 'kanban' && planStages.dialog}
                 {/* TerminalGrid is always mounted but hidden when not active to preserve terminal state */}
@@ -1049,6 +1055,7 @@ export function App() {
                   />
                 )}
                 {activeView === 'roadmap' && (activeProjectId || selectedProjectId) && (
+                  <BoardFrame view="roadmap" onSelect={setActiveView}>
                   <Roadmap
                     projectId={activeProjectId || selectedProjectId!}
                     onGoToTask={handleGoToTask}
@@ -1056,6 +1063,7 @@ export function App() {
                     initialTab={roadmapTabRequest.tab}
                     tabRequestId={roadmapTabRequest.id}
                   />
+                  </BoardFrame>
                 )}
                 {activeView === 'core-values' && (activeProjectId || selectedProjectId) && (
                   <CoreValuesView
@@ -1077,12 +1085,14 @@ export function App() {
                   </ErrorBoundary>
                 )}
                 {activeView === 'ideation' && (activeProjectId || selectedProjectId) && (
+                  <BoardFrame view="ideation" onSelect={setActiveView}>
                   <Ideation
                     projectId={activeProjectId || selectedProjectId!}
                     onGoToTask={handleGoToTask}
                     onGoToCompetitors={() => setActiveView('competitors')}
                     onGoToMoscow={openRoadmapMoscow}
                   />
+                  </BoardFrame>
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (
                   <Insights projectId={activeProjectId || selectedProjectId!} />

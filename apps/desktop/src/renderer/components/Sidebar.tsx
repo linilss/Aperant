@@ -5,9 +5,7 @@ import {
   Settings,
   LayoutGrid,
   Terminal,
-  Map,
   BookOpen,
-  Lightbulb,
   AlertCircle,
   Download,
   RefreshCw,
@@ -70,6 +68,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus, FunnelStepId } from '../../shared/types';
+import { BOARD_VIEWS } from './board/BoardFrame';
 
 export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
@@ -118,8 +117,6 @@ const navSections: NavSection[] = [
     labelKey: 'navigation:sections.plan',
     items: [
       { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F', funnelStep: 'competitors' },
-      { id: 'roadmap', labelKey: 'navigation:items.roadmap', icon: Map, shortcut: 'D', funnelStep: 'roadmap' },
-      { id: 'ideation', labelKey: 'navigation:items.ideation', icon: Lightbulb, shortcut: 'I', funnelStep: 'ideation' },
       { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G', requires: 'github' },
       { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B', requires: 'gitlab' },
       { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V', requires: 'azureDevOps' }
@@ -228,7 +225,7 @@ export function Sidebar({
   // All sections start expanded; a section can be collapsed by hand (remembered per
   // viewer) and is reopened when navigation lands in it
   const activeSectionId = visibleSections.find((section) =>
-    section.items.some((item) => item.id === activeView)
+    section.items.some((item) => item.id === activeView || (item.id === 'kanban' && BOARD_VIEWS.includes(activeView)))
   )?.id;
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -401,7 +398,8 @@ export function Sidebar({
   };
 
   const renderRailItem = (item: NavItem) => {
-    const isActive = activeView === item.id;
+    // Roadmap and Ideation are tabs of the Board
+    const isActive = activeView === item.id || (item.id === 'kanban' && BOARD_VIEWS.includes(activeView));
     const Icon = item.icon;
     const label = t(item.labelKey);
     const stepDone = isStepDone(item);
@@ -451,7 +449,8 @@ export function Sidebar({
   };
 
   const renderNavItem = (item: NavItem) => {
-    const isActive = activeView === item.id;
+    // Roadmap and Ideation are tabs of the Board
+    const isActive = activeView === item.id || (item.id === 'kanban' && BOARD_VIEWS.includes(activeView));
     const Icon = item.icon;
     const stepDone = isStepDone(item);
 

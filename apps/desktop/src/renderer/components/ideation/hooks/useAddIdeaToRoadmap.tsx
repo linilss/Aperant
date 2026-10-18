@@ -18,8 +18,8 @@ export function useAddIdeaToRoadmap(projectId: string, onGoToMoscow?: () => void
   const addingRef = useRef<Set<string>>(new Set());
 
   const handleAddToRoadmap = useCallback(
-    async (idea: Idea) => {
-      if (addingRef.current.has(idea.id)) return;
+    async (idea: Idea): Promise<string | undefined> => {
+      if (addingRef.current.has(idea.id)) return undefined;
       addingRef.current.add(idea.id);
       setAddingIdeas(new Set(addingRef.current));
 
@@ -31,7 +31,7 @@ export function useAddIdeaToRoadmap(projectId: string, onGoToMoscow?: () => void
             title: t('ideation.addToRoadmapFailed'),
             description: result.error || t('errors.unknownError'),
           });
-          return;
+          return undefined;
         }
         useIdeationStore.getState().setIdeaRoadmapFeatureId(idea.id, result.data.featureId);
         await loadRoadmap(projectId);
@@ -44,6 +44,7 @@ export function useAddIdeaToRoadmap(projectId: string, onGoToMoscow?: () => void
             </ToastAction>
           ) : undefined,
         });
+        return result.data.featureId;
       } catch (error) {
         toast({
           variant: 'destructive',

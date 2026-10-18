@@ -77,6 +77,12 @@ interface KanbanBoardProps {
   projectId?: string;
   /** Planning-stage columns (ideas, roadmap) shown before the task columns */
   leadingColumns?: LeadingColumn[];
+  /** Columns shown after the task columns (e.g. Dismissed) */
+  trailingColumns?: LeadingColumn[];
+  /** A dragged item that isn't a task (idea, feature) was dropped */
+  onForeignDrop?: (activeId: string, target: { stage?: string; taskColumn?: TaskStatus }) => void;
+  /** Drag preview for a non-task item */
+  renderForeignOverlay?: (activeId: string) => ReactNode;
   onTaskClick: (task: Task) => void;
   onNewTaskClick?: () => void;
   onRefresh?: () => void;
@@ -816,10 +822,11 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
   );
 }, droppableColumnPropsAreEqual);
 
-export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns = [], onTaskClick, onNewTaskClick, onRefresh, isRefreshing }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns = [], trailingColumns = [], onForeignDrop, renderForeignOverlay, onTaskClick, onNewTaskClick, onRefresh, isRefreshing }: KanbanBoardProps) {
   const { t } = useTranslation(['tasks', 'dialogs', 'common']);
   const { toast } = useToast();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeForeignId, setActiveForeignId] = useState<string | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const { showArchived, toggleShowArchived } = useViewState();
 
@@ -852,7 +859,8 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
   const [mobileTab, setMobileTab] = useState<StatusColumn>(() => readStoredMobileTab(projectId));
   // A planning-stage tab (leading column) shown instead of a status column
   const [mobileLeading, setMobileLeading] = useState<string | null>(null);
-  const mobileTabIds = [...leadingColumns.map((c) => c.id), ...TASK_STATUS_COLUMNS];
+  const mobileTabIds = [...leadingColumns.map((c) => c.id), ...TASK_STATUS_COLUMNS, ...trailingColumns.map((c) => c.id)];
+  const extraColumns = [...leadingColumns, ...trailingColumns];
   const currentMobileTab = mobileLeading ?? mobileTab;
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
@@ -1162,6 +1170,8 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
     const task = tasks.find((t) => t.id === active.id);
     if (task) {
       setActiveTask(task);
+    } else {
+      setActiveForeignId(String(active.id));
     }
   };
 
@@ -1619,12 +1629,24 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
+    setActiveForeignId(null);
     setOverColumnId(null);
 
     if (!over) return;
 
     const activeTaskId = active.id as string;
     const overId = over.id as string;
+
+    // Ideas and roadmap features: the board owner decides what a drop means
+    if (!tasks.some((t) => t.id === activeTaskId)) {
+      if (overId.startsWith('stage:')) onForeignDrop?.(activeTaskId, { stage: overId.slice('stage:'.length) });
+      else if (isValidDropColumn(overId)) onForeignDrop?.(activeTaskId, { taskColumn: overId });
+      else {
+        const overTask = tasks.find((t) => t.id === overId);
+        if (overTask) onForeignDrop?.(activeTaskId, { taskColumn: overTask.status });
+      }
+      return;
+    }
 
     // Determine target status
     let newStatus: TaskStatus | null = null;
@@ -1845,6 +1867,26 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
                     </button>
                   );
                 })}
+                {trailingColumns.map((column) => {
+                  const selected = column.id === currentMobileTab;
+                  return (
+                    <button
+                      key={column.id}
+                      type="button"
+                      role="tab"
+                      data-tab={column.id}
+                      aria-selected={selected}
+                      onClick={() => selectMobileTab(column.id)}
+                      className={cn(
+                        'flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                        selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {column.label}
+                      <span className="tabular-nums text-muted-foreground">{column.count}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div
@@ -1856,7 +1898,7 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
               }}
             >
               {mobileLeading
-                ? leadingColumns.find((c) => c.id === mobileLeading)?.render(true)
+                ? extraColumns.find((c) => c.id === mobileLeading)?.render(true)
                 : renderColumn(mobileTab, true)}
             </div>
           </>
@@ -1864,6 +1906,7 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
           <div className="flex flex-1 gap-4 overflow-x-auto p-6">
             {leadingColumns.map((column) => column.render(false))}
             {TASK_STATUS_COLUMNS.map((status) => renderColumn(status))}
+            {trailingColumns.map((column) => column.render(false))}
           </div>
         )}
 
@@ -1873,6 +1916,8 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
             <div className="drag-overlay-card">
               <TaskCard task={activeTask} onClick={() => {}} />
             </div>
+          ) : activeForeignId ? (
+            <div className="drag-overlay-card w-80">{renderForeignOverlay?.(activeForeignId)}</div>
           ) : null}
         </DragOverlay>
       </DndContext>

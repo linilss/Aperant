@@ -28,8 +28,8 @@ export function RoadmapTabs({
     <Tabs value={activeTab} onValueChange={onTabChange} className="h-full flex flex-col max-md:h-auto">
       {/* Compact tab row: the only part that stays pinned while a phone scrolls the page */}
       <div className={cn('shrink-0 px-4 pt-4 max-md:border-b max-md:border-border max-md:px-3 max-md:py-2', PAGE_STICKY)}>
-        <TabsList className="max-md:grid max-md:h-12 max-md:w-full max-md:grid-cols-4 max-md:[&>button]:h-10">
-          <TabsTrigger value="kanban">{t('roadmap.tabs.kanban')}</TabsTrigger>
+        {/* The kanban of features is the Board's Flow tab */}
+        <TabsList className="max-md:grid max-md:h-12 max-md:w-full max-md:grid-cols-3 max-md:[&>button]:h-10">
           <TabsTrigger value="phases">{t('roadmap.tabs.phases')}</TabsTrigger>
           <TabsTrigger value="features">{t('roadmap.tabs.allFeatures')}</TabsTrigger>
           <TabsTrigger value="moscow">{t('roadmap.tabs.moscow')}</TabsTrigger>
