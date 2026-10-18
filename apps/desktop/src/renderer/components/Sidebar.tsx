@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Rocket,
   Swords,
+  ListTodo,
   Gem,
   Palette,
   CheckCircle2
@@ -68,7 +69,6 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus, FunnelStepId } from '../../shared/types';
-import { BOARD_VIEWS } from './board/BoardFrame';
 
 export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
@@ -117,6 +117,7 @@ const navSections: NavSection[] = [
     labelKey: 'navigation:sections.plan',
     items: [
       { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F', funnelStep: 'competitors' },
+      { id: 'roadmap', labelKey: 'navigation:items.backlog', icon: ListTodo, shortcut: 'D', funnelStep: 'roadmap' },
       { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G', requires: 'github' },
       { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B', requires: 'gitlab' },
       { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V', requires: 'azureDevOps' }
@@ -225,7 +226,7 @@ export function Sidebar({
   // All sections start expanded; a section can be collapsed by hand (remembered per
   // viewer) and is reopened when navigation lands in it
   const activeSectionId = visibleSections.find((section) =>
-    section.items.some((item) => item.id === activeView || (item.id === 'kanban' && BOARD_VIEWS.includes(activeView)))
+    section.items.some((item) => item.id === activeView || (item.id === 'roadmap' && activeView === 'ideation'))
   )?.id;
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -398,8 +399,8 @@ export function Sidebar({
   };
 
   const renderRailItem = (item: NavItem) => {
-    // Roadmap and Ideation are tabs of the Board
-    const isActive = activeView === item.id || (item.id === 'kanban' && BOARD_VIEWS.includes(activeView));
+    // Ideation (idea settings) is opened from the Backlog
+    const isActive = activeView === item.id || (item.id === 'roadmap' && activeView === 'ideation');
     const Icon = item.icon;
     const label = t(item.labelKey);
     const stepDone = isStepDone(item);
@@ -449,8 +450,8 @@ export function Sidebar({
   };
 
   const renderNavItem = (item: NavItem) => {
-    // Roadmap and Ideation are tabs of the Board
-    const isActive = activeView === item.id || (item.id === 'kanban' && BOARD_VIEWS.includes(activeView));
+    // Ideation (idea settings) is opened from the Backlog
+    const isActive = activeView === item.id || (item.id === 'roadmap' && activeView === 'ideation');
     const Icon = item.icon;
     const stepDone = isStepDone(item);
 

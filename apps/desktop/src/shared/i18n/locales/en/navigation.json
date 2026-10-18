@@ -37,7 +37,8 @@
     "worktrees": "Worktrees",
     "agentTools": "MCP Overview",
     "tests": "Tests",
-    "deploy": "Deploy"
+    "deploy": "Deploy",
+    "backlog": "Backlog"
   },
   "actions": {
     "settings": "Settings",
