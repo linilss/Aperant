@@ -20,6 +20,7 @@ import {
 } from './plan-file-utils';
 import { writeFileAtomicSync } from '../../utils/atomic-file';
 import { findTaskWorktree } from '../../worktree-paths';
+import { requestSafeStop, takeSafeStop } from '../../task-safe-stop';
 import { projectStore } from '../../project-store';
 import { getIsolatedGitEnv, detectWorktreeBranch } from '../../utils/git-isolation';
 import { cancelFallbackTimer } from '../agent-events-handlers';
@@ -362,7 +363,18 @@ export function registerTaskExecutionHandlers(
   /**
    * Stop a task
    */
+  // Safe stop: finish the current subtask, then stop (the exit is handled as a user stop)
+  ipcMain.on(IPC_CHANNELS.TASK_STOP_SAFE, (_, taskId: string) => {
+    const { task, project } = findTaskAndProject(taskId);
+    if (!task || !project) return;
+    const specsBaseDir = getSpecsDir(project.autoBuildPath);
+    const mainSpecDir = path.join(project.path, specsBaseDir, task.specId);
+    const worktree = findTaskWorktree(project.path, task.specId);
+    requestSafeStop(taskId, [mainSpecDir, ...(worktree ? [path.join(worktree, specsBaseDir, task.specId)] : [])]);
+  });
+
   ipcMain.on(IPC_CHANNELS.TASK_STOP, (_, taskId: string) => {
+    takeSafeStop(taskId);
     agentManager.killTask(taskId);
     fileWatcher.unwatch(taskId).catch((err) => {
       console.error('[TASK_STOP] Failed to unwatch:', err);

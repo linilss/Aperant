@@ -6,6 +6,7 @@ import { useRateLimitStore } from '../stores/rate-limit-store';
 import { useAuthFailureStore } from '../stores/auth-failure-store';
 import { useProjectStore } from '../stores/project-store';
 import { refinePhaseLabel, useRefineRunStore } from '../stores/refine-run-store';
+import { useSafeStopStore } from '../stores/safe-stop-store';
 import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, RoadmapFeature, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
 
 /** Maximum log entries to buffer in the batch queue between flushes (OOM prevention) */
@@ -237,6 +238,7 @@ export function useIpcListeners(): void {
           projectId
         });
         // Filter by project to prevent multi-project interference
+        if (status !== 'in_progress') useSafeStopStore.getState().clear(taskId);
         if (!isTaskForCurrentProject(projectId)) return;
         queueUpdate(taskId, { status, reviewReason, errorMessage });
 

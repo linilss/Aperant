@@ -49,6 +49,7 @@ export const taskMock = {
     console.warn('[Browser Mock] startTask called');
   },
 
+  stopTaskSafe: () => {},
   stopTask: () => {
     console.warn('[Browser Mock] stopTask called');
   },

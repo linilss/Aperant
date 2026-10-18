@@ -47,6 +47,7 @@ import { TASK_STATUS_LABELS } from '../../../shared/constants';
 import { TaskEditDialog } from '../TaskEditDialog';
 import { useTaskDetail } from './hooks/useTaskDetail';
 import { RefineTerminalTab } from './RefineTerminalTab';
+import { StopTaskButton } from '../StopTaskButton';
 import { TaskMetadata } from './TaskMetadata';
 import { TaskWarnings } from './TaskWarnings';
 import { TaskSubtasks } from './TaskSubtasks';
@@ -452,6 +453,10 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
           )}
         </Button>
       );
+    }
+
+    if (state.isRunning && !state.isStuck) {
+      return <StopTaskButton taskId={task.id} size="default" />;
     }
 
     if (task.status === 'backlog' || task.status === 'in_progress') {

@@ -197,6 +197,13 @@
     "selectFile": "Select a file to view its contents",
     "openInIDE": "Open in IDE"
   },
+  "stop": {
+    "safe": "Safe stop",
+    "safeHint": "Finish the current step, then stop",
+    "now": "Stop now",
+    "nowHint": "Stop immediately; the current step may be half done",
+    "stopping": "Stopping…"
+  },
   "refineTerminal": {
     "runsInBackground": "Runs in the background — you can close this window and come back later."
   },

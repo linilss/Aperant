@@ -16,6 +16,7 @@ import { extractSessionInsights } from '../runners/insight-extractor';
 import type { SessionResult } from '../session/types';
 import type { SubtaskInfo } from './build-orchestrator';
 import {
+  consumeSafeStop,
   writeAuthPauseFile,
   writeRateLimitPauseFile,
   waitForAuthResume,
@@ -138,6 +139,10 @@ export async function iterateSubtasks(
   while (true) {
     // Check cancellation
     if (config.abortSignal?.aborted) {
+      return { totalSubtasks, completedSubtasks, stuckSubtasks, cancelled: true };
+    }
+    // Safe stop: the user asked to stop between subtasks, never in the middle of one
+    if (consumeSafeStop(config.specDir, config.sourceSpecDir)) {
       return { totalSubtasks, completedSubtasks, stuckSubtasks, cancelled: true };
     }
 

@@ -35,6 +35,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from './ui/input';
 import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue, useTaskStore } from '../stores/task-store';
 import { useRefineRunStore } from '../stores/refine-run-store';
+import { StopTaskButton } from './StopTaskButton';
 import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
@@ -283,7 +284,7 @@ export const TaskCard = memo(function TaskCard({
       const activeProject = useProjectStore.getState().projects.find(
         p => p.id === task.projectId
       );
-      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
       setShowBranchModal(true);
     } else {
       const result = await startTaskOrQueue(task.id);
@@ -926,6 +927,8 @@ export const TaskCard = memo(function TaskCard({
                 )}
               </Button>
               </div>
+            ) : isRunning ? (
+              <StopTaskButton taskId={task.id} className="h-7 px-2.5" />
             ) : (task.status === 'backlog' || task.status === 'in_progress') && (
               <Button
                 variant={isRunning ? 'destructive' : 'default'}

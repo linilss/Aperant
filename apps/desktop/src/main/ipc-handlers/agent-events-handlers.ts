@@ -19,6 +19,7 @@ import { fileWatcher } from "../file-watcher";
 import { notificationService } from "../notification-service";
 import { persistPlanLastEventSync, getPlanPath, persistPlanPhaseSync, persistPlanStatusAndReasonSync, hasPlanWithSubtasks, syncPlanPhasesToMainSync } from "./task/plan-file-utils";
 import { findTaskWorktree } from "../worktree-paths";
+import { takeSafeStop } from "../task-safe-stop";
 import { getToolPath } from "../cli-tool-manager";
 import { findTaskAndProject } from "./task/shared";
 import { safeSendToRenderer } from "./utils";
@@ -106,6 +107,24 @@ export function registerAgenteventsHandlers(
     // Use projectId from event to scope the lookup (prevents cross-project contamination)
     const { task: exitTask, project: exitProject } = findTaskAndProject(taskId, projectId);
     const exitProjectId = exitProject?.id || projectId;
+
+    // A safe stop ended the build between subtasks (or came during spec creation, before
+    // coding starts): same outcome as pressing Stop. A build that finished on its own
+    // before reaching the next subtask is handled normally.
+    const safeStop = takeSafeStop(taskId);
+    if (safeStop.pending && (safeStop.consumed || processType === 'spec-creation')) {
+      cancelFallbackTimer(taskId);
+      if (exitTask && exitProject) {
+        taskStateManager.handleUiEvent(
+          taskId,
+          { type: 'USER_STOPPED', hasPlan: hasPlanWithSubtasks(exitProject, exitTask) },
+          exitTask,
+          exitProject
+        );
+        taskStateManager.prepareForRestart(taskId);
+      }
+      return;
+    }
 
     // Skip handleProcessExited for successful spec-creation exits — the spec → build
     // transition (line 132+) will start a new agent, and calling handleProcessExited

@@ -26,6 +26,23 @@ export const AUTH_FAILURE_PAUSE_FILE = 'AUTH_PAUSE';
 /** Created by the frontend UI to signal that the user wants to resume. */
 export const RESUME_FILE = 'RESUME';
 
+/** Written by main for a "safe stop": the build stops before its next subtask */
+export const SAFE_STOP_FILE = 'SAFE_STOP';
+
+/** True (and the marker removed) when a safe stop was requested in either spec dir */
+export function consumeSafeStop(specDir: string, sourceSpecDir?: string): boolean {
+  let requested = false;
+  for (const dir of [specDir, sourceSpecDir]) {
+    if (!dir) continue;
+    const file = join(dir, SAFE_STOP_FILE);
+    if (existsSync(file)) {
+      requested = true;
+      try { unlinkSync(file); } catch { /* ignore */ }
+    }
+  }
+  return requested;
+}
+
 /** Maximum time to wait for rate-limit reset (2 hours). */
 const MAX_RATE_LIMIT_WAIT_MS = 7_200_000;
 

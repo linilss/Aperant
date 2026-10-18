@@ -36,6 +36,8 @@ export interface TaskAPI {
   ) => Promise<IPCResult<Task>>;
   startTask: (taskId: string, options?: TaskStartOptions) => void;
   stopTask: (taskId: string) => void;
+  /** Stop after the current subtask */
+  stopTaskSafe: (taskId: string) => void;
   submitReview: (
     taskId: string,
     approved: boolean,
@@ -147,6 +149,9 @@ export const createTaskAPI = (): TaskAPI => ({
 
   stopTask: (taskId: string): void =>
     ipcRenderer.send(IPC_CHANNELS.TASK_STOP, taskId),
+
+  stopTaskSafe: (taskId: string): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_STOP_SAFE, taskId),
 
   submitReview: (
     taskId: string,
