@@ -1365,5 +1365,19 @@
       "roadmap": "{{count}} features",
       "ideation": "{{count}} ideas"
     }
+  },
+  "board": {
+    "columns": {
+      "ideas": "Ideas",
+      "underReview": "Under Review",
+      "planned": "Planned"
+    },
+    "toRoadmap": "To roadmap",
+    "dismissIdea": "Dismiss idea",
+    "generate": "Ideation",
+    "openIdeation": "Open Ideation to generate more ideas",
+    "emptyIdeas": "No new ideas",
+    "emptyUnderReview": "Nothing to review",
+    "emptyPlanned": "Nothing planned — move a feature here or press Plan"
   }
 }

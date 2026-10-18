@@ -25,6 +25,7 @@ import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import type { LeadingColumn } from './board/PlanStageColumns';
 import { TaskCard } from './TaskCard';
 import { SortableTaskCard } from './SortableTaskCard';
 import { QueueSettingsModal } from './QueueSettingsModal';
@@ -72,6 +73,10 @@ function getVisualColumn(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number]
 
 interface KanbanBoardProps {
   tasks: Task[];
+  /** Board project (falls back to the first task's) */
+  projectId?: string;
+  /** Planning-stage columns (ideas, roadmap) shown before the task columns */
+  leadingColumns?: LeadingColumn[];
   onTaskClick: (task: Task) => void;
   onNewTaskClick?: () => void;
   onRefresh?: () => void;
@@ -811,7 +816,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
   );
 }, droppableColumnPropsAreEqual);
 
-export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isRefreshing }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns = [], onTaskClick, onNewTaskClick, onRefresh, isRefreshing }: KanbanBoardProps) {
   const { t } = useTranslation(['tasks', 'dialogs', 'common']);
   const { toast } = useToast();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -838,13 +843,17 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   const resizeProjectIdRef = useRef<string | null>(null);
 
   // Get projectId from first task
-  const projectId = tasks[0]?.projectId;
+  const projectId = boardProjectId ?? tasks[0]?.projectId;
   const project = projectId ? projects.find((p) => p.id === projectId) : undefined;
   const maxParallelTasks = project?.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
 
   // Phone layout: one column at a time, picked via sticky segmented tabs (remembered per project)
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState<StatusColumn>(() => readStoredMobileTab(projectId));
+  // A planning-stage tab (leading column) shown instead of a status column
+  const [mobileLeading, setMobileLeading] = useState<string | null>(null);
+  const mobileTabIds = [...leadingColumns.map((c) => c.id), ...TASK_STATUS_COLUMNS];
+  const currentMobileTab = mobileLeading ?? mobileTab;
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
   const mobileTabListRef = useRef<HTMLDivElement>(null);
@@ -858,15 +867,20 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   useEffect(() => {
     if (!isMobile) return;
     const list = mobileTabListRef.current;
-    const tab = list?.querySelector<HTMLElement>(`[data-tab="${mobileTab}"]`);
+    const tab = list?.querySelector<HTMLElement>(`[data-tab="${currentMobileTab}"]`);
     if (!list || !tab) return;
     list.scrollLeft = tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2;
-  }, [isMobile, mobileTab]);
+  }, [isMobile, currentMobileTab]);
 
-  const selectMobileTab = (tab: StatusColumn) => {
-    if (tab === mobileTab) return;
-    setMobileTab(tab);
-    storeMobileTab(projectId, tab);
+  const selectMobileTab = (tab: string) => {
+    if (tab === currentMobileTab) return;
+    if ((TASK_STATUS_COLUMNS as readonly string[]).includes(tab)) {
+      setMobileLeading(null);
+      setMobileTab(tab as StatusColumn);
+      storeMobileTab(projectId, tab as StatusColumn);
+    } else {
+      setMobileLeading(tab);
+    }
     // Show the new list from its top (just below the sticky tabs) if scrolled past it
     const scroller = mobileScrollRef.current;
     const toolbarHeight = mobileToolbarRef.current?.offsetHeight ?? 0;
@@ -887,7 +901,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     const dy = touch.clientY - start.y;
     // Mostly-horizontal gestures only, so vertical scrolling never switches columns
     if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    const next = TASK_STATUS_COLUMNS[TASK_STATUS_COLUMNS.indexOf(mobileTab) + (dx < 0 ? 1 : -1)];
+    const next = mobileTabIds[mobileTabIds.indexOf(currentMobileTab) + (dx < 0 ? 1 : -1)];
     if (next) selectMobileTab(next);
   };
 
@@ -1791,8 +1805,28 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
                 aria-label={t('tasks:kanban.columnTabsLabel')}
                 className="mx-3 my-2 flex gap-0.5 overflow-x-auto rounded-lg bg-secondary/60 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
+                {leadingColumns.map((column) => {
+                  const selected = column.id === currentMobileTab;
+                  return (
+                    <button
+                      key={column.id}
+                      type="button"
+                      role="tab"
+                      data-tab={column.id}
+                      aria-selected={selected}
+                      onClick={() => selectMobileTab(column.id)}
+                      className={cn(
+                        'flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                        selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {column.label}
+                      <span className="tabular-nums text-muted-foreground">{column.count}</span>
+                    </button>
+                  );
+                })}
                 {TASK_STATUS_COLUMNS.map((status) => {
-                  const selected = status === mobileTab;
+                  const selected = status === currentMobileTab;
                   return (
                     <button
                       key={status}
@@ -1821,11 +1855,14 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
                 swipeStart.current = null;
               }}
             >
-              {renderColumn(mobileTab, true)}
+              {mobileLeading
+                ? leadingColumns.find((c) => c.id === mobileLeading)?.render(true)
+                : renderColumn(mobileTab, true)}
             </div>
           </>
         ) : (
           <div className="flex flex-1 gap-4 overflow-x-auto p-6">
+            {leadingColumns.map((column) => column.render(false))}
             {TASK_STATUS_COLUMNS.map((status) => renderColumn(status))}
           </div>
         )}

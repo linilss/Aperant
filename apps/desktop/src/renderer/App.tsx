@@ -31,6 +31,7 @@ import { Sidebar, getNavItemLabelKey, type SidebarView } from './components/Side
 import { MobileDrawer, MobileDrawerStatus, MobileTopBar } from './components/MobileNav';
 import { useIsCompact, useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
+import { usePlanStageColumns } from './components/board/PlanStageColumns';
 import { TaskDetailModal } from './components/task-detail/TaskDetailModal';
 import { TaskDeployDialog } from './components/deploy/TaskDeployDialog';
 import { TaskCreationWizard } from './components/TaskCreationWizard';
@@ -910,6 +911,13 @@ export function App() {
     }
   };
 
+  // One board: ideas and roadmap stages before the task columns
+  const boardProjectId = activeProjectId || selectedProjectId || undefined;
+  const planStages = usePlanStageColumns(boardProjectId, {
+    onGoToTask: handleGoToTask,
+    onOpenIdeation: () => setActiveView('ideation'),
+  });
+
   return (
     <ViewStateProvider>
       <TooltipProvider>
@@ -1002,12 +1010,15 @@ export function App() {
                 {activeView === 'kanban' && (
                   <KanbanBoard
                     tasks={tasks}
+                    projectId={boardProjectId}
+                    leadingColumns={planStages.columns}
                     onTaskClick={handleTaskClick}
                     onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
                     onRefresh={handleRefreshTasks}
                     isRefreshing={isRefreshingTasks}
                   />
                 )}
+                {activeView === 'kanban' && planStages.dialog}
                 {/* TerminalGrid is always mounted but hidden when not active to preserve terminal state */}
                 <div className={activeView === 'terminals' ? 'h-full' : 'hidden'}>
                   <TerminalGrid
