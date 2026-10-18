@@ -1,27 +1,24 @@
 /**
- * The planning stages of the one board: Ideas (inbox) → Under Review → Planned,
- * shown before the build columns. Reads the ideation and roadmap stores; a
- * feature that already has a task is shown by its task card, not here.
+ * The Board's incoming column: roadmap features promoted to Planned that don't
+ * have their task yet (being proofread). Ideas and the roadmap itself are lists
+ * (Ideation, Roadmap, MoSCoW); a feature with a task is shown by its task card.
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ChevronLeft, ChevronRight, Lightbulb, Eye, Calendar, Plus, X, Sparkles, ExternalLink, Ban } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Sparkles } from 'lucide-react';
 
-import { useIdeationStore, loadIdeation, getActiveIdeas } from '../../stores/ideation-store';
 import { useRoadmapStore, loadRoadmap, planFeature } from '../../stores/roadmap-store';
-import { useAddIdeaToRoadmap } from '../ideation/hooks/useAddIdeaToRoadmap';
 import { useFeatureActions, useFeatureDelete } from '../roadmap/hooks';
 import { FeatureDetailPanel } from '../roadmap/FeatureDetailPanel';
 import { SortableFeatureCard } from '../SortableFeatureCard';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '../../lib/utils';
-import type { Idea, RoadmapFeature, RoadmapFeatureStatus, TaskStatus } from '../../../shared/types';
+import type { RoadmapFeature, TaskStatus } from '../../../shared/types';
 
 const FEATURE_PREFIX = 'feature:';
-const IDEA_PREFIX = 'idea:';
 
 /** Wraps a card so the board's drag-and-drop can move it (ids are prefixed, never task ids) */
 function Draggable({ id, children }: { id: string; children: ReactNode }) {
@@ -135,51 +132,13 @@ function StageColumn({ id, label, count, icon, borderClass, flat, collapsed, onT
   );
 }
 
-function IdeaCard({
-  idea,
-  adding,
-  onAdd,
-  onDismiss,
-}: {
-  idea: Idea;
-  adding: boolean;
-  onAdd: () => void;
-  onDismiss: () => void;
-}) {
-  const { t } = useTranslation(['common']);
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug">{idea.title}</h3>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground"
-          onClick={onDismiss}
-          aria-label={t('board.dismissIdea')}
-          title={t('board.dismissIdea')}
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      {idea.description && <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{idea.description}</p>}
-      <div className="mt-2 flex justify-end">
-        <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={onAdd} disabled={adding}>
-          <Plus className="h-3 w-3" />
-          {t('board.toRoadmap')}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 /**
- * Columns for ideas and roadmap features without a task, plus the feature
- * dialog they open. `onGoToTask` opens a linked task's detail.
+ * The Planned column plus the feature dialog it opens. `onGoToTask` opens a
+ * linked task's detail.
  */
 export function usePlanStageColumns(
   projectId: string | undefined,
-  options: { onGoToTask: (specId: string) => void; onOpenIdeation?: () => void }
+  options: { onGoToTask: (specId: string) => void }
 ): {
   columns: LeadingColumn[];
   trailing: LeadingColumn[];
@@ -190,33 +149,21 @@ export function usePlanStageColumns(
   const { t } = useTranslation(['common']);
   const roadmap = useRoadmapStore((s) => s.roadmap);
   const refiningIds = useRoadmapStore((s) => s.refiningFeatureIds);
-  const session = useIdeationStore((s) => s.session);
-  const ideationProjectId = useIdeationStore((s) => s.currentProjectId);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { convertFeatureToSpec } = useFeatureActions();
   const { deleteFeature } = useFeatureDelete(projectId ?? '');
-  const { addingIdeas, handleAddToRoadmap } = useAddIdeaToRoadmap(projectId ?? '');
 
-  // Load what the board shows when the project changes (the pages do the same)
+  // Load the roadmap when the project changes (the Roadmap tab does the same)
   useEffect(() => {
-    if (!projectId) return;
-    if (useRoadmapStore.getState().roadmap?.projectId !== projectId) void loadRoadmap(projectId);
-    if (useIdeationStore.getState().currentProjectId !== projectId) void loadIdeation(projectId);
+    if (projectId && useRoadmapStore.getState().roadmap?.projectId !== projectId) void loadRoadmap(projectId);
   }, [projectId]);
 
   const projectRoadmap = roadmap && roadmap.projectId === projectId ? roadmap : null;
-  const features = useMemo(() => (projectRoadmap?.features ?? []).filter((f) => !f.linkedSpecId), [projectRoadmap]);
-  const underReview = features.filter((f) => f.status === 'under_review');
-  const planned = features.filter((f) => f.status === 'planned');
-  const dismissed = features.filter((f) => f.status === 'dismissed');
-  const ideas = useMemo(
-    () =>
-      ideationProjectId === projectId
-        ? getActiveIdeas(session).filter((i) => i.status !== 'converted' && !i.roadmapFeatureId)
-        : [],
-    [session, ideationProjectId, projectId]
+  const planned = useMemo(
+    () => (projectRoadmap?.features ?? []).filter((f) => f.status === 'planned' && !f.linkedSpecId),
+    [projectRoadmap]
   );
 
   const toggle = (id: string) =>
@@ -226,19 +173,13 @@ export function usePlanStageColumns(
       return next;
     });
 
-  const dismissIdea = async (idea: Idea) => {
-    if (!projectId) return;
-    const result = await window.electronAPI.dismissIdea(projectId, idea.id);
-    if (result.success) useIdeationStore.getState().dismissIdea(idea.id);
-  };
-
   const featureCard = (feature: RoadmapFeature) => (
     <Draggable key={feature.id} id={`${FEATURE_PREFIX}${feature.id}`}>
       <SortableFeatureCard
         feature={feature}
         roadmap={projectRoadmap ?? undefined}
         onClick={() => setSelectedId(feature.id)}
-        // Shows the Plan button (proofread, then create the task)
+        // Shows the Plan button (rerun the proofread if it stopped)
         onConvertToSpec={() => undefined}
         onGoToTask={options.onGoToTask}
         dragDisabled
@@ -246,120 +187,20 @@ export function usePlanStageColumns(
     </Draggable>
   );
 
-  /** Move a feature to a roadmap status and save (Planned starts the planning proofread) */
-  const moveFeature = async (featureId: string, status: RoadmapFeatureStatus) => {
-    if (!projectId) return;
-    const store = useRoadmapStore.getState();
-    const feature = store.roadmap?.features.find((f) => f.id === featureId);
-    if (!feature || feature.status === status || store.roadmap?.projectId !== projectId) return;
-    if (status === 'planned') {
-      await planFeature(projectId, featureId);
-      return;
-    }
-    store.updateFeatureStatus(featureId, status);
-    const roadmapNow = useRoadmapStore.getState().roadmap;
-    if (roadmapNow) await window.electronAPI.saveRoadmap(projectId, roadmapNow);
-  };
-
+  // A planned feature dropped into the build columns: (re)run the proofread, which creates its task
   const onDrop = (activeId: string, target: { stage?: string; taskColumn?: TaskStatus }) => {
-    if (!projectId) return;
-    // Anything dropped into the build area gets planned: proofread, then its task
-    const stage = target.taskColumn ? 'planned' : target.stage;
-    if (activeId.startsWith(FEATURE_PREFIX)) {
-      const featureId = activeId.slice(FEATURE_PREFIX.length);
-      if (stage === 'under_review' || stage === 'planned' || stage === 'dismissed') void moveFeature(featureId, stage);
-      return;
-    }
-    if (activeId.startsWith(IDEA_PREFIX)) {
-      const idea = ideas.find((i) => `${IDEA_PREFIX}${i.id}` === activeId);
-      if (!idea) return;
-      if (stage === 'dismissed') void dismissIdea(idea);
-      else if (stage === 'under_review' || stage === 'planned') {
-        void (async () => {
-          const featureId = await handleAddToRoadmap(idea);
-          if (featureId && stage === 'planned') await planFeature(projectId, featureId);
-        })();
-      }
-    }
+    if (!projectId || !target.taskColumn || !activeId.startsWith(FEATURE_PREFIX)) return;
+    void planFeature(projectId, activeId.slice(FEATURE_PREFIX.length));
   };
 
   const renderOverlay = (activeId: string) => {
-    if (activeId.startsWith(FEATURE_PREFIX)) {
-      const feature = features.find((f) => `${FEATURE_PREFIX}${f.id}` === activeId);
-      return feature ? <SortableFeatureCard feature={feature} roadmap={projectRoadmap ?? undefined} onClick={() => undefined} dragDisabled /> : null;
-    }
-    const idea = ideas.find((i) => `${IDEA_PREFIX}${i.id}` === activeId);
-    return idea ? <IdeaCard idea={idea} adding={false} onAdd={() => undefined} onDismiss={() => undefined} /> : null;
+    const feature = planned.find((f) => `${FEATURE_PREFIX}${f.id}` === activeId);
+    return feature ? <SortableFeatureCard feature={feature} roadmap={projectRoadmap ?? undefined} onClick={() => undefined} dragDisabled /> : null;
   };
 
   const unplanned = planned.filter((f) => !refiningIds[f.id]).map((f) => f.id);
 
   const columns: LeadingColumn[] = [
-    {
-      id: 'ideas',
-      label: t('board.columns.ideas'),
-      count: ideas.length,
-      render: (flat) => (
-        <StageColumn
-          key="ideas"
-          id="ideas"
-          label={t('board.columns.ideas')}
-          count={ideas.length}
-          icon={<Lightbulb className="h-4 w-4" />}
-          borderClass="border-t-warning/60"
-          flat={flat}
-          collapsed={!!collapsed.ideas}
-          onToggleCollapsed={() => toggle('ideas')}
-          empty={t('board.emptyIdeas')}
-          action={
-            options.onOpenIdeation && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs"
-                onClick={options.onOpenIdeation}
-                title={t('board.openIdeation')}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t('board.generate')}
-              </Button>
-            )
-          }
-        >
-          {ideas.map((idea) => (
-            <Draggable key={idea.id} id={`${IDEA_PREFIX}${idea.id}`}>
-              <IdeaCard
-                idea={idea}
-                adding={addingIdeas.has(idea.id)}
-                onAdd={() => void handleAddToRoadmap(idea)}
-                onDismiss={() => void dismissIdea(idea)}
-              />
-            </Draggable>
-          ))}
-        </StageColumn>
-      ),
-    },
-    {
-      id: 'under_review',
-      label: t('board.columns.underReview'),
-      count: underReview.length,
-      render: (flat) => (
-        <StageColumn
-          key="under_review"
-          id="under_review"
-          label={t('board.columns.underReview')}
-          count={underReview.length}
-          icon={<Eye className="h-4 w-4" />}
-          borderClass="border-t-muted-foreground/50"
-          flat={flat}
-          collapsed={!!collapsed.under_review}
-          onToggleCollapsed={() => toggle('under_review')}
-          empty={t('board.emptyUnderReview')}
-        >
-          {underReview.map(featureCard)}
-        </StageColumn>
-      ),
-    },
     {
       id: 'planned',
       label: t('board.columns.planned'),
@@ -398,37 +239,6 @@ export function usePlanStageColumns(
     },
   ];
 
-  const trailing: LeadingColumn[] = [
-    {
-      id: 'dismissed',
-      label: t('board.columns.dismissed'),
-      count: dismissed.length,
-      render: (flat) => (
-        <StageColumn
-          key="dismissed"
-          id="dismissed"
-          label={t('board.columns.dismissed')}
-          count={dismissed.length}
-          icon={<Ban className="h-4 w-4" />}
-          borderClass="border-t-destructive/50"
-          flat={flat}
-          // Out of the way by default; it only steers future generations
-          collapsed={collapsed.dismissed !== false}
-          onToggleCollapsed={() =>
-            setCollapsed((current) => {
-              const next = { ...current, dismissed: current.dismissed === false };
-              writeCollapsed(next);
-              return next;
-            })
-          }
-          empty={t('board.emptyDismissed')}
-        >
-          {dismissed.map(featureCard)}
-        </StageColumn>
-      ),
-    },
-  ];
-
   const selected = selectedId ? projectRoadmap?.features.find((f) => f.id === selectedId) : undefined;
   const dialog = selected && projectId && (
     <FeatureDetailPanel
@@ -446,5 +256,5 @@ export function usePlanStageColumns(
     />
   );
 
-  return { columns, trailing, dialog, onDrop, renderOverlay };
+  return { columns, trailing: [], dialog, onDrop, renderOverlay };
 }

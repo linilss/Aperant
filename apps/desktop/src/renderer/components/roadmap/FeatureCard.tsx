@@ -1,7 +1,7 @@
-import { Archive, ExternalLink, Loader2, Play, TrendingUp } from 'lucide-react';
+import { Archive, Ban, ExternalLink, Loader2, RotateCcw, Sparkles, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './TaskOutcomeBadge';
-import { useRoadmapStore } from '../../stores/roadmap-store';
+import { moveFeatureToStatus, planFeature, useRoadmapStore } from '../../stores/roadmap-store';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
@@ -17,13 +17,14 @@ import type { FeatureCardProps } from './types';
 export function FeatureCard({
   feature,
   onClick,
-  onConvertToSpec,
   onGoToTask,
   onArchive,
   hasCompetitorInsight = false,
 }: FeatureCardProps) {
   const { t } = useTranslation('common');
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
+  const projectId = useRoadmapStore((state) => state.roadmap?.projectId);
+  const open = !feature.linkedSpecId && !feature.taskOutcome;
 
   return (
     <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors max-md:p-3" onClick={onClick}>
@@ -87,19 +88,52 @@ export function FeatureCard({
               <ExternalLink className="h-3 w-3 mr-1" />
               {t('roadmap.goToTask')}
             </Button>
+          ) : feature.status === 'dismissed' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!projectId}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (projectId) void moveFeatureToStatus(projectId, feature.id, 'under_review');
+              }}
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              {t('roadmap.restore')}
+            </Button>
           ) : (
             feature.status !== 'done' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onConvertToSpec(feature);
-                }}
-              >
-                <Play className="h-3 w-3 mr-1" />
-                {t('roadmap.build')}
-              </Button>
+              <>
+                {/* Promote: proofread, then its task lands in the Board's Planning column */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={refining || !projectId}
+                  title={t('roadmap.planAll.tooltip')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (projectId) void planFeature(projectId, feature.id);
+                  }}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  {t('roadmap.plan')}
+                </Button>
+                {open && (feature.status === 'under_review' || feature.status === 'planned') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={refining || !projectId}
+                    title={t('roadmap.dismissFeature')}
+                    aria-label={t('roadmap.dismissFeature')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (projectId) void moveFeatureToStatus(projectId, feature.id, 'dismissed');
+                    }}
+                  >
+                    <Ban className="h-3 w-3" />
+                  </Button>
+                )}
+              </>
             )
           )}
           {feature.status === 'done' && onArchive && (

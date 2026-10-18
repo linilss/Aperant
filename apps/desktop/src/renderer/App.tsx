@@ -914,10 +914,7 @@ export function App() {
 
   // One board: ideas and roadmap stages before the task columns
   const boardProjectId = activeProjectId || selectedProjectId || undefined;
-  const planStages = usePlanStageColumns(boardProjectId, {
-    onGoToTask: handleGoToTask,
-    onOpenIdeation: () => setActiveView('ideation'),
-  });
+  const planStages = usePlanStageColumns(boardProjectId, { onGoToTask: handleGoToTask });
 
   return (
     <ViewStateProvider>

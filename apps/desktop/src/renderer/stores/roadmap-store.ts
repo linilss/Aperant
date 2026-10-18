@@ -1029,3 +1029,14 @@ export async function planFeature(projectId: string, featureId: string): Promise
   const roadmap = useRoadmapStore.getState().roadmap;
   if (roadmap) await window.electronAPI.saveRoadmap(projectId, roadmap);
 }
+
+/** Set a feature's roadmap status (e.g. dismissed, back to under_review) and save */
+export async function moveFeatureToStatus(projectId: string, featureId: string, status: RoadmapFeatureStatus): Promise<void> {
+  if (status === 'planned') return planFeature(projectId, featureId);
+  const store = useRoadmapStore.getState();
+  const feature = store.roadmap?.features.find((f) => f.id === featureId);
+  if (!feature || feature.status === status || store.roadmap?.projectId !== projectId) return;
+  store.updateFeatureStatus(featureId, status);
+  const roadmap = useRoadmapStore.getState().roadmap;
+  if (roadmap) await window.electronAPI.saveRoadmap(projectId, roadmap);
+}

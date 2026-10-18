@@ -869,7 +869,8 @@
       "kanban": "Kanban",
       "phases": "Phases",
       "allFeatures": "All Features",
-      "moscow": "MoSCoW"
+      "moscow": "MoSCoW",
+      "list": "List"
     },
     "phase": {
       "progress": "Progress",
@@ -965,7 +966,15 @@
       "description": "Every feature that isn't done is removed from the roadmap, including {{inProgress}} in progress. {{done}} done features stay. Tasks already created from features are not touched. This can't be undone.",
       "confirm_one": "Remove {{count}} feature",
       "confirm_other": "Remove {{count}} features"
-    }
+    },
+    "listFilter": {
+      "open": "Open",
+      "building": "In the board",
+      "done": "Done",
+      "dismissed": "Dismissed"
+    },
+    "restore": "Restore",
+    "dismissFeature": "Dismiss — steers future roadmaps away from this"
   },
   "roadmapGeneration": {
     "progress": "Progress",
