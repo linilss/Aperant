@@ -30,6 +30,9 @@ import { useProjectDirections } from '../competitors/DirectionTagChips';
 import { DirectionFilterBar } from '../competitors/DirectionFilterBar';
 import { loadCompetitors } from '../../stores/competitor-store';
 import { filterFeaturesByDirection, hasDirectionTagging } from './direction-filter';
+import { getActiveIdeas, loadIdeation, useIdeationStore } from '../../stores/ideation-store';
+import { useAddIdeaToRoadmap } from '../ideation/hooks/useAddIdeaToRoadmap';
+import { IDEA_DRAG_PREFIX, UnsortedIdeas } from './UnsortedIdeas';
 import type { RoadmapFeature, RoadmapFeaturePriority } from '../../../shared/types';
 
 interface MoscowMatrixProps {
@@ -86,6 +89,21 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [activeFeature, setActiveFeature] = useState<RoadmapFeature | null>(null);
+
+  // Ideas without a priority: MoSCoW is where ideas and roadmap features meet
+  const session = useIdeationStore((s) => s.session);
+  const ideationProjectId = useIdeationStore((s) => s.currentProjectId);
+  const { addingIdeas, handleAddToRoadmap } = useAddIdeaToRoadmap(projectId);
+  useEffect(() => {
+    if (useIdeationStore.getState().currentProjectId !== projectId) void loadIdeation(projectId);
+  }, [projectId]);
+  const unsortedIdeas = useMemo(
+    () =>
+      ideationProjectId === projectId
+        ? getActiveIdeas(session).filter((i) => i.status !== 'converted' && !i.roadmapFeatureId)
+        : [],
+    [session, ideationProjectId, projectId]
+  );
   const [overQuadrant, setOverQuadrant] = useState<RoadmapFeaturePriority | null>(null);
   /** Selected direction ids / UNTAGGED_FILTER; empty = all directions */
   const [directionFilter, setDirectionFilter] = useState<string[]>([]);
@@ -178,7 +196,21 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
     setOverQuadrant(null);
     if (!over) return;
 
-    const feature = findFeature(active.id as string);
+    const activeId = active.id as string;
+    if (activeId.startsWith(IDEA_DRAG_PREFIX)) {
+      const idea = unsortedIdeas.find((i) => `${IDEA_DRAG_PREFIX}${i.id}` === activeId);
+      const priority = resolveTargetPriority(over.id as string);
+      if (!idea || !priority) return;
+      // The idea becomes a roadmap feature, then gets the quadrant's priority
+      const featureId = await handleAddToRoadmap(idea);
+      if (featureId) {
+        await window.electronAPI.updateFeaturePriority(projectId, featureId, priority);
+        await loadRoadmap(projectId);
+      }
+      return;
+    }
+
+    const feature = findFeature(activeId);
     const targetPriority = resolveTargetPriority(over.id as string);
     if (!feature || !targetPriority) return;
     await moveFeature(feature, targetPriority);
@@ -398,6 +430,7 @@ export function MoscowMatrix({ projectId, onGoToRoadmap, onGoToTask, onGoToCompe
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
+        <UnsortedIdeas ideas={unsortedIdeas} busyIds={addingIdeas} />
         <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-4 p-6 max-md:grid-cols-1 max-md:grid-rows-none max-md:auto-rows-[minmax(16rem,auto)] max-md:gap-3 max-md:overflow-y-auto max-md:p-3">
           {MOSCOW_QUADRANTS.map((quadrant) => (
             <MoscowQuadrant

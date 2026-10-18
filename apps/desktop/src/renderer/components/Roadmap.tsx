@@ -32,7 +32,7 @@ import type { RoadmapFeature } from '../../shared/types';
 import type { RoadmapProps } from './roadmap/types';
 import { PAGE_ROOT, PAGE_BODY } from './ui/page-header';
 
-export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, tabRequestId }: RoadmapProps) {
+export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, tabRequestId, onOpenIdeaSettings }: RoadmapProps) {
   const { t } = useTranslation('common');
 
   // Feature Refine session store
@@ -241,6 +241,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
           onGoToTask={handleGoToTask}
           onSave={saveRoadmap}
           onArchive={handleArchiveFeature}
+          onOpenIdeaSettings={onOpenIdeaSettings}
         />
       </div>
 

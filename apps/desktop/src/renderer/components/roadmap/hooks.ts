@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRoadmapStore, loadRoadmap, generateRoadmap, refreshRoadmap, stopRoadmap } from '../../stores/roadmap-store';
 import { useTaskStore } from '../../stores/task-store';
 import { loadCompetitors } from '../../stores/competitor-store';
+import { generateIdeation, loadIdeation, useIdeationStore } from '../../stores/ideation-store';
 import type { RoadmapFeature } from '../../../shared/types';
 
 /**
@@ -152,6 +153,11 @@ export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () =
     } else {
       refreshRoadmap(projectId, withCompetitors, false, guidance);
     }
+    // One backlog: fresh ideas come with the roadmap (Ideation's last settings)
+    void (async () => {
+      if (useIdeationStore.getState().currentProjectId !== projectId) await loadIdeation(projectId);
+      if (!useIdeationStore.getState().isGenerating) generateIdeation(projectId);
+    })();
   };
 
   const openPreview = (action: 'generate' | 'refresh') => {

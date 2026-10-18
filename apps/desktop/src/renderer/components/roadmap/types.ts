@@ -9,6 +9,8 @@ export interface RoadmapProps {
   initialTab?: string;
   /** Changes on every navigation request so the same tab can be re-requested */
   tabRequestId?: number;
+  /** Ideation's generation settings (idea types, focus) */
+  onOpenIdeaSettings?: () => void;
 }
 
 export interface PhaseCardProps {
@@ -67,4 +69,6 @@ export interface RoadmapTabsProps {
   onGoToTask: (specId: string) => void;
   onSave?: () => void;
   onArchive?: (featureId: string) => void;
+  /** Ideation's generation settings (idea types, focus) */
+  onOpenIdeaSettings?: () => void;
 }

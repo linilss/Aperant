@@ -870,7 +870,8 @@
       "phases": "Phases",
       "allFeatures": "All Features",
       "moscow": "MoSCoW",
-      "list": "List"
+      "list": "List",
+      "backlog": "Backlog"
     },
     "phase": {
       "progress": "Progress",
@@ -1392,8 +1393,20 @@
     "emptyDismissed": "Nothing dismissed",
     "tabs": {
       "flow": "Flow",
-      "roadmap": "Roadmap",
+      "roadmap": "Backlog",
       "ideas": "Ideas"
     }
+  },
+  "backlog": {
+    "idea": "Idea",
+    "kind": {
+      "all": "All",
+      "features": "Features",
+      "ideas": "Ideas"
+    },
+    "ideaSettings": "Idea settings",
+    "empty": "Nothing here",
+    "unsorted": "Unsorted ideas ({{count}})",
+    "unsortedHint": "Drag one into a quadrant to add it with that priority"
   }
 }

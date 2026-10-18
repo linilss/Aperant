@@ -8,13 +8,12 @@ export type BoardView = 'kanban' | 'roadmap' | 'ideation';
 /** Views that live under the one Board (the sidebar shows only "Board") */
 export const BOARD_VIEWS: readonly string[] = ['kanban', 'roadmap', 'ideation'];
 
-/** Tab row over the Board's views: Flow (the board), Roadmap (priorities, phases), Ideas */
+/** Tab row over the Board's views: Flow (the board) and Backlog (features + ideas, MoSCoW, phases) */
 export function BoardFrame({ view, onSelect, children }: { view: BoardView; onSelect: (view: BoardView) => void; children: ReactNode }) {
   const { t } = useTranslation(['common']);
   const tabs: Array<{ id: BoardView; label: string }> = [
     { id: 'kanban', label: t('board.tabs.flow') },
     { id: 'roadmap', label: t('board.tabs.roadmap') },
-    { id: 'ideation', label: t('board.tabs.ideas') },
   ];
   return (
     <div className="flex h-full flex-col">

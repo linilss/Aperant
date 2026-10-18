@@ -1059,6 +1059,7 @@ export function App() {
                     onGoToCompetitors={() => setActiveView('competitors')}
                     initialTab={roadmapTabRequest.tab}
                     tabRequestId={roadmapTabRequest.id}
+                    onOpenIdeaSettings={() => setActiveView('ideation')}
                   />
                   </BoardFrame>
                 )}
