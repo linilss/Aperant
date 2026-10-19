@@ -24,7 +24,7 @@ const FEATURE_PREFIX = 'feature:';
 function Draggable({ id, children }: { id: string; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} className={cn('touch-none', isDragging && 'opacity-40')}>
+    <div ref={setNodeRef} {...attributes} {...listeners} className={cn('touch-none pointer-coarse:touch-manipulation pointer-coarse:select-none', isDragging && 'opacity-40')}>
       {children}
     </div>
   );

@@ -87,7 +87,8 @@ export function SortableFeatureCard({
       style={style}
       data-feature-id={feature.id}
       className={cn(
-        'touch-none max-md:touch-manipulation max-md:select-none max-md:[-webkit-touch-callout:none] transition-all duration-200',
+        // Touch screens (phone or iPad): swipes scroll, a long press drags
+        'touch-none pointer-coarse:touch-manipulation pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] transition-all duration-200',
         isDragging && 'dragging-placeholder opacity-40 scale-[0.98]',
         isOver && !isDragging && 'ring-2 ring-primary/30 ring-offset-2 ring-offset-background rounded-xl'
       )}

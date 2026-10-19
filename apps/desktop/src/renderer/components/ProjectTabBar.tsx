@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -102,6 +102,13 @@ export function ProjectTabBar({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [projects, activeProjectId, onProjectSelect, onProjectClose]);
 
+  // Keep the active tab in view when the row scrolls (narrow windows, iPad)
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tab = tabsScrollRef.current?.querySelector<HTMLElement>(`[data-project-id="${activeProjectId}"]`);
+    tab?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeProjectId]);
+
   if (projects.length === 0) {
     return null;
   }
@@ -110,10 +117,13 @@ export function ProjectTabBar({
     <div className={cn(
       // Bottom line drawn as an inset shadow so each tab's funnel bar can sit on top of it
       'flex items-stretch bg-background shadow-[inset_0_-1px_0_var(--border)]',
-      'overflow-x-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
       className
     )}>
-      <div className="flex items-stretch flex-1 min-w-0">
+      {/* Only the tabs scroll (by swipe on touch screens); the account/usage controls stay put */}
+      <div
+        ref={tabsScrollRef}
+        className="flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+      >
         {projects.map((project, index) => {
           const isActiveTab = activeProjectId === project.id;
           return (
@@ -137,7 +147,7 @@ export function ProjectTabBar({
         })}
       </div>
 
-      <div className="flex items-center gap-2 px-2 py-1">
+      <div className="flex shrink-0 items-center gap-2 px-2 py-1">
         <AuthStatusIndicator />
         <ProjectAccountChip />
         <UsageIndicator />
