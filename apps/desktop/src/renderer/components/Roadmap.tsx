@@ -229,7 +229,7 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
       />
 
       {/* Content: tab row stays pinned on phones, the rest scrolls with the page */}
-      <div className={cn(PAGE_BODY, 'flex flex-col overflow-hidden max-md:overflow-visible')}>
+      <div className={cn(PAGE_BODY, 'flex flex-col overflow-hidden pagescroll:overflow-visible')}>
         <RoadmapTabs
           roadmap={roadmap}
           projectId={projectId}

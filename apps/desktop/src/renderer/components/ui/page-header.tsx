@@ -20,16 +20,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
  *     <ScrollArea className={PAGE_BODY}>...</ScrollArea>
  *   </div>
  *
- * Desktop: header fixed, body scrolls. Phone (< md): the page root is the scroller, so the
+ * Desktop: header fixed, body scrolls. Phone (< md) or touch screen: the page root is the scroller, so the
  * header scrolls out of view and only the compact tab/filter row stays pinned.
  */
 
 /** Page root: desktop clips and lets the body scroll; phones scroll the whole page. */
-export const PAGE_ROOT = 'flex h-full min-w-0 flex-col overflow-hidden max-md:overflow-y-auto max-md:overscroll-contain';
+export const PAGE_ROOT = 'flex h-full min-w-0 flex-col overflow-hidden pagescroll:overflow-y-auto pagescroll:overscroll-contain';
 /** Region under the header: fills and scrolls on desktop, grows to its content on phones. */
-export const PAGE_BODY = 'min-h-0 flex-1 max-md:flex-none';
+export const PAGE_BODY = 'min-h-0 flex-1 pagescroll:flex-none';
 /** Compact tab/filter row that stays pinned while a phone scrolls the page. */
-export const PAGE_STICKY = 'max-md:sticky max-md:top-0 max-md:z-10 max-md:bg-background';
+export const PAGE_STICKY = 'pagescroll:sticky pagescroll:top-0 pagescroll:z-10 pagescroll:bg-background';
 
 export interface PageHeaderAction {
   id: string;

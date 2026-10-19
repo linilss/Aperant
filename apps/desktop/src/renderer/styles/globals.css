@@ -1,4 +1,14 @@
 @import "tailwindcss";
+
+/* Pages scroll as a whole (header scrolls away) on phones and on touch screens such as iPads */
+@custom-variant pagescroll {
+  @media (max-width: 767.98px) {
+    @slot;
+  }
+  @media (pointer: coarse) {
+    @slot;
+  }
+}
 @plugin "@tailwindcss/typography";
 
 /* Auto-Build UI Design System - Oscura Midnight Theme */

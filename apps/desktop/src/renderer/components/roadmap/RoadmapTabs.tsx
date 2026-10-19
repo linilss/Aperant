@@ -24,7 +24,7 @@ export function RoadmapTabs({
 }: RoadmapTabsProps) {
   const { t } = useTranslation('common');
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="h-full flex flex-col max-md:h-auto">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="h-full flex flex-col pagescroll:h-auto">
       {/* Compact tab row: the only part that stays pinned while a phone scrolls the page */}
       <div className={cn('shrink-0 px-4 pt-4 max-md:border-b max-md:border-border max-md:px-3 max-md:py-2', PAGE_STICKY)}>
         {/* The kanban of features is the Board's Flow tab */}
@@ -36,7 +36,7 @@ export function RoadmapTabs({
       </div>
 
       {/* Phases View */}
-      <TabsContent value="phases" className="flex-1 min-h-0 overflow-auto p-4 max-md:mt-0 max-md:flex-none max-md:overflow-visible max-md:p-3">
+      <TabsContent value="phases" className="flex-1 min-h-0 overflow-auto p-4 pagescroll:mt-0 pagescroll:flex-none pagescroll:overflow-visible max-md:p-3">
         <div className="space-y-6">
           {roadmap.phases.map((phase: RoadmapPhase, index: number) => (
             <PhaseCard
@@ -54,7 +54,7 @@ export function RoadmapTabs({
       </TabsContent>
 
       {/* Backlog: features and ideas in one list; Plan promotes to the Board, Dismiss steers away */}
-      <TabsContent value="features" className="flex-1 min-h-0 overflow-auto p-4 max-md:mt-0 max-md:flex-none max-md:overflow-visible max-md:p-3">
+      <TabsContent value="features" className="flex-1 min-h-0 overflow-auto p-4 pagescroll:mt-0 pagescroll:flex-none pagescroll:overflow-visible max-md:p-3">
         <BacklogList
           roadmap={roadmap}
           projectId={projectId}
@@ -65,7 +65,7 @@ export function RoadmapTabs({
         />
       </TabsContent>
       {/* MoSCoW: the same features read by priority */}
-      <TabsContent value="moscow" className="flex-1 min-h-0 overflow-hidden max-md:mt-0 max-md:flex-none max-md:overflow-visible">
+      <TabsContent value="moscow" className="flex-1 min-h-0 overflow-hidden pagescroll:mt-0 pagescroll:flex-none pagescroll:overflow-visible">
         <MoscowMatrix
           embedded
           projectId={projectId}
