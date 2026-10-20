@@ -194,6 +194,22 @@ export function GeneralSettings({
                 }
               />
             </div>
+            <div className="flex items-center justify-between pt-2">
+              <div className="space-y-0.5">
+                <Label className="font-normal text-foreground">
+                  {t('projectSections.general.overviewOnly')}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('projectSections.general.overviewOnlyDescription')}
+                </p>
+              </div>
+              <Switch
+                checked={settings.overviewOnly === true}
+                onCheckedChange={(checked) =>
+                  setSettings((prev) => ({ ...prev, overviewOnly: checked || undefined }))
+                }
+              />
+            </div>
             <MainBranchField project={project} settings={settings} setSettings={setSettings} />
             <div className="space-y-2 pt-2">
               <Label htmlFor="deployAction" className="text-sm font-medium text-foreground">

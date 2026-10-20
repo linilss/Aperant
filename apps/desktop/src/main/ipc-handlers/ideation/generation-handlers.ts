@@ -36,8 +36,11 @@ export function startIdeationGeneration(
 ): void {
   // Get feature settings and merge with config
   const featureSettings = getIdeationFeatureSettings();
+  // Overview projects span many apps: code-level idea types would scan everything for shallow results
+  const overviewOnly = projectStore.getProject(projectId)?.settings?.overviewOnly === true;
   const configWithSettings: IdeationConfig = {
     ...config,
+    ...(overviewOnly ? { enabledTypes: ['features' as const] } : {}),
     model: config.model || featureSettings.model,
     thinkingLevel: config.thinkingLevel || featureSettings.thinkingLevel,
   };

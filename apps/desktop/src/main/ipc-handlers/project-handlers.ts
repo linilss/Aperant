@@ -491,6 +491,7 @@ export function registerProjectHandlers(
     async (_, projectId: string, taskIds: string[]): Promise<IPCResult<DeployRunRecord>> => {
       const project = projectStore.getProject(projectId);
       if (!project) return { success: false, error: 'Project not found' };
+      if (project.settings?.overviewOnly) return { success: false, error: "This is an overview project: deploy from the app's own project." };
       if (readRunbook(project.path) === null) {
         return { success: false, error: 'No deploy runbook yet. Open Ship → Deploy, check the generated runbook and save it.' };
       }

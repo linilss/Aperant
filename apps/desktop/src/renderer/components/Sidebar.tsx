@@ -91,6 +91,8 @@ interface NavItem {
   requires?: 'github' | 'gitlab' | 'azureDevOps';
   /** Plan-funnel step this view completes; shows a check when done for the selected project */
   funnelStep?: FunnelStepId;
+  /** Building/shipping view: hidden in overview projects */
+  build?: true;
 }
 
 const COLLAPSED_SECTIONS_KEY = 'malvy.sidebar.collapsedSections';
@@ -127,7 +129,7 @@ const navSections: NavSection[] = [
     id: 'build',
     labelKey: 'navigation:sections.build',
     items: [
-      { id: 'kanban', labelKey: 'navigation:items.kanban', icon: LayoutGrid, shortcut: 'K' },
+      { id: 'kanban', labelKey: 'navigation:items.kanban', icon: LayoutGrid, shortcut: 'K', build: true },
       { id: 'terminals', labelKey: 'navigation:items.terminals', icon: Terminal, shortcut: 'A' },
       { id: 'insights', labelKey: 'navigation:items.insights', icon: Sparkles, shortcut: 'N' }
     ]
@@ -136,19 +138,19 @@ const navSections: NavSection[] = [
     id: 'review',
     labelKey: 'navigation:sections.review',
     items: [
-      { id: 'worktrees', labelKey: 'navigation:items.worktrees', icon: GitBranch, shortcut: 'W' },
-      { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T' },
-      { id: 'github-prs', labelKey: 'navigation:items.githubPRs', icon: GitPullRequest, shortcut: 'P', requires: 'github' },
-      { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R', requires: 'gitlab' },
-      { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X', requires: 'azureDevOps' }
+      { id: 'worktrees', labelKey: 'navigation:items.worktrees', icon: GitBranch, shortcut: 'W', build: true },
+      { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T', build: true },
+      { id: 'github-prs', labelKey: 'navigation:items.githubPRs', icon: GitPullRequest, shortcut: 'P', requires: 'github', build: true },
+      { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R', requires: 'gitlab', build: true },
+      { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X', requires: 'azureDevOps', build: true }
     ]
   },
   {
     id: 'ship',
     labelKey: 'navigation:sections.ship',
     items: [
-      { id: 'changelog', labelKey: 'navigation:items.changelog', icon: FileText, shortcut: 'L' },
-      { id: 'deploy', labelKey: 'navigation:items.deploy', icon: Rocket, shortcut: 'Y' }
+      { id: 'changelog', labelKey: 'navigation:items.changelog', icon: FileText, shortcut: 'L', build: true },
+      { id: 'deploy', labelKey: 'navigation:items.deploy', icon: Rocket, shortcut: 'Y', build: true }
     ]
   },
   {
@@ -161,6 +163,9 @@ const navSections: NavSection[] = [
     ]
   }
 ];
+
+/** Views hidden in overview projects (building and shipping) */
+export const BUILD_VIEWS: readonly string[] = navSections.flatMap((s) => s.items.filter((i) => i.build).map((i) => i.id));
 
 /** i18n key of a nav item's label (used by the mobile top bar title). */
 export function getNavItemLabelKey(view: SidebarView): string | undefined {
@@ -207,16 +212,21 @@ export function Sidebar({
   // Track the last loaded project ID to avoid redundant loads
   const lastLoadedProjectIdRef = useRef<string | null>(null);
 
+  // Overview projects (a folder of many apps) plan and analyse only
+  const overviewOnly = projects.find((p) => p.id === selectedProjectId)?.settings?.overviewOnly === true;
+
   // Compute visible sections based on GitHub/GitLab/Azure DevOps enabled state from store
   const visibleSections = useMemo(() => {
     const enabled = { github: githubEnabled, gitlab: gitlabEnabled, azureDevOps: azureDevOpsEnabled };
     return navSections
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => !item.requires || enabled[item.requires])
+        items: section.items.filter(
+          (item) => (!item.requires || enabled[item.requires]) && !(overviewOnly && item.build)
+        )
       }))
       .filter((section) => section.items.length > 0);
-  }, [githubEnabled, gitlabEnabled, azureDevOpsEnabled]);
+  }, [githubEnabled, gitlabEnabled, azureDevOpsEnabled, overviewOnly]);
 
   const visibleNavItems = useMemo(
     () => visibleSections.flatMap((section) => section.items),

@@ -2,6 +2,7 @@ import { Archive, Ban, ExternalLink, Loader2, RotateCcw, Sparkles, TrendingUp } 
 import { useTranslation } from 'react-i18next';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './TaskOutcomeBadge';
 import { moveFeatureToStatus, planFeature, useRoadmapStore } from '../../stores/roadmap-store';
+import { useIsOverviewProject } from '../../stores/project-store';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
@@ -24,6 +25,7 @@ export function FeatureCard({
   const { t } = useTranslation('common');
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
   const projectId = useRoadmapStore((state) => state.roadmap?.projectId);
+  const overviewOnly = useIsOverviewProject(projectId);
   const open = !feature.linkedSpecId && !feature.taskOutcome;
 
   return (
@@ -105,7 +107,7 @@ export function FeatureCard({
             feature.status !== 'done' && (
               <>
                 {/* Promote: proofread, then its task lands in the Board's Planning column */}
-                <Button
+                {!overviewOnly && <Button
                   variant="outline"
                   size="sm"
                   disabled={refining || !projectId}
@@ -117,7 +119,7 @@ export function FeatureCard({
                 >
                   <Sparkles className="h-3 w-3 mr-1" />
                   {t('roadmap.plan')}
-                </Button>
+                </Button>}
                 {open && (feature.status === 'under_review' || feature.status === 'planned') && (
                   <Button
                     variant="ghost"

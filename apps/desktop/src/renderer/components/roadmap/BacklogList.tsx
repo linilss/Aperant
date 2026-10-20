@@ -10,6 +10,7 @@ import { Ban, Settings2, Sparkles } from 'lucide-react';
 
 import { getActiveIdeas, loadIdeation, useIdeationStore } from '../../stores/ideation-store';
 import { planFeature } from '../../stores/roadmap-store';
+import { useIsOverviewProject } from '../../stores/project-store';
 import { useAddIdeaToRoadmap } from '../ideation/hooks/useAddIdeaToRoadmap';
 import { IdeaDetailPanel } from '../ideation/IdeaDetailPanel';
 import { FeatureCard } from './FeatureCard';
@@ -50,7 +51,8 @@ function IdeaRow({
   idea: Idea;
   busy: boolean;
   onOpen: () => void;
-  onPlan: () => void;
+  /** Absent in overview projects (no tasks there) */
+  onPlan?: () => void;
   onDismiss: () => void;
 }) {
   const { t } = useTranslation('common');
@@ -72,19 +74,21 @@ function IdeaRow({
         </div>
         {open && (
           <div className="flex shrink-0 items-center gap-1 max-md:[&>button]:h-10">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              title={t('roadmap.planAll.tooltip')}
-              onClick={(e) => {
-                e.stopPropagation();
-                onPlan();
-              }}
-            >
-              <Sparkles className="mr-1 h-3 w-3" />
-              {t('roadmap.plan')}
-            </Button>
+            {onPlan && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                title={t('roadmap.planAll.tooltip')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlan();
+                }}
+              >
+                <Sparkles className="mr-1 h-3 w-3" />
+                {t('roadmap.plan')}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -123,6 +127,7 @@ export function BacklogList({ roadmap, projectId, onFeatureSelect, onGoToTask, o
   const session = useIdeationStore((s) => s.session);
   const ideationProjectId = useIdeationStore((s) => s.currentProjectId);
   const { addingIdeas, handleAddToRoadmap } = useAddIdeaToRoadmap(projectId);
+  const overviewOnly = useIsOverviewProject(projectId);
 
   useEffect(() => {
     if (useIdeationStore.getState().currentProjectId !== projectId) void loadIdeation(projectId);
@@ -205,7 +210,7 @@ export function BacklogList({ roadmap, projectId, onFeatureSelect, onGoToTask, o
             idea={idea}
             busy={addingIdeas.has(idea.id)}
             onOpen={() => setOpenIdeaId(idea.id)}
-            onPlan={() => void planIdea(idea)}
+            onPlan={overviewOnly ? undefined : () => void planIdea(idea)}
             onDismiss={() => void dismissIdea(idea)}
           />
         ))}
@@ -221,7 +226,8 @@ export function BacklogList({ roadmap, projectId, onFeatureSelect, onGoToTask, o
           onClose={() => setOpenIdeaId(null)}
           onConvert={(idea) => {
             setOpenIdeaId(null);
-            void planIdea(idea);
+            // Overview projects: the idea goes to the backlog as a feature, never to a task
+            void (overviewOnly ? handleAddToRoadmap(idea) : planIdea(idea));
           }}
           onDismiss={(idea) => {
             setOpenIdeaId(null);

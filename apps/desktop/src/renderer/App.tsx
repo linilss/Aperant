@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle
 } from './components/ui/dialog';
-import { Sidebar, getNavItemLabelKey, type SidebarView } from './components/Sidebar';
+import { Sidebar, BUILD_VIEWS, getNavItemLabelKey, type SidebarView } from './components/Sidebar';
 import { MobileDrawer, MobileDrawerStatus, MobileTopBar } from './components/MobileNav';
 import { useIsCompact, useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
@@ -910,6 +910,12 @@ export function App() {
       setSelectedTask(task);
     }
   };
+
+  // Overview projects have no build views: land on the Backlog instead
+  const overviewOnly = selectedProject?.settings?.overviewOnly === true;
+  useEffect(() => {
+    if (overviewOnly && BUILD_VIEWS.includes(activeView)) setActiveView('roadmap');
+  }, [overviewOnly, activeView]);
 
   // One board: ideas and roadmap stages before the task columns
   const boardProjectId = activeProjectId || selectedProjectId || undefined;

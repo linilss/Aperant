@@ -15,6 +15,7 @@ import { DirectionTagChips, useProjectDirections } from './competitors/Direction
 import { resolveFeatureDirections } from './moscow/direction-filter';
 import { MoveToMenu, type MoveToConfig } from './roadmap/MoveToMenu';
 import { planFeature, useRoadmapStore } from '../stores/roadmap-store';
+import { useIsOverviewProject } from '../stores/project-store';
 import { TaskOutcomeBadge, getTaskOutcomeColorClass } from './roadmap/TaskOutcomeBadge';
 import {
   ROADMAP_PRIORITY_COLORS,
@@ -64,6 +65,7 @@ export function SortableFeatureCard({
     isOver
   } = useSortable({ id: feature.id, disabled: dragDisabled });
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[feature.id]);
+  const overviewOnly = useIsOverviewProject(roadmap?.projectId);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -191,6 +193,7 @@ export function SortableFeatureCard({
               </Button>
             ) : (
               feature.status !== 'done' &&
+              !overviewOnly &&
               onConvertToSpec && (
                 <Button
                   variant="outline"

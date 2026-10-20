@@ -72,6 +72,11 @@ export interface ProjectSettings {
    */
   kanbanDeployAction?: 'deploy' | 'merge';
   /**
+   * Overview project (e.g. a folder holding many apps): planning and analysis only.
+   * No tasks, planning, deploys or build views; ideation generates Features only.
+   */
+  overviewOnly?: boolean;
+  /**
    * Shell command that proves the build is healthy (e.g. "npm run typecheck && npm test").
    * Run in the task worktree after each subtask and before QA. Malvy-only, never written to the repo.
    */

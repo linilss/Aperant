@@ -385,7 +385,9 @@
       "deployAction": "Kanban Deploy button",
       "deployActionDescription": "Deploy merges the task and runs the deploy runbook (Ship → Deploy). Merge only merges into the main branch and stops.",
       "deployActionDeploy": "Merge + deploy (runbook)",
-      "deployActionMerge": "Merge only"
+      "deployActionMerge": "Merge only",
+      "overviewOnly": "Overview project",
+      "overviewOnlyDescription": "For a folder holding many apps: planning and analysis only. Hides Board, Review and Ship; no tasks, planning or deploys; ideation generates Features only."
     },
     "claude": {
       "title": "Claude Auth",

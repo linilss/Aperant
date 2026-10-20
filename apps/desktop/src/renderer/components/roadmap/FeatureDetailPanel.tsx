@@ -31,6 +31,7 @@ import {
 } from '../../../shared/constants';
 import type { FeatureDetailPanelProps } from './types';
 import { refineFeatureWithAI, useRoadmapStore } from '../../stores/roadmap-store';
+import { useIsOverviewProject } from '../../stores/project-store';
 
 export function FeatureDetailPanel({
   feature: selectedFeature,
@@ -50,6 +51,7 @@ export function FeatureDetailPanel({
     useRoadmapStore((state) => state.roadmap?.features.find((f) => f.id === selectedFeature.id)) ??
     selectedFeature;
   const projectId = useRoadmapStore((state) => state.roadmap?.projectId);
+  const overviewOnly = useIsOverviewProject(useRoadmapStore((state) => state.roadmap?.projectId));
   const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[selectedFeature.id]);
   const [refineError, setRefineError] = useState<string | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when another feature is shown
@@ -365,10 +367,12 @@ export function FeatureDetailPanel({
                 {t('roadmap.detail.refine')}
               </Button>
             )}
-            <Button className="w-full" onClick={() => onConvertToSpec(feature)}>
-              <Zap className="h-4 w-4 mr-2" />
-              {t('roadmap.convertToTask')}
-            </Button>
+            {!overviewOnly && (
+              <Button className="w-full" onClick={() => onConvertToSpec(feature)}>
+                <Zap className="h-4 w-4 mr-2" />
+                {t('roadmap.convertToTask')}
+              </Button>
+            )}
           </div>
         );
       })()}

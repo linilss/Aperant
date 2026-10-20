@@ -171,6 +171,11 @@ export function registerTaskExecutionHandlers(
         ? (projectStore.getProject(task.projectId) ?? foundProject)
         : foundProject;
 
+      if (project.settings?.overviewOnly) {
+        mainWindow.webContents.send(IPC_CHANNELS.TASK_ERROR, taskId, 'This is an overview project: build in the app\'s own project.');
+        return;
+      }
+
       // Check git status - Auto Claude requires git for worktree-based builds
       const gitStatus = checkGitStatus(project.path);
       if (!gitStatus.isGitRepo) {

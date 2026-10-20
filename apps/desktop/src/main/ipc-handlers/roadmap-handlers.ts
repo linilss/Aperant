@@ -598,7 +598,10 @@ export function registerRoadmapHandlers(
 
           await writeFileWithRetry(roadmapPath, JSON.stringify(existingRoadmap, null, 2), { encoding: 'utf-8' });
           notifyFunnelChanged(projectId);
-          for (const featureId of plannedIds) void planIntake.run(projectId, featureId);
+          // Overview projects plan nothing into tasks
+          if (!project.settings?.overviewOnly) {
+            for (const featureId of plannedIds) void planIntake.run(projectId, featureId);
+          }
 
           return { success: true };
         });
@@ -733,7 +736,9 @@ export function registerRoadmapHandlers(
   ipcMain.handle(
     IPC_CHANNELS.ROADMAP_PLAN_INTAKE,
     (_, projectId: string, featureIds: string[]): IPCResult => {
-      if (!projectStore.getProject(projectId)) return { success: false, error: "Project not found" };
+      const intakeProject = projectStore.getProject(projectId);
+      if (!intakeProject) return { success: false, error: "Project not found" };
+      if (intakeProject.settings?.overviewOnly) return { success: false, error: "This is an overview project: plan in the app's own project." };
       for (const featureId of Array.isArray(featureIds) ? featureIds : []) {
         void planIntake.run(projectId, String(featureId));
       }
