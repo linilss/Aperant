@@ -65,7 +65,6 @@ const crossProviderAccounts: ProviderAccount[] = [
     name: 'z.ai API',
     authType: 'api-key',
     billingModel: 'pay-per-use',
-    apiKey: 'zai-key',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
