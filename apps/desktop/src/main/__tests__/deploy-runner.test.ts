@@ -82,6 +82,19 @@ describe('runDeploy', () => {
     expect(readFileSync(path.join(dir, out.log), 'utf-8')).toContain('SKIP ios');
   });
 
+  it('never pushes from a clean copy, also when git options come before push', async () => {
+    const push = 'git -c http.extraHeader="Authorization: Bearer x" push';
+    writeRunbook(dir, RUNBOOK.replace('## Verify', `3. **push**: \`${push}\` — always\n\n## Verify`));
+    const out = await runDeploy({
+      projectPath: dir, cwd: dir, cleanCheckout: true, taskTitles: [], record: record(),
+      plan: plan([
+        { name: 'web', command: './deploy.sh', run: true },
+        { name: 'push', command: push, run: true }
+      ])
+    });
+    expect(out.steps?.find((s) => s.name === 'push')?.run).toBe(false);
+  });
+
   it('fails when a verify command fails even though the steps passed', async () => {
     script('deploy.sh', 'echo ok');
     git('commit', '-qam', 'no marker');

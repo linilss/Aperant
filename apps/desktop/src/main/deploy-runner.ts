@@ -206,7 +206,8 @@ export async function runDeploy(options: DeployRunOptions): Promise<DeployRunRec
   if (stop) return fail(`Needs you first: ${stop}`);
   const planned = parsePlan(planText, runbook);
   if (!planned) return fail('Could not plan the deploy from the runbook (no valid plan, or a command not in the runbook).');
-  const isPush = (command: string) => /^git\s+push\b/.test(command);
+  // `git push`, also with options first (`git -c http.extraHeader=… push`)
+  const isPush = (command: string) => /^git\b.*\spush(\s|$)/.test(command);
   const steps: DeployRunStep[] = planned.map((p) =>
     options.cleanCheckout && isPush(p.command) && p.run
       ? { name: p.name, command: p.command, run: false, reason: 'the project has uncommitted work, so Malvy deploys from a clean copy and does not push' }
