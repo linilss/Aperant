@@ -21,7 +21,7 @@ export function RoadmapHeader({ roadmap, competitorAnalysis, onAddFeature, onRef
       icon: Trash2,
       onClick: onClearOpen,
       iconOnly: true,
-      disabled: roadmap.features.every((f) => f.status === 'done'),
+      // Always available: the dialog also clears ideas, and disables what has nothing to clear
     },
   ];
 
