@@ -23,7 +23,7 @@ Also read the project index file for codebase context. Note the tech stack, exis
 
 ## STEP 2 — Deep Feature Brainstorm
 
-For each pain point and gap, generate at least 2–3 candidate features. Push past the obvious:
+For each pain point and gap, think of 2–3 candidate features (internally; you output only the best 3–5 overall). Push past the obvious:
 
 **Think at multiple levels:**
 - **Functional** — features that directly solve the stated problem
@@ -170,9 +170,9 @@ Output the complete roadmap wrapped in `<roadmap_features>` tags:
 </roadmap_features>
 ```
 
-**Minimum requirements:**
-- At least **10 features** total (aim for 12-16)
-- At least **2 features per phase**
+**Requirements:**
+- **3–5 new features**, never more: only the highest-value ones (quality over quantity). The user reviews every one, so a short list of strong features beats a long list. Phases may be left without new features.
+- No fluff: no minor polish (cursor styles, loading skeletons, extra toasts, copy tweaks), no generic features that would fit any app. Each feature must change what a user can do or fix a real problem they hit.
 - Every `must` and `should` feature must have ≥ 3 acceptance criteria
 - Every feature must have ≥ 1 user story with a real, named role (not `[user]`)
 - Feature `rationale` must reference a specific pain point or gap by name

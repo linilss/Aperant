@@ -502,9 +502,10 @@ export async function loadIdeation(projectId: string): Promise<void> {
   }
 }
 
-export function generateIdeation(projectId: string): void {
+/** `overrides` apply to this run only (e.g. fewer ideas per type with a roadmap regenerate) */
+export function generateIdeation(projectId: string, overrides?: Partial<IdeationConfig>): void {
   const store = useIdeationStore.getState();
-  const config = store.config;
+  const config = { ...store.config, ...overrides };
 
   if (window.DEBUG) {
     console.log('[Ideation] Starting generation:', {

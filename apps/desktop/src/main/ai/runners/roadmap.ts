@@ -517,11 +517,11 @@ async function runFeaturesPhase(
 
   const systemPrompt = loadedFeaturesPrompt
     ? loadedFeaturesPrompt + contextBlock
-    : `You are a product strategist. Read the discovery file at "${discoveryFile}" and generate a complete roadmap JSON wrapped in <roadmap_features> tags with fields: id, project_name, version, vision, target_audience (with "primary" key), phases (array), features (array, at least 8 items with id/title/description/rationale/priority/complexity/impact/phase_id/dependencies/status/acceptance_criteria/user_stories), metadata.`;
+    : `You are a product strategist. Read the discovery file at "${discoveryFile}" and generate a complete roadmap JSON wrapped in <roadmap_features> tags with fields: id, project_name, version, vision, target_audience (with "primary" key), phases (array), features (array, 3–5 items with id/title/description/rationale/priority/complexity/impact/phase_id/dependencies/status/acceptance_criteria/user_stories), metadata.`;
 
   const userPrompt =
     `Read the discovery file at "${discoveryFile}" and the project index at "${projectIndexFile}". ` +
-    `Generate a complete strategic roadmap with at least 8 prioritized features across 3-4 phases. ` +
+    `Generate a complete strategic roadmap with the 3–5 highest-value new features across 3-4 phases. ` +
     `After reading those files, you MUST output the full roadmap JSON wrapped in <roadmap_features> tags. ` +
     `Do not stop after tool calls — always finish with the JSON output.`;
 
@@ -547,11 +547,13 @@ async function runFeaturesPhase(
             missing.push('target_audience.primary');
           }
 
-          if (missing.length === 0 && featureCount >= 3) {
+          if (missing.length === 0 && featureCount >= 1) {
             // Keep only direction ids that exist in strategy.json
             const knownDirectionIds = loadKnownDirectionIds(projectDir);
             sanitizeFeatureDirectionIds(data.features as Record<string, unknown>[], knownDirectionIds);
             sanitizeFeatureDirectionIds(preservedFeatures, knownDirectionIds, false);
+            // A short list the user can review: at most MAX_NEW_FEATURES new ones (kept features don't count)
+            data.features = capNewFeatures(data.features as Record<string, unknown>[], preservedFeatures);
             if (preservedFeatures.length > 0) {
               data.features = mergeFeatures(data.features as Record<string, unknown>[], preservedFeatures);
             }
@@ -603,6 +605,21 @@ function loadPreservedFeatures(roadmapFile: string): Record<string, unknown>[] {
       hasLinkedSpec || isInternal
     );
   });
+}
+
+/** New features per generation: a short, reviewable list */
+export const MAX_NEW_FEATURES = 5;
+
+/** The AI's new features minus those it repeated from the kept ones, capped at MAX_NEW_FEATURES */
+export function capNewFeatures(
+  generated: Record<string, unknown>[],
+  preserved: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  const keptIds = new Set(preserved.map((f) => f.id).filter(Boolean));
+  const keptTitles = new Set(preserved.map((f) => String(f.title ?? '').trim().toLowerCase()).filter(Boolean));
+  return generated
+    .filter((f) => !keptIds.has(f.id) && !keptTitles.has(String(f.title ?? '').trim().toLowerCase()))
+    .slice(0, MAX_NEW_FEATURES);
 }
 
 /**

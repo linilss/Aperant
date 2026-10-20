@@ -165,7 +165,8 @@ export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () =
     // One backlog: fresh ideas come with the roadmap (Ideation's last settings)
     void (async () => {
       if (useIdeationStore.getState().currentProjectId !== projectId) await loadIdeation(projectId);
-      if (!useIdeationStore.getState().isGenerating) generateIdeation(projectId);
+      // One per type: with the 3–5 new features the backlog stays short enough to review
+      if (!useIdeationStore.getState().isGenerating) generateIdeation(projectId, { maxIdeasPerType: 1 });
     })();
   };
 

@@ -145,7 +145,8 @@ export function buildQualitySection(maxIdeas: number): string {
     `1. Draft about ${pool} candidate ideas in your head — more than you need.\n` +
     '2. Score each 1–10 on: user value (would the target user feel the difference?), fit with the core values and the user\'s taste above, ' +
     'novelty (not already built, planned or dismissed), and evidence (grounded in this codebase, the docs or a competitor).\n' +
-    `3. Keep only the best ${maxIdeas} (fewer if fewer score 7+). Drop anything generic that would fit any app.\n` +
+    `3. Keep only the best ${maxIdeas} (fewer if fewer score 7+; returning none is fine). Drop anything generic that would fit any app.\n` +
+    '   No fluff: skip minor polish (cursor styles, spinner → skeleton, extra toasts, copy tweaks, small visual nits) unless it fixes a real problem users hit.\n' +
     '4. Order them best first and add these fields to every idea:\n' +
     '   - "score": your 1–10 score (number)\n' +
     '   - "why_now": one sentence on why this matters now\n' +
