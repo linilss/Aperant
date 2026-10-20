@@ -40,9 +40,7 @@ import { Ideation } from './components/Ideation';
 import { Insights } from './components/Insights';
 import { ErrorBoundary } from './components/ui/error-boundary';
 import { GitHubIssues } from './components/GitHubIssues';
-import { GitLabIssues } from './components/GitLabIssues';
 import { GitHubPRs } from './components/github-prs';
-import { GitLabMergeRequests } from './components/gitlab-merge-requests';
 import { AzureDevOpsWorkItems } from './components/AzureDevOpsWorkItems';
 import { AzureDevOpsPRs } from './components/AzureDevOpsPRs';
 import { Changelog } from './components/Changelog';
@@ -906,15 +904,6 @@ export function App() {
                     onNavigateToTask={handleGoToTask}
                   />
                 )}
-                {activeView === 'gitlab-issues' && (activeProjectId || selectedProjectId) && (
-                  <GitLabIssues
-                    onOpenSettings={() => {
-                      setSettingsInitialProjectSection('gitlab');
-                      setIsSettingsDialogOpen(true);
-                    }}
-                    onNavigateToTask={handleGoToTask}
-                  />
-                )}
                 {/* GitHubPRs is always mounted but hidden when not active to preserve review state */}
                 {(activeProjectId || selectedProjectId) && (
                   <div className={activeView === 'github-prs' ? 'h-full' : 'hidden'}>
@@ -926,15 +915,6 @@ export function App() {
                       isActive={activeView === 'github-prs'}
                     />
                   </div>
-                )}
-                {activeView === 'gitlab-merge-requests' && (activeProjectId || selectedProjectId) && (
-                  <GitLabMergeRequests
-                    projectId={activeProjectId || selectedProjectId!}
-                    onOpenSettings={() => {
-                      setSettingsInitialProjectSection('gitlab');
-                      setIsSettingsDialogOpen(true);
-                    }}
-                  />
                 )}
                 {activeView === 'azure-devops-work-items' && (activeProjectId || selectedProjectId) && (
                   <AzureDevOpsWorkItems

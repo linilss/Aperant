@@ -47,7 +47,6 @@
     "moreOptionsAriaLabel": "More options",
     "closePanelAriaLabel": "Close panel",
     "openOnGitHubAriaLabel": "Open on GitHub (opens in new window)",
-    "openOnGitLabAriaLabel": "Open on GitLab (opens in new window)",
     "toggleShowArchivedAriaLabel": "Toggle show archived tasks",
     "clearSelectionAriaLabel": "Clear selection",
     "selectAllAriaLabel": "Select all",

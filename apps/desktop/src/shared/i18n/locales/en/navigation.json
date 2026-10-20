@@ -15,8 +15,6 @@
     "context": "Context",
     "githubIssues": "GitHub Issues",
     "githubPRs": "GitHub PRs",
-    "gitlabIssues": "GitLab Issues",
-    "gitlabMRs": "GitLab MRs",
     "azureDevOpsWorkItems": "Azure Work Items",
     "azureDevOpsPRs": "Azure PRs",
     "worktrees": "Worktrees",

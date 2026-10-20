@@ -227,9 +227,6 @@
     "githubCLIPath": "GitHub CLI Path",
     "githubCLIPathDescription": "Path to GitHub CLI (gh) executable (leave empty for auto-detection)",
     "githubCLIPathPlaceholder": "gh (default)",
-    "gitlabCLIPath": "GitLab CLI Path",
-    "gitlabCLIPathDescription": "Path to GitLab CLI (glab) executable (leave empty for auto-detection)",
-    "gitlabCLIPathPlaceholder": "glab (default)",
     "claudePath": "Claude CLI Path",
     "claudePathDescription": "Path to Claude CLI executable (leave empty for auto-detection)",
     "claudePathPlaceholder": "claude (default)",
@@ -386,13 +383,6 @@
         "label": "Automatically Push New Branches",
         "description": "Push new task and worktree branches to GitHub and set upstream tracking automatically"
       }
-    },
-    "gitlab": {
-      "title": "GitLab",
-      "description": "GitLab issues sync",
-      "integrationTitle": "GitLab Integration",
-      "integrationDescription": "Connect to GitLab for issue tracking",
-      "syncDescription": "Sync with GitLab Issues"
     },
     "azure-devops": {
       "title": "Azure DevOps",

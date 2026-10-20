@@ -21,7 +21,6 @@ import { registerContextHandlers } from './context-handlers';
 import { registerEnvHandlers } from './env-handlers';
 import { registerLinearHandlers } from './linear-handlers';
 import { registerGithubHandlers } from './github-handlers';
-import { registerGitlabHandlers } from './gitlab-handlers';
 import { registerAzureDevOpsHandlers } from './azure-devops-handlers';
 import { registerIdeationHandlers } from './ideation-handlers';
 import { registerChangelogHandlers } from './changelog-handlers';
@@ -94,9 +93,6 @@ export function setupIpcHandlers(
   // GitHub integration handlers
   registerGithubHandlers(agentManager, getMainWindow);
 
-  // GitLab integration handlers
-  registerGitlabHandlers(agentManager, getMainWindow);
-
   // Azure DevOps integration handlers
   registerAzureDevOpsHandlers(agentManager, getMainWindow);
 
@@ -158,7 +154,6 @@ export {
   registerEnvHandlers,
   registerLinearHandlers,
   registerGithubHandlers,
-  registerGitlabHandlers,
   registerAzureDevOpsHandlers,
   registerIdeationHandlers,
   registerChangelogHandlers,

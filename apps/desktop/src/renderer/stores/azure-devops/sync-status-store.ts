@@ -2,7 +2,7 @@
  * Azure DevOps Sync Status Store
  *
  * Tracks Azure DevOps connection status for a project.
- * Mirrors gitlab/sync-status-store.ts.
+ * Mirrors github/sync-status-store.ts.
  */
 import { create } from 'zustand';
 

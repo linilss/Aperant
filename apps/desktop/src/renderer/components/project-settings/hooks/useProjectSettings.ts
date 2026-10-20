@@ -12,8 +12,7 @@ import type {
   AutoBuildVersionInfo,
   ProjectEnvConfig,
   LinearSyncStatus,
-  GitHubSyncStatus,
-  GitLabSyncStatus
+  GitHubSyncStatus
 } from '../../../../shared/types';
 
 export interface UseProjectSettingsReturn {
@@ -55,11 +54,6 @@ export interface UseProjectSettingsReturn {
   gitHubConnectionStatus: GitHubSyncStatus | null;
   isCheckingGitHub: boolean;
 
-  // GitLab state
-  showGitLabToken: boolean;
-  setShowGitLabToken: React.Dispatch<React.SetStateAction<boolean>>;
-  gitLabConnectionStatus: GitLabSyncStatus | null;
-  isCheckingGitLab: boolean;
 
   // Azure DevOps state
   azureDevOpsConnectionStatus: { connected: boolean; orgUrl?: string; projectName?: string; workItemCount?: number; lastSyncedAt?: string; error?: string } | null;
@@ -118,10 +112,6 @@ export function useProjectSettings(
   const [gitHubConnectionStatus, setGitHubConnectionStatus] = useState<GitHubSyncStatus | null>(null);
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(false);
 
-  // GitLab state
-  const [showGitLabToken, setShowGitLabToken] = useState(false);
-  const [gitLabConnectionStatus, setGitLabConnectionStatus] = useState<GitLabSyncStatus | null>(null);
-  const [isCheckingGitLab, setIsCheckingGitLab] = useState(false);
 
   // Azure DevOps state
   const [azureDevOpsConnectionStatus, setAzureDevOpsConnectionStatus] = useState<{ connected: boolean; orgUrl?: string; projectName?: string; workItemCount?: number; lastSyncedAt?: string; error?: string } | null>(null);
@@ -231,32 +221,6 @@ export function useProjectSettings(
     }
   }, [envConfig?.githubEnabled, envConfig?.githubToken, envConfig?.githubRepo, project.id]);
 
-  // Check GitLab connection when token/project changes
-  useEffect(() => {
-    const checkGitLabConnection = async () => {
-      if (!envConfig?.gitlabEnabled || !envConfig.gitlabToken || !envConfig.gitlabProject) {
-        setGitLabConnectionStatus(null);
-        return;
-      }
-
-      setIsCheckingGitLab(true);
-      try {
-        const status = await window.electronAPI.checkGitLabConnection(project.id);
-        if (status.success && status.data) {
-          setGitLabConnectionStatus(status.data);
-        }
-      } catch {
-        setGitLabConnectionStatus({ connected: false, error: 'Failed to check connection' });
-      } finally {
-        setIsCheckingGitLab(false);
-      }
-    };
-
-    if (envConfig?.gitlabEnabled && envConfig.gitlabToken && envConfig.gitlabProject) {
-      checkGitLabConnection();
-    }
-  }, [envConfig?.gitlabEnabled, envConfig?.gitlabToken, envConfig?.gitlabProject, project.id]);
-
   // Check Azure DevOps connection when credentials change
   useEffect(() => {
     const checkAzureConnection = async () => {
@@ -299,7 +263,7 @@ export function useProjectSettings(
         if (envResult.success && envResult.data) {
           setEnvConfig(envResult.data);
           committedEnvConfigRef.current = envResult.data;
-          // Update global store so Sidebar reflects correct GitHub/GitLab enabled state
+          // Update global store so Sidebar reflects correct GitHub enabled state
           setProjectEnvConfig(project.id, envResult.data);
         }
       } else {
@@ -405,10 +369,6 @@ export function useProjectSettings(
     toggleSection,
     gitHubConnectionStatus,
     isCheckingGitHub,
-    showGitLabToken,
-    setShowGitLabToken,
-    gitLabConnectionStatus,
-    isCheckingGitLab,
     azureDevOpsConnectionStatus,
     isCheckingAzureDevOps,
     showLinearImportModal,

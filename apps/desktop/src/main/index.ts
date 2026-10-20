@@ -385,16 +385,6 @@ function createWindow(): void {
     agentManager?.killAll?.()?.catch((err: unknown) => {
       console.warn('[main] Error killing agents on window close:', err);
     });
-    // Clear GitLab MR polling intervals for all projects
-    import('./ipc-handlers/gitlab/mr-review-handlers').then(({ clearPollingForProject }) => {
-      const { projectStore } = require('./project-store');
-      const projects = projectStore.getProjects();
-      for (const project of projects) {
-        clearPollingForProject(project.id);
-      }
-    }).catch((err: unknown) => {
-      console.warn('[main] Error clearing GitLab polling on window close:', err);
-    });
     mainWindow = null;
   });
 }

@@ -17,7 +17,6 @@ export interface SettingsAPI {
     python: ToolDetectionResult;
     git: ToolDetectionResult;
     gh: ToolDetectionResult;
-    glab: ToolDetectionResult;
     claude: ToolDetectionResult;
   }>>;
 
@@ -61,7 +60,6 @@ export const createSettingsAPI = (): SettingsAPI => ({
     python: ToolDetectionResult;
     git: ToolDetectionResult;
     gh: ToolDetectionResult;
-    glab: ToolDetectionResult;
     claude: ToolDetectionResult;
   }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_CLI_TOOLS_INFO),

@@ -267,9 +267,6 @@ export function registerProjectHandlers(
   ipcMain.handle(
     IPC_CHANNELS.PROJECT_REMOVE,
     async (_, projectId: string): Promise<IPCResult> => {
-      // Clear GitLab MR polling for this project to prevent memory leaks
-      const { clearPollingForProject } = await import('./gitlab/mr-review-handlers');
-      clearPollingForProject(projectId);
       const success = projectStore.removeProject(projectId);
       return { success };
     }
@@ -443,7 +440,7 @@ export function registerProjectHandlers(
         const autoBuildDir = path.join(project.path, project.autoBuildPath);
 
         // Sub-directories that hold task/integration data — delete and recreate empty
-        const dataDirs = ['specs', 'github', 'gitlab', 'azure-devops', 'roadmap', 'ideation'];
+        const dataDirs = ['specs', 'github', 'azure-devops', 'roadmap', 'ideation'];
         for (const dir of dataDirs) {
           const dirPath = path.join(autoBuildDir, dir);
           if (existsSync(dirPath)) {

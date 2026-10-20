@@ -2,7 +2,7 @@
  * Azure DevOps Work Items Store
  *
  * Manages Azure DevOps work item state with filtering.
- * Mirrors the structure of gitlab/issues-store.ts.
+ * Mirrors the structure of github/issues-store.ts.
  */
 import { create } from 'zustand';
 
