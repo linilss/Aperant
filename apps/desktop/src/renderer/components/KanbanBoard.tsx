@@ -840,7 +840,6 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
   const toggleColumnCollapsed = useKanbanSettingsStore((state) => state.toggleColumnCollapsed);
   const setColumnCollapsed = useKanbanSettingsStore((state) => state.setColumnCollapsed);
   const setColumnWidth = useKanbanSettingsStore((state) => state.setColumnWidth);
-  const toggleColumnLocked = useKanbanSettingsStore((state) => state.toggleColumnLocked);
 
   // Column resize state
   const [resizingColumn, setResizingColumn] = useState<typeof TASK_STATUS_COLUMNS[number] | null>(null);
@@ -1503,18 +1502,6 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
   }, [columnPreferences, setColumnCollapsed, saveKanbanPreferences, projectId]);
 
   // Create a callback to toggle locked state and save to storage
-  const handleToggleColumnLocked = useCallback((status: typeof TASK_STATUS_COLUMNS[number]) => {
-    // Capture projectId at function start to avoid stale closure in setTimeout
-    const currentProjectId = projectId;
-    toggleColumnLocked(status);
-    // Save preferences after toggling
-    if (currentProjectId) {
-      // Use setTimeout to ensure state is updated before saving
-      setTimeout(() => {
-        saveKanbanPreferences(currentProjectId);
-      }, 0);
-    }
-  }, [toggleColumnLocked, saveKanbanPreferences, projectId]);
 
   // Resize handlers for column width adjustment
   const handleResizeStart = useCallback((status: typeof TASK_STATUS_COLUMNS[number], startX: number) => {
@@ -1749,8 +1736,6 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
       isResizing={resizingColumn === status}
       onResizeStart={(startX) => handleResizeStart(status, startX)}
       onResizeEnd={handleResizeEnd}
-      isLocked={columnPreferences?.[status]?.isLocked}
-      onToggleLocked={() => handleToggleColumnLocked(status)}
       flat={flat}
     />
   );
