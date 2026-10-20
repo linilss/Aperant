@@ -19,8 +19,6 @@ import { registerFileHandlers } from './file-handlers';
 import { registerRoadmapHandlers } from './roadmap-handlers';
 import { registerContextHandlers } from './context-handlers';
 import { registerEnvHandlers } from './env-handlers';
-import { registerLinearHandlers } from './linear-handlers';
-import { registerAzureDevOpsHandlers } from './azure-devops-handlers';
 import { registerIdeationHandlers } from './ideation-handlers';
 import { registerChangelogHandlers } from './changelog-handlers';
 import { registerInsightsHandlers } from './insights-handlers';
@@ -86,12 +84,6 @@ export function setupIpcHandlers(
   // Environment configuration handlers
   registerEnvHandlers(getMainWindow);
 
-  // Linear integration handlers
-  registerLinearHandlers(agentManager, getMainWindow);
-
-  // Azure DevOps integration handlers
-  registerAzureDevOpsHandlers(agentManager, getMainWindow);
-
   // Ideation handlers
   registerIdeationHandlers(agentManager, getMainWindow);
 
@@ -148,8 +140,6 @@ export {
   registerRoadmapHandlers,
   registerContextHandlers,
   registerEnvHandlers,
-  registerLinearHandlers,
-  registerAzureDevOpsHandlers,
   registerIdeationHandlers,
   registerChangelogHandlers,
   registerInsightsHandlers,

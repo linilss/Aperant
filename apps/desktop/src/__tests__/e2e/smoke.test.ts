@@ -412,16 +412,16 @@ describe('E2E Smoke Tests', () => {
       );
     });
 
-    it('should handle task with metadata (Linear integration)', async () => {
+    it('should handle task with metadata (ideation origin)', async () => {
       await import('../../preload/index');
       const electronAPI = exposedApis['electronAPI'] as Record<string, unknown>;
 
-      const linearMetadata = {
-        linearIssueId: 'LIN-123',
-        linearIssueUrl: 'https://linear.app/team/issue/LIN-123'
+      const ideaMetadata = {
+        sourceType: 'ideation',
+        ideaId: 'idea-123'
       };
 
-      const task = createTestTask({ metadata: linearMetadata });
+      const task = createTestTask({ metadata: ideaMetadata });
       mockIpcRenderer.invoke.mockResolvedValueOnce({
         success: true,
         data: task
@@ -437,7 +437,7 @@ describe('E2E Smoke Tests', () => {
         'project-001',
         'Fix authentication bug',
         'Users cannot login',
-        linearMetadata
+        ideaMetadata
       );
 
       expect(mockIpcRenderer.invoke).toHaveBeenCalledWith(
@@ -445,7 +445,7 @@ describe('E2E Smoke Tests', () => {
         'project-001',
         'Fix authentication bug',
         'Users cannot login',
-        linearMetadata
+        ideaMetadata
       );
     });
 

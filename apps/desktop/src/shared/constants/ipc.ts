@@ -286,13 +286,6 @@ export const IPC_CHANNELS = {
   IDEATION_TYPE_COMPLETE: 'ideation:typeComplete',
   IDEATION_TYPE_FAILED: 'ideation:typeFailed',
 
-  // Linear integration
-  LINEAR_GET_TEAMS: 'linear:getTeams',
-  LINEAR_GET_PROJECTS: 'linear:getProjects',
-  LINEAR_GET_ISSUES: 'linear:getIssues',
-  LINEAR_IMPORT_ISSUES: 'linear:importIssues',
-  LINEAR_CHECK_CONNECTION: 'linear:checkConnection',
-
   // Ollama model detection and management
   OLLAMA_CHECK_STATUS: 'ollama:checkStatus',
   OLLAMA_CHECK_INSTALLED: 'ollama:checkInstalled',
@@ -435,47 +428,6 @@ export const IPC_CHANNELS = {
   QUEUE_PROFILE_SWAPPED: 'queue:profileSwapped',      // Task switched to different profile
   QUEUE_SESSION_CAPTURED: 'queue:sessionCaptured',    // Session ID captured from running task
   QUEUE_BLOCKED_NO_PROFILES: 'queue:blockedNoProfiles', // All profiles unavailable
-
-  // Azure DevOps integration
-  AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection',
-  AZURE_DEVOPS_GET_PROJECTS: 'azureDevOps:getProjects',
-  AZURE_DEVOPS_DETECT_REPO: 'azureDevOps:detectRepo',
-  AZURE_DEVOPS_GET_BRANCHES: 'azureDevOps:getBranches',
-
-  // Azure DevOps Work Items (issues equivalent)
-  AZURE_DEVOPS_GET_WORK_ITEMS: 'azureDevOps:getWorkItems',
-  AZURE_DEVOPS_GET_WORK_ITEM: 'azureDevOps:getWorkItem',
-  AZURE_DEVOPS_GET_WORK_ITEM_COMMENTS: 'azureDevOps:getWorkItemComments',
-  AZURE_DEVOPS_INVESTIGATE_WORK_ITEM: 'azureDevOps:investigateWorkItem',
-  AZURE_DEVOPS_IMPORT_WORK_ITEMS: 'azureDevOps:importWorkItems',
-
-  // Azure DevOps Pull Requests
-  AZURE_DEVOPS_GET_PULL_REQUESTS: 'azureDevOps:getPullRequests',
-  AZURE_DEVOPS_GET_PULL_REQUEST: 'azureDevOps:getPullRequest',
-
-  // Azure DevOps events (main -> renderer)
-  AZURE_DEVOPS_INVESTIGATION_PROGRESS: 'azureDevOps:investigationProgress',
-  AZURE_DEVOPS_INVESTIGATION_COMPLETE: 'azureDevOps:investigationComplete',
-  AZURE_DEVOPS_INVESTIGATION_ERROR: 'azureDevOps:investigationError',
-
-  // Azure DevOps PR Review (AI-powered)
-  AZURE_DEVOPS_PR_REVIEW: 'azure-devops:pr:review',
-  AZURE_DEVOPS_PR_REVIEW_PROGRESS: 'azure-devops:pr:reviewProgress',
-  AZURE_DEVOPS_PR_REVIEW_COMPLETE: 'azure-devops:pr:reviewComplete',
-  AZURE_DEVOPS_PR_REVIEW_ERROR: 'azure-devops:pr:reviewError',
-  AZURE_DEVOPS_PR_GET_REVIEW: 'azure-devops:pr:getReview',
-  AZURE_DEVOPS_PR_GET_REVIEWS_BATCH: 'azure-devops:pr:getReviewsBatch',
-  AZURE_DEVOPS_PR_POST_REVIEW: 'azure-devops:pr:postReview',
-  AZURE_DEVOPS_PR_DELETE_REVIEW: 'azure-devops:pr:deleteReview',
-  AZURE_DEVOPS_PR_GET_DIFF: 'azure-devops:pr:getDiff',
-  AZURE_DEVOPS_PR_GET_LOGS: 'azure-devops:pr:getLogs',
-  AZURE_DEVOPS_PR_LOGS_UPDATED: 'azure-devops:pr:logsUpdated',
-  AZURE_DEVOPS_PR_REVIEW_CANCEL: 'azure-devops:pr:reviewCancel',
-  AZURE_DEVOPS_PR_CHECK_NEW_COMMITS: 'azure-devops:pr:checkNewCommits',
-  AZURE_DEVOPS_PR_FOLLOWUP_REVIEW: 'azure-devops:pr:followupReview',
-  AZURE_DEVOPS_PR_APPROVE: 'azure-devops:pr:approve',
-  AZURE_DEVOPS_PR_MERGE: 'azure-devops:pr:merge',
-  AZURE_DEVOPS_PR_CHECK_MERGE_READINESS: 'azure-devops:pr:checkMergeReadiness',
 
   // Tests
   TESTS_LOAD_SOLUTION: 'tests:loadSolution',

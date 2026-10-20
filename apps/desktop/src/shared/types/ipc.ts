@@ -114,13 +114,6 @@ import type {
   RoadmapGenerationStatus,
   PersistedRoadmapProgress
 } from './roadmap';
-import type {
-  LinearTeam,
-  LinearProject,
-  LinearIssue,
-  LinearImportResult,
-  LinearSyncStatus
-} from './integrations';
 import type { APIProfile, ProfilesFile, TestConnectionResult, DiscoverModelsResult } from './profile';
 import type { ProviderAccount } from './provider-account';
 
@@ -479,13 +472,6 @@ export interface ElectronAPILegacy {
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
   listMemoryDatabases: (dbPath?: string) => Promise<IPCResult<string[]>>;
   testMemoryConnection: (dbPath?: string, database?: string) => Promise<IPCResult<MemoryValidationResult>>;
-
-  // Linear integration operations
-  getLinearTeams: (projectId: string) => Promise<IPCResult<LinearTeam[]>>;
-  getLinearProjects: (projectId: string, teamId: string) => Promise<IPCResult<LinearProject[]>>;
-  getLinearIssues: (projectId: string, teamId?: string, projectId_?: string) => Promise<IPCResult<LinearIssue[]>>;
-  importLinearIssues: (projectId: string, issueIds: string[]) => Promise<IPCResult<LinearImportResult>>;
-  checkLinearConnection: (projectId: string) => Promise<IPCResult<LinearSyncStatus>>;
 
   // Release operations
   getReleaseableVersions: (projectId: string) => Promise<IPCResult<ReleaseableVersion[]>>;

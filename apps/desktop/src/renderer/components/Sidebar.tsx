@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Plus,
@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Download,
   RefreshCw,
-  GitPullRequest,
   FileText,
   Sparkles,
   GitBranch,
@@ -20,7 +19,6 @@ import {
   Wrench,
   PanelLeft,
   PanelLeftClose,
-  CheckSquare,
   Bot,
   FlaskConical,
   Wand
@@ -50,7 +48,6 @@ import {
 } from '../stores/project-store';
 import { useSettingsStore, saveSettings } from '../stores/settings-store';
 import {
-  useProjectEnvStore,
   loadProjectEnvConfig,
   clearProjectEnvConfig
 } from '../stores/project-env-store';
@@ -61,7 +58,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'roadmap' | 'context' | 'ideation' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'roadmap' | 'context' | 'ideation' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -93,12 +90,6 @@ const baseNavItems: NavItem[] = [
   { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T' }
 ];
 
-// Azure DevOps nav items shown when Azure DevOps is enabled
-const azureDevOpsNavItems: NavItem[] = [
-  { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V' },
-  { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X' }
-];
-
 export function Sidebar({
   onSettingsClick,
   onNewTaskClick,
@@ -126,22 +117,8 @@ export function Sidebar({
     saveSettings({ sidebarCollapsed: !isCollapsed });
   };
 
-  // Subscribe to project-env-store for reactive Azure DevOps tab visibility
-  const azureDevOpsEnabled = useProjectEnvStore((state) => state.envConfig?.azureDevOpsEnabled ?? false);
-
   // Track the last loaded project ID to avoid redundant loads
   const lastLoadedProjectIdRef = useRef<string | null>(null);
-
-  // Compute visible nav items based on Azure DevOps enabled state from store
-  const visibleNavItems = useMemo(() => {
-    const items = [...baseNavItems];
-
-    if (azureDevOpsEnabled) {
-      items.push(...azureDevOpsNavItems);
-    }
-
-    return items;
-  }, [azureDevOpsEnabled]);
 
   // Load envConfig when project changes to ensure store is populated
   useEffect(() => {
@@ -193,7 +170,7 @@ export function Sidebar({
       const key = e.key.toUpperCase();
 
       // Find matching nav item from visible items only
-      const matchedItem = visibleNavItems.find((item) => item.shortcut === key);
+      const matchedItem = baseNavItems.find((item) => item.shortcut === key);
 
       if (matchedItem) {
         e.preventDefault();
@@ -203,7 +180,7 @@ export function Sidebar({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedProjectId, onViewChange, visibleNavItems]);
+  }, [selectedProjectId, onViewChange]);
 
   // Check git status when project changes
   useEffect(() => {
@@ -393,7 +370,7 @@ export function Sidebar({
                 </h3>
               )}
               <nav className="space-y-1">
-                {visibleNavItems.map(renderNavItem)}
+                {baseNavItems.map(renderNavItem)}
               </nav>
             </div>
           </div>

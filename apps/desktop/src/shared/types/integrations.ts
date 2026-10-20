@@ -1,65 +1,6 @@
 /**
- * External integrations (Linear)
+ * External integrations (roadmap feedback)
  */
-
-// ============================================
-// Linear Integration Types
-// ============================================
-
-export interface LinearIssue {
-  id: string;
-  identifier: string; // e.g., "ABC-123"
-  title: string;
-  description?: string;
-  state: {
-    id: string;
-    name: string;
-    type: string; // 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
-  };
-  priority: number; // 0-4, where 1 is urgent
-  priorityLabel: string;
-  labels: Array<{ id: string; name: string; color: string }>;
-  assignee?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  project?: {
-    id: string;
-    name: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-  url: string;
-}
-
-export interface LinearTeam {
-  id: string;
-  name: string;
-  key: string;
-}
-
-export interface LinearProject {
-  id: string;
-  name: string;
-  state: string;
-}
-
-export interface LinearImportResult {
-  success: boolean;
-  imported: number;
-  failed: number;
-  errors?: string[];
-}
-
-export interface LinearSyncStatus {
-  connected: boolean;
-  teamName?: string;
-  projectName?: string;
-  issueCount?: number;
-  lastSyncedAt?: string;
-  error?: string;
-}
 
 // ============================================
 // Roadmap Integration Types (Canny, etc.)

@@ -8,21 +8,6 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { projectStore } from '../project-store';
 import { parseEnvFile } from './utils';
 
-// Azure DevOps environment variable keys
-const AZURE_DEVOPS_ENV_KEYS = {
-  ENABLED: 'AZURE_DEVOPS_ENABLED',
-  TOKEN: 'AZURE_DEVOPS_TOKEN',
-  ORG_URL: 'AZURE_DEVOPS_ORG_URL',
-  PROJECT: 'AZURE_DEVOPS_PROJECT'
-} as const;
-
-/**
- * Helper to generate .env line (DRY)
- */
-function envLine(vars: Record<string, string>, key: string, defaultVal: string = ''): string {
-  return vars[key] ? `${key}=${vars[key]}` : `# ${key}=${defaultVal}`;
-}
-
 /**
  * Register all env-related IPC handlers
  */
@@ -49,31 +34,6 @@ export function registerEnvHandlers(
     // Update with new values
     if (config.autoBuildModel !== undefined) {
       existingVars['AUTO_BUILD_MODEL'] = config.autoBuildModel;
-    }
-    if (config.linearApiKey !== undefined) {
-      existingVars['LINEAR_API_KEY'] = config.linearApiKey;
-    }
-    if (config.linearTeamId !== undefined) {
-      existingVars['LINEAR_TEAM_ID'] = config.linearTeamId;
-    }
-    if (config.linearProjectId !== undefined) {
-      existingVars['LINEAR_PROJECT_ID'] = config.linearProjectId;
-    }
-    if (config.linearRealtimeSync !== undefined) {
-      existingVars['LINEAR_REALTIME_SYNC'] = config.linearRealtimeSync ? 'true' : 'false';
-    }
-    // Azure DevOps Integration
-    if (config.azureDevOpsEnabled !== undefined) {
-      existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] = config.azureDevOpsEnabled ? 'true' : 'false';
-    }
-    if (config.azureDevOpsToken !== undefined) {
-      existingVars[AZURE_DEVOPS_ENV_KEYS.TOKEN] = config.azureDevOpsToken;
-    }
-    if (config.azureDevOpsOrgUrl !== undefined) {
-      existingVars[AZURE_DEVOPS_ENV_KEYS.ORG_URL] = config.azureDevOpsOrgUrl;
-    }
-    if (config.azureDevOpsProject !== undefined) {
-      existingVars[AZURE_DEVOPS_ENV_KEYS.PROJECT] = config.azureDevOpsProject;
     }
     // Git/Worktree Settings
     if (config.defaultBranch !== undefined) {
@@ -174,22 +134,6 @@ export function registerEnvHandlers(
 
 # Model override (OPTIONAL)
 ${existingVars['AUTO_BUILD_MODEL'] ? `AUTO_BUILD_MODEL=${existingVars['AUTO_BUILD_MODEL']}` : '# AUTO_BUILD_MODEL=claude-opus-4-7'}
-
-# =============================================================================
-# LINEAR INTEGRATION (OPTIONAL)
-# =============================================================================
-${existingVars['LINEAR_API_KEY'] ? `LINEAR_API_KEY=${existingVars['LINEAR_API_KEY']}` : '# LINEAR_API_KEY='}
-${existingVars['LINEAR_TEAM_ID'] ? `LINEAR_TEAM_ID=${existingVars['LINEAR_TEAM_ID']}` : '# LINEAR_TEAM_ID='}
-${existingVars['LINEAR_PROJECT_ID'] ? `LINEAR_PROJECT_ID=${existingVars['LINEAR_PROJECT_ID']}` : '# LINEAR_PROJECT_ID='}
-${existingVars['LINEAR_REALTIME_SYNC'] !== undefined ? `LINEAR_REALTIME_SYNC=${existingVars['LINEAR_REALTIME_SYNC']}` : '# LINEAR_REALTIME_SYNC=false'}
-
-# =============================================================================
-# AZURE DEVOPS INTEGRATION (OPTIONAL)
-# =============================================================================
-${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] !== undefined ? `${AZURE_DEVOPS_ENV_KEYS.ENABLED}=${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED]}` : `# ${AZURE_DEVOPS_ENV_KEYS.ENABLED}=true`}
-${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.TOKEN)}
-${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.ORG_URL, 'https://dev.azure.com/myorg')}
-${envLine(existingVars, AZURE_DEVOPS_ENV_KEYS.PROJECT, 'MyProject')}
 
 # =============================================================================
 # GIT/WORKTREE SETTINGS (OPTIONAL)
@@ -299,8 +243,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
 
       // Default config
       const config: ProjectEnvConfig = {
-        linearEnabled: false,
-        azureDevOpsEnabled: false,
         memoryEnabled: false,
         enableFancyUi: true,
         openaiKeyIsGlobal: false
@@ -321,32 +263,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         config.autoBuildModel = vars['AUTO_BUILD_MODEL'];
       }
 
-      if (vars['LINEAR_API_KEY']) {
-        config.linearEnabled = true;
-        config.linearApiKey = vars['LINEAR_API_KEY'];
-      }
-      if (vars['LINEAR_TEAM_ID']) {
-        config.linearTeamId = vars['LINEAR_TEAM_ID'];
-      }
-      if (vars['LINEAR_PROJECT_ID']) {
-        config.linearProjectId = vars['LINEAR_PROJECT_ID'];
-      }
-      if (vars['LINEAR_REALTIME_SYNC']?.toLowerCase() === 'true') {
-        config.linearRealtimeSync = true;
-      }
-
-      // Azure DevOps config
-      if (vars[AZURE_DEVOPS_ENV_KEYS.TOKEN]) {
-        config.azureDevOpsToken = vars[AZURE_DEVOPS_ENV_KEYS.TOKEN];
-        // Enable by default if token exists and AZURE_DEVOPS_ENABLED is not explicitly false
-        config.azureDevOpsEnabled = vars[AZURE_DEVOPS_ENV_KEYS.ENABLED]?.toLowerCase() !== 'false';
-      }
-      if (vars[AZURE_DEVOPS_ENV_KEYS.ORG_URL]) {
-        config.azureDevOpsOrgUrl = vars[AZURE_DEVOPS_ENV_KEYS.ORG_URL];
-      }
-      if (vars[AZURE_DEVOPS_ENV_KEYS.PROJECT]) {
-        config.azureDevOpsProject = vars[AZURE_DEVOPS_ENV_KEYS.PROJECT];
-      }
 
       // Git/Worktree config
       if (vars['DEFAULT_BRANCH']) {

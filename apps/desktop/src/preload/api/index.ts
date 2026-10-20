@@ -39,7 +39,7 @@ export const createElectronAPI = (): ElectronAPI => ({
   ...createTaskAPI(),
   ...createSettingsAPI(),
   ...createFileAPI(),
-  ...createAgentAPI(),  // Includes: Roadmap, Ideation, Insights, Changelog, Linear, Shell
+  ...createAgentAPI(),  // Includes: Roadmap, Ideation, Insights, Changelog, Shell
   ...createAppUpdateAPI(),
   ...createDebugAPI(),
   ...createClaudeCodeAPI(),

@@ -9,8 +9,7 @@ import type {
   Project,
   ProjectSettings as ProjectSettingsType,
   AutoBuildVersionInfo,
-  ProjectEnvConfig,
-  LinearSyncStatus
+  ProjectEnvConfig
 } from '../../../../shared/types';
 
 export interface UseProjectSettingsReturn {
@@ -37,25 +36,12 @@ export interface UseProjectSettingsReturn {
   // Password visibility toggles
   showClaudeToken: boolean;
   setShowClaudeToken: React.Dispatch<React.SetStateAction<boolean>>;
-  showLinearKey: boolean;
-  setShowLinearKey: React.Dispatch<React.SetStateAction<boolean>>;
   showOpenAIKey: boolean;
   setShowOpenAIKey: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Collapsible sections
   expandedSections: Record<string, boolean>;
   toggleSection: (section: string) => void;
-
-
-  // Azure DevOps state
-  azureDevOpsConnectionStatus: { connected: boolean; orgUrl?: string; projectName?: string; workItemCount?: number; lastSyncedAt?: string; error?: string } | null;
-  isCheckingAzureDevOps: boolean;
-
-  // Linear state
-  showLinearImportModal: boolean;
-  setShowLinearImportModal: React.Dispatch<React.SetStateAction<boolean>>;
-  linearConnectionStatus: LinearSyncStatus | null;
-  isCheckingLinear: boolean;
 
   // Actions
   handleInitialize: () => Promise<void>;
@@ -88,25 +74,13 @@ export function useProjectSettings(
 
   // Password visibility toggles
   const [showClaudeToken, setShowClaudeToken] = useState(false);
-  const [showLinearKey, setShowLinearKey] = useState(false);
   const [showOpenAIKey, setShowOpenAIKey] = useState(false);
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     claude: true,
-    linear: false,
     memory: false
   });
-
-
-  // Azure DevOps state
-  const [azureDevOpsConnectionStatus, setAzureDevOpsConnectionStatus] = useState<{ connected: boolean; orgUrl?: string; projectName?: string; workItemCount?: number; lastSyncedAt?: string; error?: string } | null>(null);
-  const [isCheckingAzureDevOps, setIsCheckingAzureDevOps] = useState(false);
-
-  // Linear import state
-  const [showLinearImportModal, setShowLinearImportModal] = useState(false);
-  const [linearConnectionStatus, setLinearConnectionStatus] = useState<LinearSyncStatus | null>(null);
-  const [isCheckingLinear, setIsCheckingLinear] = useState(false);
 
   // Reset settings when project changes
   useEffect(() => {
@@ -151,58 +125,6 @@ export function useProjectSettings(
     };
     loadEnvConfig();
   }, [open, project.id, project.autoBuildPath]);
-
-  // Check Linear connection when API key changes
-  useEffect(() => {
-    const checkLinearConnection = async () => {
-      if (!envConfig?.linearEnabled || !envConfig.linearApiKey) {
-        setLinearConnectionStatus(null);
-        return;
-      }
-
-      setIsCheckingLinear(true);
-      try {
-        const result = await window.electronAPI.checkLinearConnection(project.id);
-        if (result.success && result.data) {
-          setLinearConnectionStatus(result.data);
-        }
-      } catch {
-        setLinearConnectionStatus({ connected: false, error: 'Failed to check connection' });
-      } finally {
-        setIsCheckingLinear(false);
-      }
-    };
-
-    if (envConfig?.linearEnabled && envConfig.linearApiKey) {
-      checkLinearConnection();
-    }
-  }, [envConfig?.linearEnabled, envConfig?.linearApiKey, project.id]);
-
-  // Check Azure DevOps connection when credentials change
-  useEffect(() => {
-    const checkAzureConnection = async () => {
-      if (!envConfig?.azureDevOpsEnabled || !envConfig.azureDevOpsToken || !envConfig.azureDevOpsOrgUrl || !envConfig.azureDevOpsProject) {
-        setAzureDevOpsConnectionStatus(null);
-        return;
-      }
-
-      setIsCheckingAzureDevOps(true);
-      try {
-        const status = await window.electronAPI.checkAzureDevOpsConnection(project.id);
-        if (status.success && status.data) {
-          setAzureDevOpsConnectionStatus(status.data);
-        }
-      } catch {
-        setAzureDevOpsConnectionStatus({ connected: false, error: 'Failed to check connection' });
-      } finally {
-        setIsCheckingAzureDevOps(false);
-      }
-    };
-
-    if (envConfig?.azureDevOpsEnabled && envConfig.azureDevOpsToken && envConfig.azureDevOpsOrgUrl && envConfig.azureDevOpsProject) {
-      checkAzureConnection();
-    }
-  }, [envConfig?.azureDevOpsEnabled, envConfig?.azureDevOpsToken, envConfig?.azureDevOpsOrgUrl, envConfig?.azureDevOpsProject, project.id]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -316,18 +238,10 @@ export function useProjectSettings(
     updateEnvConfig,
     showClaudeToken,
     setShowClaudeToken,
-    showLinearKey,
-    setShowLinearKey,
     showOpenAIKey,
     setShowOpenAIKey,
     expandedSections,
     toggleSection,
-    azureDevOpsConnectionStatus,
-    isCheckingAzureDevOps,
-    showLinearImportModal,
-    setShowLinearImportModal,
-    linearConnectionStatus,
-    isCheckingLinear,
     handleInitialize,
     handleSave
   };

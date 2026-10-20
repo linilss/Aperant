@@ -1,13 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import type { Project, ProjectSettings as ProjectSettingsType, AutoBuildVersionInfo, ProjectEnvConfig, LinearSyncStatus } from '../../../../shared/types';
+import type { Project, ProjectSettings as ProjectSettingsType, AutoBuildVersionInfo, ProjectEnvConfig } from '../../../../shared/types';
 import { SettingsSection } from '../SettingsSection';
 import { GeneralSettings } from '../../project-settings/GeneralSettings';
 import { SecuritySettings } from '../../project-settings/SecuritySettings';
-import { LinearIntegration } from '../integrations/LinearIntegration';
-import { AzureDevOpsIntegration } from '../integrations/AzureDevOpsIntegration';
 import { InitializationGuard } from '../common/InitializationGuard';
 import type { ProjectSettingsSection } from '../ProjectSettingsContent';
-import type { AzureDevOpsSyncStatus } from '../../../stores/azure-devops';
 
 interface SectionRouterProps {
   activeSection: ProjectSettingsSection;
@@ -21,16 +18,9 @@ interface SectionRouterProps {
   isLoadingEnv: boolean;
   envError: string | null;
   updateEnvConfig: (updates: Partial<ProjectEnvConfig>) => void;
-  showLinearKey: boolean;
-  setShowLinearKey: React.Dispatch<React.SetStateAction<boolean>>;
   showOpenAIKey: boolean;
   setShowOpenAIKey: React.Dispatch<React.SetStateAction<boolean>>;
-  azureDevOpsConnectionStatus: AzureDevOpsSyncStatus | null;
-  isCheckingAzureDevOps: boolean;
-  linearConnectionStatus: LinearSyncStatus | null;
-  isCheckingLinear: boolean;
   handleInitialize: () => Promise<void>;
-  onOpenLinearImport: () => void;
 }
 
 /**
@@ -49,16 +39,9 @@ export function SectionRouter({
   isLoadingEnv,
   envError,
   updateEnvConfig,
-  showLinearKey,
-  setShowLinearKey,
   showOpenAIKey,
   setShowOpenAIKey,
-  azureDevOpsConnectionStatus,
-  isCheckingAzureDevOps,
-  linearConnectionStatus,
-  isCheckingLinear,
-  handleInitialize,
-  onOpenLinearImport
+  handleInitialize
 }: SectionRouterProps) {
   const { t } = useTranslation('settings');
 
@@ -78,55 +61,6 @@ export function SectionRouter({
             isUpdating={isUpdating}
             handleInitialize={handleInitialize}
           />
-        </SettingsSection>
-      );
-
-    case 'linear':
-      return (
-        <SettingsSection
-          title={t('projectSections.linear.integrationTitle')}
-          description={t('projectSections.linear.integrationDescription')}
-        >
-          <InitializationGuard
-            initialized={!!project.autoBuildPath}
-            title={t('projectSections.linear.integrationTitle')}
-            description={t('projectSections.linear.syncDescription')}
-          >
-            <LinearIntegration
-              envConfig={envConfig}
-              updateEnvConfig={updateEnvConfig}
-              showLinearKey={showLinearKey}
-              setShowLinearKey={setShowLinearKey}
-              linearConnectionStatus={linearConnectionStatus}
-              isCheckingLinear={isCheckingLinear}
-              onOpenLinearImport={onOpenLinearImport}
-            />
-          </InitializationGuard>
-        </SettingsSection>
-      );
-
-    case 'azure-devops':
-      return (
-        <SettingsSection
-          title="Azure DevOps Integration"
-          description="Connect to Azure DevOps to import work items as tasks and view pull requests."
-        >
-          <InitializationGuard
-            initialized={!!project.autoBuildPath}
-            title="Azure DevOps Integration"
-            description="Initialize your project to configure Azure DevOps."
-          >
-            <AzureDevOpsIntegration
-              envConfig={envConfig}
-              updateEnvConfig={updateEnvConfig}
-              azureDevOpsConnectionStatus={azureDevOpsConnectionStatus}
-              isCheckingAzureDevOps={isCheckingAzureDevOps}
-              projectId={project.id}
-              projectPath={project.path}
-              settings={settings}
-              setSettings={setSettings}
-            />
-          </InitializationGuard>
         </SettingsSection>
       );
 

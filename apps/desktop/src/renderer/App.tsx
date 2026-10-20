@@ -39,8 +39,6 @@ import { Context } from './components/Context';
 import { Ideation } from './components/Ideation';
 import { Insights } from './components/Insights';
 import { ErrorBoundary } from './components/ui/error-boundary';
-import { AzureDevOpsWorkItems } from './components/AzureDevOpsWorkItems';
-import { AzureDevOpsPRs } from './components/AzureDevOpsPRs';
 import { Changelog } from './components/Changelog';
 import { Worktrees } from './components/Worktrees';
 import { AgentTools } from './components/AgentTools';
@@ -831,23 +829,6 @@ export function App() {
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (
                   <Insights projectId={activeProjectId || selectedProjectId!} />
-                )}
-                {activeView === 'azure-devops-work-items' && (activeProjectId || selectedProjectId) && (
-                  <AzureDevOpsWorkItems
-                    onOpenSettings={() => {
-                      setSettingsInitialProjectSection('azure-devops');
-                      setIsSettingsDialogOpen(true);
-                    }}
-                    onNavigateToTask={handleGoToTask}
-                  />
-                )}
-                {activeView === 'azure-devops-prs' && (activeProjectId || selectedProjectId) && (
-                  <AzureDevOpsPRs
-                    onOpenSettings={() => {
-                      setSettingsInitialProjectSection('azure-devops');
-                      setIsSettingsDialogOpen(true);
-                    }}
-                  />
                 )}
                 {activeView === 'changelog' && (activeProjectId || selectedProjectId) && (
                   <Changelog />

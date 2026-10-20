@@ -358,20 +358,6 @@
       "title": "Claude Auth",
       "description": "Claude authentication"
     },
-    "linear": {
-      "title": "Linear",
-      "description": "Linear integration",
-      "integrationTitle": "Linear Integration",
-      "integrationDescription": "Connect to Linear for issue tracking and task import",
-      "syncDescription": "Sync with Linear for issue tracking"
-    },
-    "azure-devops": {
-      "title": "Azure DevOps",
-      "description": "Work items and pull requests",
-      "integrationTitle": "Azure DevOps Integration",
-      "integrationDescription": "Connect to Azure DevOps for work items and PRs",
-      "syncDescription": "Sync with Azure DevOps"
-    },
     "memory": {
       "title": "Memory",
       "description": "Graphiti memory backend",

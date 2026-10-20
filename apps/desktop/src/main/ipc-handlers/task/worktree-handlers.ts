@@ -11,8 +11,6 @@ import { projectStore } from '../../project-store';
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn, resolveMergeConflict } from '../../ai/runners/merge-resolver';
 import { createPR } from '../../ai/runners/github/pr-creator';
-import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
-import { detectAzureDevOpsFromRemote } from '../azure-devops/utils';
 import type { ModelShorthand } from '../../ai/config/types';
 import { findTaskAndProject } from './shared';
 import { updateRoadmapFeatureOutcome } from '../../utils/roadmap-utils';
@@ -3627,32 +3625,17 @@ export function registerWorktreeHandlers(
 
         debug('Creating PR via TypeScript runner:', { branchName, baseBranch, prTitle });
 
-        // Detect git remote provider and route to the correct PR creator
-        const adoInfo = detectAzureDevOpsFromRemote(project.path);
-        debug('Remote provider detected:', adoInfo ? 'Azure DevOps' : 'GitHub');
-
-        const result = adoInfo
-          ? await createAzureDevOpsPR({
-              project,
-              worktreePath,
-              branchName,
-              baseBranch,
-              title: prTitle,
-              draft: options?.draft,
-              gitPath,
-              adoInfo,
-            })
-          : await createPR({
-              projectDir: project.path,
-              worktreePath,
-              specId: task.specId,
-              branchName,
-              baseBranch,
-              title: prTitle,
-              draft: options?.draft,
-              ghPath,
-              gitPath,
-            });
+        const result = await createPR({
+          projectDir: project.path,
+          worktreePath,
+          specId: task.specId,
+          branchName,
+          baseBranch,
+          title: prTitle,
+          draft: options?.draft,
+          ghPath,
+          gitPath,
+        });
 
         debug('PR creation result:', result);
 

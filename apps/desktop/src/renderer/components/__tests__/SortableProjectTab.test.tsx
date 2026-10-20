@@ -18,7 +18,6 @@ function createTestProject(overrides: Partial<Project> = {}): Project {
     settings: {
       model: 'claude-3-haiku-20240307',
       memoryBackend: 'file',
-      linearSync: false,
       notifications: {
         onTaskComplete: true,
         onTaskFailed: true,

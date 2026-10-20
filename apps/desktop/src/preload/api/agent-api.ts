@@ -6,7 +6,6 @@
  * - Ideation operations
  * - Insights operations
  * - Changelog operations
- * - Linear integration
  * - Shell operations
  */
 
@@ -14,8 +13,6 @@ import { createRoadmapAPI, RoadmapAPI } from './modules/roadmap-api';
 import { createIdeationAPI, IdeationAPI } from './modules/ideation-api';
 import { createInsightsAPI, InsightsAPI } from './modules/insights-api';
 import { createChangelogAPI, ChangelogAPI } from './modules/changelog-api';
-import { createLinearAPI, LinearAPI } from './modules/linear-api';
-import { createAzureDevOpsAPI, AzureDevOpsAPI } from './modules/azure-devops-api';
 import { createShellAPI, ShellAPI } from './modules/shell-api';
 import { createTestsAPI, TestsAPI } from './modules/tests-api';
 
@@ -28,8 +25,6 @@ export interface AgentAPI extends
   IdeationAPI,
   InsightsAPI,
   ChangelogAPI,
-  LinearAPI,
-  AzureDevOpsAPI,
   ShellAPI,
   TestsAPI {}
 
@@ -43,8 +38,6 @@ export const createAgentAPI = (): AgentAPI => {
   const ideationAPI = createIdeationAPI();
   const insightsAPI = createInsightsAPI();
   const changelogAPI = createChangelogAPI();
-  const linearAPI = createLinearAPI();
-  const azureDevOpsAPI = createAzureDevOpsAPI();
   const shellAPI = createShellAPI();
   const testsAPI = createTestsAPI();
 
@@ -61,14 +54,6 @@ export const createAgentAPI = (): AgentAPI => {
     // Changelog API
     ...changelogAPI,
 
-    // Linear Integration API
-    ...linearAPI,
-
-
-
-    // Azure DevOps Integration API
-    ...azureDevOpsAPI,
-
     // Shell Operations API
     ...shellAPI,
 
@@ -83,7 +68,6 @@ export type {
   IdeationAPI,
   InsightsAPI,
   ChangelogAPI,
-  LinearAPI,
   ShellAPI,
   TestsAPI,
 };

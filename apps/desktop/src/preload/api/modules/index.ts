@@ -9,8 +9,6 @@ export * from './roadmap-api';
 export * from './ideation-api';
 export * from './insights-api';
 export * from './changelog-api';
-export * from './linear-api';
-export * from './azure-devops-api';
 export * from './shell-api';
 export * from './debug-api';
 export * from './tests-api';

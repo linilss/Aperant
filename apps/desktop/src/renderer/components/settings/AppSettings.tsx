@@ -10,15 +10,13 @@ import {
   Package,
   Bell,
   Settings2,
-  Zap,
   Database,
   Sparkles,
   Monitor,
   Code,
   Bug,
   Terminal,
-  Users,
-  CheckSquare
+  Users
 } from 'lucide-react';
 
 import {
@@ -78,8 +76,6 @@ const appNavItemsConfig: NavItemConfig<AppSection>[] = [
 
 const projectNavItemsConfig: NavItemConfig<ProjectSettingsSection>[] = [
   { id: 'general', icon: Settings2 },
-  { id: 'linear', icon: Zap },
-  { id: 'azure-devops', icon: CheckSquare },
   { id: 'memory', icon: Database }
 ];
 

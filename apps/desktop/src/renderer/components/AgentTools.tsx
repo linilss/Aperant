@@ -983,7 +983,6 @@ export function AgentTools() {
   const enabledCount = [
     mcpServers.context7Enabled !== false,
     mcpServers.memoryEnabled && envConfig?.memoryProviderConfig,
-    mcpServers.linearMcpEnabled !== false && envConfig?.linearEnabled,
     mcpServers.electronEnabled,
     mcpServers.puppeteerEnabled,
     true, // auto-claude always enabled
@@ -1120,26 +1119,6 @@ export function AgentTools() {
                     checked={mcpServers.memoryEnabled !== false && !!envConfig.memoryProviderConfig}
                     onCheckedChange={(checked) => updateMcpServer('memoryEnabled', checked)}
                     disabled={!envConfig.memoryProviderConfig}
-                  />
-                </div>
-
-                {/* Linear */}
-                <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
-                    <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm font-medium">{t('settings:mcp.servers.linear.name')}</span>
-                      <p className="text-xs text-muted-foreground">
-                        {envConfig.linearEnabled
-                          ? t('settings:mcp.servers.linear.description')
-                          : t('settings:mcp.servers.linear.notConfigured')}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={mcpServers.linearMcpEnabled !== false && envConfig.linearEnabled}
-                    onCheckedChange={(checked) => updateMcpServer('linearMcpEnabled', checked)}
-                    disabled={!envConfig.linearEnabled}
                   />
                 </div>
 

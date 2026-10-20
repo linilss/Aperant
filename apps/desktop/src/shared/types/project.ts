@@ -41,8 +41,6 @@ export interface Project {
 export interface ProjectSettings {
   model: string;
   memoryBackend: 'memory' | 'file';
-  linearSync: boolean;
-  linearTeamId?: string;
   notifications: NotificationSettings;
   /** Main branch name for worktree creation (default: auto-detected or 'main') */
   mainBranch?: string;
@@ -333,19 +331,6 @@ export interface ProjectEnvConfig {
   // Model Override
   autoBuildModel?: string;
 
-  // Linear Integration
-  linearEnabled: boolean;
-  linearApiKey?: string;
-  linearTeamId?: string;
-  linearProjectId?: string;
-  linearRealtimeSync?: boolean; // Enable real-time sync of new Linear tasks
-
-  // Azure DevOps Integration
-  azureDevOpsEnabled: boolean;
-  azureDevOpsToken?: string; // Personal Access Token (PAT)
-  azureDevOpsOrgUrl?: string; // e.g., https://dev.azure.com/myorg
-  azureDevOpsProject?: string; // Azure DevOps project name
-
   // Git/Worktree Settings
   defaultBranch?: string; // Base branch for worktree creation (e.g., 'main', 'develop')
 
@@ -369,7 +354,7 @@ export interface ProjectEnvConfig {
     context7Enabled?: boolean;
     /** Memory knowledge graph - default: true (if memoryProviderConfig set) */
     memoryEnabled?: boolean;
-    /** Linear MCP integration - default: follows linearEnabled */
+    /** Linear MCP integration (agent tooling) */
     linearMcpEnabled?: boolean;
     /** Electron desktop automation (QA only) - default: false */
     electronEnabled?: boolean;

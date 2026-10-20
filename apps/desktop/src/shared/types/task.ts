@@ -180,13 +180,10 @@ export type TaskCategory =
 
 export interface TaskMetadata {
   // Origin tracking
-  sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github';
+  sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap';
   ideationType?: string;  // e.g., 'code_improvements', 'security_hardening'
   ideaId?: string;  // Reference to original idea if converted
   featureId?: string;  // Reference to roadmap feature if from roadmap
-  linearIssueId?: string;  // Reference to Linear issue if from Linear
-  linearIdentifier?: string;  // Linear issue identifier (e.g., 'ABC-123')
-  linearUrl?: string;  // Linear issue URL
   githubIssueNumber?: number;  // Reference to GitHub issue number if from GitHub (single issue)
   githubIssueNumbers?: number[];  // Reference to multiple GitHub issues if from a batch
   githubUrl?: string;  // GitHub issue URL
