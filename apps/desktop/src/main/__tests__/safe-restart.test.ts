@@ -23,11 +23,17 @@ describe('collectResumeCandidates', () => {
     const stopped = spec('001-a', { status: 'human_review', reviewReason: 'stopped' }, [RESUME_AFTER_RESTART_FILE]);
     const finished = spec('002-b', { status: 'done', reviewReason: 'completed' }, [RESUME_AFTER_RESTART_FILE, SAFE_STOP_FILE]);
     const untouched = spec('003-c', { status: 'human_review', reviewReason: 'stopped' }, []);
+    // Stopped while still planning: back in Planning, no review reason
+    const planning = spec('004-d', { status: 'backlog' }, [RESUME_AFTER_RESTART_FILE]);
+    const failed = spec('005-e', { status: 'human_review', reviewReason: 'errors' }, [RESUME_AFTER_RESTART_FILE]);
 
     const resume = collectResumeCandidates([{ id: 'p', path: dir, specsDir: '.malvy/specs' }]);
 
-    expect(resume).toEqual([{ projectId: 'p', specId: '001-a' }]);
-    for (const d of [stopped, finished, untouched]) {
+    expect(resume).toEqual([
+      { projectId: 'p', specId: '001-a' },
+      { projectId: 'p', specId: '004-d' },
+    ]);
+    for (const d of [stopped, finished, untouched, planning, failed]) {
       expect(existsSync(path.join(d, RESUME_AFTER_RESTART_FILE))).toBe(false);
       expect(existsSync(path.join(d, SAFE_STOP_FILE))).toBe(false);
     }

@@ -35,11 +35,15 @@ function specDirs(specsDir: string): string[] {
   }
 }
 
-/** Stopped by a safe stop (Human Review, reason "stopped") — not finished or failed */
-function wasSafeStopped(specDir: string): boolean {
+/**
+ * Stopped by a safe stop, not finished or failed: Human Review with reason
+ * "stopped", or back in Planning when it stopped before having subtasks.
+ */
+export function wasSafeStopped(specDir: string): boolean {
   try {
     const plan = JSON.parse(readFileSync(path.join(specDir, 'implementation_plan.json'), 'utf-8')) as Record<string, unknown>;
-    return plan.status !== 'done' && plan.reviewReason === 'stopped';
+    if (plan.status === 'human_review') return plan.reviewReason === 'stopped';
+    return plan.status === 'backlog' && !plan.reviewReason;
   } catch {
     return false;
   }
