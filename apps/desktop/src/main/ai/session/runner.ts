@@ -188,7 +188,6 @@ export async function runAgentSession(
                 apiKey: newAuth.apiKey,
                 baseURL: newAuth.baseURL,
                 headers: newAuth.headers,
-                oauthTokenFilePath: newAuth.oauthTokenFilePath,
               },
               modelId: newAuth.resolvedModelId,
             }),

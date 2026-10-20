@@ -43,29 +43,6 @@ export const ALL_AVAILABLE_MODELS: ModelOption[] = [
   { value: 'sonnet', label: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'opus-4.5', label: 'Claude Opus 4.5', provider: 'anthropic', description: 'Legacy', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'haiku', label: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fast', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 200000 } },
-  // OpenAI
-  { value: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', provider: 'openai', description: 'Agentic coding', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1047576 } },
-  { value: 'gpt-5.2', label: 'GPT-5.2', provider: 'openai', description: 'Flagship', apiKeyOnly: true, capabilities: { thinking: true, tools: true, vision: true, contextWindow: 400000 } },
-  { value: 'gpt-5.2-codex', label: 'GPT-5.2 Codex', provider: 'openai', description: 'Coding', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1047576 } },
-  { value: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini', provider: 'openai', description: 'Fast coding', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 400000 } },
-  { value: 'gpt-5-nano', label: 'GPT-5 Nano', provider: 'openai', description: 'Fastest & cheapest', apiKeyOnly: true, capabilities: { thinking: false, tools: true, vision: true, contextWindow: 400000 } },
-  { value: 'o3', label: 'o3', provider: 'openai', description: 'Reasoning', apiKeyOnly: true, capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
-  { value: 'o4-mini', label: 'o4 Mini', provider: 'openai', description: 'Fast reasoning', apiKeyOnly: true, capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
-  // Google
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google', description: 'Advanced', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1048576 } },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google', description: 'Fast thinking', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1048576 } },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', provider: 'google', description: 'Budget', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1048576 } },
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'google', description: 'Legacy', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 1048576 } },
-  // Mistral
-  { value: 'mistral-large-latest', label: 'Mistral Large', provider: 'mistral', description: 'Flagship', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 128000 } },
-  { value: 'mistral-small-latest', label: 'Mistral Small', provider: 'mistral', description: 'Fast', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 128000 } },
-  // Groq
-  { value: 'meta-llama/llama-4-maverick', label: 'LLaMA 4 Maverick', provider: 'groq', description: 'Multimodal', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 128000 } },
-  { value: 'llama-3.3-70b-versatile', label: 'LLaMA 3.3 70B', provider: 'groq', description: 'Fast inference', capabilities: { thinking: false, tools: true, vision: false, contextWindow: 128000 } },
-  // xAI
-  { value: 'grok-4-0709', label: 'Grok 4', provider: 'xai', description: 'Flagship', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 256000 } },
-  { value: 'grok-3', label: 'Grok 3', provider: 'xai', description: 'Text', capabilities: { thinking: false, tools: true, vision: false, contextWindow: 131072 } },
-  { value: 'grok-3-mini', label: 'Grok 3 Mini', provider: 'xai', description: 'Fast reasoning', capabilities: { thinking: true, tools: true, vision: false, contextWindow: 131072 } },
   // Z.AI (Zhipu)
   { value: 'glm-5', label: 'GLM-5', provider: 'zai', description: 'Flagship', capabilities: { thinking: false, tools: true, vision: false, contextWindow: 128000 } },
   { value: 'glm-4.7', label: 'GLM-4.7', provider: 'zai', description: 'Previous flagship', capabilities: { thinking: false, tools: true, vision: false, contextWindow: 128000 } },
@@ -284,33 +261,6 @@ export const PROVIDER_PRESET_DEFINITIONS: Partial<Record<BuiltinProvider, Record
     balanced: { primaryModel: 'sonnet', primaryThinking: 'medium', phaseModels: { spec: 'sonnet', planning: 'sonnet', coding: 'sonnet', qa: 'sonnet' }, phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
     quick:    { primaryModel: 'haiku',  primaryThinking: 'low',    phaseModels: { spec: 'haiku', planning: 'haiku', coding: 'haiku', qa: 'haiku' },     phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
   },
-  openai: {
-    auto:     { primaryModel: 'gpt-5.3-codex', primaryThinking: 'high',   phaseModels: { spec: 'gpt-5.3-codex', planning: 'gpt-5.3-codex', coding: 'gpt-5.3-codex', qa: 'gpt-5.3-codex' }, phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
-    complex:  { primaryModel: 'gpt-5.3-codex', primaryThinking: 'xhigh',  phaseModels: { spec: 'gpt-5.3-codex', planning: 'gpt-5.3-codex', coding: 'gpt-5.3-codex', qa: 'gpt-5.3-codex' }, phaseThinking: { spec: 'xhigh', planning: 'xhigh', coding: 'xhigh', qa: 'xhigh' } },
-    balanced: { primaryModel: 'gpt-5.2-codex',  primaryThinking: 'medium', phaseModels: { spec: 'gpt-5.2-codex', planning: 'gpt-5.2-codex', coding: 'gpt-5.2-codex', qa: 'gpt-5.2-codex' }, phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
-    quick:    { primaryModel: 'gpt-5.1-codex-mini', primaryThinking: 'low', phaseModels: { spec: 'gpt-5.1-codex-mini', planning: 'gpt-5.1-codex-mini', coding: 'gpt-5.1-codex-mini', qa: 'gpt-5.1-codex-mini' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-  },
-  google: {
-    auto:     { primaryModel: 'gemini-2.5-pro',       primaryThinking: 'high',   phaseModels: { spec: 'gemini-2.5-pro', planning: 'gemini-2.5-pro', coding: 'gemini-2.5-pro', qa: 'gemini-2.5-pro' },                         phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
-    complex:  { primaryModel: 'gemini-2.5-pro',       primaryThinking: 'high',   phaseModels: { spec: 'gemini-2.5-pro', planning: 'gemini-2.5-pro', coding: 'gemini-2.5-pro', qa: 'gemini-2.5-pro' },                         phaseThinking: { spec: 'high', planning: 'high', coding: 'high', qa: 'high' } },
-    balanced: { primaryModel: 'gemini-2.5-flash',     primaryThinking: 'medium', phaseModels: { spec: 'gemini-2.5-flash', planning: 'gemini-2.5-flash', coding: 'gemini-2.5-flash', qa: 'gemini-2.5-flash' },                 phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
-    quick:    { primaryModel: 'gemini-2.5-flash-lite', primaryThinking: 'low',   phaseModels: { spec: 'gemini-2.5-flash-lite', planning: 'gemini-2.5-flash-lite', coding: 'gemini-2.5-flash-lite', qa: 'gemini-2.5-flash-lite' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-  },
-  xai: {
-    auto:     { primaryModel: 'grok-4-0709',  primaryThinking: 'high',   phaseModels: { spec: 'grok-4-0709', planning: 'grok-4-0709', coding: 'grok-4-0709', qa: 'grok-4-0709' },       phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
-    complex:  { primaryModel: 'grok-4-0709',  primaryThinking: 'high',   phaseModels: { spec: 'grok-4-0709', planning: 'grok-4-0709', coding: 'grok-4-0709', qa: 'grok-4-0709' },       phaseThinking: { spec: 'high', planning: 'high', coding: 'high', qa: 'high' } },
-    balanced: { primaryModel: 'grok-3-mini',  primaryThinking: 'medium', phaseModels: { spec: 'grok-3-mini', planning: 'grok-3-mini', coding: 'grok-3-mini', qa: 'grok-3-mini' },       phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
-    quick:    { primaryModel: 'grok-3-mini',  primaryThinking: 'low',    phaseModels: { spec: 'grok-3-mini', planning: 'grok-3-mini', coding: 'grok-3-mini', qa: 'grok-3-mini' },       phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-  },
-  mistral: {
-    auto:     { primaryModel: 'mistral-large-latest', primaryThinking: 'low', phaseModels: { spec: 'mistral-large-latest', planning: 'mistral-large-latest', coding: 'mistral-large-latest', qa: 'mistral-large-latest' },          phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-    balanced: { primaryModel: 'mistral-large-latest', primaryThinking: 'low', phaseModels: { spec: 'mistral-large-latest', planning: 'mistral-large-latest', coding: 'mistral-large-latest', qa: 'mistral-large-latest' },          phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-    quick:    { primaryModel: 'mistral-small-latest', primaryThinking: 'low', phaseModels: { spec: 'mistral-small-latest', planning: 'mistral-small-latest', coding: 'mistral-small-latest', qa: 'mistral-small-latest' },          phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-  },
-  groq: {
-    auto:     { primaryModel: 'meta-llama/llama-4-maverick', primaryThinking: 'low', phaseModels: { spec: 'meta-llama/llama-4-maverick', planning: 'meta-llama/llama-4-maverick', coding: 'meta-llama/llama-4-maverick', qa: 'meta-llama/llama-4-maverick' }, phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-    balanced: { primaryModel: 'llama-3.3-70b-versatile',     primaryThinking: 'low', phaseModels: { spec: 'llama-3.3-70b-versatile', planning: 'llama-3.3-70b-versatile', coding: 'llama-3.3-70b-versatile', qa: 'llama-3.3-70b-versatile' },                 phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
-  },
   zai: {
     auto:     { primaryModel: 'glm-5',          primaryThinking: 'low', phaseModels: { spec: 'glm-5', planning: 'glm-5', coding: 'glm-5', qa: 'glm-5' },                         phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
     complex:  { primaryModel: 'glm-5',          primaryThinking: 'low', phaseModels: { spec: 'glm-5', planning: 'glm-5', coding: 'glm-5', qa: 'glm-5' },                         phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
@@ -409,107 +359,65 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   // ── Anthropic shorthands ──────────────────────────────────────────────────
   'opus': {
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
-    xai: { modelId: 'grok-4-0709', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    mistral: { modelId: 'mistral-large-latest', reasoning: { type: 'none' } },
-    groq: { modelId: 'meta-llama/llama-4-maverick', reasoning: { type: 'none' } },
     zai: { modelId: 'glm-5', reasoning: { type: 'none' } },
   },
   'glm-5': {
     zai: { modelId: 'glm-5', reasoning: { type: 'none' } },
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
   },
   'glm-4.7': {
     zai: { modelId: 'glm-4.7', reasoning: { type: 'none' } },
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
-    openai: { modelId: 'gpt-5.2', reasoning: { type: 'reasoning_effort', level: 'medium' } },
   },
   'opus-1m': {
     anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    openai: { modelId: 'gpt-5.2', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'opus-4.5': {
     anthropic: { modelId: 'claude-opus-4-5-20251101', reasoning: { type: 'thinking_tokens', level: 'high' } },
-    openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'sonnet': {
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
-    openai: { modelId: 'gpt-5.2-codex', reasoning: { type: 'reasoning_effort', level: 'medium' } },
-    google: { modelId: 'gemini-2.5-flash', reasoning: { type: 'thinking_toggle', level: 'medium' } },
-    mistral: { modelId: 'mistral-large-latest', reasoning: { type: 'none' } },
-    groq: { modelId: 'llama-3.3-70b-versatile', reasoning: { type: 'none' } },
-    xai: { modelId: 'grok-3-mini', reasoning: { type: 'reasoning_effort', level: 'medium' } },
     zai: { modelId: 'glm-4.7', reasoning: { type: 'none' } },
   },
   'haiku': {
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
-    openai: { modelId: 'gpt-5.1-codex-mini', reasoning: { type: 'reasoning_effort', level: 'low' } },
-    google: { modelId: 'gemini-2.5-flash-lite', reasoning: { type: 'thinking_toggle', level: 'low' } },
-    mistral: { modelId: 'mistral-small-latest', reasoning: { type: 'none' } },
-    groq: { modelId: 'llama-3.3-70b-versatile', reasoning: { type: 'none' } },
     zai: { modelId: 'glm-4.5-flash', reasoning: { type: 'none' } },
   },
   // ── OpenAI models ─────────────────────────────────────────────────────────
   'gpt-5.3-codex': {
-    openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'gpt-5.2': {
-    openai: { modelId: 'gpt-5.2', reasoning: { type: 'reasoning_effort', level: 'high' } },
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'gpt-5.2-codex': {
-    openai: { modelId: 'gpt-5.2-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'gpt-5.1-codex-mini': {
-    openai: { modelId: 'gpt-5.1-codex-mini', reasoning: { type: 'reasoning_effort', level: 'low' } },
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
-    google: { modelId: 'gemini-2.5-flash-lite', reasoning: { type: 'thinking_toggle', level: 'low' } },
   },
   'gpt-5-nano': {
-    openai: { modelId: 'gpt-5-nano', reasoning: { type: 'none' } },
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
-    google: { modelId: 'gemini-2.5-flash-lite', reasoning: { type: 'thinking_toggle', level: 'low' } },
   },
   'o3': {
-    openai: { modelId: 'o3', reasoning: { type: 'reasoning_effort', level: 'high' } },
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
   },
   'o4-mini': {
-    openai: { modelId: 'o4-mini', reasoning: { type: 'reasoning_effort', level: 'medium' } },
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
-    google: { modelId: 'gemini-2.5-flash', reasoning: { type: 'thinking_toggle', level: 'medium' } },
   },
   // ── Google models ─────────────────────────────────────────────────────────
   'gemini-2.5-pro': {
-    google: { modelId: 'gemini-2.5-pro', reasoning: { type: 'thinking_toggle', level: 'high' } },
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
   },
   'gemini-2.5-flash': {
-    google: { modelId: 'gemini-2.5-flash', reasoning: { type: 'thinking_toggle', level: 'medium' } },
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
-    openai: { modelId: 'gpt-5.2', reasoning: { type: 'reasoning_effort', level: 'medium' } },
   },
   // ── xAI models ────────────────────────────────────────────────────────────
   'grok-4-0709': {
-    xai: { modelId: 'grok-4-0709', reasoning: { type: 'reasoning_effort', level: 'high' } },
     anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
-    openai: { modelId: 'gpt-5.3-codex', reasoning: { type: 'reasoning_effort', level: 'high' } },
   },
   'grok-3-mini': {
-    xai: { modelId: 'grok-3-mini', reasoning: { type: 'reasoning_effort', level: 'medium' } },
     anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
-    openai: { modelId: 'o4-mini', reasoning: { type: 'reasoning_effort', level: 'medium' } },
   },
 };
 
@@ -549,12 +457,6 @@ export function getReasoningConfigForModel(
       return ADAPTIVE_THINKING_MODELS.includes(modelValue)
         ? { type: 'adaptive_effort', level: 'high' }
         : { type: 'thinking_tokens', level: 'medium' };
-    }
-    if (provider === 'openai') {
-      return { type: 'reasoning_effort', level: 'medium' };
-    }
-    if (provider === 'google') {
-      return { type: 'thinking_toggle', level: 'medium' };
     }
   }
 

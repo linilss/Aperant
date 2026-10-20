@@ -19,7 +19,6 @@ import type { ReasoningConfig } from '../../../shared/constants/models';
  */
 export type AuthSource =
   | 'profile-oauth'       // OAuth token from claude-profile credential store
-  | 'codex-oauth'         // OAuth token from OpenAI Codex PKCE flow
   | 'profile-api-key'     // API key stored in profile settings
   | 'environment'         // Environment variable (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
   | 'default'             // Default provider credentials (e.g., built-in defaults)
@@ -41,8 +40,6 @@ export interface ResolvedAuth {
   baseURL?: string;
   /** Optional additional headers (e.g., auth tokens for proxies) */
   headers?: Record<string, string>;
-  /** Pre-resolved path to OAuth token file for file-based OAuth providers (e.g., Codex) */
-  oauthTokenFilePath?: string;
 }
 
 // ============================================
@@ -70,13 +67,6 @@ export interface AuthResolverContext {
  */
 export const PROVIDER_ENV_VARS: Record<SupportedProvider, string | undefined> = {
   anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  google: 'GOOGLE_GENERATIVE_AI_API_KEY',
-  bedrock: undefined,  // Uses AWS credential chain, not a single env var
-  azure: 'AZURE_OPENAI_API_KEY',
-  mistral: 'MISTRAL_API_KEY',
-  groq: 'GROQ_API_KEY',
-  xai: 'XAI_API_KEY',
   openrouter: 'OPENROUTER_API_KEY',
   zai: 'ZHIPU_API_KEY',
   ollama: undefined,   // No auth required for local Ollama
@@ -88,12 +78,6 @@ export const PROVIDER_ENV_VARS: Record<SupportedProvider, string | undefined> = 
  */
 export const PROVIDER_SETTINGS_KEY: Partial<Record<SupportedProvider, string>> = {
   anthropic: 'globalAnthropicApiKey',
-  openai: 'globalOpenAIApiKey',
-  google: 'globalGoogleApiKey',
-  groq: 'globalGroqApiKey',
-  mistral: 'globalMistralApiKey',
-  xai: 'globalXAIApiKey',
-  azure: 'globalAzureApiKey',
   openrouter: 'globalOpenRouterApiKey',
   zai: 'globalZAIApiKey',
 } as const;
@@ -103,8 +87,6 @@ export const PROVIDER_SETTINGS_KEY: Partial<Record<SupportedProvider, string>> =
  */
 export const PROVIDER_BASE_URL_ENV: Partial<Record<SupportedProvider, string>> = {
   anthropic: 'ANTHROPIC_BASE_URL',
-  openai: 'OPENAI_BASE_URL',
-  azure: 'AZURE_OPENAI_ENDPOINT',
 } as const;
 
 // ============================================

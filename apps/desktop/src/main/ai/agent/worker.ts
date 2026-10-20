@@ -463,7 +463,6 @@ async function runSingleSession(
       provider: baseSession.provider as SupportedProvider,
       apiKey: baseSession.apiKey,
       baseURL: baseSession.baseURL,
-      oauthTokenFilePath: baseSession.oauthTokenFilePath,
     },
     modelId: phaseModelId,
   });
@@ -544,7 +543,6 @@ async function runSingleSession(
       contextWindowLimit,
       apiKey: baseSession.apiKey,
       baseURL: baseSession.baseURL,
-      oauthTokenFilePath: baseSession.oauthTokenFilePath,
     });
   } catch (error) {
     // Ensure log cleanup happens on failure
@@ -1115,7 +1113,6 @@ async function runAgenticSpecOrchestrator(
       provider: session.provider as SupportedProvider,
       apiKey: session.apiKey,
       baseURL: session.baseURL,
-      oauthTokenFilePath: session.oauthTokenFilePath,
     },
     modelId: session.modelId,
   });
@@ -1220,7 +1217,6 @@ async function runAgenticSpecOrchestrator(
       contextWindowLimit,
       apiKey: session.apiKey,
       baseURL: session.baseURL,
-      oauthTokenFilePath: session.oauthTokenFilePath,
     });
   } finally {
     if (logWriter) {

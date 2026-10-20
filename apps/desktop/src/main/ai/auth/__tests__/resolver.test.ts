@@ -65,16 +65,14 @@ beforeEach(() => {
   clearSettingsAccessor();
   // Clean up any environment variable side effects
   delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
-  delete process.env.OPENAI_BASE_URL;
 });
 
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
-  delete process.env.OPENAI_BASE_URL;
 });
 
 // =============================================================================
@@ -118,10 +116,10 @@ describe('resolveAuth — Stage 1: Profile OAuth', () => {
   });
 
   it('skips oauth stage for non-anthropic providers', async () => {
-    // openai has no oauth stage; should fall through to environment
-    process.env.OPENAI_API_KEY = 'sk-env-openai';
+    // openrouter has no oauth stage; should fall through to environment
+    process.env.OPENROUTER_API_KEY = 'sk-env-or';
 
-    const auth = await resolveAuth({ provider: 'openai' });
+    const auth = await resolveAuth({ provider: 'openrouter' });
 
     expect(mockEnsureValidToken).not.toHaveBeenCalled();
     expect(auth?.source).toBe('environment');
@@ -185,26 +183,17 @@ describe('resolveAuth — Stage 2: Profile API Key', () => {
 // =============================================================================
 
 describe('resolveAuth — Stage 3: Environment Variable', () => {
-  it('returns env key for openai', async () => {
-    process.env.OPENAI_API_KEY = 'sk-env-openai-123';
+  it('returns env key for openrouter', async () => {
+    process.env.OPENROUTER_API_KEY = 'sk-env-or-123';
 
-    const auth = await resolveAuth({ provider: 'openai' });
+    const auth = await resolveAuth({ provider: 'openrouter' });
 
-    expect(auth?.apiKey).toBe('sk-env-openai-123');
+    expect(auth?.apiKey).toBe('sk-env-or-123');
     expect(auth?.source).toBe('environment');
   });
 
-  it('includes base URL from env when OPENAI_BASE_URL is set', async () => {
-    process.env.OPENAI_API_KEY = 'sk-env-openai';
-    process.env.OPENAI_BASE_URL = 'https://openai-proxy.com';
-
-    const auth = await resolveAuth({ provider: 'openai' });
-
-    expect(auth?.baseURL).toBe('https://openai-proxy.com');
-  });
-
-  it('returns null for bedrock (no env var defined)', async () => {
-    const auth = await resolveAuth({ provider: 'bedrock' });
+  it('returns null for a pruned provider (no env var defined)', async () => {
+    const auth = await resolveAuth({ provider: 'bedrock' as never });
     expect(auth).toBeNull();
   });
 });
@@ -223,7 +212,7 @@ describe('resolveAuth — Stage 4: Default Credentials', () => {
   });
 
   it('returns null for unknown provider with no credentials', async () => {
-    const auth = await resolveAuth({ provider: 'groq' });
+    const auth = await resolveAuth({ provider: 'groq' as never });
     expect(auth).toBeNull();
   });
 });
@@ -234,8 +223,8 @@ describe('resolveAuth — Stage 4: Default Credentials', () => {
 
 describe('hasCredentials', () => {
   it('returns true when credentials resolve', async () => {
-    process.env.OPENAI_API_KEY = 'sk-test';
-    expect(await hasCredentials({ provider: 'openai' })).toBe(true);
+    process.env.OPENROUTER_API_KEY = 'sk-test';
+    expect(await hasCredentials({ provider: 'openrouter' })).toBe(true);
   });
 
   it('returns true for ollama (no-auth)', async () => {
@@ -243,7 +232,7 @@ describe('hasCredentials', () => {
   });
 
   it('returns false when no credentials available', async () => {
-    expect(await hasCredentials({ provider: 'groq' })).toBe(false);
+    expect(await hasCredentials({ provider: 'groq' as never })).toBe(false);
   });
 });
 
@@ -286,7 +275,7 @@ describe('resolveAuth — Stage 0: Provider Account', () => {
   it('returns api-key auth from providerAccounts setting', async () => {
     const accounts = [
       {
-        provider: 'openai',
+        provider: 'openrouter',
         isActive: true,
         authType: 'api-key',
         apiKey: 'sk-provider-account-key',
@@ -297,7 +286,7 @@ describe('resolveAuth — Stage 0: Provider Account', () => {
       return undefined;
     });
 
-    const auth = await resolveAuth({ provider: 'openai' });
+    const auth = await resolveAuth({ provider: 'openrouter' });
 
     expect(auth?.apiKey).toBe('sk-provider-account-key');
     expect(auth?.source).toBe('profile-api-key');
@@ -347,15 +336,15 @@ describe('resolveAuth — Stage 0: Provider Account', () => {
 
   it('skips inactive accounts and falls through', async () => {
     const accounts = [
-      { provider: 'openai', isActive: false, authType: 'api-key', apiKey: 'sk-inactive' },
+      { provider: 'openrouter', isActive: false, authType: 'api-key', apiKey: 'sk-inactive' },
     ];
     registerSettingsAccessor((key) => {
       if (key === 'providerAccounts') return JSON.stringify(accounts);
       return undefined;
     });
-    process.env.OPENAI_API_KEY = 'sk-env-fallback';
+    process.env.OPENROUTER_API_KEY = 'sk-env-fallback';
 
-    const auth = await resolveAuth({ provider: 'openai' });
+    const auth = await resolveAuth({ provider: 'openrouter' });
 
     expect(auth?.source).toBe('environment');
   });
@@ -365,9 +354,9 @@ describe('resolveAuth — Stage 0: Provider Account', () => {
       if (key === 'providerAccounts') return 'not-valid-json{{';
       return undefined;
     });
-    process.env.OPENAI_API_KEY = 'sk-fallback';
+    process.env.OPENROUTER_API_KEY = 'sk-fallback';
 
-    const auth = await resolveAuth({ provider: 'openai' });
+    const auth = await resolveAuth({ provider: 'openrouter' });
     expect(auth?.source).toBe('environment');
   });
 });
@@ -461,7 +450,7 @@ describe('buildDefaultQueueConfig', () => {
 
   it('returns sorted queue when providerAccounts are configured', () => {
     const accounts = [
-      { id: 'b', provider: 'openai', isActive: true },
+      { id: 'b', provider: 'openrouter', isActive: true },
       { id: 'a', provider: 'anthropic', isActive: true },
     ];
     const priorityOrder = ['a', 'b'];
@@ -491,8 +480,8 @@ describe('buildDefaultQueueConfig', () => {
 
   it('returns accounts in natural order when no priority order is set', () => {
     const accounts = [
-      { id: 'x', provider: 'groq', isActive: true },
-      { id: 'y', provider: 'mistral', isActive: true },
+      { id: 'x', provider: 'zai', isActive: true },
+      { id: 'y', provider: 'ollama', isActive: true },
     ];
     registerSettingsAccessor((key) => {
       if (key === 'providerAccounts') return JSON.stringify(accounts);

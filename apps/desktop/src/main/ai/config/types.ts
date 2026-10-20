@@ -138,16 +138,6 @@ export const DEFAULT_PHASE_THINKING: PhaseThinkingConfig = {
  */
 export const MODEL_PROVIDER_MAP: Record<string, SupportedProvider> = {
   'claude-': 'anthropic',
-  'gpt-': 'openai',
-  'o1-': 'openai',
-  'o3-': 'openai',
-  'o4-': 'openai',
-  'codex-': 'openai',           // OpenAI Codex subscription models
-  'gemini-': 'google',
-  'mistral-': 'mistral',
-  'codestral-': 'mistral',
-  'llama-': 'groq',
-  'grok-': 'xai',
   'glm-': 'zai',
 } as const;
 
@@ -217,23 +207,6 @@ export function buildThinkingProviderOptions(
         };
       }
       return { anthropic: base };
-    }
-
-    case 'openai': {
-      if (modelId.startsWith('o1-') || modelId.startsWith('o3-') || modelId.startsWith('o4-')) {
-        const effortMap: Record<ThinkingLevel, string> = {
-          low: 'low',
-          medium: 'medium',
-          high: 'high',
-          xhigh: 'high',
-        };
-        return { openai: { reasoningEffort: effortMap[thinkingLevel] } };
-      }
-      return undefined;
-    }
-
-    case 'google': {
-      return { google: { thinkingConfig: { thinkingBudget: budgetTokens } } };
     }
 
     case 'zai': {

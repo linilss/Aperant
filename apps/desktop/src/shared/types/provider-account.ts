@@ -5,8 +5,7 @@ export type CredentialSource = 'oauth' | 'api-key' | 'env' | 'keychain';
 
 /** Supported built-in providers (matches @ai-sdk/* packages) */
 export type BuiltinProvider =
-  | 'anthropic' | 'openai' | 'google' | 'amazon-bedrock' | 'azure'
-  | 'mistral' | 'groq' | 'xai' | 'openrouter' | 'zai'
+  | 'anthropic' | 'openrouter' | 'zai'
   | 'ollama' | 'openai-compatible';
 
 export type BillingModel = 'subscription' | 'pay-per-use';

@@ -230,21 +230,6 @@ const browserMockAPI = {
     data: {}
   }),
 
-  // Codex OAuth authentication (mock)
-  codexAuthLogin: async () => ({
-    success: false,
-    error: 'Codex OAuth not available in browser mock'
-  }),
-
-  codexAuthStatus: async () => ({
-    success: true,
-    data: { isAuthenticated: false }
-  }),
-
-  codexAuthLogout: async () => ({
-    success: true
-  }),
-
   // GitHub API
   github: {
     getGitHubRepositories: async () => ({ success: true, data: [] }),

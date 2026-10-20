@@ -72,28 +72,12 @@ export function MultiProviderModelSelect({ value, onChange, className, filterPro
     return () => controller.abort();
   }, [filterProvider, providerAccounts]);
 
-  // Determine if all OpenAI accounts are OAuth-only (Codex subscription)
-  const openaiIsOAuthOnly = useMemo(() => {
-    const openaiAccounts = providerAccounts.filter(a => a.provider === 'openai');
-    return openaiAccounts.length > 0 && openaiAccounts.every(a => a.authType === 'oauth');
-  }, [providerAccounts]);
-
-  // Check if user has mixed auth types for OpenAI (both OAuth and API key)
-  const openaiHasMixedAuth = useMemo(() => {
-    const openaiAccounts = providerAccounts.filter(a => a.provider === 'openai');
-    const hasOAuth = openaiAccounts.some(a => a.authType === 'oauth');
-    const hasApiKey = openaiAccounts.some(a => a.authType !== 'oauth');
-    return hasOAuth && hasApiKey;
-  }, [providerAccounts]);
-
   // Group models by provider, including custom models from openai-compatible accounts
   const groupedModels = useMemo(() => {
     const groups = new Map<BuiltinProvider, ModelOption[]>();
     for (const model of ALL_AVAILABLE_MODELS) {
       // When filterProvider is set, only include models for that provider
       if (filterProvider && model.provider !== filterProvider) continue;
-      // Hide apiKeyOnly OpenAI models when all OpenAI accounts are OAuth (Codex subscription)
-      if (model.apiKeyOnly && model.provider === 'openai' && openaiIsOAuthOnly) continue;
       if (!groups.has(model.provider)) groups.set(model.provider, []);
       groups.get(model.provider)!.push(model);
     }
@@ -127,7 +111,7 @@ export function MultiProviderModelSelect({ value, onChange, className, filterPro
     }
 
     return groups;
-  }, [filterProvider, providerAccounts, ollamaModels, openaiIsOAuthOnly]);
+  }, [filterProvider, providerAccounts, ollamaModels]);
 
   // Check if provider has credentials
   const hasCredentials = (provider: BuiltinProvider): boolean => {
@@ -352,11 +336,6 @@ export function MultiProviderModelSelect({ value, onChange, className, filterPro
                               {model.description && (
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {model.description}
-                                </span>
-                              )}
-                              {model.apiKeyOnly && openaiHasMixedAuth && (
-                                <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
-                                  {t('settings:modelSelect.apiKeyOnly', { defaultValue: 'API key' })}
                                 </span>
                               )}
                             </div>

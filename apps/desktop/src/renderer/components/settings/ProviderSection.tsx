@@ -135,11 +135,9 @@ export function ProviderSection({
                           className="h-7 text-xs gap-1"
                         >
                           <Plus className="h-3 w-3" />
-                          {provider.id === 'openai'
-                            ? t('providers.section.addCodexSubscription')
-                            : provider.id === 'anthropic'
-                              ? t('providers.section.addClaudeCode')
-                              : t('providers.section.addOAuth')}
+                          {provider.id === 'anthropic'
+                            ? t('providers.section.addClaudeCode')
+                            : t('providers.section.addOAuth')}
                         </Button>
                       )}
                       {/* Z.AI: Coding Plan subscription button before generic API Key */}

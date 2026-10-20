@@ -136,7 +136,7 @@ export class AgentManager extends EventEmitter {
     requestedModel: string,
     preferredProvider?: string | null,
   ): Promise<{
-    auth: { apiKey?: string; baseURL?: string; oauthTokenFilePath?: string } | null;
+    auth: { apiKey?: string; baseURL?: string } | null;
     provider: string;
     modelId: string;
     configDir?: string;
@@ -394,7 +394,6 @@ export class AgentManager extends EventEmitter {
       apiKey: resolved.auth?.apiKey,
       baseURL: resolved.auth?.baseURL,
       configDir: resolved.configDir,
-      oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
@@ -518,7 +517,6 @@ export class AgentManager extends EventEmitter {
       apiKey: resolved.auth?.apiKey,
       baseURL: resolved.auth?.baseURL,
       configDir: resolved.configDir,
-      oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
@@ -621,7 +619,6 @@ export class AgentManager extends EventEmitter {
       apiKey: resolved.auth?.apiKey,
       baseURL: resolved.auth?.baseURL,
       configDir: resolved.configDir,
-      oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,

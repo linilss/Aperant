@@ -108,8 +108,6 @@ export function ProviderAccountsList() {
   const handleReauthAccount = useCallback(async (account: ProviderAccount) => {
     if (account.authType !== 'oauth') return;
 
-    const isCodex = account.provider === 'openai';
-
     const refreshUsageData = async () => {
       try {
         await window.electronAPI.requestAllProfilesUsage?.(true);
@@ -118,24 +116,7 @@ export function ProviderAccountsList() {
       }
     };
 
-    if (isCodex) {
-      // Codex OAuth: trigger re-auth flow directly
-      try {
-        toast({ title: t('providers.toast.reauthStarted') });
-        const result = await window.electronAPI.codexAuthLogin();
-        if (result.success) {
-          if (result.data?.email) {
-            await updateProviderAccount(account.id, { email: result.data.email });
-          }
-          await refreshUsageData();
-          toast({ title: t('providers.toast.reauthSuccess'), description: account.name });
-        } else {
-          toast({ variant: 'destructive', title: t('providers.toast.reauthFailed'), description: result.error ?? '' });
-        }
-      } catch (err) {
-        toast({ variant: 'destructive', title: t('providers.toast.reauthFailed'), description: err instanceof Error ? err.message : '' });
-      }
-    } else if (account.claudeProfileId) {
+    if (account.claudeProfileId) {
       // Anthropic OAuth: trigger re-auth via subprocess
       try {
         toast({ title: t('providers.toast.reauthStarted') });

@@ -34,7 +34,6 @@ import { registerMcpHandlers } from './mcp-handlers';
 import { registerProfileHandlers } from './profile-handlers';
 import { registerScreenshotHandlers } from './screenshot-handlers';
 import { registerTerminalWorktreeIpcHandlers } from './terminal';
-import { registerCodexAuthHandlers } from './codex-auth-handlers';
 import { registerFeatureRefineHandlers } from './feature-refine-handlers';
 import { registerTaskRefineHandlers } from './task-refine-handlers';
 import { registerTestsHandlers } from './tests-handlers';
@@ -132,7 +131,6 @@ export function setupIpcHandlers(
   registerScreenshotHandlers();
 
   // Codex OAuth authentication handlers
-  registerCodexAuthHandlers();
 
   // Feature refinement conversational AI handlers
   registerFeatureRefineHandlers(getMainWindow);
@@ -172,7 +170,6 @@ export {
   registerMcpHandlers,
   registerProfileHandlers,
   registerScreenshotHandlers,
-  registerCodexAuthHandlers,
   registerFeatureRefineHandlers,
   registerTaskRefineHandlers,
   registerTestsHandlers,

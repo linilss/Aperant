@@ -70,35 +70,30 @@ export function ProviderAccountCard({ account, onEdit, onDelete, onReauth }: Pro
   const [showKey, setShowKey] = useState(false);
 
   const isOAuth = account.authType === 'oauth';
-  const isCodex = isOAuth && account.provider === 'openai';
   const isClaudeCode = isOAuth && account.provider === 'anthropic';
   const isZaiCodingPlan = account.provider === 'zai' && account.billingModel === 'subscription';
-  const isSubscription = isCodex || isClaudeCode || isZaiCodingPlan;
+  const isSubscription = isClaudeCode || isZaiCodingPlan;
   const sessionPercent = account.usage?.sessionUsagePercent ?? 0;
   const weeklyPercent = account.usage?.weeklyUsagePercent ?? 0;
   const hasUsage = (isOAuth || isZaiCodingPlan) && (sessionPercent > 0 || weeklyPercent > 0);
 
-  const authBadgeLabel = isCodex
-    ? t('providers.card.codex')
-    : isClaudeCode
-      ? t('providers.card.claudeCode')
-      : isZaiCodingPlan
-        ? t('providers.card.zaiCodingPlan')
-        : isOAuth
-          ? t('providers.card.oauth')
-          : account.provider === 'zai'
-            ? t('providers.card.zaiUsageBased')
-            : t('providers.card.apiKey');
+  const authBadgeLabel = isClaudeCode
+    ? t('providers.card.claudeCode')
+    : isZaiCodingPlan
+      ? t('providers.card.zaiCodingPlan')
+      : isOAuth
+        ? t('providers.card.oauth')
+        : account.provider === 'zai'
+          ? t('providers.card.zaiUsageBased')
+          : t('providers.card.apiKey');
 
-  const identifier = isCodex
-    ? (account.email || t('providers.card.codexSubscription'))
-    : isClaudeCode
-      ? (account.email || t('providers.card.claudeCodeSubscription'))
-      : isZaiCodingPlan
-        ? (account.email || t('providers.card.zaiCodingPlanSubscription'))
-        : isOAuth
-          ? (account.email || (account.usage ? t('providers.card.oauthLinked') : t('providers.card.oauthAccount')))
-          : account.baseUrl ?? t('providers.card.noEndpoint');
+  const identifier = isClaudeCode
+    ? (account.email || t('providers.card.claudeCodeSubscription'))
+    : isZaiCodingPlan
+      ? (account.email || t('providers.card.zaiCodingPlanSubscription'))
+      : isOAuth
+        ? (account.email || (account.usage ? t('providers.card.oauthLinked') : t('providers.card.oauthAccount')))
+        : account.baseUrl ?? t('providers.card.noEndpoint');
 
   return (
     <div

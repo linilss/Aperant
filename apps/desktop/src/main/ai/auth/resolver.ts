@@ -14,7 +14,6 @@
  * existing claude-profile/ utilities.
  */
 
-import * as path from 'node:path';
 import { ensureValidToken, reactiveTokenRefresh } from '../../claude-profile/token-refresh';
 import type { SupportedProvider } from '../providers/types';
 import { detectProviderFromModel } from '../providers/factory';
@@ -88,23 +87,6 @@ async function resolveFromProviderAccount(ctx: AuthResolverContext): Promise<Res
   // Find active account for this provider
   const account = accounts.find(a => a.provider === ctx.provider && a.isActive);
   if (!account) return null;
-
-  // File-based OAuth accounts (e.g., OpenAI Codex)
-  if (account.authType === 'oauth' && account.provider === 'openai') {
-    // Resolve token file path on main thread (has electron.app access)
-    const { app } = await import('electron');
-    const tokenFilePath = path.join(app.getPath('userData'), 'codex-auth.json');
-    const { ensureValidOAuthToken } = await import('../providers/oauth-fetch');
-    const token = await ensureValidOAuthToken(tokenFilePath, 'openai');
-    if (token) {
-      return {
-        apiKey: 'codex-oauth-placeholder', // Dummy key; real token injected via custom fetch
-        source: 'codex-oauth',
-        oauthTokenFilePath: tokenFilePath,
-      };
-    }
-    return null;
-  }
 
   // OAuth accounts — delegate to profile OAuth flow
   if (account.authType === 'oauth' && account.claudeProfileId) {
@@ -322,13 +304,6 @@ export async function hasCredentials(ctx: AuthResolverContext): Promise<boolean>
  */
 const BUILTIN_TO_SUPPORTED: Record<string, SupportedProvider> = {
   anthropic: 'anthropic',
-  openai: 'openai',
-  google: 'google',
-  'amazon-bedrock': 'bedrock',
-  azure: 'azure',
-  mistral: 'mistral',
-  groq: 'groq',
-  xai: 'xai',
   openrouter: 'openrouter',
   zai: 'zai',
   ollama: 'ollama',
@@ -503,24 +478,6 @@ async function resolveCredentialsForAccount(
       source: 'default',
       baseURL: account.baseUrl,
     };
-  }
-
-  // File-based OAuth (e.g., OpenAI Codex subscription)
-  if (account.authType === 'oauth' && account.provider === 'openai') {
-    try {
-      const { app } = await import('electron');
-      const tokenFilePath = path.join(app.getPath('userData'), 'codex-auth.json');
-      const { ensureValidOAuthToken } = await import('../providers/oauth-fetch');
-      const token = await ensureValidOAuthToken(tokenFilePath, 'openai');
-      if (token) {
-        return {
-          apiKey: 'codex-oauth-placeholder',
-          source: 'codex-oauth',
-          oauthTokenFilePath: tokenFilePath,
-        };
-      }
-    } catch { /* fall through */ }
-    return null;
   }
 
   // Anthropic OAuth — refresh token via existing claude-profile system

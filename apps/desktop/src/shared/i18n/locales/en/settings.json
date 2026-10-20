@@ -734,8 +734,6 @@
   "providers": {
     "card": {
       "oauth": "OAuth",
-      "codex": "Codex",
-      "codexSubscription": "Codex Subscription",
       "claudeCode": "Claude Code",
       "claudeCodeSubscription": "Claude Code Subscription",
       "zaiCodingPlan": "Coding Plan",
@@ -760,7 +758,6 @@
       "noAccounts": "No accounts configured",
       "addOAuth": "Add OAuth Account",
       "addClaudeCode": "Add Claude Code Account",
-      "addCodexSubscription": "Add Codex Subscription",
       "addCodingPlan": "Add Coding Plan",
       "addUsageBased": "Add Usage-Based API Key",
       "addApiKey": "Add API Key",
@@ -782,13 +779,6 @@
       "apiKeyDescription": "Add your API key and configuration",
       "zaiCodingPlanDescription": "Add your Z.AI Coding Plan API key to use GLM models with your subscription",
       "zaiUsageBasedDescription": "Add your Z.AI usage-based API key for pay-per-use access to GLM models",
-      "codexOAuthDescription": "Sign in with your ChatGPT Plus or Pro subscription to use Codex models",
-      "codexAuthenticating": "Opening OpenAI login in your browser...",
-      "codexWaiting": "Waiting for browser authentication...",
-      "codexSuccess": "Authenticated with OpenAI Codex",
-      "codexError": "OpenAI authentication failed: {{error}}",
-      "codexAuthenticate": "Authenticate with OpenAI",
-      "codexReauthenticate": "Reauthenticate with OpenAI",
       "oauthInstructions": "To add an OAuth account, use the Claude Code authentication flow from the Claude Code tab above. OAuth accounts are linked to your Claude.ai subscription.",
       "oauthAuthenticate": "Authenticate with Anthropic",
       "oauthReauthenticate": "Reauthenticate with Anthropic",
@@ -1128,7 +1118,6 @@
       "label": "Provider",
       "description": "Select which AI provider to use for agent tasks",
       "anthropic": "Anthropic",
-      "openai": "OpenAI",
       "ollama": "Ollama (Local)",
       "openrouter": "OpenRouter"
     },
@@ -1137,7 +1126,6 @@
       "description": "Your API key for the selected provider",
       "placeholder": "Enter your API key",
       "anthropicPlaceholder": "sk-ant-...",
-      "openaiPlaceholder": "sk-...",
       "openrouterPlaceholder": "sk-or-...",
       "validation": {
         "required": "API key is required for this provider",

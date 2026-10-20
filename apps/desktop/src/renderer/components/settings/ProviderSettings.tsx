@@ -14,7 +14,6 @@ import type { AppSettings, PhaseModelConfig } from '../../../shared/types';
  */
 const PROVIDERS = [
   { value: 'anthropic', labelKey: 'provider.selection.anthropic' },
-  { value: 'openai', labelKey: 'provider.selection.openai' },
   { value: 'ollama', labelKey: 'provider.selection.ollama' },
   { value: 'openrouter', labelKey: 'provider.selection.openrouter' },
 ] as const;
@@ -26,7 +25,6 @@ type ProviderValue = (typeof PROVIDERS)[number]['value'];
  */
 const PROVIDER_API_KEY_MAP: Record<string, keyof AppSettings> = {
   anthropic: 'globalAnthropicApiKey',
-  openai: 'globalOpenAIApiKey',
   openrouter: 'globalOpenRouterApiKey',
 };
 
@@ -35,7 +33,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof AppSettings> = {
  */
 const PROVIDER_PLACEHOLDER_MAP: Record<string, string> = {
   anthropic: 'provider.apiKey.anthropicPlaceholder',
-  openai: 'provider.apiKey.openaiPlaceholder',
   openrouter: 'provider.apiKey.openrouterPlaceholder',
 };
 
@@ -128,8 +125,6 @@ export function ProviderSettings({ settings, onSettingsChange }: ProviderSetting
 
     if (selectedProvider === 'ollama') {
       baseUrl = settings.ollamaBaseUrl || 'http://localhost:11434';
-    } else if (selectedProvider === 'openai') {
-      baseUrl = 'https://api.openai.com';
     } else if (selectedProvider === 'openrouter') {
       baseUrl = 'https://openrouter.ai/api';
     } else {

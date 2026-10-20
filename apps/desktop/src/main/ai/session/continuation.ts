@@ -60,8 +60,6 @@ export interface ContinuationConfig {
   apiKey?: string;
   /** Base URL for the summarization model */
   baseURL?: string;
-  /** OAuth token file path (for token refresh) */
-  oauthTokenFilePath?: string;
 }
 
 /**
@@ -226,7 +224,6 @@ async function compactSessionMessages(
     const summarizerModel = createProviderFromModelId('claude-haiku-4-5-20251001', {
       apiKey: continuationConfig.apiKey,
       baseURL: continuationConfig.baseURL,
-      oauthTokenFilePath: continuationConfig.oauthTokenFilePath,
     });
 
     const prompt =

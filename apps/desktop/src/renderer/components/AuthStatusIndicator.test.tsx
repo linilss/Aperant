@@ -28,8 +28,6 @@ vi.mock('react-i18next', () => ({
         'common:usage.apiKey': 'API Key',
         'common:usage.provider': 'Provider',
         'common:usage.providerAnthropic': 'Anthropic',
-        'common:usage.providerOpenAI': 'OpenAI',
-        'common:usage.providerGoogle': 'Google AI',
         'common:usage.providerZai': 'z.ai',
         'common:usage.providerZhipu': 'ZHIPU AI',
         'common:usage.providerUnknown': 'Unknown',
@@ -73,22 +71,12 @@ const testAccounts: ProviderAccount[] = [
     updatedAt: Date.now(),
   },
   {
-    id: 'account-openai',
-    provider: 'openai',
-    name: 'OpenAI API',
+    id: 'account-zai',
+    provider: 'zai',
+    name: 'z.ai API',
     authType: 'api-key',
     billingModel: 'pay-per-use',
-    apiKey: 'sk-openai-xxx',
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'account-google',
-    provider: 'google',
-    name: 'Google AI Key',
-    authType: 'api-key',
-    billingModel: 'pay-per-use',
-    apiKey: 'AIza-xxx',
+    apiKey: 'zai-xxx',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -106,7 +94,7 @@ function createStoreMock(overrides?: {
   return {
     providerAccounts: overrides?.providerAccounts ?? testAccounts,
     settings: {
-      globalPriorityOrder: overrides?.globalPriorityOrder ?? ['account-anthropic', 'account-openai', 'account-google'],
+      globalPriorityOrder: overrides?.globalPriorityOrder ?? ['account-anthropic', 'account-zai'],
       customMixedProfileActive: overrides?.customMixedProfileActive,
       customMixedPhaseConfig: overrides?.customMixedPhaseConfig,
     },
@@ -145,7 +133,7 @@ describe('AuthStatusIndicator', () => {
       vi.mocked(useSettingsStore).mockReturnValue(
         createStoreMock({
           providerAccounts: testAccounts,
-          globalPriorityOrder: ['account-anthropic', 'account-openai'],
+          globalPriorityOrder: ['account-anthropic', 'account-zai'],
         }) as any
       );
     });
@@ -164,50 +152,6 @@ describe('AuthStatusIndicator', () => {
       render(<AuthStatusIndicator />);
       const button = screen.getByRole('button');
       expect(button.className).toContain('text-orange-500');
-    });
-  });
-
-  describe('when OpenAI is the active account', () => {
-    beforeEach(() => {
-      vi.mocked(useSettingsStore).mockReturnValue(
-        createStoreMock({
-          providerAccounts: testAccounts,
-          globalPriorityOrder: ['account-openai', 'account-anthropic'],
-        }) as any
-      );
-    });
-
-    it('should display OpenAI provider badge', () => {
-      render(<AuthStatusIndicator />);
-      expect(screen.getByText('OpenAI')).toBeInTheDocument();
-    });
-
-    it('should apply green/emerald color classes for OpenAI', () => {
-      render(<AuthStatusIndicator />);
-      const button = screen.getByRole('button');
-      expect(button.className).toContain('text-emerald-500');
-    });
-  });
-
-  describe('when Google AI is the active account', () => {
-    beforeEach(() => {
-      vi.mocked(useSettingsStore).mockReturnValue(
-        createStoreMock({
-          providerAccounts: testAccounts,
-          globalPriorityOrder: ['account-google', 'account-anthropic'],
-        }) as any
-      );
-    });
-
-    it('should display Google AI provider badge', () => {
-      render(<AuthStatusIndicator />);
-      expect(screen.getByText('Google AI')).toBeInTheDocument();
-    });
-
-    it('should apply blue color classes for Google', () => {
-      render(<AuthStatusIndicator />);
-      const button = screen.getByRole('button');
-      expect(button.className).toContain('text-blue-500');
     });
   });
 
@@ -232,13 +176,13 @@ describe('AuthStatusIndicator', () => {
       vi.mocked(useSettingsStore).mockReturnValue(
         createStoreMock({
           providerAccounts: testAccounts,
-          globalPriorityOrder: ['account-openai', 'account-anthropic', 'account-google'],
+          globalPriorityOrder: ['account-zai', 'account-anthropic'],
           customMixedProfileActive: true,
           customMixedPhaseConfig: {
             spec: { provider: 'anthropic', modelId: 'claude-3-opus', thinkingLevel: 'high' },
-            planning: { provider: 'openai', modelId: 'gpt-4', thinkingLevel: 'medium' },
-            coding: { provider: 'openai', modelId: 'gpt-4', thinkingLevel: 'high' },
-            qa: { provider: 'google', modelId: 'gemini-1.5', thinkingLevel: 'medium' },
+            planning: { provider: 'zai', modelId: 'glm-4.6', thinkingLevel: 'medium' },
+            coding: { provider: 'zai', modelId: 'glm-4.6', thinkingLevel: 'high' },
+            qa: { provider: 'anthropic', modelId: 'claude-3-opus', thinkingLevel: 'medium' },
           } as any,
         }) as any
       );
