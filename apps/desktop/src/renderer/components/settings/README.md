@@ -13,7 +13,6 @@ settings/
 │   ├── InitializationGuard.tsx      # Guards for Auto-Build requirement
 │   └── index.ts                     # Exports
 ├── integrations/                    # Third-party integrations
-│   ├── LinearIntegration.tsx        # Linear setup (241 lines)
 │   ├── GitHubIntegration.tsx        # GitHub setup (215 lines)
 │   └── index.ts                     # Exports
 ├── sections/                        # Section routing

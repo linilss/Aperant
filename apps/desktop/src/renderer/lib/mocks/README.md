@@ -19,7 +19,7 @@ mocks/
 ├── claude-profile-mock.ts     # Claude profile and rate limiting
 ├── roadmap-mock.ts            # Roadmap generation and features
 ├── context-mock.ts            # Project context and memory
-├── integration-mock.ts        # External integrations (Linear, GitHub)
+├── integration-mock.ts        # External integrations
 ├── changelog-mock.ts          # Changelog and release operations
 ├── insights-mock.ts           # AI insights and conversations
 ├── infrastructure-mock.ts     # LadybugDB, memory, ideation, updates

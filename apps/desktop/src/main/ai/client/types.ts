@@ -65,7 +65,7 @@ export interface SimpleClientConfig {
   systemPrompt: string;
   /** Model shorthand or full model ID (defaults to 'haiku').
    *  Accepts Anthropic shorthands ('haiku', 'sonnet', 'opus') or
-   *  full provider model IDs (e.g., 'gpt-5.2-codex', 'gemini-2.5-flash-lite'). */
+   *  full provider model IDs (e.g., 'glm-4.7'). */
   modelShorthand?: ModelShorthand | string;
   /** Thinking level (defaults to 'low') */
   thinkingLevel?: ThinkingLevel;
@@ -118,7 +118,7 @@ export interface AgentClientResult {
 export interface SimpleClientResult {
   /** Resolved language model instance */
   model: LanguageModel;
-  /** Resolved model ID string (e.g. 'claude-opus-4-6', 'gpt-5.3-codex') — use for provider detection */
+  /** Resolved model ID string (e.g. 'claude-opus-4-6') — use for provider detection */
   resolvedModelId: string;
   /** Tools (may be empty for pure text generation) */
   tools: Record<string, AITool>;

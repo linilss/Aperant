@@ -179,7 +179,7 @@ export type ModelSelection = ModelTypeShort | (string & {});
 
 // Phase-based model configuration for Auto profile
 // Each phase can use a different model optimized for that task type
-// Values can be Claude shorthands ('opus', 'sonnet') or concrete model IDs ('gpt-5.3-codex', 'gemini-2.5-pro')
+// Values can be Claude shorthands ('opus', 'sonnet') or concrete model IDs ('glm-4.7')
 export interface PhaseModelConfig {
   spec: string;       // Spec creation (discovery, requirements, context)
   planning: string;   // Implementation planning
@@ -278,11 +278,6 @@ export interface AppSettings {
   globalGoogleApiKey?: string;
   globalGroqApiKey?: string;
   globalOpenRouterApiKey?: string;
-  globalMistralApiKey?: string;
-  globalXAIApiKey?: string;
-  globalAzureApiKey?: string;
-  globalAzureBaseUrl?: string;
-  globalBedrockRegion?: string;
   // Unified provider accounts (multi-provider)
   providerAccounts?: ProviderAccount[];
   /** Global priority order — array of ProviderAccount IDs. First = highest priority. */

@@ -3,7 +3,6 @@
  *
  * Currently provides architecture for future integrations with:
  * - Canny.io (feedback management)
- * - GitHub Issues
  *
  * To add a new integration:
  * 1. Implement the IntegrationAdapter interface
@@ -15,4 +14,3 @@ export * from './types';
 
 // Future: Export concrete adapter implementations
 // export { CannyAdapter } from './canny-adapter';
-// export { GitHubIssuesAdapter } from './github-issues-adapter';

@@ -1023,13 +1023,6 @@ export function registerSettingsHandlers(
         const envMap: Record<string, boolean> = {};
         const envVarMapping: Record<string, string> = {
           ANTHROPIC_API_KEY: 'anthropic',
-          OPENAI_API_KEY: 'openai',
-          GOOGLE_GENERATIVE_AI_API_KEY: 'google',
-          MISTRAL_API_KEY: 'mistral',
-          GROQ_API_KEY: 'groq',
-          XAI_API_KEY: 'xai',
-          AWS_ACCESS_KEY_ID: 'amazon-bedrock',
-          AZURE_OPENAI_API_KEY: 'azure',
         };
         for (const [envVar, provider] of Object.entries(envVarMapping)) {
           if (process.env[envVar]) {

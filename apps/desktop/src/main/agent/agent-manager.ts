@@ -397,7 +397,6 @@ export class AgentManager extends EventEmitter {
       mcpOptions: {
         context7Enabled: true,
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
-        linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       toolContext: {
         cwd: projectPath,
@@ -520,7 +519,6 @@ export class AgentManager extends EventEmitter {
       mcpOptions: {
         context7Enabled: true,
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
-        linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       toolContext: {
         cwd: effectiveCwd,
@@ -622,7 +620,6 @@ export class AgentManager extends EventEmitter {
       mcpOptions: {
         context7Enabled: true,
         memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
-        linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       toolContext: {
         cwd: effectiveCwd,

@@ -114,8 +114,6 @@ export function setupIpcHandlers(
   // Screenshot capture handlers
   registerScreenshotHandlers();
 
-  // Codex OAuth authentication handlers
-
   // Feature refinement conversational AI handlers
   registerFeatureRefineHandlers(getMainWindow);
 

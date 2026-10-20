@@ -1,7 +1,7 @@
 /**
  * Shared sanitization utilities for network data before writing to disk.
  * Prevents control character injection and enforces length limits on
- * data from external APIs (GitHub, GitLab, Linear, etc.).
+ * data from external APIs (e.g. GitHub).
  */
 
 /**

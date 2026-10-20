@@ -67,15 +67,14 @@ const CONVERGENCE_NUDGE_AGENT_TYPES = new Set<string>([
 ]);
 
 /** Timeout for post-stream result promises (result.text, result.totalUsage).
- *  Some providers (e.g., OpenAI Codex) may not properly resolve these promises
+ *  Some providers may not properly resolve these promises
  *  after the stream closes. 10 seconds is generous — these should resolve instantly
  *  since the stream has already been fully consumed. */
 const POST_STREAM_TIMEOUT_MS = 10_000;
 
 /** Inactivity timeout for the stream consumption loop.
  *  If no stream parts arrive within this period, the stream is aborted.
- *  Protects against providers that accept the request but never send data
- *  (observed with OpenAI Codex via chatgpt.com/backend-api/codex/responses). */
+ *  Protects against providers that accept the request but never send data. */
 const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
 
 // =============================================================================
@@ -286,7 +285,7 @@ async function executeStream(
   const contextWindowAbortController = new AbortController();
 
   // Stream inactivity abort: fires if the stream produces no data for too long.
-  // Protects against providers (e.g., OpenAI Codex) that accept the request but
+  // Protects against providers that accept the request but
   // never send stream chunks, which would hang the worker thread indefinitely.
   const streamInactivityController = new AbortController();
   const STREAM_INACTIVITY_REASON = '__stream_inactivity_timeout__';
@@ -333,11 +332,7 @@ async function executeStream(
     content: msg.content,
   }));
 
-  // Codex models (via chatgpt.com/backend-api/codex/responses) require
-  // `instructions` in the request body instead of system messages in `input`.
-  // Pass system prompt via providerOptions and enable store for proper Codex API behavior.
   const modelId = typeof config.model === 'string' ? config.model : config.model.modelId;
-  const isCodex = modelId?.includes('codex') ?? false;
   const isAnthropicModel = modelId?.startsWith('claude-') ?? false;
 
   // Compute thinking/reasoning provider options from session config
@@ -350,8 +345,6 @@ async function executeStream(
   // IMPORTANT: Output.object() must NOT be combined with tools in the same streamText()
   // call. This is a known AI SDK limitation (GitHub #8354, #8984, #12016):
   // - Anthropic: tools are silently ignored when output schema is present
-  // - Bedrock: tools are ignored with a runtime warning
-  // - OpenAI: NoOutputGeneratedError if tool calls are the last step
   //
   // When both tools and outputSchema are requested, we run the tool loop first
   // (without output schema), then extract structured output from the response text
@@ -362,22 +355,15 @@ async function executeStream(
 
   const result = streamText({
     model: config.model,
-    system: isCodex ? undefined : config.systemPrompt,
+    system: config.systemPrompt,
     messages: aiMessages,
     tools: tools ?? {},
     ...(useOutputSchema ? { output: Output.object({ schema: config.outputSchema! }) } : {}),
     stopWhen: stopCondition,
     abortSignal: mergedAbortSignal,
-    ...((thinkingOptions || isCodex || (useOutputSchema && isAnthropicModel)) ? {
+    ...((thinkingOptions || (useOutputSchema && isAnthropicModel)) ? {
       providerOptions: {
         ...(thinkingOptions ?? {}),
-        ...(isCodex ? {
-          openai: {
-            ...(thinkingOptions?.openai ?? {}),
-            ...(config.systemPrompt ? { instructions: config.systemPrompt } : {}),
-            store: false,
-          },
-        } : {}),
         ...(useOutputSchema && isAnthropicModel ? {
           anthropic: { structuredOutputMode: 'outputFormat' },
         } : {}),
@@ -556,7 +542,7 @@ async function executeStream(
 
   // Collect response text from the stream result.
   // These AI SDK result promises can hang if the provider's stream closed
-  // without properly signaling completion (observed with OpenAI Codex).
+  // without properly signaling completion.
   // Use a timeout to prevent the worker from hanging indefinitely.
   let responseText = '';
   try {

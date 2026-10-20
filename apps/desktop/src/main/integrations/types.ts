@@ -106,20 +106,3 @@ export const CANNY_STATUS_MAP = {
     'closed': 'done'
   } as Record<string, RoadmapFeatureStatus>
 };
-
-/**
- * GitHub Issues status mapping
- */
-export const GITHUB_ISSUES_STATUS_MAP = {
-  toProvider: {
-    under_review: 'open',
-    planned: 'open',
-    in_progress: 'open',
-    done: 'closed'
-  } as Record<RoadmapFeatureStatus, string>,
-
-  fromProvider: {
-    'open': 'under_review',
-    'closed': 'done'
-  } as Record<string, RoadmapFeatureStatus>
-};

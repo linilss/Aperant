@@ -354,8 +354,6 @@ export interface ProjectEnvConfig {
     context7Enabled?: boolean;
     /** Memory knowledge graph - default: true (if memoryProviderConfig set) */
     memoryEnabled?: boolean;
-    /** Linear MCP integration (agent tooling) */
-    linearMcpEnabled?: boolean;
     /** Electron desktop automation (QA only) - default: false */
     electronEnabled?: boolean;
     /** Puppeteer browser automation (QA only) - default: false */

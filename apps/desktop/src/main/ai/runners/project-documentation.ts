@@ -155,30 +155,16 @@ export async function runProjectDocumentation(
     tools,
   });
 
-  // Detect Codex models — they require instructions via providerOptions, not system
-  const modelId = typeof client.model === 'string' ? client.model : client.model.modelId;
-  const isCodex = modelId?.includes('codex') ?? false;
-
   let fullText = '';
 
   try {
     const result = streamText({
       model: client.model,
-      system: isCodex ? undefined : client.systemPrompt,
+      system: client.systemPrompt,
       prompt: userPrompt,
       tools: client.tools,
       stopWhen: stepCountIs(client.maxSteps),
       abortSignal,
-      ...(isCodex
-        ? {
-            providerOptions: {
-              openai: {
-                instructions: client.systemPrompt,
-                store: false,
-              },
-            },
-          }
-        : {}),
     });
 
     for await (const part of result.fullStream) {

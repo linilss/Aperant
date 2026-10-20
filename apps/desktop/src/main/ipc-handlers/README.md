@@ -119,14 +119,6 @@ GitHub integration:
 - `GITHUB_IMPORT_ISSUES` - Import issues as tasks
 - `GITHUB_CREATE_RELEASE` - Create GitHub release
 
-#### `linear-handlers.ts` (15KB)
-Linear integration:
-- `LINEAR_GET_TEAMS` - List teams
-- `LINEAR_GET_PROJECTS` - List projects
-- `LINEAR_GET_ISSUES` - List issues
-- `LINEAR_IMPORT_ISSUES` - Import issues as tasks
-- `LINEAR_CHECK_CONNECTION` - Test connection
-
 #### `env-handlers.ts` (16KB)
 Environment configuration:
 - `ENV_GET` - Get project environment

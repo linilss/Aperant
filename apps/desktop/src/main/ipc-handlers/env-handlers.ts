@@ -87,9 +87,6 @@ export function registerEnvHandlers(
       if (config.mcpServers.context7Enabled !== undefined) {
         existingVars['CONTEXT7_ENABLED'] = config.mcpServers.context7Enabled ? 'true' : 'false';
       }
-      if (config.mcpServers.linearMcpEnabled !== undefined) {
-        existingVars['LINEAR_MCP_ENABLED'] = config.mcpServers.linearMcpEnabled ? 'true' : 'false';
-      }
       if (config.mcpServers.electronEnabled !== undefined) {
         existingVars['ELECTRON_MCP_ENABLED'] = config.mcpServers.electronEnabled ? 'true' : 'false';
       }
@@ -152,8 +149,6 @@ ${existingVars['ENABLE_FANCY_UI'] !== undefined ? `ENABLE_FANCY_UI=${existingVar
 # =============================================================================
 # Context7 documentation lookup (default: enabled)
 ${existingVars['CONTEXT7_ENABLED'] !== undefined ? `CONTEXT7_ENABLED=${existingVars['CONTEXT7_ENABLED']}` : '# CONTEXT7_ENABLED=true'}
-# Linear MCP integration (default: follows LINEAR_API_KEY)
-${existingVars['LINEAR_MCP_ENABLED'] !== undefined ? `LINEAR_MCP_ENABLED=${existingVars['LINEAR_MCP_ENABLED']}` : '# LINEAR_MCP_ENABLED=true'}
 # Electron desktop automation - QA agents only (default: disabled)
 ${existingVars['ELECTRON_MCP_ENABLED'] !== undefined ? `ELECTRON_MCP_ENABLED=${existingVars['ELECTRON_MCP_ENABLED']}` : '# ELECTRON_MCP_ENABLED=false'}
 # Puppeteer browser automation - QA agents only (default: disabled)
@@ -323,11 +318,10 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
 
       // MCP Server Configuration (per-project overrides)
-      // Default: context7=true, linear=true (if API key set), electron/puppeteer=false
+      // Default: context7=true, electron/puppeteer=false
       config.mcpServers = {
         context7Enabled: vars['CONTEXT7_ENABLED']?.toLowerCase() !== 'false', // default true
         memoryEnabled: config.memoryEnabled, // follows GRAPHITI_ENABLED
-        linearMcpEnabled: vars['LINEAR_MCP_ENABLED']?.toLowerCase() !== 'false', // default true
         electronEnabled: vars['ELECTRON_MCP_ENABLED']?.toLowerCase() === 'true', // default false
         puppeteerEnabled: vars['PUPPETEER_MCP_ENABLED']?.toLowerCase() === 'true', // default false
       };
