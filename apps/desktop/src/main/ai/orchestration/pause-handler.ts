@@ -55,7 +55,8 @@ export function consumeSafeStop(specDir: string, sourceSpecDir?: string): boolea
 }
 
 /** Maximum time to wait for rate-limit reset (2 hours). */
-const MAX_RATE_LIMIT_WAIT_MS = 7_200_000;
+/** Longest a known reset time is waited for (a weekly limit can be days away) */
+const MAX_RATE_LIMIT_WAIT_MS = 8 * 24 * 60 * 60 * 1000;
 
 /** Interval for polling RESUME file during rate-limit wait (30 s). */
 const RATE_LIMIT_CHECK_INTERVAL_MS = 30_000;
@@ -219,6 +220,10 @@ export async function waitForRateLimitResume(
     if (checkAndClearResumeFile(resumeFile, pauseFile, fallbackResume)) {
       return true;
     }
+    // A safe stop (or safe restart) must not wait out a long limit: the loop stops right after this
+    if (existsSync(join(specDir, SAFE_STOP_FILE)) || (sourceSpecDir && existsSync(join(sourceSpecDir, SAFE_STOP_FILE)))) {
+      break;
+    }
 
     const remaining = deadline - Date.now();
     const interval = Math.min(RATE_LIMIT_CHECK_INTERVAL_MS, remaining);
@@ -276,4 +281,39 @@ export async function waitForAuthResume(
 
   // Timeout reached — clean up and return so the build can continue / fail
   removePauseFile(specDir, AUTH_FAILURE_PAUSE_FILE);
+}
+
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/**
+ * When a usage limit resets, read from the limit message: an epoch after "|"
+ * ("usage limit reached|1760000000"), an ISO time, or the CLI's
+ * "resets 3pm" / "resets Mon 9:30am" (next occurrence, local time). Null when unknown.
+ */
+export function parseLimitReset(message: string, now: Date = new Date()): Date | null {
+  const epoch = message.match(/\|(\d{10,13})\b/);
+  if (epoch) {
+    const n = Number(epoch[1]);
+    const at = new Date(epoch[1].length === 13 ? n : n * 1000);
+    if (at > now) return at;
+  }
+  const iso = message.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})/);
+  if (iso) {
+    const at = new Date(iso[0]);
+    if (!Number.isNaN(at.getTime()) && at > now) return at;
+  }
+  const m = message.toLowerCase().match(/resets?\s+(?:at\s+)?(?:(sun|mon|tue|wed|thu|fri|sat)\w*\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
+  if (!m) return null;
+  let hour = Number(m[2]) % 12;
+  if (m[4] === 'pm') hour += 12;
+  const at = new Date(now);
+  at.setHours(hour, Number(m[3] ?? 0), 0, 0);
+  if (m[1]) {
+    const days = (WEEKDAYS.indexOf(m[1]) - at.getDay() + 7) % 7;
+    at.setDate(at.getDate() + days);
+    if (at <= now) at.setDate(at.getDate() + 7);
+  } else if (at <= now) {
+    at.setDate(at.getDate() + 1);
+  }
+  return at;
 }

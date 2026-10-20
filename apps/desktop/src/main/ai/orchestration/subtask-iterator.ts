@@ -17,6 +17,7 @@ import type { SessionResult } from '../session/types';
 import type { SubtaskInfo } from './build-orchestrator';
 import {
   consumeSafeStop,
+  parseLimitReset,
   writeAuthPauseFile,
   writeRateLimitPauseFile,
   waitForAuthResume,
@@ -202,14 +203,20 @@ export async function iterateSubtasks(
     }
 
     if (result.outcome === 'rate_limited') {
-      // Write pause file so the frontend can show a countdown
+      // Waiting out a usage limit is not a failed attempt: the subtask never ran
+      attemptCounts.set(subtask.id, Math.max(0, (attemptCounts.get(subtask.id) ?? 1) - 1));
+
+      // Wait until the limit resets when the message says when (a minute's margin), else in 2 h steps
       const errorMessage = result.error?.message ?? 'Rate limit reached';
-      writeRateLimitPauseFile(config.specDir, errorMessage, null);
+      const resetAt = parseLimitReset(errorMessage);
+      const waitMs = resetAt ? resetAt.getTime() - Date.now() + 60_000 : MAX_RATE_LIMIT_WAIT_MS_DEFAULT;
+      // Pause file so the frontend can show a countdown
+      writeRateLimitPauseFile(config.specDir, errorMessage, resetAt ? resetAt.toISOString() : null);
 
       // Wait for the rate limit to reset (or user to resume early)
       await waitForRateLimitResume(
         config.specDir,
-        MAX_RATE_LIMIT_WAIT_MS_DEFAULT,
+        waitMs,
         config.sourceSpecDir,
         config.abortSignal,
       );
