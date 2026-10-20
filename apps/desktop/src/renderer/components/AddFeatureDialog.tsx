@@ -23,6 +23,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, Loader2, Sparkles, X } from 'lucide-react';
+import { GenerateIdeasSection } from './roadmap/GenerateIdeasSection';
+import { toast } from '../hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -212,6 +214,8 @@ export function AddFeatureDialog({
     onOpenFeature?.(featureId);
   };
 
+  const roadmapProjectId = useRoadmapStore((state) => state.roadmap?.projectId);
+
   // Form validation
   const isValid = title.trim().length > 0 && phaseId !== '';
 
@@ -226,6 +230,17 @@ export function AddFeatureDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-4">
+          {/* Or let AI propose ideas (Ideation's types and focus); they land in the Backlog */}
+          {roadmapProjectId && (
+            <GenerateIdeasSection
+              projectId={roadmapProjectId}
+              onStarted={() => {
+                toast({ title: t('addFeature.generate.started'), description: t('addFeature.generate.startedHint') });
+                handleClose();
+              }}
+            />
+          )}
+
           {/* One line is enough; Enter adds and clears for the next */}
           <div className="space-y-2">
             <Label htmlFor="add-feature-title" className="text-sm font-medium text-foreground">

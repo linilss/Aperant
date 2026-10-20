@@ -120,7 +120,16 @@
     "refining": "Refining…",
     "aiRefined": "AI refined",
     "possibleDuplicate": "Possible duplicate of {{title}}",
-    "openFeature": "Open this feature"
+    "openFeature": "Open this feature",
+    "generate": {
+      "title": "Generate ideas with AI",
+      "hint": "Ideas are added to the Backlog; existing ones stay.",
+      "button_one": "Generate {{count}} type",
+      "button_other": "Generate {{count}} types",
+      "running": "Generating…",
+      "started": "Generating ideas",
+      "startedHint": "They appear in the Backlog as they come in."
+    }
   },
   "addProject": {
     "title": "Add Project",
