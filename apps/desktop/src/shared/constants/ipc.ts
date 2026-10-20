@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   PROJECT_CLEAR_DATA: 'project:clearData',
   PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
   PROJECT_DEPLOY_CLEAN_CHECKOUT: 'project:deployCleanCheckout',  // Detached worktree at HEAD so a deploy skips uncommitted changes
+  PROJECT_DETECT_VERIFY: 'project:detectVerify',  // Verify command detected from the project's files
   PROJECT_DEPLOY_VERIFY: 'project:deployVerify',  // Verify command after a batch merge; AI fixes collisions
   PROJECT_DEPLOY_RUNBOOK_GET: 'project:deployRunbookGet',    // .malvy/deploy.md (or a generated first version)
   PROJECT_DEPLOY_RUNBOOK_SAVE: 'project:deployRunbookSave',

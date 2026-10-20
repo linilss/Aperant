@@ -1,3 +1,4 @@
+import { resolveVerifyCommand } from '../verify-detect';
 import { EventEmitter } from 'events';
 import path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
@@ -600,7 +601,8 @@ export class AgentManager extends EventEmitter {
       },
       useClaudeMd: project?.settings?.useClaudeMd !== false,
       memoryContext,
-      verifyCommand: project?.settings?.verifyCommand?.trim() || undefined,
+      // Build + tests gate QA; detected from the project when not set ("none" = off)
+      verifyCommand: resolveVerifyCommand(project?.settings?.verifyCommand, projectPath),
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,

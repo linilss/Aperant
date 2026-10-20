@@ -40,6 +40,9 @@ import type { Tool as AITool } from 'ai';
 import type { SessionConfig, StreamEvent, SessionResult } from '../session/types';
 import { BuildOrchestrator } from '../orchestration/build-orchestrator';
 import { QALoop } from '../orchestration/qa-loop';
+import { buildLensSection, readTaskDiff, runReviewLenses } from '../orchestration/qa-lenses';
+import { gitCheckpoint, gitResetHard, isTaskWorktree } from '../orchestration/qa-git';
+import { runClaudeCliDetailed } from '../cli/claude-cli';
 import { SpecOrchestrator } from '../orchestration/spec-orchestrator';
 import type { SpecPhase } from '../orchestration/spec-orchestrator';
 import type { AgentType } from '../config/agent-configs';
@@ -740,6 +743,43 @@ async function runBuildOrchestrator(
     sourceSpecDir: session.sourceSpecDir,
     abortSignal: abortController.signal,
     verifyCommand: session.verifyCommand,
+
+    // Independent risk / fast-scan reviews before each QA review (/proofread style)
+    runReviewLenses: async () => {
+      const diff = readTaskDiff(session.projectDir);
+      const specFile = join(session.specDir, 'spec.md');
+      const spec = existsSync(specFile) ? readFileSync(specFile, 'utf-8') : '';
+      const results = await runReviewLenses(diff, spec, async ({ prompt, model }) => {
+        const result = await runClaudeCliDetailed({
+          prompt,
+          cwd: session.projectDir,
+          modelId: model,
+          allowedTools: ['Read', 'Glob', 'Grep'],
+          restrictTools: true,
+          minimalContext: true,
+          projectContext: true,
+          maxTurns: 15,
+          abortSignal: abortController.signal,
+          // Worker threads can't look up the active profile: pass the task's account explicitly
+          env: session.configDir ? { CLAUDE_CONFIG_DIR: session.configDir } : {},
+        });
+        return result.text || result.resultText;
+      });
+      for (const r of results) {
+        postLog(`QA ${r.lens} review: ${r.error ? `failed (${r.error})` : `${r.findings.length} finding(s)`}`);
+      }
+      return buildLensSection(results);
+    },
+
+    // Revert safety for QA fixes: only inside a task worktree, never the user's checkout
+    checkpoint: async () => {
+      if (!isTaskWorktree(session.projectDir)) return null;
+      return gitCheckpoint(session.projectDir);
+    },
+    revertTo: async (commit) => {
+      if (!isTaskWorktree(session.projectDir)) return false;
+      return gitResetHard(session.projectDir, commit);
+    },
 
     generatePrompt: async (agentType, _phase, context) => {
       const promptName = agentType === 'coder' ? 'coder' : agentType;

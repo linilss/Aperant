@@ -360,7 +360,7 @@
       "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used.",
       "verifyCommand": "Verify command",
       "verifyCommandPlaceholder": "npm run typecheck && npm test",
-      "verifyCommandDescription": "Optional. Runs in the task worktree after each subtask and before QA. If it fails, the agent gets the output and must fix it. Stored in Malvy only, never in your repo.",
+      "verifyCommandDescription": "Build and tests that gate every QA review. Empty = detected from the project (shown above); type \"none\" to turn it off. Runs in the task worktree after each subtask and before QA. Stored in Malvy only, never in your repo.",
       "claudeAccount": {
         "title": "Claude account",
         "description": "The Claude subscription this project's agents, runners and terminals use.",
@@ -387,7 +387,8 @@
       "deployActionDeploy": "Merge + deploy (runbook)",
       "deployActionMerge": "Merge only",
       "overviewOnly": "Overview project",
-      "overviewOnlyDescription": "For a folder holding many apps: planning and analysis only. Hides Board, Review and Ship; no tasks, planning or deploys; ideation generates Features only."
+      "overviewOnlyDescription": "For a folder holding many apps: planning and analysis only. Hides Board, Review and Ship; no tasks, planning or deploys; ideation generates Features only.",
+      "verifyCommandDetected": "Auto: {{command}}"
     },
     "claude": {
       "title": "Claude Auth",

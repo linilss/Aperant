@@ -1,3 +1,4 @@
+import { detectVerifyCommand, resolveVerifyCommand } from '../verify-detect';
 import { ipcMain, shell } from 'electron';
 import { existsSync } from 'fs';
 import { execFileSync } from 'child_process';
@@ -532,6 +533,12 @@ export function registerProjectHandlers(
     data: cancelDeploy(projectId)
   }));
 
+  ipcMain.handle(IPC_CHANNELS.PROJECT_DETECT_VERIFY, (_, projectId: string): IPCResult<string | null> => {
+    const project = projectStore.getProject(projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+    return { success: true, data: detectVerifyCommand(project.path) ?? null };
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.PROJECT_DEPLOY_VERIFY,
     async (_, projectId: string, mergedTitles: string[]): Promise<IPCResult<DeployVerifyResult>> => {
@@ -540,7 +547,7 @@ export function registerProjectHandlers(
       try {
         return {
           success: true,
-          data: await verifyAndFixAfterMerge(project.path, project.settings?.verifyCommand, mergedTitles ?? [])
+          data: await verifyAndFixAfterMerge(project.path, resolveVerifyCommand(project.settings?.verifyCommand, project.path), mergedTitles ?? [])
         };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Verify failed' };

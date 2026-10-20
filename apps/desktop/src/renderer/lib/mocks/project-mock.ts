@@ -53,6 +53,7 @@ export const projectMock = {
   }),
   prepareDeployCheckout: async () => ({ success: true, data: '/Users/demo/projects/demo/.malvy/worktrees/deploy' }),
   verifyBeforeDeploy: async () => ({ success: true, data: { ok: true, skipped: true } }),
+  detectVerifyCommand: async () => ({ success: true, data: null }),
   resolveTaskDeployments: async () => ({ success: true, data: {} }),
   getDeployRunbook: async () => ({ success: true, data: { content: '# Deploy runbook\n\n## Steps\n\n1. `./deploy.sh`\n', exists: true } }),
   saveDeployRunbook: async () => ({ success: true }),

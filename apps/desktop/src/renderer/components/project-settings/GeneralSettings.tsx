@@ -65,6 +65,17 @@ export function GeneralSettings({
   const [clearError, setClearError] = useState<string | null>(null);
   const [clearSuccess, setClearSuccess] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  // What runs when the verify setting is empty (detected from the project's files)
+  const [detectedVerify, setDetectedVerify] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void window.electronAPI.detectVerifyCommand?.(project.id).then((r) => {
+      if (!cancelled) setDetectedVerify(r.success ? (r.data ?? null) : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
   const branchPrefixInput = settings.branchPrefix ?? '';
   const branchPrefixInvalid = branchPrefixInput.trim() !== '' && !isValidTaskBranchPrefix(branchPrefixInput);
 
@@ -265,7 +276,11 @@ export function GeneralSettings({
                 id="verifyCommand"
                 className="font-mono"
                 value={settings.verifyCommand ?? ''}
-                placeholder={t('projectSections.general.verifyCommandPlaceholder')}
+                placeholder={
+                  detectedVerify
+                    ? t('projectSections.general.verifyCommandDetected', { command: detectedVerify })
+                    : t('projectSections.general.verifyCommandPlaceholder')
+                }
                 onChange={(e) =>
                   setSettings({ ...settings, verifyCommand: e.target.value || undefined })
                 }
