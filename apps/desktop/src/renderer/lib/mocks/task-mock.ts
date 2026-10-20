@@ -50,6 +50,8 @@ export const taskMock = {
   },
 
   stopTaskSafe: () => {},
+  consolidateTasksPreview: async () => ({ success: false, error: 'Not available in browser mode' }),
+  relinkConsolidatedSpecs: async () => ({ success: true }),
   stopTask: () => {
     console.warn('[Browser Mock] stopTask called');
   },

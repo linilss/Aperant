@@ -20,13 +20,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2, PauseCircle, Rocket } from 'lucide-react';
+import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2, PauseCircle, Rocket, Combine } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import type { LeadingColumn } from './board/PlanStageColumns';
 import { TaskCard } from './TaskCard';
+import { ConsolidateTasksDialog } from './ConsolidateTasksDialog';
 import { SortableTaskCard } from './SortableTaskCard';
 import { QueueSettingsModal } from './QueueSettingsModal';
 import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants';
@@ -116,6 +117,8 @@ interface DroppableColumnProps {
   isResizing?: boolean;
   onResizeStart?: (startX: number) => void;
   onResizeEnd?: () => void;
+  /** Planning column: consolidate related tasks into as few as possible, then queue them */
+  onConsolidate?: () => void;
   // Lock props
   isLocked?: boolean;
   onToggleLocked?: () => void;
@@ -177,6 +180,7 @@ function droppableColumnPropsAreEqual(
   if (prevProps.onResizeStart !== nextProps.onResizeStart) return false;
   if (prevProps.onResizeEnd !== nextProps.onResizeEnd) return false;
   if (prevProps.isLocked !== nextProps.isLocked) return false;
+  if (prevProps.onConsolidate !== nextProps.onConsolidate) return false;
   if (prevProps.onToggleLocked !== nextProps.onToggleLocked) return false;
   if (prevProps.flat !== nextProps.flat) return false;
 
@@ -382,7 +386,7 @@ const getEmptyStateContent = (status: TaskStatus, t: (key: string) => string): {
   }
 };
 
-const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskClick, onStatusChange, isOver, onAddClick, onArchiveAll, onQueueSettings, onQueueAll, maxParallelTasks, archivedCount, showArchived, onToggleArchived, selectedTaskIds, onSelectAll, onDeselectAll, onToggleSelect, isCollapsed, onToggleCollapsed, columnWidth, isResizing, onResizeStart, onResizeEnd, isLocked, onToggleLocked, flat }: DroppableColumnProps) {
+const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskClick, onStatusChange, isOver, onAddClick, onArchiveAll, onQueueSettings, onQueueAll, maxParallelTasks, archivedCount, showArchived, onToggleArchived, selectedTaskIds, onSelectAll, onDeselectAll, onToggleSelect, isCollapsed, onToggleCollapsed, columnWidth, isResizing, onResizeStart, onResizeEnd, isLocked, onToggleLocked, onConsolidate, flat }: DroppableColumnProps) {
   const { t } = useTranslation(['tasks', 'common']);
   const { setNodeRef } = useDroppable({
     id: status
@@ -655,6 +659,18 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
           )}
           {status === 'backlog' && (
             <>
+              {onConsolidate && tasks.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-primary/10 hover:text-primary transition-colors"
+                  onClick={onConsolidate}
+                  title={t('consolidate.button')}
+                  aria-label={t('consolidate.button')}
+                >
+                  <Combine className="h-4 w-4" />
+                </Button>
+              )}
               {onQueueAll && tasks.length > 0 && (
                 <Button
                   variant="ghost"
@@ -1277,6 +1293,17 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
   /**
    * Move all backlog tasks to queue
    */
+  // Consolidate & enqueue (Planning column)
+  const [showConsolidate, setShowConsolidate] = useState(false);
+  const openConsolidate = useCallback(() => setShowConsolidate(true), []);
+  const queueTasks = async (taskIds: string[]) => {
+    for (const id of taskIds) {
+      const result = await persistTaskStatus(id, 'queue');
+      if (!result.success) console.error(`[Consolidate] Failed to queue ${id}:`, result.error);
+    }
+    await processQueue();
+  };
+
   const handleQueueAll = async () => {
     const backlogTasks = tasksByStatus.backlog;
     if (backlogTasks.length === 0) return;
@@ -1715,6 +1742,7 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
       isOver={overColumnId === status}
       onAddClick={status === 'backlog' ? onNewTaskClick : undefined}
       onQueueAll={status === 'backlog' ? handleQueueAll : undefined}
+      onConsolidate={status === 'backlog' ? openConsolidate : undefined}
       onQueueSettings={status === 'queue' ? () => {
         // Only open modal if we have a valid projectId
         if (!projectId) return;
@@ -1906,6 +1934,16 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {projectId && (
+        <ConsolidateTasksDialog
+          open={showConsolidate}
+          onOpenChange={setShowConsolidate}
+          projectId={projectId}
+          tasks={tasksByStatus.backlog}
+          onApplied={queueTasks}
+        />
+      )}
 
       {selectedTaskIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-md:bottom-[max(1rem,env(safe-area-inset-bottom))] max-md:w-[calc(100vw-1.5rem)]">

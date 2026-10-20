@@ -42,6 +42,8 @@ export const IPC_CHANNELS = {
   TASK_DELETE: 'task:delete',
   TASK_UPDATE: 'task:update',
   TASK_START: 'task:start',
+  TASK_CONSOLIDATE_PREVIEW: 'task:consolidatePreview',  // AI groups Planning tasks that belong together
+  TASK_CONSOLIDATE_RELINK: 'task:consolidateRelink',    // Point roadmap features at the consolidated task
   TASK_STOP_SAFE: 'task:stopSafe',  // Stop after the current subtask
   TASK_STOP: 'task:stop',
   TASK_REVIEW: 'task:review',

@@ -36,6 +36,13 @@ export interface TaskAPI {
   ) => Promise<IPCResult<Task>>;
   startTask: (taskId: string, options?: TaskStartOptions) => void;
   stopTask: (taskId: string) => void;
+  /** AI groups Planning tasks that belong together (read-only preview) */
+  consolidateTasksPreview: (
+    projectId: string,
+    tasks: Array<{ specId: string; title: string }>
+  ) => Promise<IPCResult<import('../../main/ipc-handlers/task/consolidate-handlers').ConsolidatePreview>>;
+  /** Point roadmap features linked to merged tasks at the consolidated task */
+  relinkConsolidatedSpecs: (projectId: string, mapping: Record<string, string>) => Promise<IPCResult>;
   /** Stop after the current subtask */
   stopTaskSafe: (taskId: string) => void;
   submitReview: (
@@ -149,6 +156,9 @@ export const createTaskAPI = (): TaskAPI => ({
 
   stopTask: (taskId: string): void =>
     ipcRenderer.send(IPC_CHANNELS.TASK_STOP, taskId),
+
+  consolidateTasksPreview: (projectId, tasks) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CONSOLIDATE_PREVIEW, projectId, tasks),
+  relinkConsolidatedSpecs: (projectId, mapping) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CONSOLIDATE_RELINK, projectId, mapping),
 
   stopTaskSafe: (taskId: string): void =>
     ipcRenderer.send(IPC_CHANNELS.TASK_STOP_SAFE, taskId),

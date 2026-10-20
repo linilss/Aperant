@@ -394,5 +394,15 @@
     "title": "Reference Images (optional)",
     "description": "Add visual references like screenshots or designs to help the AI understand your requirements."
   },
-  "untitled": "Untitled"
+  "untitled": "Untitled",
+  "consolidate": {
+    "button": "Consolidate & enqueue",
+    "title": "Consolidate & enqueue",
+    "description": "An agent groups Planning tasks that belong together. Review the groups, then each group becomes one task (the originals are archived) and everything is queued.",
+    "analyzing": "Grouping {{count}} tasks…",
+    "result": "{{tasks}} tasks → {{groups}} tasks ({{merged}} merged)",
+    "liftOut": "Keep this task on its own",
+    "cancel": "Cancel",
+    "apply": "Create {{count}} tasks & queue"
+  }
 }

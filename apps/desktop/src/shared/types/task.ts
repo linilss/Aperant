@@ -226,6 +226,8 @@ export interface DeployRunRecord {
 export interface TaskMetadata {
   /** When Malvy merged the task into the main branch (Not live until a verified deploy after it) */
   mergedAt?: string;
+  /** Planning tasks this task was consolidated from (they are archived) */
+  consolidatedFrom?: string[];
   // Origin tracking
   sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab';
   ideationType?: string;  // e.g., 'code_improvements', 'security_hardening'
