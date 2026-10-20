@@ -39,8 +39,6 @@ import { Context } from './components/Context';
 import { Ideation } from './components/Ideation';
 import { Insights } from './components/Insights';
 import { ErrorBoundary } from './components/ui/error-boundary';
-import { GitHubIssues } from './components/GitHubIssues';
-import { GitHubPRs } from './components/github-prs';
 import { AzureDevOpsWorkItems } from './components/AzureDevOpsWorkItems';
 import { AzureDevOpsPRs } from './components/AzureDevOpsPRs';
 import { Changelog } from './components/Changelog';
@@ -57,13 +55,11 @@ import { VersionWarningModal } from './components/VersionWarningModal';
 import { OnboardingWizard } from './components/onboarding';
 import { AppUpdateNotification } from './components/AppUpdateNotification';
 import { ProactiveSwapListener } from './components/ProactiveSwapListener';
-import { GitHubSetupModal } from './components/GitHubSetupModal';
 import { useProjectStore, loadProjects, addProject, initializeProject, removeProject } from './stores/project-store';
 import { useTaskStore, loadTasks } from './stores/task-store';
 import { useSettingsStore, loadSettings, loadProfiles, saveSettings } from './stores/settings-store';
 import { useClaudeProfileStore, loadClaudeProfiles } from './stores/claude-profile-store';
 import { useTerminalStore, restoreTerminalSessions } from './stores/terminal-store';
-import { initializeGitHubListeners, cleanupGitHubListeners } from './stores/github';
 import { initDownloadProgressListener } from './stores/download-store';
 import { GlobalDownloadIndicator } from './components/GlobalDownloadIndicator';
 import { useIpcListeners } from './hooks/useIpc';
@@ -158,9 +154,6 @@ export function App() {
   const [skippedInitProjectId, setSkippedInitProjectId] = useState<string | null>(null);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
 
-  // GitHub setup state (shown after Auto Claude init)
-  const [showGitHubSetup, setShowGitHubSetup] = useState(false);
-  const [gitHubSetupProject, setGitHubSetupProject] = useState<Project | null>(null);
 
   // Remove project confirmation state
   const [showRemoveProjectDialog, setShowRemoveProjectDialog] = useState(false);
@@ -189,14 +182,11 @@ export function App() {
     loadSettings();
     loadProfiles();
     loadClaudeProfiles();
-    // Initialize global GitHub listeners (PR reviews, etc.) so they persist across navigation
-    initializeGitHubListeners();
     // Initialize global download progress listener for Ollama model downloads
     const cleanupDownloadListener = initDownloadProgressListener();
 
     return () => {
       cleanupDownloadListener();
-      cleanupGitHubListeners();
     };
   }, []);
 
@@ -715,10 +705,6 @@ export function App() {
 
       if (result?.success) {
         console.warn('[InitDialog] Initialization successful, closing dialog');
-        // Get the updated project from store
-        const updatedProject = useProjectStore.getState().projects.find(p => p.id === projectId);
-        console.warn('[InitDialog] Updated project:', updatedProject);
-
         // Mark as successful to prevent onOpenChange from treating this as a skip
         setInitSuccess(true);
         setIsInitializing(false);
@@ -726,12 +712,6 @@ export function App() {
         // Now close the dialog
         setShowInitDialog(false);
         setPendingProject(null);
-
-        // Show GitHub setup modal
-        if (updatedProject) {
-          setGitHubSetupProject(updatedProject);
-          setShowGitHubSetup(true);
-        }
       } else {
         // Initialization failed - show error but keep dialog open
         console.warn('[InitDialog] Initialization failed, showing error');
@@ -746,49 +726,6 @@ export function App() {
       setInitError(errorMessage);
       setIsInitializing(false);
     }
-  };
-
-  const handleGitHubSetupComplete = async (settings: {
-    githubToken: string;
-    githubRepo: string;
-    mainBranch: string;
-    githubAuthMethod?: 'oauth' | 'pat';
-  }) => {
-    if (!gitHubSetupProject) return;
-
-    try {
-      // NOTE: settings.githubToken is a GitHub access token (from gh CLI),
-      // NOT a Claude Code OAuth token. They are different things:
-      // - GitHub token: for GitHub API access (repo operations)
-      // - Claude token: for Claude AI access (run.py, roadmap, etc.)
-      // The user needs to separately authenticate with Claude using 'claude setup-token'
-
-      // Update project env config with GitHub settings
-      await window.electronAPI.updateProjectEnv(gitHubSetupProject.id, {
-        githubEnabled: true,
-        githubToken: settings.githubToken, // GitHub token for repo access
-        githubRepo: settings.githubRepo,
-        githubAuthMethod: settings.githubAuthMethod // Track how user authenticated
-      });
-
-      // Update project settings with mainBranch
-      await window.electronAPI.updateProjectSettings(gitHubSetupProject.id, {
-        mainBranch: settings.mainBranch
-      });
-
-      // Refresh projects to get updated data
-      await loadProjects();
-    } catch (error) {
-      console.error('Failed to save GitHub settings:', error);
-    }
-
-    setShowGitHubSetup(false);
-    setGitHubSetupProject(null);
-  };
-
-  const handleGitHubSetupSkip = () => {
-    setShowGitHubSetup(false);
-    setGitHubSetupProject(null);
   };
 
   const handleSkipInit = () => {
@@ -894,27 +831,6 @@ export function App() {
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (
                   <Insights projectId={activeProjectId || selectedProjectId!} />
-                )}
-                {activeView === 'github-issues' && (activeProjectId || selectedProjectId) && (
-                  <GitHubIssues
-                    onOpenSettings={() => {
-                      setSettingsInitialProjectSection('github');
-                      setIsSettingsDialogOpen(true);
-                    }}
-                    onNavigateToTask={handleGoToTask}
-                  />
-                )}
-                {/* GitHubPRs is always mounted but hidden when not active to preserve review state */}
-                {(activeProjectId || selectedProjectId) && (
-                  <div className={activeView === 'github-prs' ? 'h-full' : 'hidden'}>
-                    <GitHubPRs
-                      onOpenSettings={() => {
-                        setSettingsInitialProjectSection('github');
-                        setIsSettingsDialogOpen(true);
-                      }}
-                      isActive={activeView === 'github-prs'}
-                    />
-                  </div>
                 )}
                 {activeView === 'azure-devops-work-items' && (activeProjectId || selectedProjectId) && (
                   <AzureDevOpsWorkItems
@@ -1084,17 +1000,6 @@ export function App() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* GitHub Setup Modal - shows after Auto Claude init to configure GitHub */}
-        {gitHubSetupProject && (
-          <GitHubSetupModal
-            open={showGitHubSetup}
-            onOpenChange={setShowGitHubSetup}
-            project={gitHubSetupProject}
-            onComplete={handleGitHubSetupComplete}
-            onSkip={handleGitHubSetupSkip}
-          />
-        )}
 
         {/* Remove Project Confirmation Dialog */}
         <Dialog open={showRemoveProjectDialog} onOpenChange={(open) => {

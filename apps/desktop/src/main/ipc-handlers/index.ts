@@ -20,7 +20,6 @@ import { registerRoadmapHandlers } from './roadmap-handlers';
 import { registerContextHandlers } from './context-handlers';
 import { registerEnvHandlers } from './env-handlers';
 import { registerLinearHandlers } from './linear-handlers';
-import { registerGithubHandlers } from './github-handlers';
 import { registerAzureDevOpsHandlers } from './azure-devops-handlers';
 import { registerIdeationHandlers } from './ideation-handlers';
 import { registerChangelogHandlers } from './changelog-handlers';
@@ -90,9 +89,6 @@ export function setupIpcHandlers(
   // Linear integration handlers
   registerLinearHandlers(agentManager, getMainWindow);
 
-  // GitHub integration handlers
-  registerGithubHandlers(agentManager, getMainWindow);
-
   // Azure DevOps integration handlers
   registerAzureDevOpsHandlers(agentManager, getMainWindow);
 
@@ -153,7 +149,6 @@ export {
   registerContextHandlers,
   registerEnvHandlers,
   registerLinearHandlers,
-  registerGithubHandlers,
   registerAzureDevOpsHandlers,
   registerIdeationHandlers,
   registerChangelogHandlers,

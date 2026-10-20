@@ -119,13 +119,7 @@ import type {
   LinearProject,
   LinearIssue,
   LinearImportResult,
-  LinearSyncStatus,
-  GitHubRepository,
-  GitHubIssue,
-  GitHubSyncStatus,
-  GitHubImportResult,
-  GitHubInvestigationResult,
-  GitHubInvestigationStatus
+  LinearSyncStatus
 } from './integrations';
 import type { APIProfile, ProfilesFile, TestConnectionResult, DiscoverModelsResult } from './profile';
 import type { ProviderAccount } from './provider-account';
@@ -493,68 +487,6 @@ export interface ElectronAPILegacy {
   importLinearIssues: (projectId: string, issueIds: string[]) => Promise<IPCResult<LinearImportResult>>;
   checkLinearConnection: (projectId: string) => Promise<IPCResult<LinearSyncStatus>>;
 
-  // GitHub integration operations
-  getGitHubRepositories: (projectId: string) => Promise<IPCResult<GitHubRepository[]>>;
-  getGitHubIssues: (
-    projectId: string,
-    state?: 'open' | 'closed' | 'all',
-    page?: number,
-    fetchAll?: boolean
-  ) => Promise<IPCResult<{ issues: GitHubIssue[]; hasMore: boolean }>>;
-  getGitHubIssue: (projectId: string, issueNumber: number) => Promise<IPCResult<GitHubIssue>>;
-  checkGitHubConnection: (projectId: string) => Promise<IPCResult<GitHubSyncStatus>>;
-  investigateGitHubIssue: (projectId: string, issueNumber: number, selectedCommentIds?: number[]) => void;
-  getIssueComments: (projectId: string, issueNumber: number) => Promise<IPCResult<Array<{ id: number; body: string; user: { login: string; avatar_url?: string }; created_at: string; updated_at: string }>>>;
-  importGitHubIssues: (projectId: string, issueNumbers: number[]) => Promise<IPCResult<GitHubImportResult>>;
-  createGitHubRelease: (
-    projectId: string,
-    version: string,
-    releaseNotes: string,
-    options?: { draft?: boolean; prerelease?: boolean }
-  ) => Promise<IPCResult<{ url: string }>>;
-
-  // GitHub OAuth operations (gh CLI)
-  checkGitHubCli: () => Promise<IPCResult<{ installed: boolean; version?: string }>>;
-  checkGitHubAuth: () => Promise<IPCResult<{ authenticated: boolean; username?: string }>>;
-  startGitHubAuth: () => Promise<IPCResult<{
-    success: boolean;
-    message?: string;
-    deviceCode?: string;
-    authUrl?: string;
-    browserOpened?: boolean;
-    fallbackUrl?: string;
-  }>>;
-  getGitHubToken: () => Promise<IPCResult<{ token: string }>>;
-  getGitHubUser: () => Promise<IPCResult<{ username: string; name?: string }>>;
-  listGitHubUserRepos: () => Promise<IPCResult<{ repos: Array<{ fullName: string; description: string | null; isPrivate: boolean }> }>>;
-  detectGitHubRepo: (projectPath: string) => Promise<IPCResult<string>>;
-  getGitHubBranches: (repo: string, token: string) => Promise<IPCResult<string[]>>;
-  createGitHubRepo: (
-    repoName: string,
-    options: { description?: string; isPrivate?: boolean; projectPath: string; owner?: string }
-  ) => Promise<IPCResult<{ fullName: string; url: string }>>;
-  addGitRemote: (
-    projectPath: string,
-    repoFullName: string
-  ) => Promise<IPCResult<{ remoteUrl: string }>>;
-  listGitHubOrgs: () => Promise<IPCResult<{ orgs: Array<{ login: string; avatarUrl?: string }> }>>;
-
-  // GitHub OAuth device code event (streams device code during auth flow)
-  onGitHubAuthDeviceCode: (
-    callback: (data: { deviceCode: string; authUrl: string; browserOpened: boolean }) => void
-  ) => () => void;
-
-  // GitHub event listeners
-  onGitHubInvestigationProgress: (
-    callback: (projectId: string, status: GitHubInvestigationStatus) => void
-  ) => () => void;
-  onGitHubInvestigationComplete: (
-    callback: (projectId: string, result: GitHubInvestigationResult) => void
-  ) => () => void;
-  onGitHubInvestigationError: (
-    callback: (projectId: string, error: string) => void
-  ) => () => void;
-
   // Release operations
   getReleaseableVersions: (projectId: string) => Promise<IPCResult<ReleaseableVersion[]>>;
   runReleasePreflightCheck: (projectId: string, version: string) => Promise<IPCResult<ReleasePreflightStatus>>;
@@ -798,9 +730,6 @@ export interface ElectronAPILegacy {
       percentage: number;
     }) => void
   ) => () => void;
-
-  // GitHub API (nested for organized access)
-  github: import('../../preload/api/modules/github-api').GitHubAPI;
 
   // Claude Code CLI operations
   checkClaudeCodeVersion: () => Promise<IPCResult<import('./cli').ClaudeCodeVersionInfo>>;

@@ -11,7 +11,6 @@ import {
   Bell,
   Settings2,
   Zap,
-  Github,
   Database,
   Sparkles,
   Monitor,
@@ -80,7 +79,6 @@ const appNavItemsConfig: NavItemConfig<AppSection>[] = [
 const projectNavItemsConfig: NavItemConfig<ProjectSettingsSection>[] = [
   { id: 'general', icon: Settings2 },
   { id: 'linear', icon: Zap },
-  { id: 'github', icon: Github },
   { id: 'azure-devops', icon: CheckSquare },
   { id: 'memory', icon: Database }
 ];

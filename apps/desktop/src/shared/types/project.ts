@@ -340,13 +340,6 @@ export interface ProjectEnvConfig {
   linearProjectId?: string;
   linearRealtimeSync?: boolean; // Enable real-time sync of new Linear tasks
 
-  // GitHub Integration
-  githubEnabled: boolean;
-  githubToken?: string;
-  githubRepo?: string; // Format: owner/repo
-  githubAutoSync?: boolean; // Auto-sync issues on project load
-  githubAuthMethod?: 'oauth' | 'pat'; // How the token was obtained
-
   // Azure DevOps Integration
   azureDevOpsEnabled: boolean;
   azureDevOpsToken?: string; // Personal Access Token (PAT)

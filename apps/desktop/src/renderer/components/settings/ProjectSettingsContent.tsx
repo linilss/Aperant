@@ -10,7 +10,7 @@ import { SectionRouter } from './sections/SectionRouter';
 import { createHookProxy } from './utils/hookProxyFactory';
 import type { Project } from '../../../shared/types';
 
-export type ProjectSettingsSection = 'general' | 'linear' | 'github' | 'azure-devops' | 'memory';
+export type ProjectSettingsSection = 'general' | 'linear' | 'azure-devops' | 'memory';
 
 interface ProjectSettingsContentProps {
   project: Project | undefined;
@@ -88,12 +88,8 @@ function ProjectSettingsContentInner({
     setShowLinearKey,
     showOpenAIKey,
     setShowOpenAIKey,
-    showGitHubToken,
-    setShowGitHubToken,
     expandedSections: _expandedSections,
     toggleSection: _toggleSection,
-    gitHubConnectionStatus,
-    isCheckingGitHub,
     azureDevOpsConnectionStatus,
     isCheckingAzureDevOps,
     showLinearImportModal,
@@ -134,10 +130,6 @@ function ProjectSettingsContentInner({
         setShowLinearKey={setShowLinearKey}
         showOpenAIKey={showOpenAIKey}
         setShowOpenAIKey={setShowOpenAIKey}
-        showGitHubToken={showGitHubToken}
-        setShowGitHubToken={setShowGitHubToken}
-        gitHubConnectionStatus={gitHubConnectionStatus}
-        isCheckingGitHub={isCheckingGitHub}
         azureDevOpsConnectionStatus={azureDevOpsConnectionStatus}
         isCheckingAzureDevOps={isCheckingAzureDevOps}
         linearConnectionStatus={linearConnectionStatus}

@@ -62,16 +62,6 @@ export function registerEnvHandlers(
     if (config.linearRealtimeSync !== undefined) {
       existingVars['LINEAR_REALTIME_SYNC'] = config.linearRealtimeSync ? 'true' : 'false';
     }
-    // GitHub Integration
-    if (config.githubToken !== undefined) {
-      existingVars['GITHUB_TOKEN'] = config.githubToken;
-    }
-    if (config.githubRepo !== undefined) {
-      existingVars['GITHUB_REPO'] = config.githubRepo;
-    }
-    if (config.githubAutoSync !== undefined) {
-      existingVars['GITHUB_AUTO_SYNC'] = config.githubAutoSync ? 'true' : 'false';
-    }
     // Azure DevOps Integration
     if (config.azureDevOpsEnabled !== undefined) {
       existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] = config.azureDevOpsEnabled ? 'true' : 'false';
@@ -194,13 +184,6 @@ ${existingVars['LINEAR_PROJECT_ID'] ? `LINEAR_PROJECT_ID=${existingVars['LINEAR_
 ${existingVars['LINEAR_REALTIME_SYNC'] !== undefined ? `LINEAR_REALTIME_SYNC=${existingVars['LINEAR_REALTIME_SYNC']}` : '# LINEAR_REALTIME_SYNC=false'}
 
 # =============================================================================
-# GITHUB INTEGRATION (OPTIONAL)
-# =============================================================================
-${existingVars['GITHUB_TOKEN'] ? `GITHUB_TOKEN=${existingVars['GITHUB_TOKEN']}` : '# GITHUB_TOKEN='}
-${existingVars['GITHUB_REPO'] ? `GITHUB_REPO=${existingVars['GITHUB_REPO']}` : '# GITHUB_REPO=owner/repo'}
-${existingVars['GITHUB_AUTO_SYNC'] !== undefined ? `GITHUB_AUTO_SYNC=${existingVars['GITHUB_AUTO_SYNC']}` : '# GITHUB_AUTO_SYNC=false'}
-
-# =============================================================================
 # AZURE DEVOPS INTEGRATION (OPTIONAL)
 # =============================================================================
 ${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED] !== undefined ? `${AZURE_DEVOPS_ENV_KEYS.ENABLED}=${existingVars[AZURE_DEVOPS_ENV_KEYS.ENABLED]}` : `# ${AZURE_DEVOPS_ENV_KEYS.ENABLED}=true`}
@@ -317,7 +300,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       // Default config
       const config: ProjectEnvConfig = {
         linearEnabled: false,
-        githubEnabled: false,
         azureDevOpsEnabled: false,
         memoryEnabled: false,
         enableFancyUi: true,
@@ -351,18 +333,6 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
       }
       if (vars['LINEAR_REALTIME_SYNC']?.toLowerCase() === 'true') {
         config.linearRealtimeSync = true;
-      }
-
-      // GitHub config
-      if (vars['GITHUB_TOKEN']) {
-        config.githubEnabled = true;
-        config.githubToken = vars['GITHUB_TOKEN'];
-      }
-      if (vars['GITHUB_REPO']) {
-        config.githubRepo = vars['GITHUB_REPO'];
-      }
-      if (vars['GITHUB_AUTO_SYNC']?.toLowerCase() === 'true') {
-        config.githubAutoSync = true;
       }
 
       // Azure DevOps config

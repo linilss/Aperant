@@ -7,7 +7,6 @@ import { AgentAPI, createAgentAPI } from './agent-api';
 import type { IdeationAPI } from './modules/ideation-api';
 import type { InsightsAPI } from './modules/insights-api';
 import { AppUpdateAPI, createAppUpdateAPI } from './app-update-api';
-import { GitHubAPI, createGitHubAPI } from './modules/github-api';
 import { DebugAPI, createDebugAPI } from './modules/debug-api';
 import { ClaudeCodeAPI, createClaudeCodeAPI } from './modules/claude-code-api';
 import { McpAPI, createMcpAPI } from './modules/mcp-api';
@@ -30,7 +29,6 @@ export interface ElectronAPI extends
   McpAPI,
   ProfileAPI,
   ScreenshotAPI {
-  github: GitHubAPI;
   /** Queue routing API for rate limit recovery */
   queue: QueueAPI;
 }
@@ -41,14 +39,13 @@ export const createElectronAPI = (): ElectronAPI => ({
   ...createTaskAPI(),
   ...createSettingsAPI(),
   ...createFileAPI(),
-  ...createAgentAPI(),  // Includes: Roadmap, Ideation, Insights, Changelog, Linear, GitHub, Shell
+  ...createAgentAPI(),  // Includes: Roadmap, Ideation, Insights, Changelog, Linear, Shell
   ...createAppUpdateAPI(),
   ...createDebugAPI(),
   ...createClaudeCodeAPI(),
   ...createMcpAPI(),
   ...createProfileAPI(),
   ...createScreenshotAPI(),
-  github: createGitHubAPI(),
   queue: createQueueAPI()  // Queue routing for rate limit recovery
 });
 
@@ -63,7 +60,6 @@ export {
   createAgentAPI,
   createAppUpdateAPI,
   createProfileAPI,
-  createGitHubAPI,
   createDebugAPI,
   createClaudeCodeAPI,
   createMcpAPI,
@@ -82,7 +78,6 @@ export type {
   InsightsAPI,
   AppUpdateAPI,
   ProfileAPI,
-  GitHubAPI,
   DebugAPI,
   ClaudeCodeAPI,
   McpAPI,

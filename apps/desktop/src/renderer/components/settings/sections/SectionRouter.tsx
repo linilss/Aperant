@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type { Project, ProjectSettings as ProjectSettingsType, AutoBuildVersionInfo, ProjectEnvConfig, LinearSyncStatus, GitHubSyncStatus } from '../../../../shared/types';
+import type { Project, ProjectSettings as ProjectSettingsType, AutoBuildVersionInfo, ProjectEnvConfig, LinearSyncStatus } from '../../../../shared/types';
 import { SettingsSection } from '../SettingsSection';
 import { GeneralSettings } from '../../project-settings/GeneralSettings';
 import { SecuritySettings } from '../../project-settings/SecuritySettings';
 import { LinearIntegration } from '../integrations/LinearIntegration';
-import { GitHubIntegration } from '../integrations/GitHubIntegration';
 import { AzureDevOpsIntegration } from '../integrations/AzureDevOpsIntegration';
 import { InitializationGuard } from '../common/InitializationGuard';
 import type { ProjectSettingsSection } from '../ProjectSettingsContent';
@@ -26,10 +25,6 @@ interface SectionRouterProps {
   setShowLinearKey: React.Dispatch<React.SetStateAction<boolean>>;
   showOpenAIKey: boolean;
   setShowOpenAIKey: React.Dispatch<React.SetStateAction<boolean>>;
-  showGitHubToken: boolean;
-  setShowGitHubToken: React.Dispatch<React.SetStateAction<boolean>>;
-  gitHubConnectionStatus: GitHubSyncStatus | null;
-  isCheckingGitHub: boolean;
   azureDevOpsConnectionStatus: AzureDevOpsSyncStatus | null;
   isCheckingAzureDevOps: boolean;
   linearConnectionStatus: LinearSyncStatus | null;
@@ -58,10 +53,6 @@ export function SectionRouter({
   setShowLinearKey,
   showOpenAIKey,
   setShowOpenAIKey,
-  showGitHubToken,
-  setShowGitHubToken,
-  gitHubConnectionStatus,
-  isCheckingGitHub,
   azureDevOpsConnectionStatus,
   isCheckingAzureDevOps,
   linearConnectionStatus,
@@ -109,32 +100,6 @@ export function SectionRouter({
               linearConnectionStatus={linearConnectionStatus}
               isCheckingLinear={isCheckingLinear}
               onOpenLinearImport={onOpenLinearImport}
-            />
-          </InitializationGuard>
-        </SettingsSection>
-      );
-
-    case 'github':
-      return (
-        <SettingsSection
-          title={t('projectSections.github.integrationTitle')}
-          description={t('projectSections.github.integrationDescription')}
-        >
-          <InitializationGuard
-            initialized={!!project.autoBuildPath}
-            title={t('projectSections.github.integrationTitle')}
-            description={t('projectSections.github.syncDescription')}
-          >
-            <GitHubIntegration
-              envConfig={envConfig}
-              updateEnvConfig={updateEnvConfig}
-              showGitHubToken={showGitHubToken}
-              setShowGitHubToken={setShowGitHubToken}
-              gitHubConnectionStatus={gitHubConnectionStatus}
-              isCheckingGitHub={isCheckingGitHub}
-              projectPath={project.path}
-              settings={settings}
-              setSettings={setSettings}
             />
           </InitializationGuard>
         </SettingsSection>

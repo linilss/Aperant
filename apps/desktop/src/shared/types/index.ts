@@ -20,7 +20,6 @@ export * from './roadmap';
 export * from './integrations';
 export * from './app-update';
 export * from './cli';
-export * from './pr-status';
 export * from './provider-account';
 
 export * from './tests';

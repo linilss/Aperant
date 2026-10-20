@@ -224,9 +224,6 @@
     "gitPath": "Git Path",
     "gitPathDescription": "Path to Git executable (leave empty for auto-detection)",
     "gitPathPlaceholder": "git (default)",
-    "githubCLIPath": "GitHub CLI Path",
-    "githubCLIPathDescription": "Path to GitHub CLI (gh) executable (leave empty for auto-detection)",
-    "githubCLIPathPlaceholder": "gh (default)",
     "claudePath": "Claude CLI Path",
     "claudePathDescription": "Path to Claude CLI executable (leave empty for auto-detection)",
     "claudePathPlaceholder": "claude (default)",
@@ -245,7 +242,10 @@
     "autoClaudePathDescription": "Relative path to malvy directory in projects",
     "autoClaudePathPlaceholder": ".malvy (default)",
     "autoNameTerminals": "Automatically name terminals",
-    "autoNameTerminalsDescription": "Use AI to generate descriptive names for terminal tabs based on their activity"
+    "autoNameTerminalsDescription": "Use AI to generate descriptive names for terminal tabs based on their activity",
+    "githubCLIPath": "GitHub CLI Path",
+    "githubCLIPathDescription": "Path to GitHub CLI (gh) executable (leave empty for auto-detection)",
+    "githubCLIPathPlaceholder": "gh (default)"
   },
   "theme": {
     "title": "Appearance",
@@ -364,25 +364,6 @@
       "integrationTitle": "Linear Integration",
       "integrationDescription": "Connect to Linear for issue tracking and task import",
       "syncDescription": "Sync with Linear for issue tracking"
-    },
-    "github": {
-      "title": "GitHub",
-      "description": "GitHub issues sync",
-      "integrationTitle": "GitHub Integration",
-      "integrationDescription": "Connect to GitHub for issue tracking",
-      "syncDescription": "Sync with GitHub Issues",
-      "defaultBranch": {
-        "label": "Default Branch",
-        "description": "Base branch for creating task worktrees",
-        "autoDetect": "Auto-detect (main/master)",
-        "searchPlaceholder": "Search branches...",
-        "noBranchesFound": "No branches found",
-        "selectedBranchHelp": "All new tasks will branch from {{branch}}"
-      },
-      "pushNewBranches": {
-        "label": "Automatically Push New Branches",
-        "description": "Push new task and worktree branches to GitHub and set upstream tracking automatically"
-      }
     },
     "azure-devops": {
       "title": "Azure DevOps",

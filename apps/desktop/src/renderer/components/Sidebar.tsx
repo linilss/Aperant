@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Download,
   RefreshCw,
-  Github,
   GitPullRequest,
   FileText,
   Sparkles,
@@ -62,7 +61,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'github-prs' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'roadmap' | 'context' | 'ideation' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -92,12 +91,6 @@ const baseNavItems: NavItem[] = [
   { id: 'agent-tools', labelKey: 'navigation:items.agentTools', icon: Wrench, shortcut: 'M' },
   { id: 'worktrees', labelKey: 'navigation:items.worktrees', icon: GitBranch, shortcut: 'W' },
   { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T' }
-];
-
-// GitHub nav items shown when GitHub is enabled
-const githubNavItems: NavItem[] = [
-  { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G' },
-  { id: 'github-prs', labelKey: 'navigation:items.githubPRs', icon: GitPullRequest, shortcut: 'P' }
 ];
 
 // Azure DevOps nav items shown when Azure DevOps is enabled
@@ -133,27 +126,22 @@ export function Sidebar({
     saveSettings({ sidebarCollapsed: !isCollapsed });
   };
 
-  // Subscribe to project-env-store for reactive GitHub/Azure DevOps tab visibility
-  const githubEnabled = useProjectEnvStore((state) => state.envConfig?.githubEnabled ?? false);
+  // Subscribe to project-env-store for reactive Azure DevOps tab visibility
   const azureDevOpsEnabled = useProjectEnvStore((state) => state.envConfig?.azureDevOpsEnabled ?? false);
 
   // Track the last loaded project ID to avoid redundant loads
   const lastLoadedProjectIdRef = useRef<string | null>(null);
 
-  // Compute visible nav items based on GitHub/Azure DevOps enabled state from store
+  // Compute visible nav items based on Azure DevOps enabled state from store
   const visibleNavItems = useMemo(() => {
     const items = [...baseNavItems];
-
-    if (githubEnabled) {
-      items.push(...githubNavItems);
-    }
 
     if (azureDevOpsEnabled) {
       items.push(...azureDevOpsNavItems);
     }
 
     return items;
-  }, [githubEnabled, azureDevOpsEnabled]);
+  }, [azureDevOpsEnabled]);
 
   // Load envConfig when project changes to ensure store is populated
   useEffect(() => {

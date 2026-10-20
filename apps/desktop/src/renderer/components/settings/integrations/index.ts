@@ -4,4 +4,3 @@
  */
 
 export { LinearIntegration } from './LinearIntegration';
-export { GitHubIntegration } from './GitHubIntegration';

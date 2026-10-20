@@ -4,15 +4,13 @@ import {
   checkProjectVersion,
   initializeProject
 } from '../../../stores/project-store';
-import { checkGitHubConnection as checkGitHubConnectionGlobal } from '../../../stores/github';
 import { setProjectEnvConfig } from '../../../stores/project-env-store';
 import type {
   Project,
   ProjectSettings as ProjectSettingsType,
   AutoBuildVersionInfo,
   ProjectEnvConfig,
-  LinearSyncStatus,
-  GitHubSyncStatus
+  LinearSyncStatus
 } from '../../../../shared/types';
 
 export interface UseProjectSettingsReturn {
@@ -43,16 +41,10 @@ export interface UseProjectSettingsReturn {
   setShowLinearKey: React.Dispatch<React.SetStateAction<boolean>>;
   showOpenAIKey: boolean;
   setShowOpenAIKey: React.Dispatch<React.SetStateAction<boolean>>;
-  showGitHubToken: boolean;
-  setShowGitHubToken: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Collapsible sections
   expandedSections: Record<string, boolean>;
   toggleSection: (section: string) => void;
-
-  // GitHub state
-  gitHubConnectionStatus: GitHubSyncStatus | null;
-  isCheckingGitHub: boolean;
 
 
   // Azure DevOps state
@@ -103,14 +95,8 @@ export function useProjectSettings(
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     claude: true,
     linear: false,
-    github: false,
     memory: false
   });
-
-  // GitHub state
-  const [showGitHubToken, setShowGitHubToken] = useState(false);
-  const [gitHubConnectionStatus, setGitHubConnectionStatus] = useState<GitHubSyncStatus | null>(null);
-  const [isCheckingGitHub, setIsCheckingGitHub] = useState(false);
 
 
   // Azure DevOps state
@@ -192,35 +178,6 @@ export function useProjectSettings(
     }
   }, [envConfig?.linearEnabled, envConfig?.linearApiKey, project.id]);
 
-  // Check GitHub connection when token/repo changes
-  // Also updates the global GitHub store so other components (like GitHub Issues) see the change
-  useEffect(() => {
-    const checkGitHubConnection = async () => {
-      if (!envConfig?.githubEnabled || !envConfig.githubToken || !envConfig.githubRepo) {
-        setGitHubConnectionStatus(null);
-        return;
-      }
-
-      setIsCheckingGitHub(true);
-      try {
-        // Use the global store action - it makes the API call AND updates the global store
-        // This ensures the GitHub Issues page sees the updated status
-        const status = await checkGitHubConnectionGlobal(project.id);
-        if (status) {
-          setGitHubConnectionStatus(status);
-        }
-      } catch {
-        setGitHubConnectionStatus({ connected: false, error: 'Failed to check connection' });
-      } finally {
-        setIsCheckingGitHub(false);
-      }
-    };
-
-    if (envConfig?.githubEnabled && envConfig.githubToken && envConfig.githubRepo) {
-      checkGitHubConnection();
-    }
-  }, [envConfig?.githubEnabled, envConfig?.githubToken, envConfig?.githubRepo, project.id]);
-
   // Check Azure DevOps connection when credentials change
   useEffect(() => {
     const checkAzureConnection = async () => {
@@ -263,7 +220,7 @@ export function useProjectSettings(
         if (envResult.success && envResult.data) {
           setEnvConfig(envResult.data);
           committedEnvConfigRef.current = envResult.data;
-          // Update global store so Sidebar reflects correct GitHub enabled state
+          // Update global store so Sidebar reflects correct enabled state
           setProjectEnvConfig(project.id, envResult.data);
         }
       } else {
@@ -363,12 +320,8 @@ export function useProjectSettings(
     setShowLinearKey,
     showOpenAIKey,
     setShowOpenAIKey,
-    showGitHubToken,
-    setShowGitHubToken,
     expandedSections,
     toggleSection,
-    gitHubConnectionStatus,
-    isCheckingGitHub,
     azureDevOpsConnectionStatus,
     isCheckingAzureDevOps,
     showLinearImportModal,

@@ -13,8 +13,6 @@
     "ideation": "Ideation",
     "changelog": "Changelog",
     "context": "Context",
-    "githubIssues": "GitHub Issues",
-    "githubPRs": "GitHub PRs",
     "azureDevOpsWorkItems": "Azure Work Items",
     "azureDevOpsPRs": "Azure PRs",
     "worktrees": "Worktrees",
