@@ -863,7 +863,7 @@
       "secondaryPersonas": "Secondary Personas:",
       "features": "features",
       "phases": "phases",
-      "clearOpen": "Remove all features that aren't done"
+      "clearOpen": "Clear or reset the backlog"
     },
     "tabs": {
       "kanban": "Kanban",
@@ -962,11 +962,12 @@
       }
     },
     "clearOpen": {
-      "title_one": "Remove {{count}} open feature?",
-      "title_other": "Remove {{count}} open features?",
-      "description": "Every feature that isn't done is removed from the roadmap, including {{inProgress}} in progress. {{done}} done features stay. Tasks already created from features are not touched. This can't be undone.",
-      "confirm_one": "Remove {{count}} feature",
-      "confirm_other": "Remove {{count}} features"
+      "title": "Clear the backlog",
+      "description": "Tasks and features that already have a task (on the Board or done) are never touched. This can't be undone.",
+      "open": "Clear open items ({{features}} features, {{ideas}} ideas)",
+      "openHint": "Removes features and ideas that aren't planned yet. Removed features still steer future roadmaps away from them.",
+      "reset": "Reset the whole backlog ({{features}} features, {{ideas}} ideas)",
+      "resetHint": "Also removes dismissed features and every idea, for a fresh start. Regenerate fills it again."
     },
     "listFilter": {
       "open": "Open",

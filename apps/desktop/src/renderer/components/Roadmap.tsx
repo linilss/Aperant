@@ -26,6 +26,8 @@ import { useRoadmapData, useFeatureActions, useRoadmapGeneration, useRoadmapSave
 import { getCompetitorInsightsForFeature } from './roadmap/utils';
 import { useFeatureRefineStore } from '../stores/feature-refine-store';
 import { useRoadmapStore } from '../stores/roadmap-store';
+import { deleteMultipleIdeasForProject, loadIdeation, useIdeationStore } from '../stores/ideation-store';
+import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import type { FeatureRefineResult } from '../stores/feature-refine-store';
 import type { RoadmapFeature } from '../../shared/types';
@@ -166,13 +168,25 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
     }
   };
 
-  // Dismissed ones stay: they steer future generations
-  const openFeatures = roadmap?.features.filter((f) => f.status !== 'done' && f.status !== 'dismissed') ?? [];
-  const confirmClearOpen = async () => {
-    const ids = openFeatures.map((f) => f.id);
+  // Backlog items without a task: open ones, plus dismissed ones and ideas for a full reset.
+  // Features with a task (on the Board or done) always stay.
+  const ideationSession = useIdeationStore((st) => st.session);
+  const ideationProjectId = useIdeationStore((st) => st.currentProjectId);
+  const allIdeas = ideationProjectId === projectId ? (ideationSession?.ideas ?? []) : [];
+  const openIdeas = allIdeas.filter((i) => i.status !== 'dismissed' && i.status !== 'converted' && i.status !== 'archived' && !i.roadmapFeatureId);
+  const openFeatures = roadmap?.features.filter((f) => !f.linkedSpecId && f.status !== 'done' && f.status !== 'dismissed') ?? [];
+  const resetFeatures = roadmap?.features.filter((f) => !f.linkedSpecId && f.status !== 'done') ?? [];
+  useEffect(() => {
+    if (useIdeationStore.getState().currentProjectId !== projectId) void loadIdeation(projectId);
+  }, [projectId]);
+  const clearBacklog = async (mode: 'open' | 'reset') => {
+    const features = mode === 'reset' ? resetFeatures : openFeatures;
+    const ideas = mode === 'reset' ? allIdeas : openIdeas;
+    const ids = features.map((f) => f.id);
     setShowClearOpen(false);
     if (selectedFeature && ids.includes(selectedFeature.id)) setSelectedFeature(null);
-    await deleteFeatures(ids);
+    if (ids.length > 0) await deleteFeatures(ids);
+    if (ideas.length > 0) await deleteMultipleIdeasForProject(projectId, ideas.map((i) => i.id));
   };
 
   // Show generation progress
@@ -308,23 +322,40 @@ export function Roadmap({ projectId, onGoToTask, onGoToCompetitors, initialTab, 
           <AlertDialogHeader>
             <div className="flex items-center gap-2">
               <Trash2 className="h-5 w-5 text-destructive" />
-              <AlertDialogTitle>{t('roadmap.clearOpen.title', { count: openFeatures.length })}</AlertDialogTitle>
+              <AlertDialogTitle>{t('roadmap.clearOpen.title')}</AlertDialogTitle>
             </div>
-            <AlertDialogDescription>
-              {t('roadmap.clearOpen.description', {
-                done: roadmap.features.filter((f) => f.status === 'done').length,
-                inProgress: openFeatures.filter((f) => f.status === 'in_progress').length
-              })}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t('roadmap.clearOpen.description')}</AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="h-auto w-full justify-start whitespace-normal py-3 text-left"
+              disabled={openFeatures.length + openIdeas.length === 0}
+              onClick={() => void clearBacklog('open')}
+            >
+              <div>
+                <div className="font-medium">
+                  {t('roadmap.clearOpen.open', { features: openFeatures.length, ideas: openIdeas.length })}
+                </div>
+                <div className="text-xs text-muted-foreground">{t('roadmap.clearOpen.openHint')}</div>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto w-full justify-start whitespace-normal border-destructive/40 py-3 text-left text-destructive hover:text-destructive"
+              disabled={resetFeatures.length + allIdeas.length === 0}
+              onClick={() => void clearBacklog('reset')}
+            >
+              <div>
+                <div className="font-medium">
+                  {t('roadmap.clearOpen.reset', { features: resetFeatures.length, ideas: allIdeas.length })}
+                </div>
+                <div className="text-xs text-muted-foreground">{t('roadmap.clearOpen.resetHint')}</div>
+              </div>
+            </Button>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('buttons.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmClearOpen}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {t('roadmap.clearOpen.confirm', { count: openFeatures.length })}
-            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
