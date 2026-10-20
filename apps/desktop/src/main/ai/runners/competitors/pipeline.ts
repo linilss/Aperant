@@ -688,7 +688,8 @@ export async function synthesizeDirections(ctx: CompetitorRunContext): Promise<C
           directionsSynthesizedAt: now().toISOString(),
           directionsError: undefined,
           directionsStale: false,
-          rankingSavedAt: null,
+          // The AI's order counts as the saved ranking; reorder and save only to change it
+          rankingSavedAt: now().toISOString(),
         }));
         ctx.onEvent?.({ kind: 'directions', directions: next.directions });
         return { success: true, aborted: false };

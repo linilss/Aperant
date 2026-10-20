@@ -444,7 +444,8 @@ describe('pool operations', () => {
     const state = store.get();
     expect(state.directions.find((d) => d.title === 'Cheapest')).toMatchObject({ avoid: true, note: 'No' });
     expect(state.directionsStale).toBe(false);
-    expect(state.rankingSavedAt).toBeNull();
+    // The AI's order is saved as the ranking right away
+    expect(state.rankingSavedAt).toBe('2026-10-09T12:00:00.000Z');
   });
 
   it('records a synthesis failure without touching the profiles', async () => {

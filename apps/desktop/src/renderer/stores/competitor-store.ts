@@ -130,7 +130,8 @@ export function applyProgressEvent(event: CompetitorProgressEvent): void {
         directions: event.directions,
         directionsStale: false,
         directionsError: undefined,
-        rankingSavedAt: null,
+        // Main saves the AI's order as the ranking
+        rankingSavedAt: new Date().toISOString(),
       });
       break;
     case 'state':
