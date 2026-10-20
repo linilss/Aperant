@@ -29,15 +29,26 @@ export const RESUME_FILE = 'RESUME';
 /** Written by main for a "safe stop": the build stops before its next subtask */
 export const SAFE_STOP_FILE = 'SAFE_STOP';
 
-/** True (and the marker removed) when a safe stop was requested in either spec dir */
+/** Left by the build when it stopped for a safe stop, so main treats the exit as a user stop */
+export const SAFE_STOPPED_FILE = 'SAFE_STOPPED';
+
+/**
+ * True (and the marker removed) when a safe stop was requested in either spec dir.
+ * Leaves SAFE_STOPPED in both dirs as proof for the exit handler.
+ */
 export function consumeSafeStop(specDir: string, sourceSpecDir?: string): boolean {
+  const dirs = [specDir, sourceSpecDir].filter((d): d is string => !!d);
   let requested = false;
-  for (const dir of [specDir, sourceSpecDir]) {
-    if (!dir) continue;
+  for (const dir of dirs) {
     const file = join(dir, SAFE_STOP_FILE);
     if (existsSync(file)) {
       requested = true;
       try { unlinkSync(file); } catch { /* ignore */ }
+    }
+  }
+  if (requested) {
+    for (const dir of dirs) {
+      try { writeFileSync(join(dir, SAFE_STOPPED_FILE), new Date().toISOString(), 'utf8'); } catch { /* ignore */ }
     }
   }
   return requested;

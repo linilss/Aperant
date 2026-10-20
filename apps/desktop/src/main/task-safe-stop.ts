@@ -8,7 +8,7 @@
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { SAFE_STOP_FILE } from './ai/orchestration/pause-handler';
+import { SAFE_STOPPED_FILE, SAFE_STOP_FILE } from './ai/orchestration/pause-handler';
 
 const pending = new Map<string, string[]>();
 
@@ -43,4 +43,19 @@ export function takeSafeStop(taskId: string): { pending: boolean; consumed: bool
     }
   }
   return { pending: true, consumed: left < dirs.length };
+}
+
+/**
+ * True when the build left SAFE_STOPPED in the task's main spec dir (a safe stop
+ * requested from the app or by a safe restart); the marker is removed.
+ */
+export function consumeSafeStoppedMarker(mainSpecDir: string): boolean {
+  const file = path.join(mainSpecDir, SAFE_STOPPED_FILE);
+  if (!existsSync(file)) return false;
+  try {
+    unlinkSync(file);
+  } catch {
+    // best effort
+  }
+  return true;
 }

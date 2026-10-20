@@ -19,7 +19,7 @@ import { fileWatcher } from "../file-watcher";
 import { notificationService } from "../notification-service";
 import { persistPlanLastEventSync, getPlanPath, persistPlanPhaseSync, persistPlanStatusAndReasonSync, hasPlanWithSubtasks, syncPlanPhasesToMainSync } from "./task/plan-file-utils";
 import { findTaskWorktree } from "../worktree-paths";
-import { takeSafeStop } from "../task-safe-stop";
+import { consumeSafeStoppedMarker, takeSafeStop } from "../task-safe-stop";
 import { getToolPath } from "../cli-tool-manager";
 import { findTaskAndProject } from "./task/shared";
 import { safeSendToRenderer } from "./utils";
@@ -112,7 +112,10 @@ export function registerAgenteventsHandlers(
     // coding starts): same outcome as pressing Stop. A build that finished on its own
     // before reaching the next subtask is handled normally.
     const safeStop = takeSafeStop(taskId);
-    if (safeStop.pending && (safeStop.consumed || processType === 'spec-creation')) {
+    const safeStoppedOnDisk =
+      !!exitTask && !!exitProject &&
+      consumeSafeStoppedMarker(path.join(exitProject.path, getSpecsDir(exitProject.autoBuildPath), exitTask.specId));
+    if (safeStoppedOnDisk || (safeStop.pending && (safeStop.consumed || processType === 'spec-creation'))) {
       cancelFallbackTimer(taskId);
       if (exitTask && exitProject) {
         taskStateManager.handleUiEvent(

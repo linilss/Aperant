@@ -51,7 +51,8 @@ for (const envPath of possibleEnvPaths) {
   }
 }
 
-import { app, BrowserWindow, shell, nativeImage, session, screen, Menu, MenuItem } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeImage, session, screen, Menu, MenuItem } from 'electron';
+import { projectStore } from './project-store';
 import { join } from 'path';
 import { accessSync, readFileSync, writeFileSync, rmSync, cpSync } from 'fs';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -61,7 +62,8 @@ import { TerminalManager } from './terminal-manager';
 import { getUsageMonitor } from './claude-profile/usage-monitor';
 import { initializeUsageMonitorForwarding } from './ipc-handlers/terminal-handlers';
 import { initializeAppUpdater, stopPeriodicUpdates } from './app-updater';
-import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS } from '../shared/constants';
+import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS, getSpecsDir } from '../shared/constants';
+import { collectResumeCandidates } from './safe-restart';
 import { getAppLanguage, initAppLanguage } from './app-language';
 import { readSettingsFile } from './settings-utils';
 import { registerSettingsAccessor } from './ai/auth/resolver';
@@ -549,6 +551,22 @@ app.whenReady().then(() => {
 
   // Create window
   createWindow();
+
+  // Safe restart: start again the tasks a safe stop paused just before this restart
+  setTimeout(() => {
+    try {
+      const candidates = collectResumeCandidates(
+        projectStore.getProjects().map((p) => ({ id: p.id, path: p.path, specsDir: getSpecsDir(p.autoBuildPath) }))
+      );
+      for (const c of candidates) {
+        console.warn(`[main] Resuming task after restart: ${c.specId}`);
+        // Same path as the Start button (TASK_START is an ipcMain.on handler)
+        ipcMain.emit(IPC_CHANNELS.TASK_START, { sender: mainWindow?.webContents }, c.specId, {});
+      }
+    } catch (error) {
+      console.warn('[main] Resuming tasks after restart failed:', error);
+    }
+  }, 8000);
 
   // Pre-warm CLI tool cache in background (non-blocking)
   // This ensures CLI detection is done before user needs it
