@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import i18n from '../../../shared/i18n';
+import { toast } from '../../hooks/use-toast';
 import { useRoadmapStore, loadRoadmap, generateRoadmap, refreshRoadmap, stopRoadmap } from '../../stores/roadmap-store';
 import { useTaskStore } from '../../stores/task-store';
 import { loadCompetitors } from '../../stores/competitor-store';
@@ -70,6 +72,13 @@ export function useFeatureActions() {
   };
 }
 
+/** A refused or failed save: tell the user and reload, so the view never shows unsaved changes */
+async function reportSaveResult(projectId: string, result: { success: boolean; error?: string }): Promise<void> {
+  if (result.success) return;
+  toast({ variant: 'destructive', title: i18n.t('common:roadmap.saveFailed'), description: result.error });
+  await loadRoadmap(projectId);
+}
+
 /**
  * Hook to save roadmap changes to disk
  *
@@ -83,7 +92,7 @@ export function useRoadmapSave(projectId: string) {
     if (!roadmap) return;
 
     try {
-      await window.electronAPI.saveRoadmap(projectId, roadmap);
+      await reportSaveResult(projectId, await window.electronAPI.saveRoadmap(projectId, roadmap));
     } catch (error) {
       console.error('Failed to save roadmap:', error);
     }
@@ -106,7 +115,7 @@ export function useFeatureDelete(projectId: string) {
     const roadmap = useRoadmapStore.getState().roadmap;
     if (roadmap) {
       try {
-        await window.electronAPI.saveRoadmap(projectId, roadmap);
+        await reportSaveResult(projectId, await window.electronAPI.saveRoadmap(projectId, roadmap));
       } catch (error) {
         console.error('Failed to save roadmap after delete:', error);
       }
@@ -118,7 +127,7 @@ export function useFeatureDelete(projectId: string) {
     for (const id of featureIds) deleteFeature(id);
     const roadmap = useRoadmapStore.getState().roadmap;
     if (roadmap) {
-      await window.electronAPI.saveRoadmap(projectId, roadmap);
+      await reportSaveResult(projectId, await window.electronAPI.saveRoadmap(projectId, roadmap));
     }
   };
 

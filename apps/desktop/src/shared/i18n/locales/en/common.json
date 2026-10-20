@@ -975,7 +975,8 @@
       "dismissed": "Dismissed"
     },
     "restore": "Restore",
-    "dismissFeature": "Dismiss — steers future roadmaps away from this"
+    "dismissFeature": "Dismiss — steers future roadmaps away from this",
+    "saveFailed": "The roadmap change was not saved"
   },
   "roadmapGeneration": {
     "progress": "Progress",

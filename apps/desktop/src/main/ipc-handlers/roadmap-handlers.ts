@@ -574,12 +574,14 @@ export function registerRoadmapHandlers(
 
           // Transform camelCase features back to snake_case for JSON file
           const incomingFeatures = roadmapData.features.map(featureToSnakeCase);
+          // Don't roll back an AI refinement the renderer hasn't received yet (before the
+          // foreign check: titles renamed in main must not look like another roadmap)
+          keepNewerRefinements(existingRoadmap.features, incomingFeatures);
           if (looksLikeForeignRoadmap(existingRoadmap.features ?? [], incomingFeatures)) {
+            debugError("[Roadmap] Refused a save that looks like another roadmap:", projectId);
             return { success: false, error: "Refused: this save would replace the roadmap with a different one" };
           }
           backupRoadmapFile(roadmapPath);
-          // Don't roll back an AI refinement the renderer hasn't received yet
-          keepNewerRefinements(existingRoadmap.features, incomingFeatures);
           keepFreshSplitParts(existingRoadmap.features ?? [], incomingFeatures);
           // Features the user deleted: remember them so a regenerate doesn't bring them back
           try {

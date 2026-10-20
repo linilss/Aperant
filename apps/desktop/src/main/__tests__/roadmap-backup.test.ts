@@ -15,6 +15,12 @@ describe('looksLikeForeignRoadmap', () => {
     expect(looksLikeForeignRoadmap(existing, [])).toBe(false);
   });
 
+  it('still saves when a few titles were renamed in the background', () => {
+    const existing = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map(f);
+    const stale = [f('a-old'), f('b-old'), f('c-old'), f('d-old'), ...['E', 'F', 'G', 'H', 'I', 'J'].map(f)];
+    expect(looksLikeForeignRoadmap(existing, stale)).toBe(false);
+  });
+
   it("refuses another project's features", () => {
     const existing = [f('Reminders'), f('Calendar drag')];
     expect(looksLikeForeignRoadmap(existing, [f('Portugal NIF'), f('E-REDES'), f('SIGE fix'), f('FTP ingest')])).toBe(true);

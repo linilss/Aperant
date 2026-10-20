@@ -34,7 +34,11 @@ export function backupRoadmapFile(roadmapPath: string, now = new Date()): void {
 const titleKey = (f: Record<string, unknown>) =>
   typeof f.title === 'string' ? f.title.trim().toLowerCase() : '';
 
-/** True when a save would bring in more new feature titles than one edit can, i.e. another roadmap */
+/**
+ * True when a save brings in more unknown titles than one edit can and they are
+ * most of the roadmap, i.e. another project's roadmap. A view with a few stale
+ * titles (renamed by a background refinement) still saves.
+ */
 export function looksLikeForeignRoadmap(
   existing: Array<Record<string, unknown>>,
   incoming: Array<Record<string, unknown>>
@@ -42,5 +46,5 @@ export function looksLikeForeignRoadmap(
   if (existing.length === 0) return false;
   const known = new Set(existing.map(titleKey));
   const added = incoming.filter((f) => titleKey(f) && !known.has(titleKey(f))).length;
-  return added > MAX_NEW_FEATURES_PER_SAVE;
+  return added > MAX_NEW_FEATURES_PER_SAVE && added * 2 > incoming.length;
 }
