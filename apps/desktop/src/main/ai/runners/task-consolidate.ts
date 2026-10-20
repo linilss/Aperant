@@ -11,7 +11,8 @@
 import { runClaudeCliDetailed } from '../cli/claude-cli';
 import { safeParseJson } from '../../utils/json-repair';
 
-export const CONSOLIDATE_MAX_TURNS = 20;
+/** No tools: the specs carry what grouping needs, and tool exploration ran out of turns */
+export const CONSOLIDATE_MAX_TURNS = 3;
 const MAX_SPEC_CHARS = 1_500;
 
 export interface ConsolidateTaskInput {
@@ -30,7 +31,7 @@ export function buildConsolidatePrompt(tasks: ConsolidateTaskInput[]): string {
   return [
     'You consolidate a backlog of coding tasks for one project into as few tasks as make sense. You run non-interactively and are read-only: never edit files.',
     'Group tasks that belong together: the same feature or user flow, the same files or module, or one that only makes sense with the other (e.g. an endpoint and its UI, an API change and the client that needs it). ' +
-      'Use Glob/Grep/Read sparingly to check which files tasks touch when the specs are unclear.',
+      'Decide from the specs below; answer directly without tools.',
     'Rules:\n' +
       '- Every task id appears in exactly one group. A task that fits nowhere is a group of one.\n' +
       '- Prefer few groups, but keep each group buildable as ONE focused task: split a group that spans unrelated areas or would be very large (e.g. two platforms).\n' +
@@ -81,19 +82,22 @@ export async function runTaskConsolidation(input: {
   modelId: string;
   abortSignal?: AbortSignal;
 }): Promise<TaskGroup[]> {
-  const result = await runClaudeCliDetailed({
-    prompt: buildConsolidatePrompt(input.tasks),
-    cwd: input.projectDir,
-    projectPath: input.projectDir,
-    modelId: input.modelId,
-    allowedTools: ['Read', 'Glob', 'Grep'],
-    restrictTools: true,
-    minimalContext: true,
-    projectContext: true,
-    maxTurns: CONSOLIDATE_MAX_TURNS,
-    abortSignal: input.abortSignal,
-  });
-  const groups = parseTaskGroups(result.text, input.tasks) ?? parseTaskGroups(result.resultText, input.tasks);
-  if (!groups) throw new Error('No <task_groups> block in the response');
-  return groups;
+  const base = buildConsolidatePrompt(input.tasks);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await runClaudeCliDetailed({
+      prompt: attempt === 0 ? base : `${base}\n\nIMPORTANT: reply with ONLY the <task_groups> block, no other text.`,
+      cwd: input.projectDir,
+      projectPath: input.projectDir,
+      modelId: input.modelId,
+      allowedTools: [],
+      restrictTools: true,
+      minimalContext: true,
+      maxTurns: CONSOLIDATE_MAX_TURNS,
+      abortSignal: input.abortSignal,
+    });
+    const groups = parseTaskGroups(result.text, input.tasks) ?? parseTaskGroups(result.resultText, input.tasks);
+    if (groups) return groups;
+    if (input.abortSignal?.aborted) break;
+  }
+  throw new Error('The agent returned no task groups (twice). Try again.');
 }
