@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../ipc-handlers/task/execution-handlers', () => ({ taskStatusUpdater: null }));
 vi.mock('../project-store', () => ({ projectStore: {} }));
+vi.mock('electron', () => ({ app: { getPath: () => '/nonexistent' } }));
 
 import { pickTasksToPromote } from '../task-queue';
 import type { Task } from '../../shared/types';

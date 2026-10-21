@@ -8,6 +8,8 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
+import { app } from 'electron';
+
 import { getSpecsDir } from '../shared/constants';
 import type { Task } from '../shared/types';
 import { RATE_LIMIT_PAUSE_FILE } from './ai/orchestration/pause-handler';
@@ -29,12 +31,16 @@ export function pickTasksToPromote(tasks: Task[], maxParallel: number, isPaused:
     .slice(0, free);
 }
 
+/** While this file exists in userData, the queue starts nothing (manual pause) */
+export const QUEUE_PAUSE_FILE = 'QUEUE_PAUSED';
+const queuePaused = (): boolean => existsSync(path.join(app.getPath('userData'), QUEUE_PAUSE_FILE));
+
 let busy = false;
 let timer: NodeJS.Timeout | null = null;
 
 /** One pass over all projects (or just `projectId`) */
 export async function processTaskQueues(projectId?: string): Promise<void> {
-  if (busy || !taskStatusUpdater) return;
+  if (busy || !taskStatusUpdater || queuePaused()) return;
   busy = true;
   try {
     for (const project of projectStore.getProjects()) {
