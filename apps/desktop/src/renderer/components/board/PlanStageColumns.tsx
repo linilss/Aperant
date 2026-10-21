@@ -1,20 +1,19 @@
 /**
- * The Board's incoming column: roadmap features promoted to Planned that don't
- * have their task yet (being proofread). Ideas and the roadmap itself are lists
+ * The To do column's planned roadmap features: promoted to Planned but without
+ * their task yet (being proofread). Ideas and the roadmap itself are lists
  * (Ideation, Roadmap, MoSCoW); a feature with a task is shown by its task card.
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ChevronLeft, ChevronRight, Calendar, Sparkles } from 'lucide-react';
+import { useDraggable } from '@dnd-kit/core';
+import { Calendar, Sparkles } from 'lucide-react';
 
 import { useRoadmapStore, loadRoadmap, planFeature } from '../../stores/roadmap-store';
 import { useFeatureActions, useFeatureDelete } from '../roadmap/hooks';
 import { FeatureDetailPanel } from '../roadmap/FeatureDetailPanel';
 import { SortableFeatureCard } from '../SortableFeatureCard';
 import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '../../lib/utils';
 import type { RoadmapFeature, TaskStatus } from '../../../shared/types';
 
@@ -38,102 +37,15 @@ export interface LeadingColumn {
   render: (flat: boolean) => ReactNode;
 }
 
-const COLLAPSE_KEY = 'malvy.board.collapsedPlanColumns';
-
-function readCollapsed(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '{}') as Record<string, boolean>;
-  } catch {
-    return {};
-  }
-}
-
-function writeCollapsed(value: Record<string, boolean>): void {
-  try {
-    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(value));
-  } catch {
-    // per-viewer convenience only
-  }
-}
-
-interface StageColumnProps {
-  id: string;
-  label: string;
+/** Roadmap features waiting for their task, shown inside the To do column */
+export interface TodoExtras {
   count: number;
-  icon: ReactNode;
-  borderClass: string;
-  flat: boolean;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-  action?: ReactNode;
-  empty: string;
-  children: ReactNode;
-}
-
-function StageColumn({ id, label, count, icon, borderClass, flat, collapsed, onToggleCollapsed, action, empty, children }: StageColumnProps) {
-  const { t } = useTranslation(['tasks']);
-  const { setNodeRef, isOver } = useDroppable({ id: `stage:${id}` });
-  if (collapsed && !flat) {
-    return (
-      <button
-        ref={setNodeRef}
-        key={id}
-        type="button"
-        onClick={onToggleCollapsed}
-        className={cn(
-          'flex w-12 shrink-0 flex-col items-center gap-3 rounded-xl border border-white/5 border-t-2 bg-secondary/20 py-4 text-muted-foreground hover:text-foreground',
-          borderClass,
-          isOver && 'drop-zone-highlight'
-        )}
-        aria-label={t('kanban.expandColumn')}
-      >
-        <ChevronRight className="h-4 w-4" />
-        <span className="text-xs tabular-nums">{count}</span>
-        <span className="text-sm font-semibold [writing-mode:vertical-rl]">{label}</span>
-      </button>
-    );
-  }
-  return (
-    <div key={id} className={flat ? 'flex w-full' : 'flex w-80 shrink-0'}>
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'flex min-w-0 flex-1 flex-col rounded-xl border border-white/5 border-t-2 bg-linear-to-b from-secondary/30 to-transparent',
-          borderClass,
-          isOver && 'drop-zone-highlight'
-        )}
-      >
-        <div className="flex items-center justify-between gap-2 border-b border-white/5 p-4 max-md:px-3 max-md:py-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {!flat && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={onToggleCollapsed}
-                aria-label={t('kanban.collapseColumn')}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            <span className="text-muted-foreground">{icon}</span>
-            <h2 className="truncate text-sm font-semibold text-foreground">{label}</h2>
-            <span className="column-count-badge">{count}</span>
-          </div>
-          {action}
-        </div>
-        <ScrollArea className={flat ? 'h-auto' : 'min-h-0 flex-1'}>
-          <div className="space-y-3 p-3">
-            {count === 0 ? <p className="py-6 text-center text-sm text-muted-foreground/70">{empty}</p> : children}
-          </div>
-        </ScrollArea>
-      </div>
-    </div>
-  );
+  content: ReactNode;
+  action: ReactNode;
 }
 
 /**
- * The Planned column plus the feature dialog it opens. `onGoToTask` opens a
+ * Planned features for the To do column plus the feature dialog they open. `onGoToTask` opens a
  * linked task's detail.
  */
 export function usePlanStageColumns(
@@ -142,6 +54,7 @@ export function usePlanStageColumns(
 ): {
   columns: LeadingColumn[];
   trailing: LeadingColumn[];
+  todo: TodoExtras;
   dialog: ReactNode;
   onDrop: (activeId: string, target: { stage?: string; taskColumn?: TaskStatus }) => void;
   renderOverlay: (activeId: string) => ReactNode;
@@ -149,7 +62,6 @@ export function usePlanStageColumns(
   const { t } = useTranslation(['common']);
   const roadmap = useRoadmapStore((s) => s.roadmap);
   const refiningIds = useRoadmapStore((s) => s.refiningFeatureIds);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { convertFeatureToSpec } = useFeatureActions();
@@ -165,13 +77,6 @@ export function usePlanStageColumns(
     () => (projectRoadmap?.features ?? []).filter((f) => f.status === 'planned' && !f.linkedSpecId),
     [projectRoadmap]
   );
-
-  const toggle = (id: string) =>
-    setCollapsed((current) => {
-      const next = { ...current, [id]: !current[id] };
-      writeCollapsed(next);
-      return next;
-    });
 
   const featureCard = (feature: RoadmapFeature) => (
     <Draggable key={feature.id} id={`${FEATURE_PREFIX}${feature.id}`}>
@@ -200,44 +105,33 @@ export function usePlanStageColumns(
 
   const unplanned = planned.filter((f) => !refiningIds[f.id]).map((f) => f.id);
 
-  const columns: LeadingColumn[] = [
-    {
-      id: 'planned',
-      label: t('board.columns.planned'),
-      count: planned.length,
-      render: (flat) => (
-        <StageColumn
-          key="planned"
-          id="planned"
-          label={t('board.columns.planned')}
-          count={planned.length}
-          icon={<Calendar className="h-4 w-4" />}
-          borderClass="border-t-info"
-          flat={flat}
-          collapsed={!!collapsed.planned}
-          onToggleCollapsed={() => toggle('planned')}
-          empty={t('board.emptyPlanned')}
-          action={
-            projectId &&
-            unplanned.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 gap-1 px-2 text-xs"
-                onClick={() => void window.electronAPI.planRoadmapFeatures(projectId, unplanned)}
-                title={t('roadmap.planAll.tooltip')}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {t('roadmap.planAll.button', { count: unplanned.length })}
-              </Button>
-            )
-          }
+  // Shown at the top of To do until the proofread creates their tasks
+  const todo: TodoExtras = {
+    count: planned.length,
+    content: planned.length > 0 ? (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Calendar className="h-3.5 w-3.5" />
+          <span>{t('board.columns.planned')} · {planned.length}</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        {planned.map(featureCard)}
+      </div>
+    ) : null,
+    action:
+      projectId && unplanned.length > 0 ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 px-2 text-xs"
+          onClick={() => void window.electronAPI.planRoadmapFeatures(projectId, unplanned)}
+          title={t('roadmap.planAll.tooltip')}
         >
-          {planned.map(featureCard)}
-        </StageColumn>
-      ),
-    },
-  ];
+          <Sparkles className="h-3.5 w-3.5" />
+          {t('roadmap.planAll.button', { count: unplanned.length })}
+        </Button>
+      ) : null,
+  };
 
   const selected = selectedId ? projectRoadmap?.features.find((f) => f.id === selectedId) : undefined;
   const dialog = selected && projectId && (
@@ -256,5 +150,5 @@ export function usePlanStageColumns(
     />
   );
 
-  return { columns, trailing: [], dialog, onDrop, renderOverlay };
+  return { columns: [], trailing: [], todo, dialog, onDrop, renderOverlay };
 }

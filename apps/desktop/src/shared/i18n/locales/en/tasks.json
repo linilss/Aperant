@@ -62,7 +62,7 @@
     "description": "Create your first task to get started"
   },
   "columns": {
-    "backlog": "Planning",
+    "backlog": "To do",
     "queue": "Queue",
     "in_progress": "In Progress",
     "ai_review": "AI Review",
@@ -74,7 +74,7 @@
   },
   "kanban": {
     "columnTabsLabel": "Board columns",
-    "emptyBacklog": "No tasks planned",
+    "emptyBacklog": "Nothing to do",
     "emptyBacklogHint": "Add a task to get started",
     "emptyQueue": "Queue is empty",
     "emptyQueueHint": "Tasks will wait here when parallel task limit is reached",
@@ -134,6 +134,7 @@
     "autoPromoted": "Task auto-promoted from queue to In Progress.",
     "capacityAvailable": "{{count}} slot(s) available in In Progress.",
     "queueAll": "Add All to Queue",
+    "upNext": "Queue · {{count}}",
     "queueAllSuccess": "Moved {{count}} tasks to queue.",
     "settings": {
       "title": "Queue Settings",
@@ -396,13 +397,13 @@
   },
   "untitled": "Untitled",
   "consolidate": {
-    "button": "Consolidate & enqueue",
-    "title": "Consolidate & enqueue",
-    "description": "An agent groups Planning tasks that belong together. Review the groups, then each group becomes one task (the originals are archived) and everything is queued.",
+    "button": "Consolidate",
+    "title": "Consolidate",
+    "description": "An agent groups To do tasks that belong together. Review the groups, then each group becomes one task (the originals are archived). The tasks stay in To do.",
     "analyzing": "Grouping {{count}} tasks…",
     "result": "{{tasks}} tasks → {{groups}} tasks ({{merged}} merged)",
     "liftOut": "Keep this task on its own",
     "cancel": "Cancel",
-    "apply": "Create {{count}} tasks & queue"
+    "apply": "Create {{count}} tasks"
   }
 }

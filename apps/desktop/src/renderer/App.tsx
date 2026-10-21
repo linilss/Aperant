@@ -1015,6 +1015,7 @@ export function App() {
                     tasks={tasks}
                     projectId={boardProjectId}
                     leadingColumns={planStages.columns}
+                    todoExtras={planStages.todo}
                     trailingColumns={planStages.trailing}
                     onForeignDrop={planStages.onDrop}
                     renderForeignOverlay={planStages.renderOverlay}

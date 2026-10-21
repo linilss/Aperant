@@ -5,7 +5,7 @@
  * holds promotion in that project (new tasks would hit the same limit).
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { app } from 'electron';
@@ -19,16 +19,47 @@ import { projectStore } from './project-store';
 export const DEFAULT_MAX_PARALLEL_TASKS = 2;
 const TICK_MS = 20_000;
 
-/** Tasks to promote now, oldest first */
-export function pickTasksToPromote(tasks: Task[], maxParallel: number, isPaused: (task: Task) => boolean): Task[] {
+/** Tasks to promote now: in the user's queue order, then the rest oldest first */
+export function pickTasksToPromote(tasks: Task[], maxParallel: number, isPaused: (task: Task) => boolean, order: string[] = []): Task[] {
   const live = tasks.filter((t) => !t.metadata?.archivedAt);
   if (live.some(isPaused)) return [];
   const running = live.filter((t) => t.status === 'in_progress').length;
+  const rank = new Map(order.map((id, i) => [id, i]));
   const free = Math.max(0, maxParallel - running);
   return live
     .filter((t) => t.status === 'queue')
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .sort((a, b) => {
+      const ia = rank.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const ib = rank.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      return ia !== ib ? ia - ib : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    })
     .slice(0, free);
+}
+
+const QUEUE_ORDER_FILE = 'queue-order.json';
+
+function queueOrderPath(projectId: string): string | null {
+  const project = projectStore.getProject(projectId);
+  return project ? path.join(project.path, project.autoBuildPath || '.malvy', QUEUE_ORDER_FILE) : null;
+}
+
+/** The user's queue order (task ids, first starts first); [] when unset */
+export function readQueueOrder(projectId: string): string[] {
+  const file = queueOrderPath(projectId);
+  if (!file || !existsSync(file)) return [];
+  try {
+    const ids = JSON.parse(readFileSync(file, 'utf-8')) as unknown;
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeQueueOrder(projectId: string, taskIds: string[]): void {
+  const file = queueOrderPath(projectId);
+  if (!file) return;
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(taskIds));
 }
 
 /** While this file exists in userData, the queue starts nothing (manual pause) */
@@ -50,7 +81,7 @@ export async function processTaskQueues(projectId?: string): Promise<void> {
       const specsDir = path.join(project.path, getSpecsDir(project.autoBuildPath));
       const isPaused = (t: Task) => t.status === 'in_progress' && existsSync(path.join(specsDir, t.specId, RATE_LIMIT_PAUSE_FILE));
       const max = project.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
-      for (const task of pickTasksToPromote(projectStore.getTasks(project.id), max, isPaused)) {
+      for (const task of pickTasksToPromote(projectStore.getTasks(project.id), max, isPaused, readQueueOrder(project.id))) {
         const result = await taskStatusUpdater(task.id, 'in_progress');
         if (!result.success) console.warn(`[TaskQueue] Could not start ${task.id}: ${result.error ?? 'unknown error'}`);
       }

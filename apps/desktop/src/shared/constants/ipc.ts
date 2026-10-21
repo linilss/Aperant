@@ -45,6 +45,8 @@ export const IPC_CHANNELS = {
   TASK_CONSOLIDATE_PREVIEW: 'task:consolidatePreview',  // AI groups Planning tasks that belong together
   TASK_CONSOLIDATE_RELINK: 'task:consolidateRelink',    // Point roadmap features at the consolidated task
   TASK_QUEUE_PROCESS: 'task:queueProcess',  // Promote queued tasks (main-process queue)
+  TASK_QUEUE_GET_ORDER: 'task:queueGetOrder',  // The user's queue order (task ids)
+  TASK_QUEUE_SET_ORDER: 'task:queueSetOrder',
   TASK_STOP_SAFE: 'task:stopSafe',  // Stop after the current subtask
   TASK_STOP: 'task:stop',
   TASK_REVIEW: 'task:review',

@@ -22,6 +22,16 @@ describe('pickTasksToPromote', () => {
     expect(pickTasksToPromote(tasks, 3, () => false).map((t) => t.id)).toEqual(['q-old', 'q-mid']);
   });
 
+  it('follows the user queue order, then the rest oldest first', () => {
+    const tasks = [
+      task('a', 'queue', '2026-10-01'),
+      task('b', 'queue', '2026-10-02'),
+      task('c', 'queue', '2026-10-03'),
+      task('d', 'queue', '2026-10-04'),
+    ];
+    expect(pickTasksToPromote(tasks, 3, () => false, ['c', 'gone', 'b']).map((t) => t.id)).toEqual(['c', 'b', 'a']);
+  });
+
   it('holds promotion while a task waits out a usage limit', () => {
     const tasks = [task('paused', 'in_progress', '2026-10-01'), task('q', 'queue', '2026-10-02')];
     expect(pickTasksToPromote(tasks, 3, (t) => t.id === 'paused')).toEqual([]);

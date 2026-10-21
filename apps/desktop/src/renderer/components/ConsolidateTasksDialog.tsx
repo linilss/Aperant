@@ -1,7 +1,7 @@
 /**
- * Consolidate & enqueue: an agent groups the Planning column's tasks that belong
- * together; the user reviews (rename, lift a task out), then each group becomes
- * one task (the originals are archived) and everything is queued.
+ * Consolidate: an agent groups the To do column's tasks that belong together;
+ * the user reviews (rename, lift a task out), then each group becomes one task
+ * (the originals are archived). Everything stays in To do.
  */
 
 import { useEffect, useState } from 'react';
@@ -19,9 +19,9 @@ interface ConsolidateTasksDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  /** The Planning column's tasks */
+  /** The To do column's tasks */
   tasks: Task[];
-  /** Called with the task ids to queue (consolidated + untouched) */
+  /** Called with the resulting task ids (consolidated + untouched) */
   onApplied: (taskIds: string[]) => Promise<void>;
 }
 

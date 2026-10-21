@@ -64,7 +64,7 @@ import { initializeUsageMonitorForwarding } from './ipc-handlers/terminal-handle
 import { initializeAppUpdater, stopPeriodicUpdates } from './app-updater';
 import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS, getSpecsDir } from '../shared/constants';
 import { collectResumeCandidates } from './safe-restart';
-import { processTaskQueues, startTaskQueue } from './task-queue';
+import { processTaskQueues, readQueueOrder, startTaskQueue, writeQueueOrder } from './task-queue';
 import { getAppLanguage, initAppLanguage } from './app-language';
 import { readSettingsFile } from './settings-utils';
 import { registerSettingsAccessor } from './ai/auth/resolver';
@@ -550,6 +550,8 @@ app.whenReady().then(() => {
   // Task queue for every project, not just the one on screen
   startTaskQueue((listener) => agentManager?.on('exit', listener));
   ipcMain.handle(IPC_CHANNELS.TASK_QUEUE_PROCESS, (_, projectId?: string) => processTaskQueues(projectId));
+  ipcMain.handle(IPC_CHANNELS.TASK_QUEUE_GET_ORDER, (_, projectId: string) => readQueueOrder(projectId));
+  ipcMain.handle(IPC_CHANNELS.TASK_QUEUE_SET_ORDER, (_, projectId: string, taskIds: string[]) => writeQueueOrder(projectId, taskIds));
 
   // LAN web access: settings IPC + start server if enabled
   initRemoteAccess(() => mainWindow);
