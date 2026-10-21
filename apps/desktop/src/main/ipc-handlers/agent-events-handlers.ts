@@ -245,12 +245,23 @@ export function registerAgenteventsHandlers(
             shouldRequirePlanReview(specTask.metadata?.requireReviewBeforeCoding, complexity)
           ) {
             console.warn(`[Task ${taskId}] Spec created (complexity: ${complexity ?? 'unknown'}) — waiting for plan approval`);
+            // The task just finished planning, whatever a stray progress event left in its state
+            // (e.g. AI Review): otherwise PLANNING_COMPLETE is ignored and the task hangs at 0%
+            let planningTask = specTask;
+            if (taskStateManager.getCurrentState(taskId) !== 'planning') {
+              taskStateManager.clearTask(taskId);
+              planningTask = {
+                ...specTask,
+                status: 'in_progress',
+                executionProgress: { ...(specTask.executionProgress ?? { phase: 'planning', phaseProgress: 0, overallProgress: 0 }), phase: 'planning' },
+              } as typeof specTask;
+            }
             taskStateManager.handleUiEvent(taskId, {
               type: 'PLANNING_COMPLETE',
               hasSubtasks: true,
               subtaskCount: specTask.subtasks?.length ?? 0,
               requireReviewBeforeCoding: true,
-            }, specTask, specProject);
+            }, planningTask, specProject);
           } else if (existsSync(specFilePath)) {
             console.warn(`[Task ${taskId}] Spec created successfully — starting task execution`);
             // Re-watch the spec directory for the build phase
