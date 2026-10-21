@@ -480,6 +480,12 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
           <div className="h-px flex-1 bg-border" />
         </div>
       )}
+      <div className={firstQueued >= 0 && index >= firstQueued ? 'flex gap-2' : undefined}>
+      {firstQueued >= 0 && index >= firstQueued && (
+        // Start order: 1 starts next
+        <span className="w-4 shrink-0 pt-4 text-right text-xs font-medium tabular-nums text-muted-foreground">{index - firstQueued + 1}</span>
+      )}
+      <div className={firstQueued >= 0 && index >= firstQueued ? 'min-w-0 flex-1' : undefined}>
       <SortableTaskCard
         task={task}
         onClick={onClickHandlers.get(task.id)!}
@@ -488,6 +494,8 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
         isSelected={isSelectable ? selectedTaskIds?.has(task.id) : undefined}
         onToggleSelect={onToggleSelectHandlers?.get(task.id)}
       />
+      </div>
+      </div>
       </Fragment>
     ));
   }, [tasks, onClickHandlers, onStatusChangeHandlers, onToggleSelectHandlers, selectedTaskIds, t]);
