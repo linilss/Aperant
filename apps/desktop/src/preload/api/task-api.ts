@@ -45,6 +45,8 @@ export interface TaskAPI {
   relinkConsolidatedSpecs: (projectId: string, mapping: Record<string, string>) => Promise<IPCResult>;
   /** Stop after the current subtask */
   stopTaskSafe: (taskId: string) => void;
+  /** Promote queued tasks now (the main-process queue also runs on its own) */
+  processTaskQueue: (projectId?: string) => Promise<void>;
   submitReview: (
     taskId: string,
     approved: boolean,
@@ -162,6 +164,8 @@ export const createTaskAPI = (): TaskAPI => ({
 
   stopTaskSafe: (taskId: string): void =>
     ipcRenderer.send(IPC_CHANNELS.TASK_STOP_SAFE, taskId),
+
+  processTaskQueue: (projectId?: string): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_PROCESS, projectId),
 
   submitReview: (
     taskId: string,

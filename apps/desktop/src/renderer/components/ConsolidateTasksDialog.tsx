@@ -89,7 +89,8 @@ export function ConsolidateTasksDialog({ open, onOpenChange, projectId, tasks, o
           projectId,
           group.title.trim() || group.specIds[0],
           buildConsolidatedDescription(group, new Map(Object.entries(specs))),
-          { category: 'feature', sourceType: 'manual', consolidatedFrom: group.specIds }
+          // The user approved the grouping: no second approval of the plan
+          { category: 'feature', sourceType: 'manual', consolidatedFrom: group.specIds, requireReviewBeforeCoding: false }
         );
         if (!created.success || !created.data) {
           setError(created.error ?? 'Could not create the consolidated task');

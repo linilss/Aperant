@@ -50,6 +50,7 @@ export const taskMock = {
   },
 
   stopTaskSafe: () => {},
+  processTaskQueue: async () => {},
   consolidateTasksPreview: async () => ({ success: false, error: 'Not available in browser mode' }),
   relinkConsolidatedSpecs: async () => ({ success: true }),
   stopTask: () => {

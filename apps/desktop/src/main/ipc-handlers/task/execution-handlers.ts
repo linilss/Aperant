@@ -115,6 +115,11 @@ function getSpecDirForWatcher(projectPath: string, specsBaseDir: string, specId:
 /**
  * Register task execution handlers (start, stop, review, status management, recovery)
  */
+/** Set when the handlers register: change a task's status like the renderer does (used by the task queue) */
+export let taskStatusUpdater:
+  | ((taskId: string, status: TaskStatus) => Promise<IPCResult>)
+  | null = null;
+
 export function registerTaskExecutionHandlers(
   agentManager: AgentManager,
   getMainWindow: () => BrowserWindow | null
@@ -597,14 +602,11 @@ export function registerTaskExecutionHandlers(
    * Options:
    * - forceCleanup: When setting to 'done' with a worktree present, delete the worktree first
    */
-  ipcMain.handle(
-    IPC_CHANNELS.TASK_UPDATE_STATUS,
-    async (
-      _,
-      taskId: string,
-      status: TaskStatus,
-      options?: { forceCleanup?: boolean; keepWorktree?: boolean }
-    ): Promise<IPCResult & { worktreeExists?: boolean; worktreePath?: string }> => {
+  const updateTaskStatus = async (
+    taskId: string,
+    status: TaskStatus,
+    options?: { forceCleanup?: boolean; keepWorktree?: boolean }
+  ): Promise<IPCResult & { worktreeExists?: boolean; worktreePath?: string }> => {
       // Find task and project first (needed for worktree check)
       const { task, project } = findTaskAndProject(taskId);
 
@@ -900,7 +902,12 @@ export function registerTaskExecutionHandlers(
           error: error instanceof Error ? error.message : 'Failed to update task status'
         };
       }
-    }
+  };
+  // Main-process queue promotes tasks through the same path
+  taskStatusUpdater = updateTaskStatus;
+
+  ipcMain.handle(IPC_CHANNELS.TASK_UPDATE_STATUS, (_, taskId: string, status: TaskStatus, options?: { forceCleanup?: boolean; keepWorktree?: boolean }) =>
+    updateTaskStatus(taskId, status, options)
   );
 
   /**

@@ -32,7 +32,7 @@ import { SortableTaskCard } from './SortableTaskCard';
 import { QueueSettingsModal } from './QueueSettingsModal';
 import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants';
 import { cn } from '../lib/utils';
-import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, isRateLimitPaused, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
+import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
 import { isMergeOnly, isTaskNotLive } from '../../shared/utils/task-deployments';
 import { useDeployDialogStore } from '../stores/deploy-dialog-store';
@@ -933,8 +933,6 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
   // Store projectId when modal opens to prevent modal from disappearing if tasks change
   const queueSettingsProjectIdRef = useRef<string | null>(null);
 
-  // Queue processing lock to prevent race conditions
-  const isProcessingQueueRef = useRef(false);
 
   // Selection state for bulk actions (Human Review column)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
@@ -1356,81 +1354,10 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
    * Automatically move tasks from Queue to In Progress to fill available capacity
    * Promotes multiple tasks if needed (e.g., after bulk queue)
    */
+  // The queue runs in the main process for every project; this just nudges it now
   const processQueue = useCallback(async () => {
-    // Prevent concurrent executions to avoid race conditions
-    if (isProcessingQueueRef.current) {
-      console.log('[Queue] Already processing queue, skipping duplicate call');
-      return;
-    }
-
-    isProcessingQueueRef.current = true;
-
-    try {
-      // Track tasks we've already attempted to promote (to avoid infinite retries)
-      const attemptedTaskIds = new Set<string>();
-      let consecutiveFailures = 0;
-      const MAX_CONSECUTIVE_FAILURES = 10; // Safety limit to prevent infinite loop
-
-      // Loop until capacity is full or queue is empty
-      while (true) {
-        // Get CURRENT state from store to ensure accuracy
-        const { tasks: currentTasks, rateLimitPauses } = useTaskStore.getState();
-        // Rate-limit-paused tasks are idle, so they don't hold a slot
-        const inProgressCount = currentTasks.filter((t) =>
-          t.status === 'in_progress' && !t.metadata?.archivedAt && !rateLimitPauses[t.id]
-        ).length;
-        const queuedTasks = currentTasks.filter((t) =>
-          t.status === 'queue' && !t.metadata?.archivedAt && !attemptedTaskIds.has(t.id)
-        );
-
-        // Don't promote into an exhausted session. A live pause means auto-swap
-        // found no account with capacity, so anything we start now would hit the
-        // same limit and park — draining the queue instead of doing work.
-        // The pause clearing re-triggers this loop via the status change listener.
-        if (isRateLimitPaused()) {
-          console.log('[Queue] Rate limit pause active, holding promotion until it clears');
-          break;
-        }
-
-        // Stop if no capacity, no queued tasks, or too many consecutive failures
-        if (inProgressCount >= maxParallelTasks || queuedTasks.length === 0) {
-          break;
-        }
-
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          console.warn(`[Queue] Stopping queue processing after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`);
-          break;
-        }
-
-        // Get the oldest task in queue (FIFO ordering)
-        const nextTask = queuedTasks.sort((a, b) => {
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          return dateA - dateB; // Ascending order (oldest first)
-        })[0];
-
-        console.log(`[Queue] Auto-promoting task ${nextTask.id} from Queue to In Progress (${inProgressCount + 1}/${maxParallelTasks})`);
-        const result = await persistTaskStatus(nextTask.id, 'in_progress');
-
-        if (result.success) {
-          // Reset consecutive failures on success
-          consecutiveFailures = 0;
-        } else {
-          // If promotion failed, log error, mark as attempted, and skip to next task
-          console.error(`[Queue] Failed to promote task ${nextTask.id} to In Progress:`, result.error);
-          attemptedTaskIds.add(nextTask.id);
-          consecutiveFailures++;
-        }
-      }
-
-      // Log if we had failed tasks
-      if (attemptedTaskIds.size > 0) {
-        console.warn(`[Queue] Skipped ${attemptedTaskIds.size} task(s) that failed to promote`);
-      }
-    } finally {
-      isProcessingQueueRef.current = false;
-    }
-  }, [maxParallelTasks]);
+    await window.electronAPI.processTaskQueue(projectId);
+  }, [projectId]);
 
   // Register task status change listener for queue auto-promotion
   // This ensures processQueue() is called whenever a task leaves in_progress
