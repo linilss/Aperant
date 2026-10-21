@@ -14,7 +14,7 @@ import { RATE_LIMIT_PAUSE_FILE } from './ai/orchestration/pause-handler';
 import { taskStatusUpdater } from './ipc-handlers/task/execution-handlers';
 import { projectStore } from './project-store';
 
-export const DEFAULT_MAX_PARALLEL_TASKS = 3;
+export const DEFAULT_MAX_PARALLEL_TASKS = 2;
 const TICK_MS = 20_000;
 
 /** Tasks to promote now, oldest first */

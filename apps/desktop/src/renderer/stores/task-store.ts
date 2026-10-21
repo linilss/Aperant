@@ -5,7 +5,7 @@ import { debugLog, debugWarn } from '../../shared/utils/debug-logger';
 import { useProjectStore } from './project-store';
 
 /** Default max parallel tasks when no project setting is configured */
-export const DEFAULT_MAX_PARALLEL_TASKS = 3;
+export const DEFAULT_MAX_PARALLEL_TASKS = 2;
 
 
 /** Maximum log entries stored per task to prevent renderer OOM */
