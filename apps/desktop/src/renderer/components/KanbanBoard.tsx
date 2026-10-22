@@ -5,6 +5,8 @@ import {
   DndContext,
   DragOverlay,
   closestCorners,
+  pointerWithin,
+  type CollisionDetection,
   KeyboardSensor,
   TouchSensor,
   useSensor,
@@ -52,6 +54,17 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import type { Task, TaskStatus, TaskOrderState } from '../../shared/types';
+
+/**
+ * Prefer the card under the pointer over the column it sits in, so a drop lands
+ * where it was released (reordering the queue); fall back to the nearest corners.
+ */
+const cardFirstCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  const cards = hits.filter((c) => !VALID_DROP_COLUMNS.has(String(c.id)));
+  if (cards.length > 0) return cards;
+  return hits.length > 0 ? hits : closestCorners(args);
+};
 
 /** Columns the board shows: Queue lives inside In Progress */
 const BOARD_COLUMNS = TASK_STATUS_COLUMNS.filter((s) => s !== 'queue');
@@ -1782,7 +1795,7 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
       {/* Kanban columns */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={cardFirstCollision}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}

@@ -263,7 +263,11 @@ export function useIpcListeners(): void {
         // This is the critical fix for issue #723 - without this check,
         // execution progress from Project A's task could update Project B's UI
         if (!isTaskForCurrentProject(projectId)) return;
-        queueUpdate(taskId, { progress });
+        // Progress from a task the board still shows as queued means the queue started it
+        // and its status event was missed (e.g. sent while another project was open)
+        const current = useTaskStore.getState().tasks.find((t) => t.id === taskId || t.specId === taskId);
+        const running = progress.phase && progress.phase !== 'idle' && progress.phase !== 'complete' && progress.phase !== 'failed';
+        queueUpdate(taskId, current?.status === 'queue' && running ? { progress, status: 'in_progress' } : { progress });
       }
     );
 
