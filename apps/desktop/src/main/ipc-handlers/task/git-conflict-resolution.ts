@@ -123,7 +123,7 @@ export async function resolveGitConflictsWithAI(
   const unresolved: UnresolvedConflict[] = [];
   const fail = (file: string, reason: string) => {
     unresolved.push({ file, reason });
-    appLog.warn(`${logTag} could not resolve ${file}: ${reason}`);
+    appLog.warn(`${logTag} stage=resolve file=${file} error=${reason}`);
   };
 
   for (const relPath of listUnmergedFiles(cwd)) {

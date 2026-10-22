@@ -22,6 +22,7 @@ import {
   resolveGitConflictsWithAI
 } from '../git-conflict-resolution';
 import type { resolveMergeConflict } from '../../../ai/runners/merge-resolver';
+import { appLog } from '../../../app-logger';
 
 let repo: string;
 
@@ -106,6 +107,7 @@ describe('resolveGitConflictsWithAI', () => {
 
     expect(unresolved).toEqual([{ file: 'a.txt', reason: 'AI resolution failed: Refresh token expired' }]);
     expect(listUnmergedFiles(repo)).toEqual(['a.txt']);
+    expect(appLog.warn).toHaveBeenCalledWith('[CONFLICT_RESOLVE] stage=resolve file=a.txt error=AI resolution failed: Refresh token expired');
   });
 
   it('rejects an answer that still has conflict markers', async () => {

@@ -2202,6 +2202,8 @@ export function registerWorktreeHandlers(
 
           // Someone may be working directly in the project checkout. Set their uncommitted
           // tracked changes aside for the merge and put them back right after.
+          const logFailure = (stage: string, message: string) =>
+            appLog.warn(`[QUICK_MERGE] ${task.specId} stage=${stage} error=${message}`);
           const workStashLabel = `malvy: uncommitted work set aside while merging ${task.specId}`;
           let workStashed = false;
           try {
@@ -2212,6 +2214,7 @@ export function registerWorktreeHandlers(
             }
           } catch (stashErr) {
             const msg = stashErr instanceof Error ? stashErr.message : String(stashErr);
+            logFailure('stash-work', msg);
             return { success: true, data: { success: false, message: `Could not set uncommitted changes aside: ${msg}` } };
           }
 
@@ -2219,6 +2222,7 @@ export function registerWorktreeHandlers(
           const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
           const featureBranch = findExistingTaskBranch(project.path, task.specId, project.settings);
           if (!featureBranch) {
+            logFailure('find-branch', `not found (tried: ${candidateBranches.join(', ')})`);
             return { success: true, data: { success: false, message: `Feature branch not found (tried: ${candidateBranches.join(', ')})` } };
           }
 
@@ -2243,6 +2247,7 @@ export function registerWorktreeHandlers(
               emitProgress: (stage, percent, message) => emitProgress(stage, percent, message)
             });
             if (!gitResult.ok) {
+              logFailure(gitResult.stage, gitResult.message);
               return { success: true, data: { success: false, message: gitResult.message } };
             }
 
@@ -2283,13 +2288,21 @@ export function registerWorktreeHandlers(
                 execFileSync(getToolPath('git'), ['stash', 'pop'], {
                   cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
                 });
-              } catch { /* non-fatal */ }
+              } catch (popErr) {
+                // Non-fatal: the .malvy/ changes stay in the stash list
+                logFailure('restore-malvy', popErr instanceof Error ? popErr.message : String(popErr));
+              }
             }
           }
-                  })();
+          })().catch((err): IPCResult<WorktreeMergeResult> => {
+            const msg = err instanceof Error ? err.message : String(err);
+            logFailure('unexpected', msg);
+            return { success: true, data: { success: false, message: `Merge failed: ${msg}` } };
+          });
 
           if (workStashed) {
             const restoreError = await restoreStashedWork(project.path, workStashLabel, (msg) => emitProgress('resolving', 95, msg));
+            if (restoreError) logFailure('restore-work', restoreError);
             if (restoreError && quickResult.data) {
               quickResult.data = { ...quickResult.data, message: `${quickResult.data.message} ${restoreError}` };
             }
