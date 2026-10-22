@@ -66,7 +66,7 @@
     "queue": "Queue",
     "in_progress": "In Progress",
     "ai_review": "AI Review",
-    "human_review": "Human Review",
+    "human_review": "Review",
     "pending_merge": "Pending Merge",
     "done": "Done",
     "pr_created": "PR Created",
@@ -75,6 +75,7 @@
   "kanban": {
     "columnTabsLabel": "Board columns",
     "emptyBacklog": "Nothing to do",
+    "yourReview": "Your review · {{count}}",
     "emptyBacklogHint": "Add a task to get started",
     "emptyQueue": "Queue is empty",
     "emptyQueueHint": "Tasks will wait here when parallel task limit is reached",

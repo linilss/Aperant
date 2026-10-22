@@ -66,8 +66,8 @@ const cardFirstCollision: CollisionDetection = (args) => {
   return hits.length > 0 ? hits : closestCorners(args);
 };
 
-/** Columns the board shows: Queue lives inside In Progress */
-const BOARD_COLUMNS = TASK_STATUS_COLUMNS.filter((s) => s !== 'queue');
+/** Columns the board shows: Queue lives inside In Progress, AI Review inside Review */
+const BOARD_COLUMNS = TASK_STATUS_COLUMNS.filter((s) => s !== 'queue' && s !== 'ai_review');
 
 // Type guard for valid drop column targets - preserves literal type from TASK_STATUS_COLUMNS
 const VALID_DROP_COLUMNS = new Set<string>(TASK_STATUS_COLUMNS);
@@ -85,6 +85,8 @@ function getVisualColumn(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number]
   if (status === 'pr_created') return 'pending_merge';
   // Queued tasks wait at the bottom of In Progress
   if (status === 'queue') return 'in_progress';
+  // AI review runs at the top of Review
+  if (status === 'ai_review') return 'human_review';
   if (status === 'error') return 'human_review';
   // pending_merge is a real column — pass through as-is
   return status;
@@ -485,8 +487,16 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
     if (tasks.length === 0) return null;
     const isSelectable = !!onToggleSelectHandlers;
     const firstQueued = tasks.findIndex((t) => t.status === 'queue');
+    // Review: a divider between AI reviews still running and what waits for the user
+    const firstYours = tasks.some((t) => t.status === 'ai_review') ? tasks.findIndex((t) => t.status !== 'ai_review') : -1;
     return tasks.map((task, index) => (
       <Fragment key={task.id}>
+      {index === firstYours && (
+        <div className="flex items-center gap-2 pt-1 text-xs font-medium text-muted-foreground">
+          <span>{t('tasks:kanban.yourReview', { count: tasks.length - firstYours })}</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      )}
       {index === firstQueued && (
         <div className="flex items-center gap-2 pt-1 text-xs font-medium text-muted-foreground">
           <span>{t('tasks:queue.upNext', { count: tasks.length - firstQueued })}</span>
@@ -1111,6 +1121,8 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
 
     // In Progress shows the running tasks, then the queue in start order
     grouped.in_progress = [...grouped.in_progress, ...grouped.queue];
+    // Review shows the AI reviews still running, then what waits for the user
+    grouped.human_review = [...grouped.ai_review, ...grouped.human_review];
     return grouped;
   }, [filteredTasks, taskOrder]);
 
@@ -1693,7 +1705,9 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
       if (projectId) saveTaskOrder(projectId);
     }
 
-    const newStatus: TaskStatus = overTask ? overTask.status : targetColumn;
+    // A drop on a card takes that card's status, except in Review (a running AI review
+    // isn't a status to move into)
+    const newStatus: TaskStatus = overTask && targetColumn !== 'human_review' ? overTask.status : targetColumn;
     if (newStatus === task.status) return;
 
     // Persist status change via handleStatusChange which enforces queue capacity
