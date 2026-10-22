@@ -54,6 +54,18 @@ function writeRecord(projectPath: string, record: DeployRunRecord): void {
   writeFileSync(path.join(dir, HISTORY_FILE), JSON.stringify([record, ...rest].slice(0, HISTORY_CAP), null, 2), 'utf-8');
 }
 
+/** Rewrite the given runs in place (same order); used to persist runs found interrupted */
+export function replaceDeployRecords(projectPath: string, records: DeployRunRecord[]): void {
+  const byId = new Map(records.map((r) => [r.id, r]));
+  const history = readDeployHistory(projectPath);
+  if (!history.some((r) => byId.has(r.id))) return;
+  writeFileSync(
+    path.join(projectPath, DEPLOY_DIR, HISTORY_FILE),
+    JSON.stringify(history.map((r) => byId.get(r.id) ?? r), null, 2),
+    'utf-8'
+  );
+}
+
 export function lastVerifiedDeploy(history: DeployRunRecord[]): DeployRunRecord | undefined {
   return history.find((r) => r.status === 'succeeded' && r.commit);
 }

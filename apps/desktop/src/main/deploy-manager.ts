@@ -11,7 +11,7 @@ import { projectStore } from './project-store';
 import { getSpecsDir } from '../shared/constants';
 import { findAllSpecPaths } from './utils/spec-path-helpers';
 import { appendTaskDeployment, updateTaskDeployment } from './task-deployments';
-import { DEPLOY_DIR, readDeployHistory, runDeploy } from './deploy-runner';
+import { DEPLOY_DIR, readDeployHistory, replaceDeployRecords, runDeploy } from './deploy-runner';
 import { isTaskNotLive } from '../shared/utils/task-deployments';
 import { isRestartPending } from './safe-restart';
 import type { DeployRunRecord, Project } from '../shared/types';
@@ -77,12 +77,23 @@ export function getActiveDeploy(projectId: string): DeployRunRecord | null {
 export function getDeployHistory(project: Project): DeployRunRecord[] {
   const history = readDeployHistory(project.path);
   const running = active.get(project.id)?.record.id;
-  return history.map((r) => {
+  const interrupted: DeployRunRecord[] = [];
+  const result = history.map((r) => {
     if (r.status !== 'running' || r.id === running) return r;
-    const interrupted: DeployRunRecord = { ...r, status: 'failed', reason: 'Interrupted (Malvy stopped during the deploy)', phase: undefined };
-    syncTasks(project, interrupted);
-    return interrupted;
+    const failed: DeployRunRecord = { ...r, status: 'failed', reason: 'Interrupted (Malvy stopped during the deploy)', phase: undefined };
+    syncTasks(project, failed);
+    interrupted.push(failed);
+    return failed;
   });
+  // Persist it, so the run doesn't look running to anything reading the file (the restart script)
+  if (interrupted.length > 0) {
+    try {
+      replaceDeployRecords(project.path, interrupted);
+    } catch {
+      // best effort: the next read marks it again
+    }
+  }
+  return result;
 }
 
 export function cancelDeploy(projectId: string): boolean {

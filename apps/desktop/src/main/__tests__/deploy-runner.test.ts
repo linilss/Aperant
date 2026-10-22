@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../cli-tool-manager', () => ({ getToolPath: () => 'git' }));
 vi.mock('../ai/cli/claude-cli', () => ({ runClaudeCliDetailed: vi.fn() }));
 
-import { commandIsFromRunbook, parsePlan, readDeployHistory, runDeploy } from '../deploy-runner';
+import { commandIsFromRunbook, parsePlan, readDeployHistory, replaceDeployRecords, runDeploy } from '../deploy-runner';
 import { extractClaudeMdDeployRules, parseVerifyCommands, seedRunbook, writeRunbook } from '../deploy-runbook';
 import type { DeployRunRecord } from '../../shared/types';
 
@@ -156,5 +156,23 @@ describe('runDeploy', () => {
     expect(out).toMatchObject({ status: 'succeeded', version: '1.0.5', build: '202610140900' });
     expect(git('log', '-1', '--format=%s')).toBe('Release 1.0.5 (build 202610140900)');
     expect(git('status', '--porcelain')).toBe('');
+  });
+});
+
+describe('replaceDeployRecords', () => {
+  it('rewrites matching runs in place and keeps the order', () => {
+    const d = mkdtempSync(path.join(tmpdir(), 'deploy-replace-'));
+    try {
+      mkdirSync(path.join(d, '.malvy', 'deploys'), { recursive: true });
+      const runs = [
+        { id: 'b', status: 'running', taskIds: [] },
+        { id: 'a', status: 'succeeded', taskIds: [] },
+      ] as unknown as DeployRunRecord[];
+      writeFileSync(path.join(d, '.malvy', 'deploys', 'history.json'), JSON.stringify(runs));
+      replaceDeployRecords(d, [{ ...runs[0], status: 'failed' } as DeployRunRecord]);
+      expect(readDeployHistory(d).map((r) => `${r.id}:${r.status}`)).toEqual(['b:failed', 'a:succeeded']);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
   });
 });
