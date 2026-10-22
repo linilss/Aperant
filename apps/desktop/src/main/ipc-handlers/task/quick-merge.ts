@@ -64,7 +64,7 @@ function makeGit(cwd: string, extraEnv: Record<string, string> = {}) {
     });
 }
 
-function refExists(cwd: string, ref: string): boolean {
+export function refExists(cwd: string, ref: string): boolean {
   try {
     makeGit(cwd)(['rev-parse', '--verify', '--quiet', ref]);
     return true;
@@ -122,6 +122,30 @@ async function mergeWithAI(
     abortMerge(cwd);
     return conflictFailureMessage(err);
   }
+}
+
+/**
+ * Which branch the Merge buttons merge into. Priority:
+ *   1. The task's own base branch (task_metadata.json)
+ *   2. The project's main branch setting
+ *   3. A local main, master or dev branch (in that order; deploys ship main/master)
+ *   4. origin/dev when only the remote has it
+ *   5. 'main'
+ */
+export function pickMergeTarget(opts: {
+  taskBaseBranch?: string;
+  projectMainBranch?: string;
+  isValidBranch: (name: string) => boolean;
+  hasLocalBranch: (name: string) => boolean;
+  hasRemoteBranch: (name: string) => boolean;
+}): string {
+  if (opts.taskBaseBranch) return opts.taskBaseBranch;
+  const configured = opts.projectMainBranch?.trim();
+  if (configured && opts.isValidBranch(configured)) return configured;
+  const local = ['main', 'master', 'dev'].find((b) => opts.hasLocalBranch(b));
+  if (local) return local;
+  if (opts.hasRemoteBranch('dev')) return 'dev';
+  return 'main';
 }
 
 export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<QuickMergeGitResult> {

@@ -12,7 +12,7 @@ vi.mock('../../../app-logger', () => ({ appLog: { warn: vi.fn(), info: vi.fn(), 
 vi.mock('../../../ai/runners/merge-resolver', () => ({ resolveMergeConflict: vi.fn() }));
 
 import type { resolveMergeConflict } from '../../../ai/runners/merge-resolver';
-import { runQuickMergeGit, type QuickMergeGitInput } from '../quick-merge';
+import { pickMergeTarget, runQuickMergeGit, type QuickMergeGitInput } from '../quick-merge';
 
 let root: string;
 let project: string;
@@ -143,5 +143,42 @@ describe('runQuickMergeGit', () => {
     const result = await runQuickMergeGit(input({ targetBranch: 'nope' }));
 
     expect(result).toEqual({ ok: false, stage: 'prepare-target', message: 'Target branch nope does not exist.' });
+  });
+});
+
+describe('pickMergeTarget', () => {
+  const pick = (opts: { task?: string; setting?: string; local?: string[]; remote?: string[] }) =>
+    pickMergeTarget({
+      taskBaseBranch: opts.task,
+      projectMainBranch: opts.setting,
+      isValidBranch: (name) => /^[\w./-]+$/.test(name),
+      hasLocalBranch: (name) => (opts.local ?? []).includes(name),
+      hasRemoteBranch: (name) => (opts.remote ?? []).includes(name)
+    });
+
+  it('uses the task base branch first', () => {
+    expect(pick({ task: 'feat/x', setting: 'main', local: ['main', 'dev'] })).toBe('feat/x');
+  });
+
+  it('uses the project main branch setting over any detection', () => {
+    expect(pick({ setting: 'main', local: ['main', 'dev'], remote: ['dev'] })).toBe('main');
+    expect(pick({ setting: 'dev', local: ['main', 'dev'], remote: ['dev'] })).toBe('dev');
+  });
+
+  it('prefers a local main over origin/dev when nothing is configured', () => {
+    expect(pick({ local: ['main'], remote: ['main', 'dev'] })).toBe('main');
+    expect(pick({ local: ['main', 'dev'] })).toBe('main');
+  });
+
+  it('falls back to local master, then local dev, then origin/dev, then main', () => {
+    expect(pick({ local: ['master', 'dev'] })).toBe('master');
+    expect(pick({ local: ['dev'] })).toBe('dev');
+    expect(pick({ remote: ['dev'] })).toBe('dev');
+    expect(pick({})).toBe('main');
+  });
+
+  it('ignores a blank or invalid setting', () => {
+    expect(pick({ setting: '  ', local: ['main'] })).toBe('main');
+    expect(pick({ setting: 'bad name', local: ['dev'] })).toBe('dev');
   });
 });

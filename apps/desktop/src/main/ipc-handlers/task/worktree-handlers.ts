@@ -11,7 +11,7 @@ import { projectStore } from '../../project-store';
 
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
-import { runQuickMergeGit } from './quick-merge';
+import { pickMergeTarget, refExists, runQuickMergeGit } from './quick-merge';
 import { describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
 import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
@@ -1523,14 +1523,6 @@ function getEffectiveBaseBranch(projectPath: string, specId: string, projectMain
 }
 
 /**
- * Auto-detect the merge target branch for the Merge button.
- * Priority:
- * 1. Task metadata baseBranch (explicit override)
- * 2. origin/dev if it exists on the remote
- * 3. Project settings mainBranch
- * 4. Fallback to 'main'
- */
-/**
  * Put back changes set aside with `git stash push` before a merge. Conflicts with the merged
  * code are resolved with AI and the result left unstaged, as it was. Returns an error note
  * when the work could not be restored (it then stays in the stash list), else null.
@@ -1650,27 +1642,14 @@ async function syncWorktreeWithBase(
 }
 
 function autoDetectMergeTarget(projectPath: string, specDir: string, projectMainBranch?: string): string {
-  // 1. Task metadata override
-  const taskBaseBranch = getTaskBaseBranch(specDir);
-  if (taskBaseBranch) return taskBaseBranch;
-
-  // 2. Project settings — the branch the project deploys from
-  if (projectMainBranch && GIT_BRANCH_REGEX.test(projectMainBranch)) return projectMainBranch;
-
-  // 3. Prefer origin/dev if it exists
-  try {
-    const remoteRefs = execFileSync(
-      getToolPath('git'),
-      ['ls-remote', '--heads', 'origin', 'dev'],
-      { cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }
-    ).trim();
-    if (remoteRefs.length > 0) return 'dev';
-  } catch {
-    // ls-remote failed — network issue or no remote; continue
-  }
-
-  // 4. Fallback
-  return 'main';
+  return pickMergeTarget({
+    taskBaseBranch: getTaskBaseBranch(specDir),
+    projectMainBranch,
+    isValidBranch: (name) => GIT_BRANCH_REGEX.test(name),
+    hasLocalBranch: (name) => refExists(projectPath, `refs/heads/${name}`),
+    // origin/dev without a local dev: only the remote-tracking ref counts (no network call)
+    hasRemoteBranch: (name) => refExists(projectPath, `refs/remotes/origin/${name}`)
+  });
 }
 
 // ============================================
@@ -2161,7 +2140,7 @@ export function registerWorktreeHandlers(
         }
 
         // Determine base branch.
-        // For quickMerge (Merge / Deploy buttons): task base branch, then project setting, then origin/dev.
+        // For quickMerge (Merge / Deploy buttons): see pickMergeTarget (task base, project setting, local main/master/dev).
         // For the human-review orchestrator path: use getTaskBaseBranch → project setting → 'main'.
         const projectMainBranch = project.settings?.mainBranch;
         const effectiveBaseBranch = options?.quickMerge
