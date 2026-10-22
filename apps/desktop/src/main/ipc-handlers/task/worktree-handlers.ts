@@ -11,7 +11,7 @@ import { projectStore } from '../../project-store';
 
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
-import { pickMergeTarget, refExists, runQuickMergeGit } from './quick-merge';
+import { pickMergeTarget, pushMergedTarget, refExists, runQuickMergeGit } from './quick-merge';
 import { describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
 import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
@@ -2252,11 +2252,15 @@ export function registerWorktreeHandlers(
               : task;
             taskStateManager.handleManualStatusChange(taskId, newStatus as any, taskForTransition, project);
 
+            // Every merge is pushed so origin never drifts behind; a failed push
+            // keeps the merge and says so
+            const pushNote = pushMergedTarget(project.path, effectiveBaseBranch, (stage, msg) => logFailure(stage, msg));
+
             return {
               success: true,
               data: {
                 success: true,
-                message: `Merged ${featureBranch} into ${effectiveBaseBranch}`,
+                message: `Merged ${featureBranch} into ${effectiveBaseBranch}${pushNote}`,
                 merged: true,
                 targetBranch: effectiveBaseBranch
               }

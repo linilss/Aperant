@@ -12,7 +12,7 @@ vi.mock('../../../app-logger', () => ({ appLog: { warn: vi.fn(), info: vi.fn(), 
 vi.mock('../../../ai/runners/merge-resolver', () => ({ resolveMergeConflict: vi.fn() }));
 
 import type { resolveMergeConflict } from '../../../ai/runners/merge-resolver';
-import { pickMergeTarget, runQuickMergeGit, type QuickMergeGitInput } from '../quick-merge';
+import { pickMergeTarget, pushMergedTarget, runQuickMergeGit, type QuickMergeGitInput } from '../quick-merge';
 
 let root: string;
 let project: string;
@@ -180,5 +180,38 @@ describe('pickMergeTarget', () => {
   it('ignores a blank or invalid setting', () => {
     expect(pick({ setting: '  ', local: ['main'] })).toBe('main');
     expect(pick({ setting: 'bad name', local: ['dev'] })).toBe('dev');
+  });
+});
+
+describe('pushMergedTarget', () => {
+  it('pushes the target to origin', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'qm-push-'));
+    try {
+      const origin = path.join(dir, 'origin.git');
+      const repo = path.join(dir, 'repo');
+      execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin]);
+      execFileSync('git', ['clone', '-q', origin, repo], { stdio: 'pipe' });
+      gitIn(repo, 'config', 'user.email', 't@t');
+      gitIn(repo, 'config', 'user.name', 't');
+      gitIn(repo, 'checkout', '-q', '-b', 'main');
+      commitFile(repo, 'a.txt', 'a', 'first');
+      expect(pushMergedTarget(repo, 'main', () => undefined)).toBe(' and pushed');
+      expect(gitIn(origin, 'rev-parse', 'main')).toBe(gitIn(repo, 'rev-parse', 'HEAD'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a failed push without throwing', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'qm-push-'));
+    try {
+      gitIn(dir, 'init', '-q', '-b', 'main');
+      gitIn(dir, 'remote', 'add', 'origin', path.join(dir, 'missing.git'));
+      const log = vi.fn();
+      expect(pushMergedTarget(dir, 'main', log)).toMatch(/Push to origin failed/);
+      expect(log).toHaveBeenCalledWith('push', expect.any(String));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

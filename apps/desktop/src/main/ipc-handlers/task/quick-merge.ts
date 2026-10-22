@@ -7,8 +7,9 @@
  *   3. In the project checkout: checkout <target>, merge --no-ff the feature branch (clean after
  *      step 2), commit
  *
- * Local <target> is what gets merged into, and it is routinely ahead of origin (merges are
- * local, nothing pushes), so step 2 must use it rather than origin/<target>.
+ * Local <target> is what gets merged into. It can be ahead of origin (a push failed or was
+ * done by hand), so step 2 must use it rather than origin/<target>. After a merge the caller
+ * pushes <target> (pushMergedTarget).
  *
  * Every failure aborts its merge so the project checkout is left as it was. Setting the user's
  * uncommitted work aside is the caller's job.
@@ -269,4 +270,20 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
     }
   }
   return { ok: true };
+}
+
+/** Push `target` to origin after a quick merge; returns a note for the toast ('' when pushed) */
+export function pushMergedTarget(projectPath: string, target: string, log: (stage: string, msg: string) => void): string {
+  try {
+    const remotes = execFileSync(getToolPath('git'), ['remote'], { cwd: projectPath, encoding: 'utf-8', env: getIsolatedGitEnv() });
+    if (!remotes.split(/\s+/).includes('origin')) return ' (no origin remote, not pushed)';
+    execFileSync(getToolPath('git'), ['push', 'origin', target], {
+      cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 120_000
+    });
+    return ' and pushed';
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log('push', msg);
+    return `. Push to origin failed: ${msg.split('\n').find((l) => l.trim()) ?? msg}`;
+  }
 }
