@@ -1,10 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const userData = { dir: '' };
+vi.mock('electron', () => ({ app: { getPath: () => userData.dir } }));
 
 import { SAFE_STOP_FILE } from '../ai/orchestration/pause-handler';
-import { RESUME_AFTER_RESTART_FILE, collectResumeCandidates } from '../safe-restart';
+import { RESTART_PENDING_FILE, RESUME_AFTER_RESTART_FILE, clearRestartPending, collectResumeCandidates, isRestartPending } from '../safe-restart';
 
 let dir = '';
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -37,5 +40,27 @@ describe('collectResumeCandidates', () => {
       expect(existsSync(path.join(d, RESUME_AFTER_RESTART_FILE))).toBe(false);
       expect(existsSync(path.join(d, SAFE_STOP_FILE))).toBe(false);
     }
+  });
+});
+
+describe('restart pending marker', () => {
+  it('is pending while the marker is fresh, and cleared at startup', () => {
+    dir = mkdtempSync(path.join(tmpdir(), 'restart-pending-'));
+    userData.dir = dir;
+    expect(isRestartPending()).toBe(false);
+    writeFileSync(path.join(dir, RESTART_PENDING_FILE), '');
+    expect(isRestartPending()).toBe(true);
+    clearRestartPending();
+    expect(existsSync(path.join(dir, RESTART_PENDING_FILE))).toBe(false);
+  });
+
+  it('ignores a marker older than 10 minutes', () => {
+    dir = mkdtempSync(path.join(tmpdir(), 'restart-pending-'));
+    userData.dir = dir;
+    const file = path.join(dir, RESTART_PENDING_FILE);
+    writeFileSync(file, '');
+    const old = new Date(Date.now() - 11 * 60_000);
+    utimesSync(file, old, old);
+    expect(isRestartPending()).toBe(false);
   });
 });

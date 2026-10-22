@@ -13,6 +13,7 @@ import { findAllSpecPaths } from './utils/spec-path-helpers';
 import { appendTaskDeployment, updateTaskDeployment } from './task-deployments';
 import { DEPLOY_DIR, readDeployHistory, runDeploy } from './deploy-runner';
 import { isTaskNotLive } from '../shared/utils/task-deployments';
+import { isRestartPending } from './safe-restart';
 import type { DeployRunRecord, Project } from '../shared/types';
 
 const active = new Map<string, { record: DeployRunRecord; abort: AbortController }>();
@@ -97,6 +98,7 @@ export function cancelDeploy(projectId: string): boolean {
  */
 export function startDeploy(project: Project, requestedTaskIds: string[], onUpdate?: (r: DeployRunRecord) => void): DeployRunRecord {
   if (active.has(project.id)) throw new Error('A deploy is already running for this project');
+  if (isRestartPending()) throw new Error('Malvy is restarting. Start the deploy again in a minute.');
 
   const tasks = projectStore.getTasks(project.id);
   const taskIds = [...new Set([...requestedTaskIds, ...tasks.filter(isTaskNotLive).map((t) => t.id)])];

@@ -63,7 +63,7 @@ import { getUsageMonitor } from './claude-profile/usage-monitor';
 import { initializeUsageMonitorForwarding } from './ipc-handlers/terminal-handlers';
 import { initializeAppUpdater, stopPeriodicUpdates } from './app-updater';
 import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS, getSpecsDir } from '../shared/constants';
-import { collectResumeCandidates } from './safe-restart';
+import { clearRestartPending, collectResumeCandidates } from './safe-restart';
 import { processTaskQueues, readQueueOrder, startTaskQueue, writeQueueOrder } from './task-queue';
 import { getAppLanguage, initAppLanguage } from './app-language';
 import { readSettingsFile } from './settings-utils';
@@ -559,6 +559,7 @@ app.whenReady().then(() => {
   // Create window
   createWindow();
 
+  clearRestartPending();
   // Safe restart: start again the tasks a safe stop paused just before this restart
   setTimeout(() => {
     try {

@@ -15,6 +15,7 @@ import type { Task } from '../shared/types';
 import { RATE_LIMIT_PAUSE_FILE } from './ai/orchestration/pause-handler';
 import { taskStatusUpdater } from './ipc-handlers/task/execution-handlers';
 import { projectStore } from './project-store';
+import { isRestartPending } from './safe-restart';
 
 export const DEFAULT_MAX_PARALLEL_TASKS = 2;
 const TICK_MS = 20_000;
@@ -71,7 +72,7 @@ let timer: NodeJS.Timeout | null = null;
 
 /** One pass over all projects (or just `projectId`) */
 export async function processTaskQueues(projectId?: string): Promise<void> {
-  if (busy || !taskStatusUpdater || queuePaused()) return;
+  if (busy || !taskStatusUpdater || queuePaused() || isRestartPending()) return;
   busy = true;
   try {
     for (const project of projectStore.getProjects()) {

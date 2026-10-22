@@ -5,12 +5,37 @@
  * cleared at startup so no task stops by accident on its next run.
  */
 
-import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
+
+import { app } from 'electron';
 
 import { SAFE_STOP_FILE } from './ai/orchestration/pause-handler';
 
 export const RESUME_AFTER_RESTART_FILE = 'RESUME_AFTER_RESTART';
+
+/**
+ * Written to userData by the safe-restart script seconds before it stops Malvy,
+ * so nothing new (a deploy, a queued task) starts in that window. A marker
+ * older than 10 minutes is ignored (a restart that never happened).
+ */
+export const RESTART_PENDING_FILE = 'RESTART_PENDING';
+const RESTART_PENDING_MAX_AGE_MS = 10 * 60_000;
+
+const restartPendingPath = () => path.join(app.getPath('userData'), RESTART_PENDING_FILE);
+
+export function isRestartPending(): boolean {
+  try {
+    return Date.now() - statSync(restartPendingPath()).mtimeMs < RESTART_PENDING_MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** Called at startup: the restart the marker announced has happened */
+export function clearRestartPending(): void {
+  remove(restartPendingPath());
+}
 
 export interface ResumeCandidate {
   projectId: string;
