@@ -12,6 +12,7 @@ import { useProjectStore, updateProjectSettings } from '../../stores/project-sto
 import { toast } from '../../hooks/use-toast';
 import { getLastDeployment, isMergeOnly, resolveProjectDeployScript } from '../../../shared/utils/task-deployments';
 import { buildChainCommand, buildCleanCheckoutDeployCommand, newDeployLogPath, withDeployLog } from './deploy-command';
+import { oldestFirst, runMergeBatch, type MergeOneResult } from './merge-batch';
 import type { DeployPreflight, DeployScript, Task } from '../../../shared/types';
 
 interface TaskDeployDialogProps {
@@ -143,19 +144,11 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
     [t]
   );
 
-  const quickMerge = useCallback(
-    async (task: Task): Promise<boolean> => {
-      const merge = await window.electronAPI.mergeWorktree(task.id, { quickMerge: true });
-      if (merge.success && merge.data?.success) return true;
-      toast({
-        title: t('batch.mergeFailed', { title: task.title }),
-        description: merge.data?.message || merge.error,
-        variant: 'destructive'
-      });
-      return false;
-    },
-    [t]
-  );
+  const quickMerge = useCallback(async (task: Task): Promise<MergeOneResult> => {
+    const merge = await window.electronAPI.mergeWorktree(task.id, { quickMerge: true });
+    if (merge.success && merge.data?.success) return { ok: true };
+    return { ok: false, reason: merge.data?.message || merge.error || '' };
+  }, []);
 
   const deployOneClick = useCallback(
     async (task: Task) => {
@@ -163,7 +156,15 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
       try {
         if (task.status !== 'done') {
           setStage(task.id, 'merging');
-          if (!(await quickMerge(task))) return;
+          const merge = await quickMerge(task);
+          if (!merge.ok) {
+            toast({
+              title: t('batch.mergeFailed', { title: task.title }),
+              description: merge.reason,
+              variant: 'destructive'
+            });
+            return;
+          }
         }
         if (isMergeOnly(useProjectStore.getState().projects.find((p) => p.id === task.projectId)?.settings)) {
           toast({ title: t('task.merged', { title: task.title }) });
@@ -190,19 +191,29 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
       if (tasks.length === 0) return;
       const { setStage, setBatch } = useDeployDialogStore.getState();
       const projectId = tasks[0].projectId;
-      const ordered = [...tasks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      const merged: Task[] = [];
+      const ordered = oldestFirst(tasks);
       try {
-        for (const [index, task] of ordered.entries()) {
-          setBatch(projectId, { step: 'merging', index: index + 1, total: ordered.length });
-          setStage(task.id, 'merging');
-          const ok = await quickMerge(task);
-          setStage(task.id, null);
-          if (!ok) {
-            if (merged.length > 0) toast({ title: t('batch.stopped', { merged: merged.length, total: ordered.length }) });
-            return;
-          }
-          merged.push(task);
+        const { merged, failed } = await runMergeBatch({
+          tasks: ordered,
+          mergeOne: async (task) => {
+            setStage(task.id, 'merging');
+            try {
+              return await quickMerge(task);
+            } finally {
+              setStage(task.id, null);
+            }
+          },
+          onStart: (_task, index, total) => setBatch(projectId, { step: 'merging', index, total })
+        });
+
+        // Any failure: report every one and stop before deploying (merged ones show as not live)
+        if (failed.length > 0) {
+          toast({
+            title: t('batch.summary', { merged: merged.length, failed: failed.length, total: merged.length + failed.length }),
+            description: failed.map(({ task, reason }) => t('batch.failedItem', { title: task.title, reason })).join('\n'),
+            variant: 'destructive'
+          });
+          return;
         }
 
         setBatch(projectId, { step: 'verifying', index: ordered.length, total: ordered.length });
