@@ -555,10 +555,10 @@ export function registerTerminalHandlers(
   // Request current usage snapshot
   ipcMain.handle(
     IPC_CHANNELS.USAGE_REQUEST,
-    async (): Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>> => {
+    async (_event: IpcMainInvokeEvent, forceRefresh = false): Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>> => {
       try {
         const monitor = getUsageMonitor();
-        const usage = monitor.getCurrentUsage();
+        const usage = forceRefresh ? await monitor.refreshNow() : monitor.getCurrentUsage();
         return { success: true, data: usage };
       } catch (error) {
         return {

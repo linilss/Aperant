@@ -391,6 +391,17 @@ export class UsageMonitor extends EventEmitter {
   }
 
   /**
+   * User-requested refresh: one fresh fetch now, ignoring the 429/failure
+   * cooldowns (they exist to stop polling from hammering the endpoint).
+   */
+  async refreshNow(): Promise<ClaudeUsageSnapshot | null> {
+    this.rateLimitedProfiles.clear();
+    this.apiFailureTimestamps.clear();
+    await this.checkUsageAndSwap();
+    return this.getCurrentUsage();
+  }
+
+  /**
    * Get all profiles usage data (for multi-profile display in UI)
    * Returns cached data if fresh, otherwise fetches for all profiles
    *

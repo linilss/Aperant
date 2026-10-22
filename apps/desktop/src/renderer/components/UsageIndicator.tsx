@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Activity, TrendingUp, AlertCircle, Clock, ChevronRight, Info, LogIn, Layers } from 'lucide-react';
+import { Activity, TrendingUp, AlertCircle, Clock, ChevronRight, Info, LogIn, Layers, RefreshCw } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -175,6 +175,50 @@ function centreUsageOnProfile(
       .concat([previousActive])
       .sort((a, b) => b.availabilityScore - a.availabilityScore)
   };
+}
+
+
+/** "Updated 3 min ago" + a button that fetches fresh usage now (ignores the 429 back-off) */
+function UsageRefresh({ fetchedAt, onRefreshed }: { fetchedAt?: Date | string; onRefreshed: (usage: ClaudeUsageSnapshot | null) => void }) {
+  const { t } = useTranslation(['common']);
+  const [busy, setBusy] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const minutes = fetchedAt ? Math.max(0, Math.floor((Date.now() - new Date(fetchedAt).getTime()) / 60_000)) : null;
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      const [result] = await Promise.all([
+        window.electronAPI.requestUsageUpdate(true),
+        window.electronAPI.requestAllProfilesUsage?.(true),
+      ]);
+      onRefreshed(result.success ? (result.data ?? null) : null);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ml-auto flex items-center gap-1.5">
+      {minutes !== null && (
+        <span className={minutes >= 10 ? 'text-[10px] text-warning' : 'text-[10px] text-muted-foreground'}>
+          {minutes < 1 ? t('common:usage.updatedJustNow') : t('common:usage.updatedAgo', { count: minutes })}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => void refresh()}
+        disabled={busy}
+        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+        aria-label={t('common:usage.refresh')}
+        title={t('common:usage.refresh')}
+      >
+        <RefreshCw className={busy ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
+      </button>
+    </div>
+  );
 }
 
 export function UsageIndicator() {
@@ -828,6 +872,12 @@ export function UsageIndicator() {
       (hasHardcodedText(usage?.weeklyResetTime) ? undefined : usage?.weeklyResetTime))
     : (hasHardcodedText(usage?.weeklyResetTime) ? undefined : usage?.weeklyResetTime);
 
+  const applyRefreshedUsage = useCallback((snapshot: ClaudeUsageSnapshot | null) => {
+    if (!snapshot) return;
+    setUsage(snapshot);
+    setIsAvailable(true);
+  }, []);
+
   useEffect(() => {
     // Listen for usage updates from main process
     const unsubscribe = window.electronAPI.onUsageUpdated((snapshot: ClaudeUsageSnapshot) => {
@@ -919,6 +969,7 @@ export function UsageIndicator() {
               <div className="flex items-center gap-1.5 pb-2 border-b">
                 <Activity className="h-3.5 w-3.5" />
                 <span className="font-semibold text-xs">{t('common:usage.usageBreakdown')}</span>
+              <UsageRefresh fetchedAt={usage?.fetchedAt} onRefreshed={applyRefreshedUsage} />
               </div>
             <div className="flex items-start gap-2.5 py-3">
               <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
@@ -1050,6 +1101,7 @@ export function UsageIndicator() {
             <div className="flex items-center gap-1.5 pb-2 border-b">
               <Activity className="h-3.5 w-3.5" />
               <span className="font-semibold text-xs">{t('common:usage.usageBreakdown')}</span>
+              <UsageRefresh fetchedAt={usage?.fetchedAt} onRefreshed={applyRefreshedUsage} />
             </div>
             <div className="flex items-center justify-center py-4">
               <div className="text-center space-y-1">
@@ -1190,6 +1242,7 @@ export function UsageIndicator() {
             <div className="flex items-center gap-1.5 pb-2 border-b">
               <Activity className="h-3.5 w-3.5" />
               <span className="font-semibold text-xs">{t('common:usage.usageBreakdown')}</span>
+              <UsageRefresh fetchedAt={usage?.fetchedAt} onRefreshed={applyRefreshedUsage} />
             </div>
 
             {/* Status message */}
@@ -1409,6 +1462,7 @@ export function UsageIndicator() {
           <div className="flex items-center gap-1.5 pb-2 border-b">
             <Icon className="h-3.5 w-3.5" />
             <span className="font-semibold text-xs">{t('common:usage.usageBreakdown')}</span>
+              <UsageRefresh fetchedAt={usage?.fetchedAt} onRefreshed={applyRefreshedUsage} />
           </div>
 
           {/* Re-auth required prompt - shown when active profile needs re-authentication */}
