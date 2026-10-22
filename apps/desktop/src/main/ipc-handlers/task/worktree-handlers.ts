@@ -11,7 +11,8 @@ import { projectStore } from '../../project-store';
 
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
-import { assertAllConflictsResolved, conflictFailureMessage, describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
+import { runQuickMergeGit } from './quick-merge';
+import { describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
 import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
 import { detectAzureDevOpsFromRemote } from '../azure-devops/utils';
@@ -2188,11 +2189,10 @@ export function registerWorktreeHandlers(
         };
 
         // ── Quick Merge path (Merge button on pending_merge tasks) ──────────────
-        // Skips the AI orchestrator. Does a real git merge directly:
+        // Skips the AI orchestrator. Does a real git merge directly (see quick-merge.ts):
         //   1. Find the feature branch
-        //   2. Fetch origin
-        //   3. Bring feature branch up to date with origin/<target>
-        //   4. Merge feature branch into <target> with --no-ff
+        //   2. Bring it up to date with the local <target> in its worktree (conflicts resolved there)
+        //   3. Merge feature branch into <target> with --no-ff
         // Cleanup (branch delete, worktree remove) is handled separately by
         // TASK_POST_MERGE_CLEANUP, so the user is prompted before deletion.
         if (options?.quickMerge) {
@@ -2232,134 +2232,18 @@ export function registerWorktreeHandlers(
           } catch { /* non-fatal */ }
 
           try {
-            // Step 1: Fetch origin
-            emitProgress('updating', 10, `Fetching latest from origin`);
-            try {
-              execFileSync(getToolPath('git'), ['fetch', 'origin'], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch (fetchErr) {
-              debug('fetch failed (non-fatal):', fetchErr instanceof Error ? fetchErr.message : String(fetchErr));
-            }
-
-            // Step 2: Bring the feature branch up to date with origin/<target>
-            emitProgress('updating', 30, `Bringing ${featureBranch} up to date with ${effectiveBaseBranch}`);
             const hasWorktreeDir = !!(worktreePath && existsSync(worktreePath) && isGitWorkTree(worktreePath));
-            if (hasWorktreeDir && worktreePath) {
-              // Use the existing worktree — no checkout needed
-              try {
-                execFileSync(getToolPath('git'), ['merge', `origin/${effectiveBaseBranch}`, '--no-edit'], {
-                  cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-              } catch {
-                // Merge produced conflicts — resolve with AI then continue
-                emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
-                try {
-                  await resolveAllConflictsOrThrow(worktreePath, project.path, {
-                    targetSide: 'theirs', logTag: `[QUICK_MERGE] ${task.specId}`, onProgress: (msg) => emitProgress('resolving', 45, msg)
-                  });
-                  execFileSync(getToolPath('git'), ['merge', '--continue'], {
-                    cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
-                  });
-                } catch (resolveErr) {
-                  try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: worktreePath, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                  return { success: true, data: { success: false, message: `${conflictFailureMessage(resolveErr)} Resolve them in the task worktree manually; ${effectiveBaseBranch} was not changed.` } };
-                }
-              }
-            } else {
-              // No worktree dir — temporarily checkout the feature branch, update it, check back out
-              let savedBranch: string | null = null;
-              try {
-                savedBranch = execFileSync(getToolPath('git'), ['symbolic-ref', '--short', 'HEAD'], {
-                  cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-                }).trim();
-              } catch { /* detached HEAD — savedBranch stays null */ }
-
-              try {
-                execFileSync(getToolPath('git'), ['checkout', featureBranch], {
-                  cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-                try {
-                  execFileSync(getToolPath('git'), ['merge', `origin/${effectiveBaseBranch}`, '--no-edit'], {
-                    cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                  });
-                } catch {
-                  // Conflicts — resolve with AI then continue
-                  emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
-                  try {
-                    await resolveAllConflictsOrThrow(project.path, project.path, {
-                      targetSide: 'theirs', logTag: `[QUICK_MERGE] ${task.specId}`, onProgress: (msg) => emitProgress('resolving', 45, msg)
-                    });
-                    execFileSync(getToolPath('git'), ['merge', '--continue'], {
-                      cwd: project.path, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
-                    });
-                  } catch (resolveErr) {
-                    try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                    if (savedBranch) { try { execFileSync(getToolPath('git'), ['checkout', savedBranch], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ } }
-                    return { success: true, data: { success: false, message: `${conflictFailureMessage(resolveErr)} Resolve them manually; ${effectiveBaseBranch} was not changed.` } };
-                  }
-                }
-              } catch (checkoutErr) {
-                const msg = checkoutErr instanceof Error ? checkoutErr.message : String(checkoutErr);
-                return { success: true, data: { success: false, message: `Could not checkout feature branch: ${msg}` } };
-              }
-
-              // Restore to the target branch for the final merge
-              try {
-                execFileSync(getToolPath('git'), ['checkout', effectiveBaseBranch], {
-                  cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-              } catch {
-                // If target doesn't exist locally yet, track it from origin
-                execFileSync(getToolPath('git'), ['checkout', '-b', effectiveBaseBranch, `origin/${effectiveBaseBranch}`], {
-                  cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-              }
-            }
-
-            // Step 3: Merge feature branch into target
-            emitProgress('resolving', 70, `Merging ${featureBranch} into ${effectiveBaseBranch}`);
-            const mergeMsg = task.title || `merge ${featureBranch}`;
-            try {
-              execFileSync(getToolPath('git'), ['checkout', effectiveBaseBranch], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch { /* already on target branch */ }
-            try {
-              execFileSync(getToolPath('git'), ['merge', '--no-ff', '--no-commit', featureBranch], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch {
-              // Conflicts on final merge — resolve with AI
-              emitProgress('resolving', 80, 'Resolving final merge conflicts with AI');
-              try {
-                await resolveAllConflictsOrThrow(project.path, project.path, {
-                  targetSide: 'ours', logTag: `[QUICK_MERGE] ${task.specId}`, onProgress: (msg) => emitProgress('resolving', 85, msg)
-                });
-              } catch (resolveErr) {
-                try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                return { success: true, data: { success: false, message: `${conflictFailureMessage(resolveErr)} The merge into ${effectiveBaseBranch} was aborted.` } };
-              }
-            }
-            // Never commit with unmerged files left (git's own error names no files or reason)
-            try {
-              assertAllConflictsResolved(project.path, []);
-            } catch (unmergedErr) {
-              try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-              return { success: true, data: { success: false, message: `${conflictFailureMessage(unmergedErr)} The merge into ${effectiveBaseBranch} was aborted.` } };
-            }
-            // Commit the merge (whether it was clean or AI-resolved)
-            try {
-              execFileSync(getToolPath('git'), ['commit', '--no-edit', '-m', mergeMsg], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch (commitErr) {
-              // If nothing to commit (clean fast-forward staged), that's fine
-              const msg = commitErr instanceof Error ? commitErr.message : String(commitErr);
-              if (!msg.includes('nothing to commit') && !msg.includes('nothing added')) {
-                try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                return { success: true, data: { success: false, message: `Commit failed: ${msg}` } };
-              }
+            const gitResult = await runQuickMergeGit({
+              projectPath: project.path,
+              worktreePath: hasWorktreeDir ? worktreePath : null,
+              featureBranch,
+              targetBranch: effectiveBaseBranch,
+              commitMessage: task.title || `merge ${featureBranch}`,
+              specId: task.specId,
+              emitProgress: (stage, percent, message) => emitProgress(stage, percent, message)
+            });
+            if (!gitResult.ok) {
+              return { success: true, data: { success: false, message: gitResult.message } };
             }
 
             // Step 4: Mark task done via XState
