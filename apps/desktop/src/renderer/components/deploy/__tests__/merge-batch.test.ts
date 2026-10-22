@@ -49,4 +49,37 @@ describe('runMergeBatch', () => {
       ['b', 2, 2]
     ]);
   });
+
+  it('also merges tasks that reached the column during the run, each once', async () => {
+    const a = task('a', '2026-01-01');
+    const late = task('late', '2026-01-05');
+    const failing = task('f', '2026-01-02');
+    let pending: Task[] = [a, failing];
+    const mergeOne = vi.fn(async (t: Task): Promise<MergeOneResult> => {
+      if (t.id === 'a') pending = [failing, late]; // late arrives while a merges
+      if (t.id === 'f') return { ok: false, reason: 'boom' }; // stays pending, must not retry
+      pending = pending.filter((x) => x.id !== t.id);
+      return { ok: true };
+    });
+    const onStart = vi.fn();
+
+    const outcome = await runMergeBatch({ tasks: [a, failing], mergeOne, onStart, fetchPending: () => pending });
+
+    expect(mergeOne.mock.calls.map(([t]) => t.id)).toEqual(['a', 'f', 'late']);
+    expect(outcome.merged.map((t) => t.id)).toEqual(['a', 'late']);
+    expect(outcome.failed.map(({ task: t }) => t.id)).toEqual(['f']);
+    expect(onStart.mock.calls.at(-1)?.slice(1)).toEqual([3, 3]);
+  });
+
+  it('stops after maxPasses even if tasks keep arriving', async () => {
+    let n = 0;
+    const outcome = await runMergeBatch({
+      tasks: [task('t0', '2026-01-01')],
+      mergeOne: async () => ({ ok: true }),
+      fetchPending: () => [task(`t${++n}`, '2026-01-02')],
+      maxPasses: 3
+    });
+
+    expect(outcome.merged).toHaveLength(3);
+  });
 });

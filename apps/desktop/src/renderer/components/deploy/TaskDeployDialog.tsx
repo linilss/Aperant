@@ -203,7 +203,9 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
               setStage(task.id, null);
             }
           },
-          onStart: (_task, index, total) => setBatch(projectId, { step: 'merging', index, total })
+          onStart: (_task, index, total) => setBatch(projectId, { step: 'merging', index, total }),
+          fetchPending: () =>
+            useTaskStore.getState().tasks.filter((x) => x.projectId === projectId && x.status === 'pending_merge')
         });
 
         // Any failure: report every one and stop before deploying (merged ones show as not live)
@@ -216,7 +218,7 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
           return;
         }
 
-        setBatch(projectId, { step: 'verifying', index: ordered.length, total: ordered.length });
+        setBatch(projectId, { step: 'verifying', index: merged.length, total: merged.length });
         const verify = await window.electronAPI.verifyBeforeDeploy(
           projectId,
           merged.map((task) => task.title)
@@ -236,7 +238,7 @@ export function TaskDeployDialog({ onRunInTerminal, onOpenDeployView }: TaskDepl
           return;
         }
 
-        setBatch(projectId, { step: 'deploying', index: ordered.length, total: ordered.length });
+        setBatch(projectId, { step: 'deploying', index: merged.length, total: merged.length });
         await deployMerged(merged);
       } catch (err) {
         toast({
