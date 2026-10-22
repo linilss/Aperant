@@ -12,6 +12,7 @@ import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { ProjectAccountChip } from './ProjectAccountChip';
 import { UsageIndicator } from './UsageIndicator';
 import { FunnelBar } from './FunnelProgress';
+import { ProjectActivityBadge } from './ProjectActivityBadge';
 import { useFunnelStore } from '../stores/funnel-store';
 import {
   DropdownMenu,
@@ -21,15 +22,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from './ui/dropdown-menu';
-import type { FunnelProgress, Project } from '../../shared/types';
+import type { FunnelProgress, Project, ProjectActivity } from '../../shared/types';
 
 /** Project name with its plan-funnel progress as a thin bar underneath */
-function ProjectNameWithFunnel({ name, funnel, className }: { name: string; funnel?: FunnelProgress; className?: string }) {
+function ProjectNameWithFunnel({ name, funnel, activity, className }: { name: string; funnel?: FunnelProgress; activity?: ProjectActivity; className?: string }) {
   const { t } = useTranslation('common');
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-1">
       <span className="flex min-w-0 items-baseline gap-2">
         <span className={cn('min-w-0 flex-1 truncate', className)}>{name}</span>
+        <ProjectActivityBadge activity={activity} className="self-center" />
         {funnel && (
           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
             {t('funnel.count', { completed: funnel.completed, total: funnel.total })}
@@ -137,6 +139,7 @@ function MobileProjectMenu({
 }: MobileProjectMenuProps & { viewTitle: string }) {
   const { t } = useTranslation(['navigation', 'common']);
   const funnelByProject = useFunnelStore((s) => s.byProject);
+  const activityByProject = useFunnelStore((s) => s.activity);
   const active = projects.find((p) => p.id === activeProjectId);
   const itemClass = 'min-h-11 gap-2 px-3 py-2';
 
@@ -173,7 +176,7 @@ function MobileProjectMenu({
               onSelect={() => onProjectSelect(project.id)}
               className={cn(itemClass, isActive && 'bg-accent text-accent-foreground')}
             >
-              <ProjectNameWithFunnel name={project.name} funnel={funnelByProject[project.id]} className="font-medium" />
+              <ProjectNameWithFunnel name={project.name} funnel={funnelByProject[project.id]} activity={activityByProject[project.id]} className="font-medium" />
               {isActive && <Check className="h-4 w-4 shrink-0" />}
             </DropdownMenuItem>
           );

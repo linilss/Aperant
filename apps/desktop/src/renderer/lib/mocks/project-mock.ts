@@ -62,6 +62,7 @@ export const projectMock = {
   getDeployLog: async () => ({ success: true, data: '' }),
   cancelDeploy: async () => ({ success: true, data: false }),
   recordTaskDeployment: async () => ({ success: true, data: [] }),
+  getProjectActivity: async () => ({ success: true, data: {} }),
   getFunnelProgress: async (projectIds: string[]) => ({
     success: true,
     data: Object.fromEntries(projectIds.map((id) => [id, mockFunnelProgress(id)]))

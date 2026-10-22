@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger
 } from './ui/dropdown-menu';
 import { FunnelBar, FunnelStepList } from './FunnelProgress';
+import { ProjectActivityBadge } from './ProjectActivityBadge';
+import { useProjectActivity } from '../stores/funnel-store';
 import { useClaudeProfileStore } from '../stores/claude-profile-store';
 import type { FunnelProgress, Project } from '../../shared/types';
 
@@ -46,6 +48,7 @@ export function SortableProjectTab({
   funnel
 }: SortableProjectTabProps) {
   const { t } = useTranslation('common');
+  const activity = useProjectActivity(project.id);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const pinnedProfileId = project.settings?.claudeProfileId;
   const pinnedProfileName = useClaudeProfileStore((state) =>
@@ -149,6 +152,7 @@ export function SortableProjectTab({
             <span className="truncate font-medium">
               {project.name}
             </span>
+            <ProjectActivityBadge activity={activity} />
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="space-y-2">

@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
   PROJECT_RESOLVE_TASK_DEPLOYMENTS: 'project:resolveTaskDeployments',  // Read finished deploy logs into task_metadata.json
   PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json
   PROJECT_FUNNEL_PROGRESS: 'project:funnelProgress',      // Plan-funnel step completion for a set of projects
+  PROJECT_ACTIVITY: 'project:activity',                    // Running / needs-you counts for a set of projects
   PROJECT_FUNNEL_CHANGED: 'project:funnelChanged',        // main → renderer: a funnel step's files changed (projectId)
 
   // Tab state operations (persisted in main process)

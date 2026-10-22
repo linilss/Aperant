@@ -79,6 +79,7 @@ export interface ProjectAPI {
 
   // Plan funnel (project tab progress, sidebar checks)
   getFunnelProgress: (projectIds: string[]) => Promise<IPCResult<Record<string, FunnelProgress>>>;
+  getProjectActivity: (projectIds: string[]) => Promise<IPCResult<Record<string, import('../../shared/types').ProjectActivity>>>;
   onFunnelChanged: (cb: (projectId: string) => void) => () => void;
 
   // Tab State (persisted in main process for reliability)
@@ -279,6 +280,8 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   getFunnelProgress: (projectIds: string[]): Promise<IPCResult<Record<string, FunnelProgress>>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_FUNNEL_PROGRESS, projectIds),
+  getProjectActivity: (projectIds: string[]): Promise<IPCResult<Record<string, import('../../shared/types').ProjectActivity>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_ACTIVITY, projectIds),
 
   onFunnelChanged: (cb: (projectId: string) => void) => {
     const listener = (_: Electron.IpcRendererEvent, projectId: string) => cb(projectId);

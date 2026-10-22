@@ -1413,5 +1413,9 @@
     "empty": "Nothing here",
     "unsorted": "Unsorted ideas ({{count}})",
     "unsortedHint": "Drag one into a quadrant to add it with that priority"
+  },
+  "projectActivity": {
+    "running": "{{count}} running",
+    "needsYou": "{{count}} waiting for you"
   }
 }

@@ -15,3 +15,11 @@ export interface FunnelProgress {
   completed: number;
   total: number;
 }
+
+/** What a project is doing right now (project tabs and the project list) */
+export interface ProjectActivity {
+  /** Tasks building or in AI review, plus a running deploy */
+  running: number;
+  /** Tasks waiting for the user: Human Review (plan approval, errors, done), Pending merge */
+  needsYou: number;
+}
