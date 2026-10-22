@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from 'child_process';
-import { existsSync } from 'fs';
+import { appendFileSync, existsSync } from 'fs';
 import path from 'path';
 import { getToolPath } from './cli-tool-manager';
 import { projectStore } from './project-store';
@@ -161,9 +161,19 @@ export function startDeploy(project: Project, requestedTaskIds: string[], onUpda
   active.set(project.id, { record, abort });
   void runDeploy({ projectPath: project.path, cwd, cleanCheckout: dirty, taskTitles, record, abortSignal: abort.signal, onUpdate })
     .catch((err) => {
+      // A crash inside the run (e.g. the planning agent failing to start) must still end
+      // up in the history with its reason, or it later reads as "Interrupted"
       record.status = 'failed';
       record.reason = err instanceof Error ? err.message : String(err);
       record.finishedAt = new Date().toISOString();
+      record.phase = undefined;
+      console.warn(`[Deploy] ${project.name} ${record.id} crashed: ${record.reason}`);
+      try {
+        appendFileSync(path.join(project.path, record.log), `\n==> Deploy failed: ${record.reason}\n`);
+        replaceDeployRecords(project.path, [record]);
+      } catch {
+        // best effort
+      }
       return record;
     })
     .then((final) => {
