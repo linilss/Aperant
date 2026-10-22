@@ -82,6 +82,11 @@ export async function resolveMergeConflict(
       prompt: userPrompt,
     });
 
+    // A cut-off answer would silently truncate the file
+    if (result.finishReason === 'length') {
+      return { success: false, text: '', error: 'AI answer was cut off (file too long to resolve)' };
+    }
+
     if (result.text.trim()) {
       return { success: true, text: result.text.trim() };
     }

@@ -10,7 +10,8 @@ import { homedir } from 'os';
 import { projectStore } from '../../project-store';
 
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
-import { createMergeResolverFn, resolveMergeConflict } from '../../ai/runners/merge-resolver';
+import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
+import { assertAllConflictsResolved, conflictFailureMessage, describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
 import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
 import { detectAzureDevOpsFromRemote } from '../azure-devops/utils';
@@ -18,6 +19,7 @@ import type { ModelShorthand } from '../../ai/config/types';
 import { findTaskAndProject } from './shared';
 import { updateRoadmapFeatureOutcome } from '../../utils/roadmap-utils';
 import { getToolPath } from '../../cli-tool-manager';
+import { appLog } from '../../app-logger';
 import { promisify } from 'util';
 import {
   getTaskWorktreeDir,
@@ -1528,20 +1530,6 @@ function getEffectiveBaseBranch(projectPath: string, specId: string, projectMain
  * 4. Fallback to 'main'
  */
 /**
- * AI-powered git conflict resolution.
- *
- * When `git merge` leaves conflict markers, this function:
- * 1. Finds all conflicted files (U in --diff-filter=U)
- * 2. Sends each file's content to the AI for resolution
- * 3. Writes the resolved content back and stages the file
- *
- * After this returns, call `git merge --continue` (with GIT_EDITOR=true) to finish.
- *
- * @param cwd - Directory containing the git repo (worktree or main project)
- * @param projectPath - Project root (the AI calls run on its pinned Claude account)
- * @param onProgress - Optional progress callback
- */
-/**
  * Put back changes set aside with `git stash push` before a merge. Conflicts with the merged
  * code are resolved with AI and the result left unstaged, as it was. Returns an error note
  * when the work could not be restored (it then stays in the stash list), else null.
@@ -1569,59 +1557,33 @@ async function restoreStashedWork(
   }
   try {
     onProgress?.('Putting uncommitted changes back — resolving conflicts with AI');
-    await resolveGitConflictsWithAI(projectPath, projectPath, onProgress);
-    if (git(['diff', '--name-only', '--diff-filter=U']).trim()) return keptNote;
+    const unresolved = await resolveGitConflictsWithAI(projectPath, projectPath, {
+      targetSide: 'ours', onProgress, logTag: `[STASH_RESTORE] ${label}`
+    });
+    const stillUnmerged = listUnmergedFiles(projectPath);
+    if (stillUnmerged.length > 0) {
+      undoStashApply();
+      return `${keptNote} ${describeUnresolved(stillUnmerged, unresolved)}.`;
+    }
     git(['reset', '-q']);
     git(['stash', 'drop', ref]);
     return null;
   } catch {
+    undoStashApply();
     return keptNote;
   }
-}
 
-async function resolveGitConflictsWithAI(
-  cwd: string,
-  projectPath: string,
-  onProgress?: (msg: string) => void
-): Promise<void> {
-  // Find conflicted files
-  const conflictedFiles = execFileSync(
-    getToolPath('git'),
-    ['diff', '--name-only', '--diff-filter=U'],
-    { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }
-  ).trim().split('\n').filter(Boolean);
-
-  if (conflictedFiles.length === 0) return;
-
-  for (const relPath of conflictedFiles) {
-    const absPath = path.join(cwd, relPath);
-    onProgress?.(`Resolving conflict in ${relPath}`);
-
-    let conflictedContent: string;
+  // The work is still in the stash: put the stashed files back to HEAD so the checkout is left
+  // clean (no conflict markers) rather than half-applied.
+  function undoStashApply(): void {
     try {
-      conflictedContent = readFileSync(absPath, 'utf-8');
-    } catch {
-      continue; // Skip unreadable files
-    }
-
-    const result = await resolveMergeConflict({
-      systemPrompt: `You are a code merge expert resolving a Git merge conflict.
-Return ONLY the complete resolved file content — no explanation, no markdown fences, no conflict markers.
-Prefer keeping all changes from both sides unless they directly contradict.`,
-      userPrompt: `Resolve the following merge conflict. Return only the complete resolved file.\n\nFile: ${relPath}\n\n${conflictedContent}`,
-      modelShorthand: 'sonnet',
-      thinkingLevel: 'low',
-      projectPath,
-    });
-
-    if (result.success && result.text) {
-      const { writeFileSync } = await import('fs');
-      writeFileSync(absPath, result.text, 'utf-8');
-      execFileSync(
-        getToolPath('git'),
-        ['add', relPath],
-        { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }
-      );
+      const files = git(['stash', 'show', '--name-only', ref as string]).split('\n').filter(Boolean);
+      git(['reset', '-q']);
+      for (const file of files) {
+        try { git(['checkout', 'HEAD', '--', file]); } catch { /* not in HEAD */ }
+      }
+    } catch (err) {
+      appLog.warn(`[STASH_RESTORE] ${label} could not reset the checkout: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }
@@ -1666,17 +1628,8 @@ async function syncWorktreeWithBase(
   } catch {
     // Merge produced conflicts — resolve with AI
     try {
-      await resolveGitConflictsWithAI(worktreePath, projectPath);
-
-      // Check if any files are still unmerged after AI resolution
-      const remaining = execFileSync(
-        getToolPath('git'), ['diff', '--name-only', '--diff-filter=U'],
-        { cwd: worktreePath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 10000 }
-      ).trim();
-      if (remaining) {
-        // Some files couldn't be resolved — abort
-        throw new Error(`AI could not resolve conflicts in: ${remaining.split('\n').join(', ')}`);
-      }
+      // Throws naming the files (and why) if any are still unmerged after AI resolution
+      await resolveAllConflictsOrThrow(worktreePath, projectPath, { targetSide: 'theirs', logTag: '[WORKTREE_SYNC]' });
 
       execFileSync(getToolPath('git'), ['merge', '--continue'], {
         cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }, timeout: 30000
@@ -2302,14 +2255,15 @@ export function registerWorktreeHandlers(
                 // Merge produced conflicts — resolve with AI then continue
                 emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
                 try {
-                  await resolveGitConflictsWithAI(worktreePath, project.path, (msg) => emitProgress('resolving', 45, msg));
+                  await resolveAllConflictsOrThrow(worktreePath, project.path, {
+                    targetSide: 'theirs', logTag: `[QUICK_MERGE] ${task.specId}`, onProgress: (msg) => emitProgress('resolving', 45, msg)
+                  });
                   execFileSync(getToolPath('git'), ['merge', '--continue'], {
                     cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
                   });
                 } catch (resolveErr) {
                   try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: worktreePath, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                  const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
-                  return { success: true, data: { success: false, message: `Could not resolve all conflicts automatically: ${msg}. Resolve conflicts in the worktree manually.` } };
+                  return { success: true, data: { success: false, message: `${conflictFailureMessage(resolveErr)} Resolve them in the task worktree manually; ${effectiveBaseBranch} was not changed.` } };
                 }
               }
             } else {
@@ -2333,15 +2287,16 @@ export function registerWorktreeHandlers(
                   // Conflicts — resolve with AI then continue
                   emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
                   try {
-                    await resolveGitConflictsWithAI(project.path, project.path, (msg) => emitProgress('resolving', 45, msg));
+                    await resolveAllConflictsOrThrow(project.path, project.path, {
+                      targetSide: 'theirs', logTag: `[QUICK_MERGE] ${task.specId}`, onProgress: (msg) => emitProgress('resolving', 45, msg)
+                    });
                     execFileSync(getToolPath('git'), ['merge', '--continue'], {
                       cwd: project.path, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }
                     });
                   } catch (resolveErr) {
                     try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
                     if (savedBranch) { try { execFileSync(getToolPath('git'), ['checkout', savedBranch], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ } }
-                    const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
-                    return { success: true, data: { success: false, message: `Could not resolve all conflicts automatically: ${msg}. Resolve conflicts manually.` } };
+                    return { success: true, data: { success: false, message: `${conflictFailureMessage(resolveErr)} Resolve them manually; ${effectiveBaseBranch} was not changed.` } };
                   }
                 }
               } catch (checkoutErr) {
@@ -2378,12 +2333,20 @@ export function registerWorktreeHandlers(
               // Conflicts on final merge — resolve with AI
               emitProgress('resolving', 80, 'Resolving final merge conflicts with AI');
               try {
-                await resolveGitConflictsWithAI(project.path, project.path, (msg) => emitProgress('resolving', 85, msg));
+                await resolveAllConflictsOrThrow(project.path, project.path, {
+                  targetSide: 'ours', logTag: `[QUICK_MERGE] ${task.specId}`, onProgress: (msg) => emitProgress('resolving', 85, msg)
+                });
               } catch (resolveErr) {
                 try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
-                return { success: true, data: { success: false, message: `Could not resolve final merge conflicts automatically: ${msg}` } };
+                return { success: true, data: { success: false, message: `${conflictFailureMessage(resolveErr)} The merge into ${effectiveBaseBranch} was aborted.` } };
               }
+            }
+            // Never commit with unmerged files left (git's own error names no files or reason)
+            try {
+              assertAllConflictsResolved(project.path, []);
+            } catch (unmergedErr) {
+              try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
+              return { success: true, data: { success: false, message: `${conflictFailureMessage(unmergedErr)} The merge into ${effectiveBaseBranch} was aborted.` } };
             }
             // Commit the merge (whether it was clean or AI-resolved)
             try {
