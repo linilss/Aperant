@@ -186,6 +186,10 @@ export class WorkerBridge extends EventEmitter {
         this.emitTyped('task-event', message.taskId, message.data as TaskEventPayload, message.projectId);
         break;
 
+      case 'trace-update':
+        this.emitTyped('agent-trace-update', message.taskId, message.data, message.projectId);
+        break;
+
       case 'result':
         this.handleResult(message.taskId, message.data, message.projectId);
         break;

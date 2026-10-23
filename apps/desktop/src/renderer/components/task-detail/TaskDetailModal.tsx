@@ -54,6 +54,7 @@ import { TaskSubtasks } from './TaskSubtasks';
 import { TaskLogs } from './TaskLogs';
 import { TaskFiles } from './TaskFiles';
 import { TaskReview } from './TaskReview';
+import { CollapsibleTraceSection } from './AgentTracePanel';
 import type { Task, WorktreeCreatePROptions } from '../../../shared/types';
 
 interface TaskDetailModalProps {
@@ -766,6 +767,8 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                     <div className="p-5 space-y-5 overflow-x-hidden max-w-full">
                       {/* Metadata */}
                       <TaskMetadata task={task} />
+
+                      <CollapsibleTraceSection task={task} modelId={task.metadata?.phaseModels?.coding} />
 
                       {/* Human Review Section */}
                       {state.needsReview && (

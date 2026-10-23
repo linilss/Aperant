@@ -25,6 +25,7 @@ export * from './pr-status';
 export * from './provider-account';
 
 export * from './tests';
+export * from './trace-types';
 export * from './claude-docs';
 export * from './core-values';
 export * from './design-system';

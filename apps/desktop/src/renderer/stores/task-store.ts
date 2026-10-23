@@ -3,6 +3,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import type { Task, TaskStatus, SubtaskStatus, ImplementationPlan, Subtask, TaskMetadata, ExecutionProgress, ExecutionPhase, ReviewReason, TaskDraft, ImageAttachment, TaskOrderState, RateLimitPauseInfo } from '../../shared/types';
 import { debugLog, debugWarn } from '../../shared/utils/debug-logger';
 import { useProjectStore } from './project-store';
+import type { TraceEntry, AgentTrace } from '../../shared/types/trace-types';
 
 /** Default max parallel tasks when no project setting is configured */
 export const DEFAULT_MAX_PARALLEL_TASKS = 2;
@@ -25,6 +26,11 @@ interface TaskState {
    * deliberately not persisted: a pause only exists while its worker does.
    */
   rateLimitPauses: Record<string, RateLimitPauseInfo>;
+
+  // Trace state: per-task agent decision traces
+  agentTraces: Record<string, AgentTrace>;
+  appendTraceEntry: (taskId: string, entry: TraceEntry) => void;
+  clearTrace: (taskId: string) => void;
 
   // Actions
   setTasks: (tasks: Task[]) => void;
@@ -211,6 +217,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   isLoading: false,
   error: null,
   taskOrder: null,
+  agentTraces: {},
   rateLimitPauses: {},
 
   setTasks: (tasks) => {
@@ -693,6 +700,35 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       console.error('Failed to clear task order:', error);
     }
   },
+
+  appendTraceEntry: (taskId, entry) =>
+    set((state) => {
+      const existing = state.agentTraces[taskId];
+      const entries = existing ? [...existing.entries, entry] : [entry];
+      const prev = existing?.cumulativeUsage ?? {
+        promptTokens: 0, completionTokens: 0, totalTokens: 0,
+      };
+      const cumulativeUsage = {
+        promptTokens: prev.promptTokens + entry.usage.promptTokens,
+        completionTokens: prev.completionTokens + entry.usage.completionTokens,
+        totalTokens: prev.totalTokens + entry.usage.totalTokens,
+        thinkingTokens: (prev.thinkingTokens ?? 0) + (entry.usage.thinkingTokens ?? 0),
+        cacheReadTokens: (prev.cacheReadTokens ?? 0) + (entry.usage.cacheReadTokens ?? 0),
+        cacheCreationTokens: (prev.cacheCreationTokens ?? 0) + (entry.usage.cacheCreationTokens ?? 0),
+      };
+      return {
+        agentTraces: {
+          ...state.agentTraces,
+          [taskId]: { taskId, entries, cumulativeUsage },
+        },
+      };
+    }),
+
+  clearTrace: (taskId) =>
+    set((state) => {
+      const { [taskId]: _removed, ...rest } = state.agentTraces;
+      return { agentTraces: rest };
+    }),
 
   getSelectedTask: () => {
     const state = get();

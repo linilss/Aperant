@@ -105,6 +105,7 @@ export interface TaskAPI {
   onTaskExecutionProgress: (
     callback: (taskId: string, progress: import('../../shared/types').ExecutionProgress, projectId?: string) => void
   ) => () => void;
+  onTaskTraceUpdate: (callback: (taskId: string, entry: import('../../shared/types/trace-types').TraceEntry, projectId?: string) => void) => () => void;
   onTaskRateLimitPause: (
     callback: (taskId: string, info: import('../../shared/types').RateLimitPauseInfo, projectId?: string) => void
   ) => () => void;
@@ -389,6 +390,12 @@ export const createTaskAPI = (): TaskAPI => ({
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.TASK_EXECUTION_PROGRESS, handler);
     };
+  },
+
+  onTaskTraceUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, entry: import('../../shared/types/trace-types').TraceEntry, projectId?: string) => callback(taskId, entry, projectId);
+    ipcRenderer.on(IPC_CHANNELS.TASK_TRACE_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TASK_TRACE_UPDATE, handler);
   },
 
   // Task Phase Logs
