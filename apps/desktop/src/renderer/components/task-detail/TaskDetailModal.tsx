@@ -54,6 +54,7 @@ import { TaskSubtasks } from './TaskSubtasks';
 import { TaskLogs } from './TaskLogs';
 import { TaskFiles } from './TaskFiles';
 import { TaskReview } from './TaskReview';
+import { TaskFailurePanel } from './TaskFailurePanel';
 import { CollapsibleTraceSection } from './AgentTracePanel';
 import type { Task, WorktreeCreatePROptions } from '../../../shared/types';
 
@@ -711,6 +712,9 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                   />
                 </div>
               )}
+
+              {/* What QA found and a one-click fix */}
+              <TaskFailurePanel task={task} />
 
               {/* Error details banner */}
               {task.reviewReason === 'errors' && task.errorMessage && (

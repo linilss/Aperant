@@ -49,6 +49,7 @@ export interface TaskAPI {
   processTaskQueue: (projectId?: string) => Promise<void>;
   getTaskQueueOrder: (projectId: string) => Promise<string[]>;
   setTaskQueueOrder: (projectId: string, taskIds: string[]) => Promise<void>;
+  getTaskQaReport: (taskId: string) => Promise<IPCResult<string | null>>;
   submitReview: (
     taskId: string,
     approved: boolean,
@@ -171,6 +172,9 @@ export const createTaskAPI = (): TaskAPI => ({
   processTaskQueue: (projectId?: string): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_PROCESS, projectId),
   getTaskQueueOrder: (projectId: string): Promise<string[]> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_GET_ORDER, projectId),
   setTaskQueueOrder: (projectId: string, taskIds: string[]): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_SET_ORDER, projectId, taskIds),
+
+  getTaskQaReport: (taskId: string): Promise<IPCResult<string | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_QA_REPORT, taskId),
 
   submitReview: (
     taskId: string,

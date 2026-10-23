@@ -419,5 +419,15 @@
     "liftOut": "Keep this task on its own",
     "cancel": "Cancel",
     "apply": "Create {{count}} tasks"
+  },
+  "failure": {
+    "title": "Why it stopped",
+    "blocking": "Blocking",
+    "unmet": "Unmet acceptance criteria",
+    "recommended": "Recommended fixes",
+    "fixWithAgent": "Fix with agent",
+    "seeError": "See the error below.",
+    "noReport": "No QA report found; check the Logs tab.",
+    "genericFix": "The task stopped with errors. Find the cause in the logs and the code, fix it and make sure the verify command passes."
   }
 }

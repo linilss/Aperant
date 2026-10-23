@@ -51,6 +51,7 @@ export const IPC_CHANNELS = {
   TASK_STOP_SAFE: 'task:stopSafe',  // Stop after the current subtask
   TASK_STOP: 'task:stop',
   TASK_REVIEW: 'task:review',
+  TASK_QA_REPORT: 'task:qaReport',  // The task's latest qa_report.md (worktree copy first)
   TASK_UPDATE_STATUS: 'task:updateStatus',
   TASK_RECOVER_STUCK: 'task:recoverStuck',
   TASK_CHECK_RUNNING: 'task:checkRunning',

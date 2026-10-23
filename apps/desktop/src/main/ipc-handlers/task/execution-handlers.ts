@@ -413,6 +413,28 @@ export function registerTaskExecutionHandlers(
    * Review a task (approve or reject)
    */
   ipcMain.handle(
+    IPC_CHANNELS.TASK_QA_REPORT,
+    async (_, taskId: string): Promise<IPCResult<string | null>> => {
+      const { task, project } = findTaskAndProject(taskId);
+      if (!task || !project) return { success: false, error: 'Task not found' };
+      const specsBaseDir = getSpecsDir(project.autoBuildPath);
+      const worktreePath = findTaskWorktree(project.path, task.specId);
+      const candidates = [
+        ...(worktreePath ? [path.join(worktreePath, specsBaseDir, task.specId, AUTO_BUILD_PATHS.QA_REPORT)] : []),
+        path.join(project.path, specsBaseDir, task.specId, AUTO_BUILD_PATHS.QA_REPORT)
+      ];
+      for (const file of candidates) {
+        try {
+          if (existsSync(file)) return { success: true, data: readFileSync(file, 'utf-8') };
+        } catch {
+          // try the next copy
+        }
+      }
+      return { success: true, data: null };
+    }
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.TASK_REVIEW,
     async (
       _,
