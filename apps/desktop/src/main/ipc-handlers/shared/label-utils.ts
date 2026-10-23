@@ -1,6 +1,6 @@
 /**
  * Shared label matching utilities
- * Used by both GitHub and GitLab spec-utils for category detection
+ * Used for category detection
  */
 
 /**

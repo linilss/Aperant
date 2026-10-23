@@ -2,7 +2,7 @@
  * Per-Provider Transforms Layer
  *
  * Normalizes provider-specific differences for the Vercel AI SDK integration:
- * - Thinking token normalization (Anthropic budgetTokens vs OpenAI reasoning)
+ * - Thinking token normalization (Anthropic budgetTokens)
  * - Tool ID format differences across providers
  * - Prompt caching thresholds (Anthropic 1024-4096 token minimums)
  * - Adaptive thinking for Opus 4.6 (both max_thinking_tokens AND effort_level)
@@ -26,8 +26,6 @@ import {
 export interface ThinkingConfig {
   /** Anthropic: budgetTokens for extended thinking */
   budgetTokens?: number;
-  /** OpenAI: reasoning effort level (low/medium/high) */
-  reasoningEffort?: string;
   /** Adaptive model effort level (Opus 4.6) */
   effortLevel?: EffortLevel;
 }
@@ -79,7 +77,6 @@ export function getThinkingKwargsForModel(
  *
  * Different providers handle "thinking" differently:
  * - Anthropic: uses budgetTokens with extended thinking API
- * - OpenAI: uses reasoning_effort parameter (low/medium/high)
  * - Others: may not support thinking at all
  *
  * @param provider - Target AI provider
@@ -103,14 +100,6 @@ export function transformThinkingConfig(
       return config;
     }
 
-    case 'openai':
-    case 'azure': {
-      // OpenAI reasoning models use effort-based reasoning
-      return {
-        reasoningEffort: thinkingLevel,
-      };
-    }
-
     default:
       // Providers without thinking support return empty config
       return {};
@@ -124,15 +113,11 @@ export function transformThinkingConfig(
 /** Regex for valid Anthropic tool IDs (alphanumeric, underscores, hyphens) */
 const ANTHROPIC_TOOL_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
-/** Regex for valid OpenAI tool IDs (alphanumeric, underscores, hyphens, max 64 chars) */
-const OPENAI_TOOL_ID_MAX_LENGTH = 64;
-
 /**
  * Normalize a tool ID for a specific provider's format requirements.
  *
  * Different providers have different tool ID constraints:
  * - Anthropic: alphanumeric, underscores, hyphens
- * - OpenAI: alphanumeric, underscores, hyphens, max 64 chars
  * - Others: pass through as-is
  *
  * @param provider - Target AI provider
@@ -145,15 +130,6 @@ export function normalizeToolId(provider: SupportedProvider, toolId: string): st
       if (ANTHROPIC_TOOL_ID_RE.test(toolId)) return toolId;
       // Replace invalid characters with underscores
       return toolId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    }
-
-    case 'openai':
-    case 'azure': {
-      // Sanitize and truncate to max length
-      const sanitized = toolId.replace(/[^a-zA-Z0-9_-]/g, '_');
-      return sanitized.length > OPENAI_TOOL_ID_MAX_LENGTH
-        ? sanitized.slice(0, OPENAI_TOOL_ID_MAX_LENGTH)
-        : sanitized;
     }
 
     default:

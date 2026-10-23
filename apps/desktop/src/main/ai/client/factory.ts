@@ -129,7 +129,6 @@ export async function createAgentClient(
         apiKey: queueAuth.apiKey,
         baseURL: queueAuth.baseURL,
         headers: queueAuth.headers,
-        oauthTokenFilePath: queueAuth.oauthTokenFilePath,
       },
       modelId: queueAuth.resolvedModelId,
     });
@@ -153,7 +152,6 @@ export async function createAgentClient(
         apiKey: auth?.apiKey,
         baseURL: auth?.baseURL,
         headers: auth?.headers,
-        oauthTokenFilePath: auth?.oauthTokenFilePath,
       },
       modelId,
     });
@@ -335,7 +333,6 @@ export async function createSimpleClient(
         apiKey: queueAuth.apiKey,
         baseURL: queueAuth.baseURL,
         headers: queueAuth.headers,
-        oauthTokenFilePath: queueAuth.oauthTokenFilePath,
       },
       modelId: resolvedModelId,
     });
@@ -361,7 +358,6 @@ export async function createSimpleClient(
         apiKey: auth?.apiKey,
         baseURL: auth?.baseURL,
         headers: auth?.headers,
-        oauthTokenFilePath: auth?.oauthTokenFilePath,
       },
       modelId: resolvedModelId,
     });

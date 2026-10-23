@@ -155,7 +155,7 @@ export class AgentManager extends EventEmitter {
     preferredProvider?: string | null,
     project?: ProjectRef,
   ): Promise<{
-    auth: { apiKey?: string; baseURL?: string; oauthTokenFilePath?: string } | null;
+    auth: { apiKey?: string; baseURL?: string } | null;
     provider: string;
     modelId: string;
     configDir?: string;
@@ -457,10 +457,8 @@ export class AgentManager extends EventEmitter {
       apiKey: resolved.auth?.apiKey,
       baseURL: resolved.auth?.baseURL,
       configDir: resolved.configDir,
-      oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
-        linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       useClaudeMd: this.getUseClaudeMd(projectId, projectPath),
       memoryContext,
@@ -594,10 +592,8 @@ export class AgentManager extends EventEmitter {
       apiKey: resolved.auth?.apiKey,
       baseURL: resolved.auth?.baseURL,
       configDir: resolved.configDir,
-      oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
-        linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       useClaudeMd: project?.settings?.useClaudeMd !== false,
       memoryContext,
@@ -717,10 +713,8 @@ export class AgentManager extends EventEmitter {
       apiKey: resolved.auth?.apiKey,
       baseURL: resolved.auth?.baseURL,
       configDir: resolved.configDir,
-      oauthTokenFilePath: resolved.auth?.oauthTokenFilePath,
       mcpOptions: {
         context7Enabled: true,
-        linearEnabled: !!process.env.LINEAR_API_KEY,
       },
       useClaudeMd: project?.settings?.useClaudeMd !== false,
       memoryContext,

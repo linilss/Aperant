@@ -34,7 +34,6 @@ export const DEFAULT_APP_SETTINGS = {
   defaultModel: 'opus',
   gitPath: undefined as string | undefined,
   githubCLIPath: undefined as string | undefined,
-  gitlabCLIPath: undefined as string | undefined,
   autoBuildPath: undefined as string | undefined,
   autoNameTerminals: true,
   onboardingCompleted: false,

@@ -11,13 +11,6 @@
  */
 export const SupportedProvider = {
   Anthropic: 'anthropic',
-  OpenAI: 'openai',
-  Google: 'google',
-  Bedrock: 'bedrock',
-  Azure: 'azure',
-  Mistral: 'mistral',
-  Groq: 'groq',
-  XAI: 'xai',
   OpenRouter: 'openrouter',
   ZAI: 'zai',
   Ollama: 'ollama',
@@ -36,14 +29,8 @@ export interface ProviderConfig {
   apiKey?: string;
   /** Custom base URL for the provider API */
   baseURL?: string;
-  /** AWS region (for Bedrock) */
-  region?: string;
-  /** Azure deployment name */
-  deploymentName?: string;
   /** Additional provider-specific headers */
   headers?: Record<string, string>;
-  /** Pre-resolved path to OAuth token file for file-based OAuth providers (e.g., Codex) */
-  oauthTokenFilePath?: string;
 }
 
 /**

@@ -14,12 +14,6 @@ import { parseClaudeLimitMessage } from './claude-limit-message';
 // parseClaudeLimitMessage() in ./claude-limit-message.
 
 /**
- * Regex pattern to detect Codex/OpenAI rate limit messages
- * Matches: "Usage limit exceeded" or "UsageLimitExceeded" with optional reset info
- */
-const CODEX_RATE_LIMIT_PATTERN = /(?:usage_limit_exceeded|UsageLimitExceeded)(?:.*?reset(?:s|_at)?\s*[:\s]*(.+?))?(?:\s*$|\n)/im;
-
-/**
  * Additional patterns that might indicate rate limiting
  */
 const RATE_LIMIT_INDICATORS = [
@@ -29,10 +23,6 @@ const RATE_LIMIT_INDICATORS = [
   /hit\s+your\s+[^\n]*?(?:limit|budget)/i,
   /exceeded.*limit/i,
   /too\s*many\s*requests/i,
-  // Codex-specific rate limit patterns
-  /usage_limit_exceeded/i,
-  /UsageLimitExceeded/,
-  /codex.*rate\s*limit/i,
 ];
 
 /**
@@ -214,38 +204,6 @@ export function detectRateLimit(
     }
 
     // Find best alternative profile
-    const bestProfile = profileManager.getBestAvailableProfile(effectiveProfileId);
-
-    return {
-      isRateLimited: true,
-      resetTime,
-      limitType,
-      profileId: effectiveProfileId,
-      suggestedProfile: bestProfile ? {
-        id: bestProfile.id,
-        name: bestProfile.name
-      } : undefined,
-      originalError: sanitizeErrorOutput(output)
-    };
-  }
-
-  // Check for Codex-specific rate limit pattern
-  const codexMatch = output.match(CODEX_RATE_LIMIT_PATTERN);
-  if (codexMatch) {
-    const resetTime = codexMatch[1]?.trim();
-    const limitType = resetTime ? classifyLimitType(resetTime) : 'session';
-
-    const profileManager = getClaudeProfileManager();
-    const effectiveProfileId = profileId || profileManager.getActiveProfile().id;
-
-    try {
-      if (resetTime) {
-        profileManager.recordRateLimitEvent(effectiveProfileId, resetTime);
-      }
-    } catch (err) {
-      console.error('[RateLimitDetector] Failed to record Codex rate limit event:', err);
-    }
-
     const bestProfile = profileManager.getBestAvailableProfile(effectiveProfileId);
 
     return {

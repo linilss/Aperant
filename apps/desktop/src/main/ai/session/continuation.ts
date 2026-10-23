@@ -65,8 +65,6 @@ export interface ContinuationConfig {
   apiKey?: string;
   /** Base URL for the summarization model */
   baseURL?: string;
-  /** OAuth token file path (for token refresh) */
-  oauthTokenFilePath?: string;
   /** Claude profile config dir — selects the account when summarizing via the claude CLI */
   configDir?: string;
 }
@@ -233,7 +231,6 @@ async function compactSessionMessages(
     const directModel = createProviderFromModelId(SUMMARIZER_MODEL_ID, {
       apiKey: continuationConfig.apiKey,
       baseURL: continuationConfig.baseURL,
-      oauthTokenFilePath: continuationConfig.oauthTokenFilePath,
     });
     // Claude subscription tokens get HTTP 429 on direct API calls — summarize via the
     // claude CLI instead. Explicit env: this runs in a worker thread.

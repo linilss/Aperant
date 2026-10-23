@@ -274,24 +274,6 @@ describe('createSimpleClient — claude CLI routing', () => {
     expect(result.model).toBe(FAKE_MODEL);
   });
 
-  it('keeps the direct provider model for non-Anthropic providers', async () => {
-    mockResolveAuthFromQueue.mockResolvedValueOnce({
-      apiKey: 'codex-oauth-placeholder',
-      source: 'codex-oauth',
-      accountId: 'acc-2',
-      resolvedProvider: 'openai',
-      resolvedModelId: 'gpt-5.3-codex',
-      reasoningConfig: { type: 'none' },
-    });
-
-    const result = await createSimpleClient({
-      systemPrompt: 'Test',
-      queueConfig: { queue: [{ id: 'acc-2' } as unknown as ProviderAccount], requestedModel: 'sonnet' },
-    });
-
-    expect(result.model).toBe(FAKE_MODEL);
-  });
-
   it('delegates calls with custom (non-CLI) tools to the direct model', async () => {
     mockResolveAuth.mockResolvedValueOnce({ apiKey: 'sk-ant-oat01-abc', source: 'profile-oauth' });
     mockCreateProvider.mockReturnValueOnce(DIRECT_V3_MODEL as unknown as LanguageModel);

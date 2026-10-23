@@ -13,8 +13,6 @@ modules/
 ├── ideation-api.ts       # AI-powered ideation and idea management
 ├── insights-api.ts       # AI insights and chat functionality
 ├── changelog-api.ts      # Changelog generation and versioning
-├── linear-api.ts         # Linear issue tracking integration
-├── github-api.ts         # GitHub integration (issues, releases)
 ├── autobuild-api.ts      # Auto-build source update management
 ├── shell-api.ts          # Shell operations (e.g., opening URLs)
 └── index.ts              # Barrel export for easy imports

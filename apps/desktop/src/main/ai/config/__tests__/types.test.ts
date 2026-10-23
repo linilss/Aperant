@@ -64,34 +64,9 @@ describe('buildThinkingProviderOptions', () => {
     expect(result?.anthropic?.effort).toBe('max');
   });
 
-  it('should return OpenAI reasoning options for o-series models', () => {
-    const result = buildThinkingProviderOptions('o3-mini', 'medium');
-    expect(result).toEqual({
-      openai: { reasoningEffort: 'medium' },
-    });
-  });
-
-  it('should map xhigh to high for OpenAI', () => {
-    const result = buildThinkingProviderOptions('o4-mini', 'xhigh');
-    expect(result).toEqual({
-      openai: { reasoningEffort: 'high' },
-    });
-  });
-
-  it('should return Google thinking options for Gemini models', () => {
-    const result = buildThinkingProviderOptions('gemini-2.5-pro', 'medium');
-    expect(result).toEqual({
-      google: { thinkingConfig: { thinkingBudget: 4096 } },
-    });
-  });
-
-  it('should return undefined for non-reasoning OpenAI models', () => {
-    const result = buildThinkingProviderOptions('gpt-4o', 'high');
-    expect(result).toBeUndefined();
-  });
-
   it('should return undefined for providers without thinking support', () => {
-    expect(buildThinkingProviderOptions('mistral-large', 'high')).toBeUndefined();
+    expect(buildThinkingProviderOptions('gpt-4o', 'high')).toBeUndefined();
+    expect(buildThinkingProviderOptions('gemini-2.5-pro', 'high')).toBeUndefined();
     expect(buildThinkingProviderOptions('llama-3.1-70b', 'high')).toBeUndefined();
   });
 

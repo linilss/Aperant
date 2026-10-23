@@ -224,12 +224,6 @@
     "gitPath": "Git Path",
     "gitPathDescription": "Path to Git executable (leave empty for auto-detection)",
     "gitPathPlaceholder": "git (default)",
-    "githubCLIPath": "GitHub CLI Path",
-    "githubCLIPathDescription": "Path to GitHub CLI (gh) executable (leave empty for auto-detection)",
-    "githubCLIPathPlaceholder": "gh (default)",
-    "gitlabCLIPath": "GitLab CLI Path",
-    "gitlabCLIPathDescription": "Path to GitLab CLI (glab) executable (leave empty for auto-detection)",
-    "gitlabCLIPathPlaceholder": "glab (default)",
     "claudePath": "Claude CLI Path",
     "claudePathDescription": "Path to Claude CLI executable (leave empty for auto-detection)",
     "claudePathPlaceholder": "claude (default)",
@@ -248,7 +242,10 @@
     "autoClaudePathDescription": "Relative path to malvy directory in projects",
     "autoClaudePathPlaceholder": ".malvy (default)",
     "autoNameTerminals": "Automatically name terminals",
-    "autoNameTerminalsDescription": "Use AI to generate descriptive names for terminal tabs based on their activity"
+    "autoNameTerminalsDescription": "Use AI to generate descriptive names for terminal tabs based on their activity",
+    "githubCLIPath": "GitHub CLI Path",
+    "githubCLIPathDescription": "Path to GitHub CLI (gh) executable (leave empty for auto-detection)",
+    "githubCLIPathPlaceholder": "gh (default)"
   },
   "theme": {
     "title": "Appearance",
@@ -393,46 +390,6 @@
     "claude": {
       "title": "Claude Auth",
       "description": "Claude authentication"
-    },
-    "linear": {
-      "title": "Linear",
-      "description": "Linear integration",
-      "integrationTitle": "Linear Integration",
-      "integrationDescription": "Connect to Linear for issue tracking and task import",
-      "syncDescription": "Sync with Linear for issue tracking"
-    },
-    "github": {
-      "title": "GitHub",
-      "description": "GitHub issues sync",
-      "integrationTitle": "GitHub Integration",
-      "integrationDescription": "Connect to GitHub for issue tracking",
-      "syncDescription": "Sync with GitHub Issues",
-      "defaultBranch": {
-        "label": "Default Branch",
-        "description": "Base branch for creating task worktrees",
-        "autoDetect": "Auto-detect (main/master)",
-        "searchPlaceholder": "Search branches...",
-        "noBranchesFound": "No branches found",
-        "selectedBranchHelp": "All new tasks will branch from {{branch}}"
-      },
-      "pushNewBranches": {
-        "label": "Automatically Push New Branches",
-        "description": "Push new task and worktree branches to GitHub and set upstream tracking automatically"
-      }
-    },
-    "gitlab": {
-      "title": "GitLab",
-      "description": "GitLab issues sync",
-      "integrationTitle": "GitLab Integration",
-      "integrationDescription": "Connect to GitLab for issue tracking",
-      "syncDescription": "Sync with GitLab Issues"
-    },
-    "azure-devops": {
-      "title": "Azure DevOps",
-      "description": "Work items and pull requests",
-      "integrationTitle": "Azure DevOps Integration",
-      "integrationDescription": "Connect to Azure DevOps for work items and PRs",
-      "syncDescription": "Sync with Azure DevOps"
     },
     "memory": {
       "title": "Memory",
@@ -772,8 +729,6 @@
   "providers": {
     "card": {
       "oauth": "OAuth",
-      "codex": "Codex",
-      "codexSubscription": "Codex Subscription",
       "claudeCode": "Claude Code",
       "claudeCodeSubscription": "Claude Code Subscription",
       "zaiCodingPlan": "Coding Plan",
@@ -798,7 +753,6 @@
       "noAccounts": "No accounts configured",
       "addOAuth": "Add OAuth Account",
       "addClaudeCode": "Add Claude Code Account",
-      "addCodexSubscription": "Add Codex Subscription",
       "addCodingPlan": "Add Coding Plan",
       "addUsageBased": "Add Usage-Based API Key",
       "addApiKey": "Add API Key",
@@ -820,13 +774,6 @@
       "apiKeyDescription": "Add your API key and configuration",
       "zaiCodingPlanDescription": "Add your Z.AI Coding Plan API key to use GLM models with your subscription",
       "zaiUsageBasedDescription": "Add your Z.AI usage-based API key for pay-per-use access to GLM models",
-      "codexOAuthDescription": "Sign in with your ChatGPT Plus or Pro subscription to use Codex models",
-      "codexAuthenticating": "Opening OpenAI login in your browser...",
-      "codexWaiting": "Waiting for browser authentication...",
-      "codexSuccess": "Authenticated with OpenAI Codex",
-      "codexError": "OpenAI authentication failed: {{error}}",
-      "codexAuthenticate": "Authenticate with OpenAI",
-      "codexReauthenticate": "Reauthenticate with OpenAI",
       "oauthInstructions": "To add an OAuth account, use the Claude Code authentication flow from the Claude Code tab above. OAuth accounts are linked to your Claude.ai subscription.",
       "oauthAuthenticate": "Authenticate with Anthropic",
       "oauthReauthenticate": "Reauthenticate with Anthropic",
@@ -953,11 +900,6 @@
         "name": "Memory (built-in)",
         "description": "Relevant project memories are added to agent prompts. Not an MCP server; turn it on or off in Memory settings.",
         "disabled": "Off for this project (see Memory settings)"
-      },
-      "linear": {
-        "name": "Linear",
-        "description": "Project management integration",
-        "notConfigured": "Requires Linear integration (see Linear settings)"
       },
       "electron": {
         "name": "Electron",
@@ -1167,7 +1109,6 @@
       "label": "Provider",
       "description": "Select which AI provider to use for agent tasks",
       "anthropic": "Anthropic",
-      "openai": "OpenAI",
       "ollama": "Ollama (Local)",
       "openrouter": "OpenRouter"
     },
@@ -1176,7 +1117,6 @@
       "description": "Your API key for the selected provider",
       "placeholder": "Enter your API key",
       "anthropicPlaceholder": "sk-ant-...",
-      "openaiPlaceholder": "sk-...",
       "openrouterPlaceholder": "sk-or-...",
       "validation": {
         "required": "API key is required for this provider",

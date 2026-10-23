@@ -20,7 +20,6 @@ import {
   Circle,
   Monitor,
   Globe,
-  ClipboardList,
   ListChecks,
   Info,
   AlertCircle,
@@ -154,7 +153,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     category: 'build',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
     mcp_servers: ['context7', 'auto-claude'],
-    mcp_optional: ['linear'],
+    mcp_optional: [],
     settingsSource: { type: 'phase', phase: 'planning' },
   },
   coder: {
@@ -163,7 +162,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     category: 'build',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
     mcp_servers: ['context7', 'auto-claude'],
-    mcp_optional: ['linear'],
+    mcp_optional: [],
     settingsSource: { type: 'phase', phase: 'coding' },
   },
 
@@ -174,7 +173,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     category: 'qa',
     tools: ['Read', 'Glob', 'Grep', 'Bash', 'WebFetch', 'WebSearch'],
     mcp_servers: ['context7', 'auto-claude'],
-    mcp_optional: ['linear', 'electron', 'puppeteer'],
+    mcp_optional: ['electron', 'puppeteer'],
     settingsSource: { type: 'phase', phase: 'qa' },
   },
   qa_fixer: {
@@ -183,7 +182,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     category: 'qa',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
     mcp_servers: ['context7', 'auto-claude'],
-    mcp_optional: ['linear', 'electron', 'puppeteer'],
+    mcp_optional: ['electron', 'puppeteer'],
     settingsSource: { type: 'phase', phase: 'qa' },
   },
 
@@ -262,19 +261,6 @@ const MCP_SERVERS: Record<string, { name: string; description: string; icon: Rea
       'mcp__malvy__update_qa_status',
     ],
   },
-  linear: {
-    name: 'Linear',
-    description: 'Project management via Linear API. Requires LINEAR_API_KEY env var.',
-    icon: ClipboardList,
-    tools: [
-      'mcp__linear-server__list_teams',
-      'mcp__linear-server__list_projects',
-      'mcp__linear-server__list_issues',
-      'mcp__linear-server__create_issue',
-      'mcp__linear-server__update_issue',
-      // ... and more
-    ],
-  },
   electron: {
     name: 'Electron MCP',
     description: 'Desktop app automation via Chrome DevTools Protocol. Requires ELECTRON_MCP_ENABLED=true.',
@@ -306,7 +292,6 @@ const MCP_SERVERS: Record<string, { name: string; description: string; icon: Rea
 // All available MCP servers that can be added to agents
 const ALL_MCP_SERVERS = [
   'context7',
-  'linear',
   'electron',
   'puppeteer',
   'auto-claude'
@@ -367,7 +352,6 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
       if (customServers.some(s => s.id === mcp)) return true;
       switch (mcp) {
         case 'context7': return mcpServerStates.context7Enabled !== false;
-        case 'linear': return mcpServerStates.linearMcpEnabled !== false;
         case 'electron': return mcpServerStates.electronEnabled !== false;
         case 'puppeteer': return mcpServerStates.puppeteerEnabled !== false;
         default: return true;
@@ -943,7 +927,6 @@ export function AgentTools() {
   // Count enabled MCP servers
   const enabledCount = [
     mcpServers.context7Enabled !== false,
-    mcpServers.linearMcpEnabled !== false && envConfig?.linearEnabled,
     mcpServers.electronEnabled,
     mcpServers.puppeteerEnabled,
     true, // auto-claude always enabled
@@ -1070,26 +1053,6 @@ export function AgentTools() {
                       </p>
                     </div>
                   </div>
-                </div>
-
-                {/* Linear */}
-                <div className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
-                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
-                    <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm font-medium">{t('settings:mcp.servers.linear.name')}</span>
-                      <p className="text-xs text-muted-foreground">
-                        {envConfig.linearEnabled
-                          ? t('settings:mcp.servers.linear.description')
-                          : t('settings:mcp.servers.linear.notConfigured')}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={mcpServers.linearMcpEnabled !== false && envConfig.linearEnabled}
-                    onCheckedChange={(checked) => updateMcpServer('linearMcpEnabled', checked)}
-                    disabled={!envConfig.linearEnabled}
-                  />
                 </div>
 
                 {/* Browser Automation Section */}

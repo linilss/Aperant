@@ -10,7 +10,6 @@
  * Operations include:
  * - Autonomous tasks (spec creation, task execution)
  * - GitHub PR reviews
- * - GitLab MR reviews
  * - Insights analysis
  * - Roadmap generation
  * - Changelog generation

@@ -19,10 +19,6 @@ import { registerFileHandlers } from './file-handlers';
 import { registerRoadmapHandlers } from './roadmap-handlers';
 import { registerContextHandlers } from './context-handlers';
 import { registerEnvHandlers } from './env-handlers';
-import { registerLinearHandlers } from './linear-handlers';
-import { registerGithubHandlers } from './github-handlers';
-import { registerGitlabHandlers } from './gitlab-handlers';
-import { registerAzureDevOpsHandlers } from './azure-devops-handlers';
 import { registerIdeationHandlers } from './ideation-handlers';
 import { registerChangelogHandlers } from './changelog-handlers';
 import { registerInsightsHandlers } from './insights-handlers';
@@ -34,7 +30,6 @@ import { registerMcpHandlers } from './mcp-handlers';
 import { registerProfileHandlers } from './profile-handlers';
 import { registerScreenshotHandlers } from './screenshot-handlers';
 import { registerTerminalWorktreeIpcHandlers } from './terminal';
-import { registerCodexAuthHandlers } from './codex-auth-handlers';
 import { registerFeatureRefineHandlers } from './feature-refine-handlers';
 import { registerTaskRefineHandlers } from './task-refine-handlers';
 import { registerTestsHandlers } from './tests-handlers';
@@ -94,18 +89,6 @@ export function setupIpcHandlers(
   // Environment configuration handlers
   registerEnvHandlers(getMainWindow);
 
-  // Linear integration handlers
-  registerLinearHandlers(agentManager, getMainWindow);
-
-  // GitHub integration handlers
-  registerGithubHandlers(agentManager, getMainWindow);
-
-  // GitLab integration handlers
-  registerGitlabHandlers(agentManager, getMainWindow);
-
-  // Azure DevOps integration handlers
-  registerAzureDevOpsHandlers(agentManager, getMainWindow);
-
   // Ideation handlers
   registerIdeationHandlers(agentManager, getMainWindow);
 
@@ -136,9 +119,6 @@ export function setupIpcHandlers(
   // Screenshot capture handlers
   registerScreenshotHandlers();
 
-  // Codex OAuth authentication handlers
-  registerCodexAuthHandlers();
-
   // Feature refinement conversational AI handlers
   registerFeatureRefineHandlers(getMainWindow);
 
@@ -166,10 +146,6 @@ export {
   registerRoadmapHandlers,
   registerContextHandlers,
   registerEnvHandlers,
-  registerLinearHandlers,
-  registerGithubHandlers,
-  registerGitlabHandlers,
-  registerAzureDevOpsHandlers,
   registerIdeationHandlers,
   registerChangelogHandlers,
   registerInsightsHandlers,
@@ -180,7 +156,6 @@ export {
   registerMcpHandlers,
   registerProfileHandlers,
   registerScreenshotHandlers,
-  registerCodexAuthHandlers,
   registerFeatureRefineHandlers,
   registerTaskRefineHandlers,
   registerTestsHandlers,

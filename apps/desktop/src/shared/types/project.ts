@@ -40,7 +40,6 @@ export interface Project {
 
 export interface ProjectSettings {
   model: string;
-  linearTeamId?: string;
   notifications: NotificationSettings;
   /** Main branch name for worktree creation (default: auto-detected or 'main') */
   mainBranch?: string;
@@ -324,30 +323,6 @@ export interface ProjectEnvConfig {
   // Model Override
   autoBuildModel?: string;
 
-  // Linear Integration
-  linearEnabled: boolean;
-  linearApiKey?: string;
-  linearTeamId?: string;
-  linearProjectId?: string;
-
-  // GitHub Integration
-  githubEnabled: boolean;
-  githubToken?: string;
-  githubRepo?: string; // Format: owner/repo
-  githubAuthMethod?: 'oauth' | 'pat'; // How the token was obtained
-
-  // GitLab Integration
-  gitlabEnabled: boolean;
-  gitlabInstanceUrl?: string; // Default: https://gitlab.com, or self-hosted URL
-  gitlabToken?: string;
-  gitlabProject?: string; // Format: group/project or numeric ID
-
-  // Azure DevOps Integration
-  azureDevOpsEnabled: boolean;
-  azureDevOpsToken?: string; // Personal Access Token (PAT)
-  azureDevOpsOrgUrl?: string; // e.g., https://dev.azure.com/myorg
-  azureDevOpsProject?: string; // Azure DevOps project name
-
   // Git/Worktree Settings
   defaultBranch?: string; // Base branch for worktree creation (e.g., 'main', 'develop')
 
@@ -358,8 +333,6 @@ export interface ProjectEnvConfig {
   mcpServers?: {
     /** Context7 documentation lookup - default: true */
     context7Enabled?: boolean;
-    /** Linear MCP integration - default: follows linearEnabled */
-    linearMcpEnabled?: boolean;
     /** Electron desktop automation (QA only) - default: false */
     electronEnabled?: boolean;
     /** Puppeteer browser automation (QA only) - default: false */

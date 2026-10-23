@@ -27,9 +27,6 @@ export * from './models';
 // Theme constants
 export * from './themes';
 
-// GitHub integration constants
-export * from './github';
-
 // API profile presets
 export * from './api-profiles';
 

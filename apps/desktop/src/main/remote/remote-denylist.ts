@@ -28,7 +28,6 @@ export const REMOTE_DENIED_CHANNELS: ReadonlySet<string> = new Set<string>([
   // Installers that open an external terminal window on the desktop
   IPC_CHANNELS.CLAUDE_CODE_INSTALL,
   IPC_CHANNELS.CLAUDE_CODE_INSTALL_VERSION,
-  IPC_CHANNELS.GITLAB_INSTALL_CLI,
   IPC_CHANNELS.OLLAMA_INSTALL,
 
   // Screen capture of the desktop

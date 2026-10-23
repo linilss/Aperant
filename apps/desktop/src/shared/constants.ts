@@ -19,7 +19,6 @@
  *   - constants/ideation.ts - Ideation types, categories, configuration
  *   - constants/changelog.ts - Changelog formats, audiences, configuration
  *   - constants/models.ts - Claude models, thinking levels, agent profiles
- *   - constants/github.ts - GitHub integration constants
  *   - constants/config.ts - App settings, project settings, file paths
  */
 

@@ -16,7 +16,6 @@ export interface SettingsAPI {
   getCliToolsInfo: () => Promise<IPCResult<{
     git: ToolDetectionResult;
     gh: ToolDetectionResult;
-    glab: ToolDetectionResult;
     claude: ToolDetectionResult;
   }>>;
 
@@ -45,10 +44,6 @@ export interface SettingsAPI {
   testProviderConnection: (provider: string, config: any) => Promise<IPCResult<{ success: boolean; error?: string }>>;
   checkEnvCredentials: () => Promise<IPCResult<Record<string, boolean>>>;
 
-  // Codex OAuth authentication
-  codexAuthLogin: () => Promise<{ success: boolean; data?: { accessToken: string; refreshToken: string; expiresAt: number; email?: string }; error?: string }>;
-  codexAuthStatus: () => Promise<{ success: boolean; data?: { isAuthenticated: boolean; expiresAt?: number }; error?: string }>;
-  codexAuthLogout: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const createSettingsAPI = (): SettingsAPI => ({
@@ -63,7 +58,6 @@ export const createSettingsAPI = (): SettingsAPI => ({
   getCliToolsInfo: (): Promise<IPCResult<{
     git: ToolDetectionResult;
     gh: ToolDetectionResult;
-    glab: ToolDetectionResult;
     claude: ToolDetectionResult;
   }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_CLI_TOOLS_INFO),
@@ -112,11 +106,4 @@ export const createSettingsAPI = (): SettingsAPI => ({
   checkEnvCredentials: (): Promise<IPCResult<Record<string, boolean>>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROVIDER_ACCOUNTS_CHECK_ENV),
 
-  // Codex OAuth authentication
-  codexAuthLogin: () =>
-    ipcRenderer.invoke('codex-auth-login'),
-  codexAuthStatus: () =>
-    ipcRenderer.invoke('codex-auth-status'),
-  codexAuthLogout: () =>
-    ipcRenderer.invoke('codex-auth-logout'),
 });

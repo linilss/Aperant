@@ -3,25 +3,17 @@
  *
  * Creates Vercel AI SDK provider instances from configuration.
  * Maps provider names to the correct @ai-sdk/* constructor and handles
- * per-provider options (thinking tokens, strict JSON, Azure deployments).
+ * per-provider options.
  *
  * See apps/desktop/src/main/ai/providers/factory.ts for the TypeScript implementation.
  */
 
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
-import { createAzure } from '@ai-sdk/azure';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createGroq } from '@ai-sdk/groq';
-import { createMistral } from '@ai-sdk/mistral';
-import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { createXai } from '@ai-sdk/xai';
 import type { LanguageModel } from 'ai';
 
 import { MODEL_PROVIDER_MAP } from '../config/types';
-import { createOAuthProviderFetch } from './oauth-fetch';
 import { isOAuthToken } from './oauth-token';
 import { type ProviderConfig, SupportedProvider } from './types';
 
@@ -56,64 +48,6 @@ function createProviderInstance(config: ProviderConfig) {
         headers,
       });
     }
-
-    case SupportedProvider.OpenAI: {
-      // File-based OAuth: use generic fetch interceptor for token injection + URL rewriting
-      if (config.oauthTokenFilePath) {
-        return createOpenAI({
-          apiKey: apiKey ?? 'codex-oauth-placeholder',
-          baseURL,
-          headers,
-          fetch: createOAuthProviderFetch(config.oauthTokenFilePath, 'openai'),
-        });
-      }
-      return createOpenAI({
-        apiKey,
-        baseURL,
-        headers,
-      });
-    }
-
-    case SupportedProvider.Google:
-      return createGoogleGenerativeAI({
-        apiKey,
-        baseURL,
-        headers,
-      });
-
-    case SupportedProvider.Bedrock:
-      return createAmazonBedrock({
-        region: config.region ?? 'us-east-1',
-        apiKey,
-      });
-
-    case SupportedProvider.Azure:
-      return createAzure({
-        apiKey,
-        baseURL,
-        headers,
-      });
-
-    case SupportedProvider.Mistral:
-      return createMistral({
-        apiKey,
-        baseURL,
-        headers,
-      });
-
-    case SupportedProvider.Groq:
-      return createGroq({
-        apiKey,
-        baseURL,
-        headers,
-      });
-
-    case SupportedProvider.XAI:
-      return createXai({
-        apiKey,
-        baseURL,
-        headers,
-      });
 
     case SupportedProvider.OpenRouter:
       return createOpenRouter({
@@ -151,18 +85,6 @@ function createProviderInstance(config: ProviderConfig) {
 }
 
 // =============================================================================
-// Codex Model Detection
-// =============================================================================
-
-/**
- * Detects if a model ID refers to an OpenAI Codex model.
- * Codex models only support the Responses API (not Chat Completions).
- */
-function isCodexModel(modelId: string): boolean {
-  return modelId.includes('codex');
-}
-
-// =============================================================================
 // Model Creation Options
 // =============================================================================
 
@@ -181,9 +103,7 @@ export interface CreateProviderOptions {
 /**
  * Creates a LanguageModel instance for the given provider + model combination.
  *
- * Handles per-provider quirks:
- * - Azure uses deployment-based routing via `.chat()`
- * - Ollama uses OpenAI-compatible adapter
+ * Ollama uses the OpenAI-compatible adapter.
  *
  * @param options - Provider config and model ID
  * @returns A configured LanguageModel instance
@@ -191,23 +111,6 @@ export interface CreateProviderOptions {
 export function createProvider(options: CreateProviderOptions): LanguageModel {
   const { config, modelId } = options;
   const instance = createProviderInstance(config);
-
-  // Azure uses deployment names, not model IDs
-  if (config.provider === SupportedProvider.Azure) {
-    const deploymentName = config.deploymentName ?? modelId;
-    return (instance as ReturnType<typeof createAzure>).chat(deploymentName);
-  }
-
-  // OpenAI: Codex OAuth accounts rewrite ALL URLs to the Codex Responses endpoint,
-  // so every model must use `.responses()` to avoid a format mismatch (Chat Completions
-  // format sent to Responses endpoint → 400). Regular API-key accounts use
-  // `.responses()` for Codex models and `.chat()` for everything else.
-  if (config.provider === SupportedProvider.OpenAI) {
-    if (config.oauthTokenFilePath || isCodexModel(modelId)) {
-      return (instance as ReturnType<typeof createOpenAI>).responses(modelId);
-    }
-    return (instance as ReturnType<typeof createOpenAI>).chat(modelId);
-  }
 
   // Generic path: call provider instance as function with model ID
   return (instance as ReturnType<typeof createAnthropic>)(modelId);

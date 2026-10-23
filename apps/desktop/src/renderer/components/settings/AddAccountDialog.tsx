@@ -17,12 +17,6 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useToast } from '../../hooks/use-toast';
 import type { BillingModel, BuiltinProvider, CustomModel, ProviderAccount } from '@shared/types/provider-account';
 
-const AWS_REGIONS = [
-  'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-  'eu-west-1', 'eu-west-2', 'eu-central-1',
-  'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
-];
-
 type OAuthStatus = 'idle' | 'authenticating' | 'waiting' | 'success' | 'error';
 
 interface AddAccountDialogProps {
@@ -53,7 +47,6 @@ export function AddAccountDialog({
   const [name, setName] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [region, setRegion] = useState('us-east-1');
   const [isSaving, setIsSaving] = useState(false);
 
   // Custom models for openai-compatible endpoints
@@ -82,7 +75,6 @@ export function AddAccountDialog({
         setName(editAccount.name);
         setApiKey(editAccount.apiKey ?? '');
         setBaseUrl(editAccount.baseUrl ?? '');
-        setRegion(editAccount.region ?? 'us-east-1');
         setCustomModels(editAccount.customModels ?? []);
       } else {
         setName('');
@@ -93,7 +85,6 @@ export function AddAccountDialog({
           : provider === 'zai' ? 'https://api.z.ai/api/paas/v4'
           : ''
         );
-        setRegion('us-east-1');
         setCustomModels([]);
       }
       setNewModelId('');
@@ -124,8 +115,7 @@ export function AddAccountDialog({
     return false;
   }, [toast, t]);
 
-  const isOAuthOnly = (provider === 'anthropic' || provider === 'openai') && authType === 'oauth';
-  const isCodexOAuth = provider === 'openai' && authType === 'oauth';
+  const isOAuthOnly = provider === 'anthropic' && authType === 'oauth';
 
   const refreshUsageData = useCallback(async () => {
     try {
@@ -135,10 +125,9 @@ export function AddAccountDialog({
     }
   }, []);
 
-  // Subscribe to Anthropic OAuth progress events (not used for Codex/OpenAI)
+  // Subscribe to Anthropic OAuth progress events
   useEffect(() => {
     if (!open || oauthStatus === 'idle' || oauthStatus === 'success') return;
-    if (isCodexOAuth) return;
 
     const unsubscribe = window.electronAPI.onClaudeAuthLoginProgress((data) => {
       switch (data.status) {
@@ -160,16 +149,15 @@ export function AddAccountDialog({
     });
 
     return unsubscribe;
-  }, [open, oauthStatus, isCodexOAuth]);
+  }, [open, oauthStatus]);
 
   const needsApiKey = provider !== 'ollama' && authType === 'api-key';
-  const needsBaseUrl = provider === 'ollama' || provider === 'azure' || provider === 'openai-compatible' || provider === 'zai' || (provider === 'anthropic' && authType === 'api-key');
-  const needsRegion = provider === 'amazon-bedrock';
-  const isBaseUrlRequired = provider === 'ollama' || provider === 'azure' || provider === 'openai-compatible';
+  const needsBaseUrl = provider === 'ollama' || provider === 'openai-compatible' || provider === 'zai' || (provider === 'anthropic' && authType === 'api-key');
+  const isBaseUrlRequired = provider === 'ollama' || provider === 'openai-compatible';
 
-  // Auto-save for Anthropic OAuth on success (mirrors the Codex auto-save behavior)
+  // Auto-save for Anthropic OAuth on success
   useEffect(() => {
-    if (oauthStatus !== 'success' || isCodexOAuth || accountSaved || !name.trim()) return;
+    if (oauthStatus !== 'success' || accountSaved || !name.trim()) return;
 
     const autoSave = async () => {
       let result: {
@@ -213,7 +201,7 @@ export function AddAccountDialog({
       }
     };
     autoSave();
-  }, [oauthStatus, isCodexOAuth, accountSaved, name, provider, oauthProfileId, isEditing, editAccount, oauthEmail, addProviderAccount, updateProviderAccount, handleDuplicateEmailError, toast, t, refreshUsageData]);
+  }, [oauthStatus, accountSaved, name, provider, oauthProfileId, isEditing, editAccount, oauthEmail, addProviderAccount, updateProviderAccount, handleDuplicateEmailError, toast, t, refreshUsageData]);
 
   const canSave = () => {
     if (!name.trim()) return false;
@@ -223,13 +211,9 @@ export function AddAccountDialog({
     return true;
   };
 
-  const oauthAuthLabel = isCodexOAuth
-    ? isEditing
-      ? t('providers.dialog.codexReauthenticate')
-      : t('providers.dialog.codexAuthenticate')
-    : isEditing
-      ? t('providers.dialog.oauthReauthenticate')
-      : t('providers.dialog.oauthAuthenticate');
+  const oauthAuthLabel = isEditing
+    ? t('providers.dialog.oauthReauthenticate')
+    : t('providers.dialog.oauthAuthenticate');
 
   const handleAuthenticate = useCallback(async () => {
     if (!name.trim()) {
@@ -242,67 +226,6 @@ export function AddAccountDialog({
 
     setOauthStatus('authenticating');
     setOauthError(null);
-
-    // Handle OpenAI Codex OAuth flow separately
-    if (isCodexOAuth) {
-      try {
-        setOauthStatus('waiting');
-        const result = await window.electronAPI.codexAuthLogin();
-        if (result.success) {
-          setOauthStatus('success');
-          if (result.data?.email) {
-            setOauthEmail(result.data.email);
-          }
-          // Auto-save and close after a brief delay so user sees the success state
-          setTimeout(async () => {
-            let saveResult: {
-              success: boolean;
-              data?: ProviderAccount;
-              error?: string;
-            };
-            if (isEditing && editAccount) {
-              // Re-authenticating existing account — update in place
-              saveResult = await updateProviderAccount(editAccount.id, {
-                name: name.trim(),
-                ...(result.data?.email ? { email: result.data.email } : {}),
-              });
-            } else {
-              const payload = {
-                provider,
-                name: name.trim(),
-                authType: 'oauth' as const,
-                billingModel: 'subscription' as const,
-                ...(result.data?.email ? { email: result.data.email } : {}),
-              };
-              saveResult = await addProviderAccount(payload);
-            }
-              if (saveResult.success) {
-                toast({
-                  title: isEditing
-                    ? t('providers.dialog.toast.updated')
-                    : t('providers.dialog.toast.added'),
-                  description: name.trim(),
-                });
-                await refreshUsageData();
-                onOpenChange(false);
-              } else if (saveResult.error && !handleDuplicateEmailError(saveResult.error)) {
-                toast({
-                  variant: 'destructive',
-                  title: t('providers.dialog.toast.error'),
-                  description: saveResult.error,
-                });
-              }
-            }, 800);
-        } else {
-          setOauthStatus('error');
-          setOauthError(result.error ?? 'Authentication failed');
-        }
-      } catch (err) {
-        setOauthStatus('error');
-        setOauthError(err instanceof Error ? err.message : 'Unexpected error');
-      }
-      return;
-    }
 
     try {
       // Reuse existing Claude profile when re-authenticating, create new otherwise
@@ -344,7 +267,7 @@ export function AddAccountDialog({
       setOauthStatus('error');
       setOauthError(err instanceof Error ? err.message : 'Unexpected error');
     }
-  }, [name, t, toast, isCodexOAuth, isEditing, editAccount, provider, addProviderAccount, updateProviderAccount, handleDuplicateEmailError, onOpenChange, refreshUsageData]);
+  }, [name, t, toast, isEditing, editAccount, provider, addProviderAccount, updateProviderAccount, handleDuplicateEmailError, onOpenChange, refreshUsageData]);
 
   const handleFallbackTerminal = useCallback(async () => {
     if (!name.trim()) {
@@ -411,8 +334,7 @@ export function AddAccountDialog({
         billingModel: billingModelOverride ?? (authType === 'oauth' ? 'subscription' as const : 'pay-per-use' as const),
         apiKey: needsApiKey ? apiKey.trim() : undefined,
         baseUrl: needsBaseUrl && baseUrl.trim() ? baseUrl.trim() : undefined,
-        region: needsRegion ? region : undefined,
-        claudeProfileId: isOAuthOnly && !isCodexOAuth ? oauthProfileId ?? undefined : undefined,
+        claudeProfileId: isOAuthOnly ? oauthProfileId ?? undefined : undefined,
         email: isOAuthOnly ? (oauthEmail ?? (isEditing ? editAccount?.email : undefined)) : undefined,
         customModels: provider === 'openai-compatible' && customModels.length > 0 ? customModels : undefined,
       };
@@ -427,7 +349,6 @@ export function AddAccountDialog({
           name: payload.name,
           apiKey: payload.apiKey,
           baseUrl: payload.baseUrl,
-          region: payload.region,
           customModels: payload.customModels,
           ...(payload.email ? { email: payload.email } : {}),
         };
@@ -475,9 +396,7 @@ export function AddAccountDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {isCodexOAuth
-              ? t('providers.dialog.codexOAuthDescription')
-              : isOAuthOnly
+            {isOAuthOnly
                 ? t('providers.dialog.oauthDescription')
                 : provider === 'zai' && billingModelOverride === 'subscription'
                   ? t('providers.dialog.zaiCodingPlanDescription')
@@ -517,21 +436,21 @@ export function AddAccountDialog({
             {oauthStatus === 'authenticating' && (
               <div className="flex items-center gap-2 rounded-lg bg-muted/50 border border-border p-3 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span>{isCodexOAuth ? t('providers.dialog.codexAuthenticating') : t('providers.dialog.oauthAuthenticating')}</span>
+                <span>{t('providers.dialog.oauthAuthenticating')}</span>
               </div>
             )}
 
             {oauthStatus === 'waiting' && (
               <div className="flex items-center gap-2 rounded-lg bg-muted/50 border border-border p-3 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span>{isCodexOAuth ? t('providers.dialog.codexWaiting') : t('providers.dialog.oauthWaiting')}</span>
+                <span>{t('providers.dialog.oauthWaiting')}</span>
               </div>
             )}
 
             {oauthStatus === 'success' && (
               <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/30 p-3 text-sm text-green-600 dark:text-green-400">
                 <CheckCircle2 className="h-4 w-4" />
-                <span>{isCodexOAuth ? t('providers.dialog.codexSuccess') : t('providers.dialog.oauthSuccess', { email: oauthEmail ?? 'Unknown' })}</span>
+                <span>{t('providers.dialog.oauthSuccess', { email: oauthEmail ?? 'Unknown' })}</span>
               </div>
             )}
 
@@ -539,7 +458,7 @@ export function AddAccountDialog({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{isCodexOAuth ? t('providers.dialog.codexError', { error: oauthError ?? 'Unknown' }) : t('providers.dialog.oauthError', { error: oauthError ?? 'Unknown' })}</span>
+                  <span>{t('providers.dialog.oauthError', { error: oauthError ?? 'Unknown' })}</span>
                 </div>
                 <Button
                   variant="outline"
@@ -553,7 +472,7 @@ export function AddAccountDialog({
             )}
 
             {/* Fallback Terminal Link (Anthropic OAuth only) */}
-            {!isCodexOAuth && !showFallbackTerminal && oauthStatus !== 'success' && !isAuthInProgress && (
+            {!showFallbackTerminal && oauthStatus !== 'success' && !isAuthInProgress && (
               <button
                 type="button"
                 onClick={handleFallbackTerminal}
@@ -566,7 +485,7 @@ export function AddAccountDialog({
             )}
 
             {/* Fallback AuthTerminal (Anthropic OAuth only) */}
-            {!isCodexOAuth && showFallbackTerminal && fallbackTerminalId && fallbackConfigDir && (
+            {showFallbackTerminal && fallbackTerminalId && fallbackConfigDir && (
               <FallbackTerminalWrapper
                 terminalId={fallbackTerminalId}
                 configDir={fallbackConfigDir}
@@ -631,23 +550,6 @@ export function AddAccountDialog({
                             : t('providers.dialog.placeholders.baseUrl')
                   }
                 />
-              </div>
-            )}
-
-            {/* Region (Bedrock) */}
-            {needsRegion && (
-              <div className="space-y-2">
-                <Label htmlFor="account-region">{t('providers.dialog.fields.region')}</Label>
-                <Select value={region} onValueChange={setRegion}>
-                  <SelectTrigger id="account-region">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AWS_REGIONS.map((r) => (
-                      <SelectItem key={r} value={r}>{r}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             )}
 

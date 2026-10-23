@@ -1,6 +1,5 @@
 import { PartyPopper, Check } from 'lucide-react';
 import { Button } from '../ui/button';
-import { GitHubReleaseCard } from './GitHubReleaseCard';
 import { ArchiveTasksCard } from './ArchiveTasksCard';
 import { formatVersionTag } from './utils';
 import type { ChangelogTask } from '../../../shared/types';
@@ -41,12 +40,6 @@ export function Step3SuccessScreen({
 
         {/* Action Cards */}
         <div className="space-y-4">
-          <GitHubReleaseCard
-            projectId={projectId}
-            version={version}
-            generatedChangelog={generatedChangelog}
-          />
-
           <ArchiveTasksCard
             projectId={projectId}
             version={version}

@@ -675,7 +675,7 @@ export function registerProjectHandlers(
         const autoBuildDir = path.join(project.path, project.autoBuildPath);
 
         // Sub-directories that hold task/integration data — delete and recreate empty
-        const dataDirs = ['specs', 'github', 'gitlab', 'azure-devops', 'roadmap', 'ideation'];
+        const dataDirs = ['specs', 'github', 'roadmap', 'ideation'];
         for (const dir of dataDirs) {
           const dirPath = path.join(autoBuildDir, dir);
           if (existsSync(dirPath)) {

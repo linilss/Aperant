@@ -38,7 +38,7 @@ vi.mock('react-i18next', () => ({
         'common:usage.otherAccounts': 'Other Accounts',
         'common:usage.activeAccount': 'Active Account',
         'common:usage.providerAnthropic': 'Anthropic',
-        'common:usage.providerOpenAI': 'OpenAI',
+        'common:usage.providerZai': 'z.ai',
         'common:usage.providerGoogle': 'Google AI',
       };
 
@@ -60,12 +60,11 @@ vi.mock('react-i18next', () => ({
 
 const crossProviderAccounts: ProviderAccount[] = [
   {
-    id: 'account-openai',
-    provider: 'openai',
-    name: 'OpenAI API',
+    id: 'account-zai',
+    provider: 'zai',
+    name: 'z.ai API',
     authType: 'api-key',
     billingModel: 'pay-per-use',
-    apiKey: 'openai-key',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -93,12 +92,12 @@ const crossProviderMonitoredAccounts: ProviderAccount[] = [
     updatedAt: Date.now(),
   },
   {
-    id: 'account-openai-other',
-    provider: 'openai',
-    name: 'OpenAI OAuth',
+    id: 'account-zai-other',
+    provider: 'zai',
+    name: 'z.ai OAuth',
     authType: 'oauth',
     billingModel: 'pay-per-use',
-    claudeProfileId: 'account-openai-other',
+    claudeProfileId: 'account-zai-other',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -114,14 +113,14 @@ const commonStoreMock = {
 
 function createStoreMock(overrides?: {
   customMixedProfileActive?: boolean;
-  customMixedPhaseConfig?: Record<string, { provider: 'anthropic' | 'openai' }>;
+  customMixedPhaseConfig?: Record<string, { provider: 'anthropic' | 'zai' }>;
   globalPriorityOrder?: string[];
   providerAccounts?: ProviderAccount[];
 }) {
   return {
     providerAccounts: overrides?.providerAccounts ?? crossProviderAccounts,
     settings: {
-      globalPriorityOrder: overrides?.globalPriorityOrder ?? ['account-openai', 'account-anthropic'],
+      globalPriorityOrder: overrides?.globalPriorityOrder ?? ['account-zai', 'account-anthropic'],
       customMixedProfileActive: overrides?.customMixedProfileActive,
       customMixedPhaseConfig: overrides?.customMixedPhaseConfig,
     },
@@ -139,9 +138,9 @@ describe('UsageIndicator', () => {
       requestUsageUpdate: vi.fn().mockResolvedValue({
         success: true,
         data: {
-          profileId: 'account-openai',
-          profileName: 'OpenAI API',
-          profileEmail: 'openai@example.com',
+          profileId: 'account-zai',
+          profileName: 'z.ai API',
+          profileEmail: 'zai@example.com',
           sessionPercent: 45,
           weeklyPercent: 55,
           sessionResetTimestamp: '2026-03-04T12:00:00.000Z',
@@ -166,9 +165,9 @@ describe('UsageIndicator', () => {
             },
           ],
           activeProfile: {
-            profileId: 'account-openai',
-            profileName: 'OpenAI API',
-            profileEmail: 'openai@example.com',
+            profileId: 'account-zai',
+            profileName: 'z.ai API',
+            profileEmail: 'zai@example.com',
             sessionPercent: 45,
             weeklyPercent: 55,
             isActive: true,
@@ -186,9 +185,9 @@ describe('UsageIndicator', () => {
         customMixedProfileActive: true,
         customMixedPhaseConfig: {
           spec: { provider: 'anthropic' },
-          planning: { provider: 'openai' },
+          planning: { provider: 'zai' },
           coding: { provider: 'anthropic' },
-          qa: { provider: 'openai' },
+          qa: { provider: 'zai' },
         },
       }) as any);
     });
@@ -202,7 +201,7 @@ describe('UsageIndicator', () => {
       expect(await screen.findByText('Cross-Provider Usage', {}, { timeout: 12000 }))
         .toBeInTheDocument();
       expect(screen.getAllByText('Anthropic').length).toBeGreaterThanOrEqual(2);
-      expect(screen.getAllByText('OpenAI').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('z.ai').length).toBeGreaterThanOrEqual(2);
       expect(screen.getAllByText('70%').length).toBeGreaterThan(0);
       expect(screen.getAllByText('80%').length).toBeGreaterThan(0);
     });
@@ -233,13 +232,13 @@ describe('UsageIndicator', () => {
     it('shows cross-provider rows under Other Accounts when regular usage breakdown is shown', async () => {
       vi.mocked(useSettingsStore).mockReturnValue(createStoreMock({
         providerAccounts: crossProviderMonitoredAccounts,
-        globalPriorityOrder: ['account-anthropic-active', 'account-openai-other'],
+        globalPriorityOrder: ['account-anthropic-active', 'account-zai-other'],
         customMixedProfileActive: true,
         customMixedPhaseConfig: {
           spec: { provider: 'anthropic' },
-          planning: { provider: 'openai' },
+          planning: { provider: 'zai' },
           coding: { provider: 'anthropic' },
-          qa: { provider: 'openai' },
+          qa: { provider: 'zai' },
         },
       }) as any);
 
@@ -263,8 +262,8 @@ describe('UsageIndicator', () => {
         data: {
           allProfiles: [
             {
-              profileId: 'account-openai-other',
-              profileName: 'OpenAI OAuth',
+              profileId: 'account-zai-other',
+              profileName: 'z.ai OAuth',
               sessionPercent: 54,
               weeklyPercent: 48,
               isAuthenticated: true,
@@ -297,7 +296,7 @@ describe('UsageIndicator', () => {
         otherAccountsHeader.compareDocumentPosition(crossProviderUsageHeading) & Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeGreaterThan(0);
 
-      const openAiAccount = screen.getByText('OpenAI OAuth');
+      const openAiAccount = screen.getByText('z.ai OAuth');
       expect(
         openAiAccount.compareDocumentPosition(crossProviderUsageHeading) & Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeGreaterThan(0);

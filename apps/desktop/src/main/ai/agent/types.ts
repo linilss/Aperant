@@ -59,12 +59,9 @@ export interface SerializableSessionConfig {
   baseURL?: string;
   /** Config directory for OAuth profile (used for reactive token refresh on 401) */
   configDir?: string;
-  /** Pre-resolved path to OAuth token file for file-based OAuth providers (e.g., Codex). Worker-safe. */
-  oauthTokenFilePath?: string;
   /** MCP options resolved from project settings (serialized for worker) */
   mcpOptions?: {
     context7Enabled?: boolean;
-    linearEnabled?: boolean;
     electronMcpEnabled?: boolean;
     puppeteerMcpEnabled?: boolean;
     projectCapabilities?: {

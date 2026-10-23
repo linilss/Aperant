@@ -12,27 +12,6 @@ const mockLanguageModel = vi.fn((id: string) => ({ id, type: 'language-model' })
 vi.mock('@ai-sdk/anthropic', () => ({
   createAnthropic: vi.fn(() => mockLanguageModel),
 }));
-vi.mock('@ai-sdk/openai', () => ({
-  createOpenAI: vi.fn(() => mockLanguageModel),
-}));
-vi.mock('@ai-sdk/google', () => ({
-  createGoogleGenerativeAI: vi.fn(() => mockLanguageModel),
-}));
-vi.mock('@ai-sdk/amazon-bedrock', () => ({
-  createAmazonBedrock: vi.fn(() => mockLanguageModel),
-}));
-vi.mock('@ai-sdk/azure', () => ({
-  createAzure: vi.fn(() => mockLanguageModel),
-}));
-vi.mock('@ai-sdk/mistral', () => ({
-  createMistral: vi.fn(() => mockLanguageModel),
-}));
-vi.mock('@ai-sdk/groq', () => ({
-  createGroq: vi.fn(() => mockLanguageModel),
-}));
-vi.mock('@ai-sdk/xai', () => ({
-  createXai: vi.fn(() => mockLanguageModel),
-}));
 vi.mock('@ai-sdk/openai-compatible', () => ({
   createOpenAICompatible: vi.fn(() => mockLanguageModel),
 }));
@@ -71,7 +50,7 @@ describe('buildRegistry', () => {
     const registry = buildRegistry({
       providers: {
         [SupportedProvider.Anthropic]: { apiKey: 'sk-ant' },
-        [SupportedProvider.OpenAI]: { apiKey: 'sk-oai' },
+        [SupportedProvider.OpenRouter]: { apiKey: 'sk-or' },
       },
     });
     expect(registry).toBeDefined();
@@ -165,19 +144,8 @@ describe('transformThinkingConfig', () => {
     expect(config.effortLevel).toBe('high');
   });
 
-  it('returns reasoningEffort for OpenAI', () => {
-    const config = transformThinkingConfig('openai', 'gpt-4o', 'high');
-    expect(config.reasoningEffort).toBe('high');
-    expect(config.budgetTokens).toBeUndefined();
-  });
-
-  it('returns reasoningEffort for Azure', () => {
-    const config = transformThinkingConfig('azure', 'gpt-4o', 'medium');
-    expect(config.reasoningEffort).toBe('medium');
-  });
-
   it('returns empty config for unsupported provider', () => {
-    const config = transformThinkingConfig('groq', 'llama-3.1-70b', 'high');
+    const config = transformThinkingConfig('ollama', 'llama3.1', 'high');
     expect(config).toEqual({});
   });
 });
@@ -212,21 +180,8 @@ describe('normalizeToolId', () => {
     expect(normalizeToolId('anthropic', 'my.tool@v2')).toBe('my_tool_v2');
   });
 
-  it('truncates long OpenAI tool IDs to 64 chars', () => {
-    const longId = 'a'.repeat(100);
-    const result = normalizeToolId('openai', longId);
-    expect(result.length).toBe(64);
-  });
-
-  it('sanitizes and truncates for Azure', () => {
-    const longId = 'tool.name.'.repeat(20);
-    const result = normalizeToolId('azure', longId);
-    expect(result.length).toBeLessThanOrEqual(64);
-    expect(result).not.toContain('.');
-  });
-
   it('passes through for other providers', () => {
-    expect(normalizeToolId('groq', 'any.tool@name')).toBe('any.tool@name');
+    expect(normalizeToolId('ollama', 'any.tool@name')).toBe('any.tool@name');
   });
 });
 
@@ -241,7 +196,7 @@ describe('meetsCacheThreshold', () => {
   });
 
   it('returns false for non-Anthropic providers', () => {
-    expect(meetsCacheThreshold('openai', 'toolDefinitions', 5000)).toBe(false);
+    expect(meetsCacheThreshold('openrouter', 'toolDefinitions', 5000)).toBe(false);
   });
 });
 
@@ -254,7 +209,7 @@ describe('getCacheBreakpoints', () => {
   });
 
   it('returns empty array for non-Anthropic', () => {
-    expect(getCacheBreakpoints('openai', [5000, 5000])).toEqual([]);
+    expect(getCacheBreakpoints('openrouter', [5000, 5000])).toEqual([]);
   });
 
   it('returns empty array for empty messages', () => {

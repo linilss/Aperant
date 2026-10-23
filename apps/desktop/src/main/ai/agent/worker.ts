@@ -523,7 +523,6 @@ async function runSingleSession(
       provider: baseSession.provider as SupportedProvider,
       apiKey: baseSession.apiKey,
       baseURL: baseSession.baseURL,
-      oauthTokenFilePath: baseSession.oauthTokenFilePath,
     },
     modelId: phaseModelId,
   });
@@ -635,7 +634,6 @@ async function runSingleSession(
       contextWindowLimit,
       apiKey: baseSession.apiKey,
       baseURL: baseSession.baseURL,
-      oauthTokenFilePath: baseSession.oauthTokenFilePath,
       configDir: baseSession.configDir,
     });
   } catch (error) {
@@ -675,7 +673,6 @@ async function run(): Promise<void> {
     try {
       mcpClients = await createMcpClientsForAgent(session.agentType, {
         context7Enabled: session.mcpOptions?.context7Enabled ?? true,
-        linearEnabled: session.mcpOptions?.linearEnabled ?? false,
         electronMcpEnabled: session.mcpOptions?.electronMcpEnabled ?? false,
         puppeteerMcpEnabled: session.mcpOptions?.puppeteerMcpEnabled ?? false,
         projectCapabilities: session.mcpOptions?.projectCapabilities,
@@ -1250,7 +1247,6 @@ async function runAgenticSpecOrchestrator(
       provider: session.provider as SupportedProvider,
       apiKey: session.apiKey,
       baseURL: session.baseURL,
-      oauthTokenFilePath: session.oauthTokenFilePath,
     },
     modelId: session.modelId,
   });
@@ -1386,7 +1382,6 @@ async function runAgenticSpecOrchestrator(
       contextWindowLimit,
       apiKey: session.apiKey,
       baseURL: session.baseURL,
-      oauthTokenFilePath: session.oauthTokenFilePath,
       configDir: session.configDir,
     });
   } finally {

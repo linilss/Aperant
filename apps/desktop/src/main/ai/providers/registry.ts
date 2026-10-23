@@ -8,15 +8,8 @@
  */
 
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
-import { createAzure } from '@ai-sdk/azure';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createGroq } from '@ai-sdk/groq';
-import { createMistral } from '@ai-sdk/mistral';
-import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { createXai } from '@ai-sdk/xai';
 import { createProviderRegistry } from 'ai';
 import type { LanguageModel } from 'ai';
 import type { ProviderV3 } from '@ai-sdk/provider';
@@ -51,27 +44,6 @@ function createProviderSDKInstance(
   switch (provider) {
     case SupportedProvider.Anthropic:
       return createAnthropic({ apiKey, baseURL, headers });
-
-    case SupportedProvider.OpenAI:
-      return createOpenAI({ apiKey, baseURL, headers });
-
-    case SupportedProvider.Google:
-      return createGoogleGenerativeAI({ apiKey, baseURL, headers });
-
-    case SupportedProvider.Bedrock:
-      return createAmazonBedrock({ region: config.region ?? 'us-east-1', apiKey });
-
-    case SupportedProvider.Azure:
-      return createAzure({ apiKey, baseURL, headers });
-
-    case SupportedProvider.Mistral:
-      return createMistral({ apiKey, baseURL, headers });
-
-    case SupportedProvider.Groq:
-      return createGroq({ apiKey, baseURL, headers });
-
-    case SupportedProvider.XAI:
-      return createXai({ apiKey, baseURL, headers });
 
     case SupportedProvider.OpenRouter:
       return createOpenRouter({

@@ -34,23 +34,6 @@ const CONTEXT7_SERVER: McpServerConfig = {
 };
 
 /**
- * Linear MCP server - project management.
- * Conditionally enabled when project has Linear integration active.
- * Requires LINEAR_API_KEY environment variable.
- */
-const LINEAR_SERVER: McpServerConfig = {
-  id: 'linear',
-  name: 'Linear',
-  description: 'Project management integration for issues and tasks',
-  enabledByDefault: false,
-  transport: {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', '@linear/mcp-server'],
-  },
-};
-
-/**
  * Electron MCP server - desktop app automation.
  * Only available to QA agents. Requires ELECTRON_MCP_ENABLED=true.
  * Uses Chrome DevTools Protocol to connect to Electron apps.
@@ -119,8 +102,6 @@ function createMalvyServer(specDir: string): McpServerConfig | null {
 export interface McpRegistryOptions {
   /** Spec directory for the malvy MCP server */
   specDir?: string;
-  /** Linear API key (if available) */
-  linearApiKey?: string;
   /** Environment variables for server processes */
   env?: Record<string, string>;
 }
@@ -139,20 +120,6 @@ export function getMcpServerConfig(
   switch (serverId) {
     case 'context7':
       return CONTEXT7_SERVER;
-
-    case 'linear': {
-      if (!options.linearApiKey && !options.env?.LINEAR_API_KEY) return null;
-      const server = { ...LINEAR_SERVER };
-      // Pass LINEAR_API_KEY to the server process
-      const apiKey = options.linearApiKey ?? options.env?.LINEAR_API_KEY;
-      if (apiKey && server.transport.type === 'stdio') {
-        server.transport = {
-          ...server.transport,
-          env: { ...server.transport.env, LINEAR_API_KEY: apiKey },
-        };
-      }
-      return server;
-    }
 
     case 'electron':
       return ELECTRON_SERVER;

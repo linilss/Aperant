@@ -20,8 +20,6 @@ import { getCredentialsFromKeychain, clearKeychainCache } from './credential-uti
 import { reactiveTokenRefresh, ensureValidToken } from './token-refresh';
 import { isProfileRateLimited } from './rate-limit-manager';
 import { getOperationRegistry } from './operation-registry';
-import { ensureValidCodexToken } from '../ai/auth/codex-oauth';
-import { fetchCodexUsage, normalizeCodexResponse } from './codex-usage-fetcher';
 import { readSettingsFileAsync, writeSettingsFile } from '../settings-utils';
 import type { ProviderAccount } from '../../shared/types/provider-account';
 
@@ -50,7 +48,6 @@ const ALLOWED_USAGE_API_DOMAINS = new Set([
   'api.anthropic.com',
   'api.z.ai',
   'open.bigmodel.cn',
-  'chatgpt.com',
 ]);
 
 /**
@@ -66,10 +63,6 @@ const PROVIDER_USAGE_ENDPOINTS: readonly ProviderUsageEndpoint[] = [
   {
     provider: 'anthropic',
     usagePath: '/api/oauth/usage'
-  },
-  {
-    provider: 'openai',
-    usagePath: '/backend-api/wham/usage'
   },
   {
     provider: 'zai',
@@ -448,8 +441,6 @@ export class UsageMonitor extends EventEmitter {
         needsReauthentication: this.needsReauthProfiles.has(profile.id)
       }));
 
-      // Include Codex (OpenAI OAuth) accounts from providerAccounts
-      await this.appendCodexAccounts(allProfiles);
       // Include Z.AI provider accounts from providerAccounts
       await this.appendZAIAccounts(allProfiles);
 
@@ -758,8 +749,6 @@ export class UsageMonitor extends EventEmitter {
       }
     }
 
-    // Include Codex (OpenAI OAuth) accounts from providerAccounts
-    await this.appendCodexAccounts(allProfiles);
     // Include Z.AI provider accounts from providerAccounts
     await this.appendZAIAccounts(allProfiles);
 
@@ -986,94 +975,6 @@ export class UsageMonitor extends EventEmitter {
   }
 
   /**
-   * Append Codex (OpenAI OAuth) provider accounts to the allProfiles list.
-   * These accounts live in providerAccounts (settings.json), not in ClaudeProfileManager,
-   * so they must be added separately.
-   */
-  private async appendCodexAccounts(allProfiles: ProfileUsageSummary[]): Promise<void> {
-    try {
-      const appSettings = await readSettingsFileAsync();
-      if (!appSettings) return;
-
-      const providerAccounts = (appSettings.providerAccounts as ProviderAccount[] | undefined) ?? [];
-
-      for (const account of providerAccounts) {
-        if (account.provider !== 'openai' || account.authType !== 'oauth') continue;
-        // Skip if already present
-        if (allProfiles.some(p => p.profileId === account.id)) continue;
-
-        // If this account matches currentUsage, use that data
-        if (this.currentUsage && this.currentUsage.profileId === account.id) {
-          const s = this.currentUsage;
-          allProfiles.push({
-            profileId: s.profileId,
-            profileName: s.profileName || account.name,
-            profileEmail: s.profileEmail,
-            sessionPercent: s.sessionPercent,
-            weeklyPercent: s.weeklyPercent,
-            sessionResetTimestamp: s.sessionResetTimestamp,
-            weeklyResetTimestamp: s.weeklyResetTimestamp,
-            isAuthenticated: true,
-            isRateLimited: s.sessionPercent >= 95 || s.weeklyPercent >= 95,
-            rateLimitType: s.limitType,
-            availabilityScore: this.calculateAvailabilityScore(s.sessionPercent, s.weeklyPercent, false, undefined, true),
-            isActive: true,
-            lastFetchedAt: s.fetchedAt instanceof Date ? s.fetchedAt.toISOString() : undefined,
-            needsReauthentication: s.needsReauthentication,
-          });
-          continue;
-        }
-
-        // Inactive Codex account — try to fetch its usage
-        try {
-          const token = await ensureValidCodexToken();
-          if (token) {
-            const { getCodexAccountId } = await import('./codex-usage-fetcher');
-            const codexAccountId = getCodexAccountId(token);
-            const rawData = await fetchCodexUsage(token, codexAccountId);
-            if (rawData) {
-              const n = normalizeCodexResponse(rawData, account.id, account.name);
-              allProfiles.push({
-                profileId: account.id,
-                profileName: account.name,
-                profileEmail: n.profileEmail,
-                sessionPercent: n.sessionPercent,
-                weeklyPercent: n.weeklyPercent,
-                sessionResetTimestamp: n.sessionResetTimestamp,
-                weeklyResetTimestamp: n.weeklyResetTimestamp,
-                isAuthenticated: true,
-                isRateLimited: n.sessionPercent >= 95 || n.weeklyPercent >= 95,
-                rateLimitType: n.limitType,
-                availabilityScore: this.calculateAvailabilityScore(n.sessionPercent, n.weeklyPercent, false, undefined, true),
-                isActive: false,
-                lastFetchedAt: new Date().toISOString(),
-                needsReauthentication: false,
-              });
-              continue;
-            }
-          }
-        } catch {
-          // Fetch failed — add minimal entry below
-        }
-
-        // No data available — add minimal entry so the account appears in the list
-        allProfiles.push({
-          profileId: account.id,
-          profileName: account.name,
-          sessionPercent: 0,
-          weeklyPercent: 0,
-          isAuthenticated: true,
-          isRateLimited: false,
-          availabilityScore: 100,
-          isActive: false,
-        });
-      }
-    } catch (error) {
-      this.debugLog('[UsageMonitor] Failed to append Codex accounts:', error);
-    }
-  }
-
-  /**
    * Append Z.AI provider accounts to the allProfiles list.
    * Z.AI accounts use API keys and have a quota/limit monitoring API.
    */
@@ -1197,31 +1098,6 @@ export class UsageMonitor extends EventEmitter {
     } catch (error) {
       // API profile loading failed, fall through to OAuth
       this.traceLog('[UsageMonitor:TRACE] Failed to load API profiles, falling back to OAuth:', error);
-    }
-
-    // Check for Codex OAuth token (OpenAI)
-    try {
-      const settings = await readSettingsFileAsync();
-      if (settings) {
-        const providerAccounts = (settings.providerAccounts as ProviderAccount[] | undefined) ?? [];
-        const queue = (settings.globalPriorityOrder as string[] | undefined) ?? [];
-        for (const accountId of queue) {
-          const account = providerAccounts.find(a => a.id === accountId);
-          if (account?.provider === 'openai' && account.authType === 'oauth') {
-            const codexToken = await ensureValidCodexToken();
-            if (codexToken) {
-              this.traceLog('[UsageMonitor:TRACE] Using Codex OAuth token', {
-                tokenFingerprint: getCredentialFingerprint(codexToken)
-              });
-              return codexToken;
-            }
-            this.traceLog('[UsageMonitor:TRACE] Codex OAuth token not available');
-            break;
-          }
-        }
-      }
-    } catch (error) {
-      this.traceLog('[UsageMonitor:TRACE] Failed to get Codex token, falling back to Claude OAuth:', error);
     }
 
     // Fall back to Claude OAuth profile - use ensureValidToken for proactive refresh
@@ -1495,7 +1371,6 @@ export class UsageMonitor extends EventEmitter {
    * Supported account types (in order of detection within the priority list):
    *   - Anthropic OAuth  (provider: 'anthropic', authType: 'oauth')
    *   - Anthropic API key (provider: 'anthropic', authType: 'api-key')
-   *   - OpenAI/Codex OAuth (provider: 'openai', authType: 'oauth')
    *   - Z.AI API key (provider: 'zai')
    *   - Other providers: returns null (no usage monitoring supported)
    *
@@ -1689,32 +1564,6 @@ export class UsageMonitor extends EventEmitter {
         profileEmail: account.email,
         isAPIProfile: true,
         baseUrl,
-        credential
-      };
-    }
-
-    if (account.provider === 'openai' && account.authType === 'oauth') {
-      // OpenAI/Codex OAuth account
-      let credential: string | undefined;
-      try {
-        const codexToken = await ensureValidCodexToken();
-        credential = codexToken ?? undefined;
-      } catch (error) {
-        this.traceLog('[UsageMonitor:TRACE] Failed to get Codex OAuth token:', error);
-      }
-
-      this.traceLog('[UsageMonitor:TRACE] Active auth type: Codex OAuth (via globalPriorityOrder)', {
-        profileId: account.id,
-        profileName: account.name,
-        hasCredential: !!credential
-      });
-
-      return {
-        profileId: account.id,
-        profileName: account.name,
-        profileEmail: account.email,
-        isAPIProfile: false,
-        baseUrl: 'https://chatgpt.com',
         credential
       };
     }
@@ -2099,7 +1948,7 @@ export class UsageMonitor extends EventEmitter {
         baseUrl = activeProfile.baseUrl;
         provider = detectProvider(baseUrl);
       } else if (activeProfile && !activeProfile.isAPIProfile) {
-        // OAuth profile — detect provider from baseUrl (supports Anthropic + Codex)
+        // OAuth profile — detect provider from baseUrl 
         baseUrl = activeProfile.baseUrl;
         provider = detectProvider(baseUrl);
       } else {
@@ -2185,17 +2034,6 @@ export class UsageMonitor extends EventEmitter {
         // OAuth authentication requires the beta header
         headers['anthropic-beta'] = 'claude-code-20250219,oauth-2025-04-20';
         headers['anthropic-version'] = '2023-06-01';
-      } else if (provider === 'openai') {
-        // Codex usage endpoint may need account ID for team accounts
-        try {
-          const { getCodexAccountId } = await import('./codex-usage-fetcher');
-          const accountId = getCodexAccountId(credential);
-          if (accountId) {
-            headers['ChatGPT-Account-Id'] = accountId;
-          }
-        } catch {
-          // Non-critical — personal accounts work without the header
-        }
       }
 
       const response = await fetch(usageEndpoint, {
@@ -2324,9 +2162,6 @@ export class UsageMonitor extends EventEmitter {
       switch (provider) {
         case 'anthropic':
           normalizedUsage = this.normalizeAnthropicResponse(rawData, profileId, profileName, profileEmail);
-          break;
-        case 'openai':
-          normalizedUsage = normalizeCodexResponse(rawData, profileId, profileName, profileEmail);
           break;
         case 'zai':
           normalizedUsage = this.normalizeZAIResponse(responseData, profileId, profileName, profileEmail);

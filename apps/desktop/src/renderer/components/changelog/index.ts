@@ -7,7 +7,6 @@ export { Step2ConfigureGenerate, Step3ReleaseArchive } from './ChangelogDetails'
 export { ConfigurationPanel } from './ConfigurationPanel';
 export { PreviewPanel } from './PreviewPanel';
 export { Step3SuccessScreen } from './Step3SuccessScreen';
-export { GitHubReleaseCard } from './GitHubReleaseCard';
 export { ArchiveTasksCard } from './ArchiveTasksCard';
 export { useChangelog } from './hooks/useChangelog';
 export { useImageUpload } from './hooks/useImageUpload';

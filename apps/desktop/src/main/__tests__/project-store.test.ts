@@ -633,7 +633,6 @@ describe('ProjectStore', () => {
             settings: {
               model: 'sonnet',
               memoryBackend: 'memory',
-              linearSync: false,
               notifications: {
                 onTaskComplete: true,
                 onTaskFailed: true,

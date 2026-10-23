@@ -23,7 +23,6 @@ project-settings/
 ├── README.md                         # This file
 ├── index.ts                          # Barrel export for all components
 ├── AutoBuildIntegration.tsx          # Auto-Build setup and status
-├── LinearIntegrationSection.tsx      # Linear project management integration
 ├── GitHubIntegrationSection.tsx      # GitHub issues integration
 ├── MemoryBackendSection.tsx          # Graphiti/file-based memory configuration
 ├── AgentConfigSection.tsx            # Agent model selection
@@ -39,7 +38,6 @@ hooks/
 ├── useProjectSettings.ts             # Project settings state management
 ├── useEnvironmentConfig.ts           # Environment configuration state
 ├── useClaudeAuth.ts                  # Claude authentication status
-├── useLinearConnection.ts            # Linear connection status
 ├── useGitHubConnection.ts            # GitHub connection status
 └── useInfrastructureStatus.ts        # LadybugDB memory status
 ```
@@ -63,7 +61,6 @@ hooks/
 - Show Auto-Build version information
 - Handle initialization and updates
 
-#### LinearIntegrationSection.tsx
 **Purpose**: Configures Linear project management integration.
 **Props**:
 - `isExpanded`: Section expand/collapse state
@@ -211,7 +208,6 @@ hooks/
 - `isLoadingEnv`: Loading state
 - `envError`: Error state
 
-### useLinearConnection.ts
 **Purpose**: Monitors Linear connection status.
 **Returns**:
 - `linearConnectionStatus`: Connection status object

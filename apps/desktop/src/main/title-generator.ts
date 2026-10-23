@@ -60,7 +60,7 @@ export class TitleGenerator extends EventEmitter {
     try {
       // Read the user's configured naming model for their active provider.
       // This ensures we use the correct model for the active provider
-      // (e.g., Codex models for OpenAI Codex OAuth, Gemini for Google, etc.)
+      // (e.g., Claude vs z.ai/OpenRouter/Ollama models)
       const namingSettings = getActiveProviderFeatureSettings('naming');
       debug('Using naming settings:', namingSettings.model, namingSettings.thinkingLevel);
 
@@ -71,20 +71,10 @@ export class TitleGenerator extends EventEmitter {
         projectPath,
       });
 
-      // Handle Codex models the same way as runner.ts:
-      // Codex requires instructions field (not system messages in input) and store=false
-      const isCodex = client.resolvedModelId?.includes('codex') ?? false;
-
       const result = streamText({
         model: client.model,
-        system: isCodex ? undefined : client.systemPrompt,
+        system: client.systemPrompt,
         prompt,
-        providerOptions: isCodex ? {
-          openai: {
-            ...(client.systemPrompt ? { instructions: client.systemPrompt } : {}),
-            store: false,
-          },
-        } : undefined,
       });
 
       const raw = (await result.text).trim();

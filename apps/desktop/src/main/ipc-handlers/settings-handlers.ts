@@ -52,91 +52,6 @@ async function migrateToProviderAccounts(settings: AppSettings): Promise<{ chang
     });
   }
 
-  // Migrate globalOpenAIApiKey
-  if (settings.globalOpenAIApiKey && !accounts.some(a => a.provider === 'openai')) {
-    accounts.push({
-      id: genId(),
-      provider: 'openai',
-      name: 'OpenAI API Key',
-      authType: 'api-key',
-      apiKey: settings.globalOpenAIApiKey,
-      billingModel: 'pay-per-use' as const,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Migrate globalGoogleApiKey
-  if (settings.globalGoogleApiKey && !accounts.some(a => a.provider === 'google')) {
-    accounts.push({
-      id: genId(),
-      provider: 'google',
-      name: 'Google API Key',
-      authType: 'api-key',
-      apiKey: settings.globalGoogleApiKey,
-      billingModel: 'pay-per-use' as const,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Migrate globalGroqApiKey
-  if (settings.globalGroqApiKey && !accounts.some(a => a.provider === 'groq')) {
-    accounts.push({
-      id: genId(),
-      provider: 'groq',
-      name: 'Groq API Key',
-      authType: 'api-key',
-      apiKey: settings.globalGroqApiKey,
-      billingModel: 'pay-per-use' as const,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Migrate globalMistralApiKey
-  if (settings.globalMistralApiKey && !accounts.some(a => a.provider === 'mistral')) {
-    accounts.push({
-      id: genId(),
-      provider: 'mistral',
-      name: 'Mistral API Key',
-      authType: 'api-key',
-      apiKey: settings.globalMistralApiKey,
-      billingModel: 'pay-per-use' as const,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Migrate globalXAIApiKey
-  if (settings.globalXAIApiKey && !accounts.some(a => a.provider === 'xai')) {
-    accounts.push({
-      id: genId(),
-      provider: 'xai',
-      name: 'xAI API Key',
-      authType: 'api-key',
-      apiKey: settings.globalXAIApiKey,
-      billingModel: 'pay-per-use' as const,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  // Migrate globalAzureApiKey
-  if (settings.globalAzureApiKey && !accounts.some(a => a.provider === 'azure')) {
-    accounts.push({
-      id: genId(),
-      provider: 'azure',
-      name: 'Azure API Key',
-      authType: 'api-key',
-      apiKey: settings.globalAzureApiKey,
-      baseUrl: settings.globalAzureBaseUrl,
-      billingModel: 'pay-per-use' as const,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
   // Migrate APIProfile[] (custom Anthropic-compatible endpoints stored in profiles.json)
   try {
     const profilesFile = await loadProfilesFile();
@@ -376,7 +291,7 @@ export function registerSettingsHandlers(
       // Migration: Clear CLI tool paths that are from a different platform
       // Fixes issue where Windows paths persisted on macOS (and vice versa)
       // when settings were synced/transferred between platforms
-      const pathFields = ['gitPath', 'githubCLIPath', 'gitlabCLIPath', 'claudePath', 'autoBuildPath'] as const;
+      const pathFields = ['gitPath', 'githubCLIPath', 'claudePath', 'autoBuildPath'] as const;
       for (const field of pathFields) {
         const pathValue = settings[field];
         if (pathValue && isPathFromWrongPlatform(pathValue)) {
@@ -410,7 +325,6 @@ export function registerSettingsHandlers(
       configureTools({
         gitPath: settings.gitPath,
         githubCLIPath: settings.githubCLIPath,
-        gitlabCLIPath: settings.gitlabCLIPath,
         claudePath: settings.claudePath,
       });
 
@@ -457,13 +371,11 @@ export function registerSettingsHandlers(
         if (
           settings.gitPath !== undefined ||
           settings.githubCLIPath !== undefined ||
-          settings.gitlabCLIPath !== undefined ||
           settings.claudePath !== undefined
         ) {
           configureTools({
             gitPath: newSettings.gitPath,
             githubCLIPath: newSettings.githubCLIPath,
-            gitlabCLIPath: newSettings.gitlabCLIPath,
             claudePath: newSettings.claudePath,
           });
 
@@ -516,7 +428,6 @@ export function registerSettingsHandlers(
     async (): Promise<IPCResult<{
       git: ReturnType<typeof getToolInfo>;
       gh: ReturnType<typeof getToolInfo>;
-      glab: ReturnType<typeof getToolInfo>;
       claude: ReturnType<typeof getToolInfo>;
     }>> => {
       try {
@@ -525,7 +436,6 @@ export function registerSettingsHandlers(
           data: {
             git: getToolInfo('git'),
             gh: getToolInfo('gh'),
-            glab: getToolInfo('glab'),
             claude: getToolInfo('claude'),
           },
         };
@@ -1113,13 +1023,6 @@ export function registerSettingsHandlers(
         const envMap: Record<string, boolean> = {};
         const envVarMapping: Record<string, string> = {
           ANTHROPIC_API_KEY: 'anthropic',
-          OPENAI_API_KEY: 'openai',
-          GOOGLE_GENERATIVE_AI_API_KEY: 'google',
-          MISTRAL_API_KEY: 'mistral',
-          GROQ_API_KEY: 'groq',
-          XAI_API_KEY: 'xai',
-          AWS_ACCESS_KEY_ID: 'amazon-bedrock',
-          AZURE_OPENAI_API_KEY: 'azure',
         };
         for (const [envVar, provider] of Object.entries(envVarMapping)) {
           if (process.env[envVar]) {

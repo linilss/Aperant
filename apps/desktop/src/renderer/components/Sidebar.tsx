@@ -9,16 +9,11 @@ import {
   AlertCircle,
   Download,
   RefreshCw,
-  Github,
-  GitlabIcon,
-  GitPullRequest,
-  GitMerge,
   FileText,
   Sparkles,
   GitBranch,
   HelpCircle,
   Wrench,
-  CheckSquare,
   Bot,
   FlaskConical,
   Wand,
@@ -59,7 +54,6 @@ import { useTaskStore } from '../stores/task-store';
 import { useFunnelProgress } from '../stores/funnel-store';
 import { countUndeployedTasks } from '../../shared/utils/task-deployments';
 import {
-  useProjectEnvStore,
   loadProjectEnvConfig,
   clearProjectEnvConfig
 } from '../stores/project-env-store';
@@ -70,7 +64,7 @@ import { RateLimitIndicator } from './RateLimitIndicator';
 import { UpdateBanner } from './UpdateBanner';
 import type { Project, GitStatus, FunnelStepId } from '../../shared/types';
 
-export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'roadmap' | 'context' | 'ideation' | 'github-issues' | 'gitlab-issues' | 'github-prs' | 'gitlab-merge-requests' | 'azure-devops-work-items' | 'azure-devops-prs' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
+export type SidebarView = 'kanban' | 'terminals' | 'agents' | 'skills' | 'core-values' | 'design' | 'competitors' | 'roadmap' | 'context' | 'ideation' | 'changelog' | 'insights' | 'worktrees' | 'agent-tools' | 'tests' | 'deploy';
 
 interface SidebarProps {
   onSettingsClick: () => void;
@@ -87,8 +81,6 @@ interface NavItem {
   labelKey: string;
   icon: React.ElementType;
   shortcut?: string;
-  /** Only shown when this integration is enabled for the project */
-  requires?: 'github' | 'gitlab' | 'azureDevOps';
   /** Plan-funnel step this view completes; shows a check when done for the selected project */
   funnelStep?: FunnelStepId;
   /** Building/shipping view: hidden in overview projects */
@@ -119,10 +111,7 @@ const navSections: NavSection[] = [
     labelKey: 'navigation:sections.plan',
     items: [
       { id: 'competitors', labelKey: 'navigation:items.competitors', icon: Swords, shortcut: 'F', funnelStep: 'competitors' },
-      { id: 'roadmap', labelKey: 'navigation:items.backlog', icon: ListTodo, shortcut: 'D', funnelStep: 'roadmap' },
-      { id: 'github-issues', labelKey: 'navigation:items.githubIssues', icon: Github, shortcut: 'G', requires: 'github' },
-      { id: 'gitlab-issues', labelKey: 'navigation:items.gitlabIssues', icon: GitlabIcon, shortcut: 'B', requires: 'gitlab' },
-      { id: 'azure-devops-work-items', labelKey: 'navigation:items.azureDevOpsWorkItems', icon: CheckSquare, shortcut: 'V', requires: 'azureDevOps' }
+      { id: 'roadmap', labelKey: 'navigation:items.backlog', icon: ListTodo, shortcut: 'D', funnelStep: 'roadmap' }
     ]
   },
   {
@@ -139,10 +128,7 @@ const navSections: NavSection[] = [
     labelKey: 'navigation:sections.review',
     items: [
       { id: 'worktrees', labelKey: 'navigation:items.worktrees', icon: GitBranch, shortcut: 'W', build: true },
-      { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T', build: true },
-      { id: 'github-prs', labelKey: 'navigation:items.githubPRs', icon: GitPullRequest, shortcut: 'P', requires: 'github', build: true },
-      { id: 'gitlab-merge-requests', labelKey: 'navigation:items.gitlabMRs', icon: GitMerge, shortcut: 'R', requires: 'gitlab', build: true },
-      { id: 'azure-devops-prs', labelKey: 'navigation:items.azureDevOpsPRs', icon: GitPullRequest, shortcut: 'X', requires: 'azureDevOps', build: true }
+      { id: 'tests', labelKey: 'navigation:items.tests', icon: FlaskConical, shortcut: 'T', build: true }
     ]
   },
   {
@@ -204,29 +190,21 @@ export function Sidebar({
   const isStepDone = (item: NavItem) =>
     !!item.funnelStep && !!funnel?.steps.some((s) => s.id === item.funnelStep && s.done);
 
-  // Subscribe to project-env-store for reactive GitHub/GitLab/Azure DevOps tab visibility
-  const githubEnabled = useProjectEnvStore((state) => state.envConfig?.githubEnabled ?? false);
-  const gitlabEnabled = useProjectEnvStore((state) => state.envConfig?.gitlabEnabled ?? false);
-  const azureDevOpsEnabled = useProjectEnvStore((state) => state.envConfig?.azureDevOpsEnabled ?? false);
-
   // Track the last loaded project ID to avoid redundant loads
   const lastLoadedProjectIdRef = useRef<string | null>(null);
 
   // Overview projects (a folder of many apps) plan and analyse only
   const overviewOnly = projects.find((p) => p.id === selectedProjectId)?.settings?.overviewOnly === true;
 
-  // Compute visible sections based on GitHub/GitLab/Azure DevOps enabled state from store
+  // Compute visible sections (overview projects hide build views)
   const visibleSections = useMemo(() => {
-    const enabled = { github: githubEnabled, gitlab: gitlabEnabled, azureDevOps: azureDevOpsEnabled };
     return navSections
       .map((section) => ({
         ...section,
-        items: section.items.filter(
-          (item) => (!item.requires || enabled[item.requires]) && !(overviewOnly && item.build)
-        )
+        items: section.items.filter((item) => !(overviewOnly && item.build))
       }))
       .filter((section) => section.items.length > 0);
-  }, [githubEnabled, gitlabEnabled, azureDevOpsEnabled, overviewOnly]);
+  }, [overviewOnly]);
 
   const visibleNavItems = useMemo(
     () => visibleSections.flatMap((section) => section.items),

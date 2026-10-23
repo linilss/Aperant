@@ -113,31 +113,6 @@ import type {
   RoadmapGenerationStatus,
   PersistedRoadmapProgress
 } from './roadmap';
-import type {
-  LinearTeam,
-  LinearProject,
-  LinearIssue,
-  LinearImportResult,
-  LinearSyncStatus,
-  GitHubRepository,
-  GitHubIssue,
-  GitHubSyncStatus,
-  GitHubImportResult,
-  GitHubInvestigationResult,
-  GitHubInvestigationStatus,
-  GitLabProject,
-  GitLabIssue,
-  GitLabMergeRequest,
-  GitLabNote,
-  GitLabGroup,
-  GitLabSyncStatus,
-  GitLabImportResult,
-  GitLabInvestigationResult,
-  GitLabInvestigationStatus,
-  GitLabMRReviewResult,
-  GitLabMRReviewProgress,
-  GitLabNewCommitsCheck
-} from './integrations';
 import type { APIProfile, ProfilesFile, TestConnectionResult, DiscoverModelsResult } from './profile';
 import type { ProviderAccount } from './provider-account';
 
@@ -386,7 +361,6 @@ export interface ElectronAPILegacy {
   getCliToolsInfo: () => Promise<IPCResult<{
     git: import('./cli').ToolDetectionResult;
     gh: import('./cli').ToolDetectionResult;
-    glab: import('./cli').ToolDetectionResult;
     claude: import('./cli').ToolDetectionResult;
   }>>;
   /** Check if Claude Code onboarding is complete (reads ~/.claude.json) */
@@ -413,10 +387,6 @@ export interface ElectronAPILegacy {
   testProviderConnection: (provider: string, config: { apiKey?: string; baseUrl?: string; region?: string }) => Promise<IPCResult<{ success: boolean; error?: string }>>;
   checkEnvCredentials: () => Promise<IPCResult<Record<string, boolean>>>;
 
-  // Codex OAuth authentication
-  codexAuthLogin: () => Promise<{ success: boolean; data?: { accessToken: string; refreshToken: string; expiresAt: number; email?: string }; error?: string }>;
-  codexAuthStatus: () => Promise<{ success: boolean; data?: { isAuthenticated: boolean; expiresAt?: number }; error?: string }>;
-  codexAuthLogout: () => Promise<{ success: boolean; error?: string }>;
 
   // Dialog operations
   selectDirectory: () => Promise<string | null>;
@@ -489,172 +459,6 @@ export interface ElectronAPILegacy {
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
   listMemoryDatabases: (dbPath?: string) => Promise<IPCResult<string[]>>;
   testMemoryConnection: (dbPath?: string, database?: string) => Promise<IPCResult<MemoryValidationResult>>;
-
-  // Linear integration operations
-  getLinearTeams: (projectId: string) => Promise<IPCResult<LinearTeam[]>>;
-  getLinearProjects: (projectId: string, teamId: string) => Promise<IPCResult<LinearProject[]>>;
-  getLinearIssues: (projectId: string, teamId?: string, projectId_?: string) => Promise<IPCResult<LinearIssue[]>>;
-  importLinearIssues: (projectId: string, issueIds: string[]) => Promise<IPCResult<LinearImportResult>>;
-  checkLinearConnection: (projectId: string) => Promise<IPCResult<LinearSyncStatus>>;
-
-  // GitHub integration operations
-  getGitHubRepositories: (projectId: string) => Promise<IPCResult<GitHubRepository[]>>;
-  getGitHubIssues: (
-    projectId: string,
-    state?: 'open' | 'closed' | 'all',
-    page?: number,
-    fetchAll?: boolean
-  ) => Promise<IPCResult<{ issues: GitHubIssue[]; hasMore: boolean }>>;
-  getGitHubIssue: (projectId: string, issueNumber: number) => Promise<IPCResult<GitHubIssue>>;
-  checkGitHubConnection: (projectId: string) => Promise<IPCResult<GitHubSyncStatus>>;
-  investigateGitHubIssue: (projectId: string, issueNumber: number, selectedCommentIds?: number[]) => void;
-  getIssueComments: (projectId: string, issueNumber: number) => Promise<IPCResult<Array<{ id: number; body: string; user: { login: string; avatar_url?: string }; created_at: string; updated_at: string }>>>;
-  importGitHubIssues: (projectId: string, issueNumbers: number[]) => Promise<IPCResult<GitHubImportResult>>;
-  createGitHubRelease: (
-    projectId: string,
-    version: string,
-    releaseNotes: string,
-    options?: { draft?: boolean; prerelease?: boolean }
-  ) => Promise<IPCResult<{ url: string }>>;
-
-  // GitHub OAuth operations (gh CLI)
-  checkGitHubCli: () => Promise<IPCResult<{ installed: boolean; version?: string }>>;
-  checkGitHubAuth: () => Promise<IPCResult<{ authenticated: boolean; username?: string }>>;
-  startGitHubAuth: () => Promise<IPCResult<{
-    success: boolean;
-    message?: string;
-    deviceCode?: string;
-    authUrl?: string;
-    browserOpened?: boolean;
-    fallbackUrl?: string;
-  }>>;
-  getGitHubToken: () => Promise<IPCResult<{ token: string }>>;
-  getGitHubUser: () => Promise<IPCResult<{ username: string; name?: string }>>;
-  listGitHubUserRepos: () => Promise<IPCResult<{ repos: Array<{ fullName: string; description: string | null; isPrivate: boolean }> }>>;
-  detectGitHubRepo: (projectPath: string) => Promise<IPCResult<string>>;
-  getGitHubBranches: (repo: string, token: string) => Promise<IPCResult<string[]>>;
-  createGitHubRepo: (
-    repoName: string,
-    options: { description?: string; isPrivate?: boolean; projectPath: string; owner?: string }
-  ) => Promise<IPCResult<{ fullName: string; url: string }>>;
-  addGitRemote: (
-    projectPath: string,
-    repoFullName: string
-  ) => Promise<IPCResult<{ remoteUrl: string }>>;
-  listGitHubOrgs: () => Promise<IPCResult<{ orgs: Array<{ login: string; avatarUrl?: string }> }>>;
-
-  // GitHub OAuth device code event (streams device code during auth flow)
-  onGitHubAuthDeviceCode: (
-    callback: (data: { deviceCode: string; authUrl: string; browserOpened: boolean }) => void
-  ) => () => void;
-
-  // GitHub event listeners
-  onGitHubInvestigationProgress: (
-    callback: (projectId: string, status: GitHubInvestigationStatus) => void
-  ) => () => void;
-  onGitHubInvestigationComplete: (
-    callback: (projectId: string, result: GitHubInvestigationResult) => void
-  ) => () => void;
-  onGitHubInvestigationError: (
-    callback: (projectId: string, error: string) => void
-  ) => () => void;
-
-  // GitLab integration operations
-  getGitLabProjects: (projectId: string) => Promise<IPCResult<GitLabProject[]>>;
-  getGitLabIssues: (projectId: string, state?: 'opened' | 'closed' | 'all') => Promise<IPCResult<GitLabIssue[]>>;
-  getGitLabIssue: (projectId: string, issueIid: number) => Promise<IPCResult<GitLabIssue>>;
-  getGitLabIssueNotes: (projectId: string, issueIid: number) => Promise<IPCResult<GitLabNote[]>>;
-  checkGitLabConnection: (projectId: string) => Promise<IPCResult<GitLabSyncStatus>>;
-  investigateGitLabIssue: (projectId: string, issueIid: number, selectedNoteIds?: number[]) => void;
-  importGitLabIssues: (projectId: string, issueIids: number[]) => Promise<IPCResult<GitLabImportResult>>;
-  createGitLabRelease: (
-    projectId: string,
-    tagName: string,
-    releaseNotes: string,
-    options?: { ref?: string }
-  ) => Promise<IPCResult<{ url: string }>>;
-
-  // GitLab Merge Request operations
-  getGitLabMergeRequests: (projectId: string, state?: 'opened' | 'closed' | 'merged' | 'all') => Promise<IPCResult<GitLabMergeRequest[]>>;
-  getGitLabMergeRequest: (projectId: string, mrIid: number) => Promise<IPCResult<GitLabMergeRequest>>;
-  createGitLabMergeRequest: (
-    projectId: string,
-    options: {
-      title: string;
-      description?: string;
-      sourceBranch: string;
-      targetBranch: string;
-      labels?: string[];
-      assigneeIds?: number[];
-      removeSourceBranch?: boolean;
-      squash?: boolean;
-    }
-  ) => Promise<IPCResult<GitLabMergeRequest>>;
-  updateGitLabMergeRequest: (
-    projectId: string,
-    mrIid: number,
-    updates: { title?: string; description?: string; labels?: string[]; state_event?: 'close' | 'reopen' }
-  ) => Promise<IPCResult<GitLabMergeRequest>>;
-
-  // GitLab MR Review operations (AI-powered)
-  getGitLabMRReview: (projectId: string, mrIid: number) => Promise<GitLabMRReviewResult | null>;
-  runGitLabMRReview: (projectId: string, mrIid: number) => void;
-  runGitLabMRFollowupReview: (projectId: string, mrIid: number) => void;
-  postGitLabMRReview: (projectId: string, mrIid: number, selectedFindingIds?: string[]) => Promise<boolean>;
-  postGitLabMRNote: (projectId: string, mrIid: number, body: string) => Promise<boolean>;
-  mergeGitLabMR: (projectId: string, mrIid: number, mergeMethod?: 'merge' | 'squash' | 'rebase') => Promise<boolean>;
-  assignGitLabMR: (projectId: string, mrIid: number, userIds: number[]) => Promise<boolean>;
-  approveGitLabMR: (projectId: string, mrIid: number) => Promise<boolean>;
-  cancelGitLabMRReview: (projectId: string, mrIid: number) => Promise<boolean>;
-  checkGitLabMRNewCommits: (projectId: string, mrIid: number) => Promise<GitLabNewCommitsCheck>;
-
-  // GitLab MR Review event listeners
-  onGitLabMRReviewProgress: (
-    callback: (projectId: string, progress: GitLabMRReviewProgress) => void
-  ) => () => void;
-  onGitLabMRReviewComplete: (
-    callback: (projectId: string, result: GitLabMRReviewResult) => void
-  ) => () => void;
-  onGitLabMRReviewError: (
-    callback: (projectId: string, data: { mrIid: number; error: string }) => void
-  ) => () => void;
-
-  // GitLab OAuth operations (glab CLI)
-  checkGitLabCli: () => Promise<IPCResult<{ installed: boolean; version?: string }>>;
-  installGitLabCli: () => Promise<IPCResult<{ command: string }>>;
-  checkGitLabAuth: (hostname?: string) => Promise<IPCResult<{ authenticated: boolean; username?: string }>>;
-  startGitLabAuth: (hostname?: string) => Promise<IPCResult<{
-    success: boolean;
-    message?: string;
-    browserOpened?: boolean;
-    fallbackUrl?: string;
-  }>>;
-  getGitLabToken: (hostname?: string) => Promise<IPCResult<{ token: string }>>;
-  getGitLabUser: (hostname?: string) => Promise<IPCResult<{ username: string; name?: string }>>;
-  listGitLabUserProjects: (hostname?: string) => Promise<IPCResult<{ projects: Array<{ pathWithNamespace: string; description: string | null; visibility: string }> }>>;
-  detectGitLabProject: (projectPath: string) => Promise<IPCResult<{ project: string; instanceUrl: string } | null>>;
-  getGitLabBranches: (projectPath: string, token: string, instanceUrl?: string) => Promise<IPCResult<string[]>>;
-  createGitLabProject: (
-    projectName: string,
-    options: { description?: string; visibility?: 'private' | 'internal' | 'public'; projectPath: string; namespaceId?: number; hostname?: string }
-  ) => Promise<IPCResult<{ pathWithNamespace: string; webUrl: string }>>;
-  addGitLabRemote: (
-    projectPath: string,
-    projectPathWithNamespace: string,
-    instanceUrl?: string
-  ) => Promise<IPCResult<{ remoteUrl: string }>>;
-  listGitLabGroups: (hostname?: string) => Promise<IPCResult<{ groups: GitLabGroup[] }>>;
-
-  // GitLab event listeners
-  onGitLabInvestigationProgress: (
-    callback: (projectId: string, status: GitLabInvestigationStatus) => void
-  ) => () => void;
-  onGitLabInvestigationComplete: (
-    callback: (projectId: string, result: GitLabInvestigationResult) => void
-  ) => () => void;
-  onGitLabInvestigationError: (
-    callback: (projectId: string, error: string) => void
-  ) => () => void;
 
   // Ideation operations
   getIdeation: (projectId: string) => Promise<IPCResult<IdeationSession | null>>;
@@ -888,9 +692,6 @@ export interface ElectronAPILegacy {
       percentage: number;
     }) => void
   ) => () => void;
-
-  // GitHub API (nested for organized access)
-  github: import('../../preload/api/modules/github-api').GitHubAPI;
 
   // Claude Code CLI operations
   checkClaudeCodeVersion: () => Promise<IPCResult<import('./cli').ClaudeCodeVersionInfo>>;

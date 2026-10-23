@@ -27,7 +27,6 @@ settings/
 │   └── InitializationGuard.tsx (Auto-Build requirement guard)
 ├── integrations/               (Third-party service integrations)
 │   ├── index.ts
-│   ├── LinearIntegration.tsx   (Complete Linear setup)
 │   └── GitHubIntegration.tsx   (Complete GitHub setup)
 ├── sections/                   (Section routing logic)
 │   ├── index.ts
@@ -60,7 +59,6 @@ settings/
 
 ### 2. Integration Components (`integrations/`)
 
-#### `LinearIntegration.tsx`
 - **Purpose**: Complete Linear integration settings and UI
 - **Lines**: 215
 - **Features**:
