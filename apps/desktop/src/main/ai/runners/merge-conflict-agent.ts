@@ -132,7 +132,7 @@ export const runMergeConflictAgent: MergeAgentRunner = async (input) => {
     prompt: buildMergeAgentPrompt(input),
     cwd: input.cwd,
     projectPath: input.projectPath,
-    modelId: resolveModelId('sonnet'),
+    modelId: resolveModelId('opus'),
     allowedTools: ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
     maxTurns: MERGE_AGENT_MAX_TURNS,
     abortSignal: input.abortSignal,
