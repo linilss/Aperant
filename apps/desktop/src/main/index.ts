@@ -65,6 +65,7 @@ import { initializeAppUpdater, stopPeriodicUpdates } from './app-updater';
 import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS, getSpecsDir } from '../shared/constants';
 import { clearRestartPending, collectResumeCandidates } from './safe-restart';
 import { clearMergeMarker } from './project-busy';
+import { loadWindowState, trackWindowState } from './window-state';
 import { processTaskQueues, readQueueOrder, startTaskQueue, writeQueueOrder } from './task-queue';
 import { getAppLanguage, initAppLanguage } from './app-language';
 import { readSettingsFile } from './settings-utils';
@@ -243,10 +244,12 @@ function createWindow(): void {
   const minWidth: number = Math.min(WINDOW_MIN_WIDTH, width);
   const minHeight: number = Math.min(WINDOW_MIN_HEIGHT, height);
 
+  // Reopen where the window was last time (if that screen is still connected)
+  const saved = loadWindowState();
+
   // Create the browser window
   mainWindow = new BrowserWindow({
-    width,
-    height,
+    ...(saved ? { x: saved.x, y: saved.y, width: saved.width, height: saved.height } : { width, height }),
     minWidth,
     minHeight,
     show: false,
@@ -263,6 +266,9 @@ function createWindow(): void {
       spellcheck: true // Enable spell check for text inputs
     }
   });
+
+  if (saved?.maximized) mainWindow.maximize();
+  trackWindowState(mainWindow);
 
   // Mirror renderer events to paired LAN web clients (no-op while remote access is off)
   attachRemoteEventFanout(mainWindow);
