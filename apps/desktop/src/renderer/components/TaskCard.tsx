@@ -467,19 +467,20 @@ export const TaskCard = memo(function TaskCard({
     }
   };
 
-  const getReviewReasonLabel = (reason?: ReviewReason): { label: string; variant: 'success' | 'destructive' | 'warning' } | null => {
+  // The label says what the user has to do; the tooltip says how
+  const getReviewReasonLabel = (reason?: ReviewReason): { label: string; hint: string; variant: 'success' | 'destructive' | 'warning' } | null => {
     if (!reason) return null;
     switch (reason) {
       case 'completed':
-        return { label: t('reviewReason.completed'), variant: 'success' };
+        return { label: t('reviewReason.completed'), hint: t('reviewReason.completedHint'), variant: 'success' };
       case 'errors':
-        return { label: t('reviewReason.hasErrors'), variant: 'destructive' };
+        return { label: t('reviewReason.hasErrors'), hint: t('reviewReason.hasErrorsHint'), variant: 'destructive' };
       case 'qa_rejected':
-        return { label: t('reviewReason.qaIssues'), variant: 'warning' };
+        return { label: t('reviewReason.qaIssues'), hint: t('reviewReason.qaIssuesHint'), variant: 'warning' };
       case 'plan_review':
-        return { label: t('reviewReason.approvePlan'), variant: 'warning' };
+        return { label: t('reviewReason.approvePlan'), hint: t('reviewReason.approvePlanHint'), variant: 'warning' };
       case 'stopped':
-        return { label: t('reviewReason.stopped'), variant: 'warning' };
+        return { label: t('reviewReason.stopped'), hint: t('reviewReason.stoppedHint'), variant: 'warning' };
       default:
         return null;
     }
@@ -644,8 +645,9 @@ export const TaskCard = memo(function TaskCard({
                 {EXECUTION_PHASE_LABELS[executionPhase]}
               </Badge>
             )}
-             {/* Status badge - hide when execution phase badge is showing */}
-             {!hasActiveExecution && (
+             {/* Status badge - hide when execution phase badge is showing, and in Review when
+                 the reason badge already says what is needed */}
+             {!hasActiveExecution && !(task.status === 'human_review' && reviewReasonInfo && !isStuck && !isIncomplete) && (
                task.status === 'done' ? (
                     <Badge
                       variant={getStatusBadgeVariant(task.status)}
@@ -667,6 +669,7 @@ export const TaskCard = memo(function TaskCard({
               <Badge
                 variant={reviewReasonInfo.variant}
                 className="text-[11px] max-md:text-xs px-1.5 py-0.5"
+                title={reviewReasonInfo.hint}
               >
                 {reviewReasonInfo.label}
               </Badge>

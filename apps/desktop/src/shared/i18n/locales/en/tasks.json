@@ -41,11 +41,16 @@
     "rateLimitedPinned": "Paused: {{account}} hit its limit — this project is pinned to it"
   },
   "reviewReason": {
-    "completed": "Completed",
-    "hasErrors": "Has Errors",
-    "qaIssues": "QA Issues",
-    "approvePlan": "Approve Plan",
-    "stopped": "Stopped"
+    "completed": "Ready to ship",
+    "completedHint": "Built and QA passed. Look at the changes if you like, then press Deploy: it merges and ships.",
+    "hasErrors": "Has errors",
+    "hasErrorsHint": "Open the card to see why it stopped, then press Fix with agent.",
+    "qaIssues": "QA found issues",
+    "qaIssuesHint": "Open the card to see what QA found, then press Fix with agent.",
+    "approvePlan": "Approve plan",
+    "approvePlanHint": "Read the plan in the card and approve it to start coding.",
+    "stopped": "Stopped",
+    "stoppedHint": "Stopped before it finished. Start it again to continue."
   },
   "tooltips": {
     "archiveTask": "Archive task",

@@ -713,6 +713,13 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                 </div>
               )}
 
+              {/* What the user has to do next (Review column) */}
+              {task.status === 'human_review' && task.reviewReason && task.reviewReason !== 'errors' && task.reviewReason !== 'qa_rejected' && (
+                <p className="mt-3 rounded-lg border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+                  {t(`tasks:reviewReason.${task.reviewReason === 'plan_review' ? 'approvePlan' : task.reviewReason}Hint`)}
+                </p>
+              )}
+
               {/* What QA found and a one-click fix */}
               <TaskFailurePanel task={task} />
 
