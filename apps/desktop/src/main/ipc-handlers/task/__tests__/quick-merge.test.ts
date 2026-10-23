@@ -101,6 +101,18 @@ describe('runQuickMergeGit', () => {
     expect(gitIn(project, 'status', '--porcelain')).toBe('');
   });
 
+  it('aborts a merge left half-done in the task worktree and merges', async () => {
+    commitFile(project, 'app.txt', 'line 1 from main\n', 'main change');
+    commitFile(worktree, 'feature.txt', 'task\n', 'feature work');
+    // A previous attempt stopped mid-merge (MERGE_HEAD left behind)
+    gitIn(worktree, 'merge', '--no-commit', '--no-ff', 'main');
+
+    const result = await runQuickMergeGit(input());
+
+    expect(result.ok).toBe(true);
+    expect(readFileSync(path.join(project, 'feature.txt'), 'utf-8')).toBe('task\n');
+  });
+
   it('sets aside uncommitted edits in the task worktree and merges the committed work', async () => {
     commitFile(worktree, 'feature.txt', 'new\n', 'feature work');
     commitFile(project, 'app.txt', 'line 1 from main\n', 'earlier local merge');

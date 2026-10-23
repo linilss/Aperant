@@ -452,6 +452,13 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
       }
       syncDir = dir;
     }
+    // A merge left half-done in the worktree (Malvy stopped or crashed mid-merge) would
+    // block a new one ("You have not concluded your merge"): abort it first
+    if (mergeInProgress(syncDir)) {
+      appLog.warn(`${logTag} stage=sync-worktree aborting a leftover merge in ${syncDir}`);
+      abortMerge(syncDir);
+    }
+
     // Uncommitted edits left in the task worktree (an agent that never committed them)
     // would block the merge; only committed work is merged, so set them aside
     if (!tempDir) {
