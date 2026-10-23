@@ -277,19 +277,61 @@ describe('stale task branch: agent fallback and verify gate', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.stage).toBe('sync-worktree');
-    expect(result.message).toContain('verify failed after resolving');
+    expect(result.message).toContain('verify failed after merging main');
     expect(result.message).toContain('Cannot find module ./gone');
     expect(mergeAgent).not.toHaveBeenCalled();
     expectUntouched(before);
   });
 
-  it('does not run verify for a clean merge', async () => {
+  it('runs verify for a clean merge that brings in commits from main', async () => {
     commitFile(project, 'other.txt', 'main\n', 'main work');
+    commitFile(worktree, 'feature.txt', 'task\n', 'feature work');
+    const verify = vi.fn().mockResolvedValue({ passed: true, output: '' });
+
+    expect(await runQuickMergeGit(input({ verify, verifyCommand: 'npm test' }))).toEqual({ ok: true });
+    expect(verify).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run verify when main has nothing new', async () => {
     commitFile(worktree, 'feature.txt', 'task\n', 'feature work');
     const verify = vi.fn();
 
     expect(await runQuickMergeGit(input({ verify, verifyCommand: 'npm test' }))).toEqual({ ok: true });
     expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('lets the agent fix a clean merge that breaks the build, then merges', async () => {
+    commitFile(project, 'other.txt', 'main\n', 'main work');
+    commitFile(worktree, 'feature.txt', 'task\n', 'feature work');
+    const verify = vi
+      .fn()
+      .mockResolvedValueOnce({ passed: false, output: 'error CS1503: cannot convert' })
+      .mockResolvedValueOnce({ passed: true, output: '' });
+    const mergeAgent = vi.fn(async ({ cwd, conflicts, verifyFailure }: MergeAgentInput) => {
+      expect(conflicts).toEqual([]);
+      expect(verifyFailure).toContain('CS1503');
+      writeFileSync(path.join(cwd, 'feature.txt'), 'task, fixed\n');
+      return agentSays('resolved');
+    });
+
+    const result = await runQuickMergeGit(input({ verify, mergeAgent, verifyCommand: 'dotnet build' }));
+
+    expect(result).toEqual({ ok: true });
+    expect(mergeAgent).toHaveBeenCalledTimes(1);
+    expect(readFileSync(path.join(project, 'feature.txt'), 'utf-8')).toBe('task, fixed\n');
+  });
+
+  it('refuses a clean merge that breaks the build when the agent cannot fix it', async () => {
+    commitFile(project, 'other.txt', 'main\n', 'main work');
+    commitFile(worktree, 'feature.txt', 'task\n', 'feature work');
+    const mainBefore = gitIn(project, 'rev-parse', 'main');
+    const verify = vi.fn().mockResolvedValue({ passed: false, output: 'error CS1503' });
+    const mergeAgent = vi.fn(async () => agentSays('failed', 'signature changed upstream'));
+
+    const result = await runQuickMergeGit(input({ verify, mergeAgent, verifyCommand: 'dotnet build' }));
+
+    expect(result.ok).toBe(false);
+    expect(gitIn(project, 'rev-parse', 'main')).toBe(mainBefore);
   });
 
   it('aborts when the agent staged a file that still has conflict markers', async () => {
@@ -396,21 +438,20 @@ describe('stale task branch: agent fallback and verify gate', () => {
     expectUntouched(before);
   });
 
-  it("takes main's version of generated artefacts without the resolver, the agent or verify", async () => {
+  it("takes main's version of generated artefacts without the resolver or the agent", async () => {
     execFileSync('mkdir', ['-p', path.join(project, 'obj')]);
     shareFile('obj/project.assets.json', '{"v":1}\n');
     commitFile(worktree, 'obj/project.assets.json', '{"v":"task"}\n', 'task build');
     commitFile(project, 'obj/project.assets.json', '{"v":"main"}\n', 'main build');
     const resolve = vi.fn<typeof resolveMergeConflict>();
     const mergeAgent = vi.fn();
-    const verify = vi.fn();
+    const verify = vi.fn().mockResolvedValue({ passed: true, output: '' });
 
     const result = await runQuickMergeGit(input({ resolve, mergeAgent, verify, verifyCommand: 'npm test' }));
 
     expect(result).toEqual({ ok: true });
     expect(resolve).not.toHaveBeenCalled();
     expect(mergeAgent).not.toHaveBeenCalled();
-    expect(verify).not.toHaveBeenCalled();
     expect(readFileSync(path.join(project, 'obj/project.assets.json'), 'utf-8')).toBe('{"v":"main"}\n');
   });
 });

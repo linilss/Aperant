@@ -39,6 +39,8 @@ export interface MergeAgentInput {
   /** Task spec (spec.md); truncated in the prompt */
   specText?: string;
   verifyCommand?: string;
+  /** Set when the merge had no conflicts but fails verify: the output to fix */
+  verifyFailure?: string;
   abortSignal?: AbortSignal;
 }
 
@@ -104,7 +106,12 @@ export function buildMergeAgentPrompt(input: MergeAgentInput): string {
     instructions.trim(),
     '---',
     `## Task spec\n${input.specText?.trim() ? truncate(input.specText, MERGE_AGENT_SPEC_MAX_CHARS) : '(no spec found; infer the intent from the task branch\'s commits and diff)'}`,
-    `## Conflicted files (${input.conflicts.length})\n${files}`,
+    input.conflicts.length > 0
+      ? `## Conflicted files (${input.conflicts.length})\n${files}`
+      : '## Conflicted files\nnone: the merge applied cleanly, but the merged code fails the verify command below.',
+    ...(input.verifyFailure
+      ? [`## Verify output after the merge (fix what the merge broke, nothing else)\n\`\`\`\n${input.verifyFailure}\n\`\`\``]
+      : []),
     `## Verify command\n${verify ? `\`\`\`\n${verify}\n\`\`\`` : 'none (still make sure nothing obviously broken is left, e.g. imports of removed files)'}`,
   ].join('\n\n');
 }

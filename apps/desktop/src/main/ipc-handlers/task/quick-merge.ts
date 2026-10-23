@@ -195,8 +195,9 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
   // Uncommitted edits that were already there are not the agent's and stay out of the merge commit
   const dirtyBefore = new Set(git(['diff', '--name-only']).split('\n').filter(Boolean));
   try {
-    git(['merge', '--no-edit', targetBranch]);
-    return null; // clean merge, committed by git
+    // --no-commit: a clean merge is checked (verify) before it is committed
+    git(['merge', '--no-edit', '--no-commit', '--no-ff', targetBranch]);
+    if (!mergeInProgress(cwd)) return null; // already up to date
   } catch (mergeErr) {
     if (listUnmergedFiles(cwd).length === 0) {
       // Not a content conflict (dirty tree, unrelated histories, ...)
@@ -234,8 +235,9 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
     conflicts = listConflicts(cwd);
   }
 
-  if (conflicts.length > 0) {
-    emitProgress('resolving', 50, `Resolving ${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} with an agent…`);
+  /** One agent pass over the merge in progress; returns a failure message or null */
+  const agentPass = async (verifyFailure?: string): Promise<string | null> => {
+    emitProgress('resolving', 50, verifyFailure ? 'Fixing what the merge broke with an agent…' : `Resolving ${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} with an agent…`);
     const runner = input.mergeAgent ?? runMergeConflictAgent;
     let mergeBase = headBefore;
     try {
@@ -256,6 +258,7 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
             conflicts,
             specText: readSpec(input.specPath),
             verifyCommand: input.verifyCommand,
+            verifyFailure,
             abortSignal: signal
           }),
         input.agentTimeoutMs ?? MERGE_AGENT_TIMEOUT_MS,
@@ -264,14 +267,14 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
     } catch (err) {
       const msg = errMsg(err);
       appLog.warn(`${logTag} stage=agent-resolve error=${msg}`);
-      return fail(`The merge agent did not finish (${msg}). ${describeUnresolved(conflicts.map((c) => c.file), unresolved)}.`);
+      return (`The merge agent did not finish (${msg}). ${describeUnresolved(conflicts.map((c) => c.file), unresolved)}.`);
     }
     const result = parseMergeResult(text);
     const notes = result?.notes || 'no notes';
 
     if (git(['rev-parse', 'HEAD']).trim() !== headBefore || !mergeInProgress(cwd)) {
       appLog.warn(`${logTag} stage=agent-resolve error=agent changed git history notes=${notes}`);
-      return fail('The merge agent committed or aborted the merge itself, so its work was discarded.');
+      return ('The merge agent committed or aborted the merge itself, so its work was discarded.');
     }
 
     // Stage what the agent fixed but didn't add: tracked edits outside the conflicts, and
@@ -293,9 +296,15 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
       const why = result ? (result.status === 'resolved' ? 'left files unresolved' : 'could not resolve the merge') : 'gave no result';
       appLog.warn(`${logTag} stage=agent-resolve error=${why} remaining=${left.join(',')} notes=${notes}`);
       const remaining = left.length > 0 ? ` ${describeUnresolved(left, unresolved)}.` : '';
-      return fail(`The merge agent ${why}: ${notes}.${remaining}`);
+      return (`The merge agent ${why}: ${notes}.${remaining}`);
     }
     appLog.info(`${logTag} stage=agent-resolve resolved=${conflicts.length} verify=${result.verify} notes=${notes}`);
+    return null;
+  };
+
+  if (conflicts.length > 0) {
+    const agentError = await agentPass();
+    if (agentError) return fail(agentError);
   }
 
   try {
@@ -309,16 +318,27 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
     return fail(`Conflict markers remain in: ${markers.join(', ')}.`);
   }
 
+  // Always check when the target brought in commits: two tasks that each pass can still
+  // break each other without a textual conflict (a signature changed under a caller)
   const verifyCommand = input.verifyCommand?.trim();
-  if (hadRealConflicts && verifyCommand) {
+  if (verifyCommand) {
     emitProgress('validating', 60, 'Running checks…');
     const verify = input.verify ?? ((cmd, dir, signal) => runVerifyCommand(cmd, dir, { abortSignal: signal }));
-    const res = await verify(verifyCommand, cwd, input.abortSignal);
+    let res = await verify(verifyCommand, cwd, input.abortSignal);
     if (input.abortSignal?.aborted) return fail('Merge cancelled.');
+    if (!res.passed && !hadRealConflicts) {
+      // Clean merge that doesn't build: give the agent one go at the fallout
+      const tail = tailOutput(res.output, 40, 4_000);
+      appLog.warn(`${logTag} stage=verify-clean-merge command=${verifyCommand} output=${tailOutput(res.output, 15, 1_500)}`);
+      const agentError = await agentPass(tail);
+      if (agentError) return fail(`The merge doesn't pass verify and the agent couldn't fix it: ${agentError}`);
+      res = await verify(verifyCommand, cwd, input.abortSignal);
+      if (input.abortSignal?.aborted) return fail('Merge cancelled.');
+    }
     if (!res.passed) {
       const tail = tailOutput(res.output, 15, 1_500);
       appLog.warn(`${logTag} stage=verify command=${verifyCommand} output=${tail}`);
-      return fail(`verify failed after resolving: ${tail}`);
+      return fail(`verify failed after merging ${targetBranch}: ${tail}`);
     }
   }
 
