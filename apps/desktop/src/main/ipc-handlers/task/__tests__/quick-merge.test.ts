@@ -11,8 +11,16 @@ vi.mock('../../../cli-tool-manager', () => ({ getToolPath: () => 'git' }));
 vi.mock('../../../app-logger', () => ({ appLog: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 vi.mock('../../../ai/runners/merge-resolver', () => ({ resolveMergeConflict: vi.fn() }));
 
+import type { MergeAgentInput } from '../../../ai/runners/merge-conflict-agent';
 import type { resolveMergeConflict } from '../../../ai/runners/merge-resolver';
-import { pickMergeTarget, pushMergedTarget, runQuickMergeGit, type QuickMergeGitInput } from '../quick-merge';
+import {
+  AGENT_CONFLICT_THRESHOLD,
+  pickMergeTarget,
+  pushMergedTarget,
+  runQuickMergeGit,
+  shouldUseMergeAgent,
+  type QuickMergeGitInput
+} from '../quick-merge';
 
 let root: string;
 let project: string;
@@ -26,6 +34,10 @@ function commitFile(cwd: string, file: string, content: string, msg: string): vo
   writeFileSync(path.join(cwd, file), content);
   gitIn(cwd, 'add', file);
   gitIn(cwd, 'commit', '-q', '-m', msg);
+}
+
+function agentSays(status: 'resolved' | 'failed', notes = '', verify = 'none'): string {
+  return `work...\n<merge_result>${JSON.stringify({ status, notes, verify })}</merge_result>`;
 }
 
 function input(overrides: Partial<QuickMergeGitInput> = {}): QuickMergeGitInput {
@@ -99,12 +111,15 @@ describe('runQuickMergeGit', () => {
       text: '',
       error: 'Refresh token expired'
     });
+    const mergeAgent = vi.fn(async () => agentSays('failed', 'Not logged in'));
 
-    const result = await runQuickMergeGit(input({ resolve }));
+    const result = await runQuickMergeGit(input({ resolve, mergeAgent }));
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.stage).toBe('sync-worktree');
+    expect(mergeAgent).toHaveBeenCalledTimes(1); // per-file leftovers fall back to the agent
+    expect(result.message).toContain('Not logged in');
     expect(result.message).toContain('app.txt (AI resolution failed: Refresh token expired)');
     expect(gitIn(project, 'rev-parse', 'main')).toBe(mainBefore);
     expect(gitIn(project, 'rev-parse', 'malvy/001-task')).toBe(featureBefore);
@@ -143,6 +158,245 @@ describe('runQuickMergeGit', () => {
     const result = await runQuickMergeGit(input({ targetBranch: 'nope' }));
 
     expect(result).toEqual({ ok: false, stage: 'prepare-target', message: 'Target branch nope does not exist.' });
+  });
+});
+
+describe('stale task branch: agent fallback and verify gate', () => {
+  const passed = { passed: true, exitCode: 0, timedOut: false, output: 'ok', durationMs: 1 };
+  const failed = { passed: false, exitCode: 1, timedOut: false, output: 'error TS2307: Cannot find module ./gone', durationMs: 1 };
+
+  /** A file both the task branch and main have, so each side can change or delete it */
+  function shareFile(file: string, content: string): void {
+    commitFile(project, file, content, `add ${file}`);
+    gitIn(worktree, 'merge', '-q', '--ff-only', 'main');
+  }
+
+  /** Task deletes lib.txt, main changes it (modify/delete, DU in the worktree) */
+  function modifyDelete(): void {
+    shareFile('lib.txt', 'lib v1\n');
+    gitIn(worktree, 'rm', '-q', 'lib.txt');
+    gitIn(worktree, 'commit', '-q', '-m', 'task removes lib');
+    commitFile(project, 'lib.txt', 'lib v2\n', 'main changes lib');
+  }
+
+  function snapshot() {
+    return { main: gitIn(project, 'rev-parse', 'main'), feature: gitIn(project, 'rev-parse', 'malvy/001-task') };
+  }
+
+  function expectUntouched(before: { main: string; feature: string }): void {
+    expect(gitIn(project, 'rev-parse', 'main')).toBe(before.main);
+    expect(gitIn(project, 'rev-parse', 'malvy/001-task')).toBe(before.feature);
+    expect(gitIn(project, 'status', '--porcelain')).toBe('');
+    expect(gitIn(worktree, 'status', '--porcelain')).toBe('');
+    expect(existsSync(path.join(worktree, '.git'))).toBe(true);
+  }
+
+  it('picks the agent for many conflicts or any modify/delete, the per-file resolver otherwise', () => {
+    const uu = (n: number) => Array.from({ length: n }, (_, i) => ({ file: `f${i}`, code: 'UU' }));
+    expect(shouldUseMergeAgent(uu(AGENT_CONFLICT_THRESHOLD))).toBe(false);
+    expect(shouldUseMergeAgent(uu(AGENT_CONFLICT_THRESHOLD + 1))).toBe(true);
+    expect(shouldUseMergeAgent([{ file: 'a', code: 'DU' }])).toBe(true);
+    expect(shouldUseMergeAgent([{ file: 'a', code: 'UD' }])).toBe(true);
+    expect(shouldUseMergeAgent([{ file: 'a', code: 'AA' }])).toBe(false);
+  });
+
+  it('sends a modify/delete straight to the agent, verifies and commits the merge in the worktree', async () => {
+    modifyDelete();
+    const resolve = vi.fn<typeof resolveMergeConflict>();
+    const mergeAgent = vi.fn(async ({ cwd }: MergeAgentInput) => {
+      gitIn(cwd, 'rm', '-q', 'lib.txt');
+      return agentSays('resolved', 'kept lib deleted', 'passed');
+    });
+    const verify = vi.fn().mockResolvedValue(passed);
+    const progress: string[] = [];
+
+    const result = await runQuickMergeGit(
+      input({ resolve, mergeAgent, verify, verifyCommand: 'npm test', emitProgress: (_s, _p, m) => progress.push(m) })
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(mergeAgent).toHaveBeenCalledTimes(1);
+    const agentInput = mergeAgent.mock.calls[0][0];
+    expect(agentInput.cwd).toBe(worktree);
+    expect(agentInput.conflicts).toEqual([{ file: 'lib.txt', code: 'DU' }]);
+    expect(agentInput.verifyCommand).toBe('npm test');
+    expect(agentInput.targetBranch).toBe('main');
+    expect(verify).toHaveBeenCalledWith('npm test', worktree, undefined);
+    expect(progress).toContain('Resolving 1 conflict with an agent…');
+    expect(progress).toContain('Running checks…');
+    expect(gitIn(worktree, 'log', '-1', '--format=%P').split(' ')).toHaveLength(2);
+    expect(existsSync(path.join(project, 'lib.txt'))).toBe(false);
+    expect(gitIn(project, 'status', '--porcelain')).toBe('');
+  });
+
+  it('sends many both-changed files to one agent and stages files it resolved without git add', async () => {
+    const files = Array.from({ length: AGENT_CONFLICT_THRESHOLD + 1 }, (_, i) => `f${i}.txt`);
+    for (const f of files) shareFile(f, 'base\n');
+    for (const f of files) commitFile(worktree, f, 'task\n', `task ${f}`);
+    for (const f of files) commitFile(project, f, 'main\n', `main ${f}`);
+    const resolve = vi.fn<typeof resolveMergeConflict>();
+    const mergeAgent = vi.fn(async ({ cwd, conflicts }: MergeAgentInput) => {
+      for (const c of conflicts) writeFileSync(path.join(cwd, c.file), 'task and main\n');
+      return agentSays('resolved');
+    });
+
+    const result = await runQuickMergeGit(input({ resolve, mergeAgent }));
+
+    expect(result).toEqual({ ok: true });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(mergeAgent.mock.calls[0][0].conflicts).toHaveLength(files.length);
+    for (const f of files) expect(readFileSync(path.join(project, f), 'utf-8')).toBe('task and main\n');
+  });
+
+  it('runs verify after a per-file resolution and aborts the worktree merge when it fails', async () => {
+    commitFile(project, 'app.txt', 'line 1 from main\n', 'main change');
+    commitFile(worktree, 'app.txt', 'line 1 from task\n', 'feature work');
+    const before = snapshot();
+    const resolve = vi.fn<typeof resolveMergeConflict>().mockResolvedValue({ success: true, text: 'merged' });
+    const mergeAgent = vi.fn();
+    const verify = vi.fn().mockResolvedValue(failed);
+
+    const result = await runQuickMergeGit(input({ resolve, mergeAgent, verify, verifyCommand: 'npm run typecheck' }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.stage).toBe('sync-worktree');
+    expect(result.message).toContain('verify failed after resolving');
+    expect(result.message).toContain('Cannot find module ./gone');
+    expect(mergeAgent).not.toHaveBeenCalled();
+    expectUntouched(before);
+  });
+
+  it('does not run verify for a clean merge', async () => {
+    commitFile(project, 'other.txt', 'main\n', 'main work');
+    commitFile(worktree, 'feature.txt', 'task\n', 'feature work');
+    const verify = vi.fn();
+
+    expect(await runQuickMergeGit(input({ verify, verifyCommand: 'npm test' }))).toEqual({ ok: true });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('aborts when the agent staged a file that still has conflict markers', async () => {
+    modifyDelete();
+    commitFile(project, 'app.txt', 'line 1 from main\n', 'main change');
+    commitFile(worktree, 'app.txt', 'line 1 from task\n', 'feature work');
+    const before = snapshot();
+    const mergeAgent = vi.fn(async ({ cwd }: MergeAgentInput) => {
+      gitIn(cwd, 'rm', '-q', 'lib.txt');
+      gitIn(cwd, 'add', 'app.txt');
+      return agentSays('resolved');
+    });
+
+    const result = await runQuickMergeGit(input({ mergeAgent }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('Conflict markers remain in: app.txt');
+    expectUntouched(before);
+  });
+
+  it('reports what the agent left unresolved and removes files it created', async () => {
+    modifyDelete();
+    writeFileSync(path.join(worktree, 'notes.local'), 'mine\n');
+    const before = snapshot();
+    const mergeAgent = vi.fn(async ({ cwd }: MergeAgentInput) => {
+      writeFileSync(path.join(cwd, 'scratch.txt'), 'agent temp\n');
+      return agentSays('resolved', 'done');
+    });
+
+    const result = await runQuickMergeGit(input({ mergeAgent }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('left files unresolved');
+    expect(result.message).toContain('lib.txt');
+    expect(existsSync(path.join(worktree, 'scratch.txt'))).toBe(false);
+    expect(readFileSync(path.join(worktree, 'notes.local'), 'utf-8')).toBe('mine\n');
+    gitIn(worktree, 'clean', '-q', '-f', 'notes.local');
+    expectUntouched(before);
+  });
+
+  it('passes the agent notes on when it gives up', async () => {
+    modifyDelete();
+    const before = snapshot();
+    const mergeAgent = vi.fn(async () => agentSays('failed', 'lib.txt is needed by the new billing code'));
+
+    const result = await runQuickMergeGit(input({ mergeAgent }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('could not resolve the merge: lib.txt is needed by the new billing code');
+    expectUntouched(before);
+  });
+
+  it('aborts cleanly when the agent runs past the time limit', async () => {
+    modifyDelete();
+    const before = snapshot();
+    const mergeAgent = vi.fn(async ({ cwd }: MergeAgentInput) => {
+      gitIn(cwd, 'rm', '-q', 'lib.txt');
+      return new Promise<string>(() => undefined);
+    });
+
+    const result = await runQuickMergeGit(input({ mergeAgent, agentTimeoutMs: 50 }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('The merge agent did not finish (timed out');
+    expect(mergeAgent.mock.calls[0][0].abortSignal?.aborted).toBe(true);
+    expectUntouched(before);
+  });
+
+  it('stops the agent when the merge is cancelled', async () => {
+    modifyDelete();
+    const before = snapshot();
+    const controller = new AbortController();
+    const mergeAgent = vi.fn(async () => {
+      controller.abort();
+      return new Promise<string>(() => undefined);
+    });
+
+    const result = await runQuickMergeGit(input({ mergeAgent, abortSignal: controller.signal }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('cancelled');
+    expectUntouched(before);
+  });
+
+  it('discards the work of an agent that committed the merge itself', async () => {
+    modifyDelete();
+    const before = snapshot();
+    const mergeAgent = vi.fn(async ({ cwd }: MergeAgentInput) => {
+      gitIn(cwd, 'rm', '-q', 'lib.txt');
+      gitIn(cwd, 'commit', '-q', '--no-edit');
+      return agentSays('resolved');
+    });
+
+    const result = await runQuickMergeGit(input({ mergeAgent }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('committed or aborted the merge itself');
+    expectUntouched(before);
+  });
+
+  it("takes main's version of generated artefacts without the resolver, the agent or verify", async () => {
+    execFileSync('mkdir', ['-p', path.join(project, 'obj')]);
+    shareFile('obj/project.assets.json', '{"v":1}\n');
+    commitFile(worktree, 'obj/project.assets.json', '{"v":"task"}\n', 'task build');
+    commitFile(project, 'obj/project.assets.json', '{"v":"main"}\n', 'main build');
+    const resolve = vi.fn<typeof resolveMergeConflict>();
+    const mergeAgent = vi.fn();
+    const verify = vi.fn();
+
+    const result = await runQuickMergeGit(input({ resolve, mergeAgent, verify, verifyCommand: 'npm test' }));
+
+    expect(result).toEqual({ ok: true });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(mergeAgent).not.toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
+    expect(readFileSync(path.join(project, 'obj/project.assets.json'), 'utf-8')).toBe('{"v":"main"}\n');
   });
 });
 

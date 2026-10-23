@@ -110,6 +110,73 @@ function stripWrappingFence(text: string, original: string): string {
   return match ? match[1] : text;
 }
 
+/** A conflicted file and its two-letter `git status` code (UU, DU, UD, AA, AU, UA, DD) */
+export interface ConflictEntry {
+  file: string;
+  code: string;
+}
+
+const UNMERGED_CODES = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU']);
+
+/** Conflicted files with their conflict type (`-z` so paths are never quoted) */
+export function listConflicts(cwd: string): ConflictEntry[] {
+  const entries = git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=no']).split('\0');
+  const conflicts: ConflictEntry[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.length < 4) continue;
+    const code = entry.slice(0, 2);
+    // Renames/copies carry the original path as the next entry
+    if (code[0] === 'R' || code[0] === 'C') i++;
+    if (UNMERGED_CODES.has(code)) conflicts.push({ file: entry.slice(3), code });
+  }
+  return conflicts;
+}
+
+/**
+ * Take the target's version of every conflicted generated artefact (__pycache__, *.pyc,
+ * bin/, obj/, ...). Returns the files taken.
+ */
+export function takeGeneratedArtifacts(cwd: string, targetSide: ConflictSide): string[] {
+  const taken: string[] = [];
+  for (const relPath of listUnmergedFiles(cwd)) {
+    if (!isGeneratedArtifact(relPath)) continue;
+    takeSide(cwd, relPath, targetSide, conflictStages(cwd, relPath));
+    taken.push(relPath);
+  }
+  return taken;
+}
+
+/** True when the text has a line starting with a conflict marker (<<<<<<< or >>>>>>>) */
+export function hasConflictMarkers(text: string): boolean {
+  return CONFLICT_MARKER.test(text);
+}
+
+/** Files whose added lines (in `git diff --cached <ref>`) contain a conflict marker */
+function filesWithAddedMarkers(cwd: string, ref: string): Set<string> {
+  const files = new Set<string>();
+  let current = '';
+  for (const line of git(cwd, ['diff', '--cached', '-U0', '--no-color', '--no-ext-diff', ref]).split('\n')) {
+    if (line.startsWith('+++ ')) {
+      current = line.startsWith('+++ b/') ? line.slice(6) : '';
+    } else if (current && /^\+(<{7}|>{7})(\s|$)/.test(line)) {
+      files.add(current);
+    }
+  }
+  return files;
+}
+
+/**
+ * Files in the index with conflict markers the merge introduced: added relative to both
+ * sides (HEAD and MERGE_HEAD), so markers either branch already had (fixtures) don't count.
+ */
+export function findNewConflictMarkers(cwd: string): string[] {
+  const vsOurs = filesWithAddedMarkers(cwd, 'HEAD');
+  if (vsOurs.size === 0) return [];
+  const vsTheirs = filesWithAddedMarkers(cwd, 'MERGE_HEAD');
+  return [...vsOurs].filter((f) => vsTheirs.has(f)).sort();
+}
+
 /**
  * Resolve every conflicted file in `cwd`. Returns the files that could not be resolved, with
  * the reason; those are left conflicted (unstaged) for the caller to report and abort.

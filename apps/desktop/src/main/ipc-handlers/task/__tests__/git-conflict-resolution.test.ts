@@ -16,7 +16,9 @@ import {
   UnresolvedConflictsError,
   assertAllConflictsResolved,
   conflictFailureMessage,
+  findNewConflictMarkers,
   isGeneratedArtifact,
+  listConflicts,
   listUnmergedFiles,
   resolveAllConflictsOrThrow,
   resolveGitConflictsWithAI
@@ -171,5 +173,46 @@ describe('assertAllConflictsResolved / resolveAllConflictsOrThrow', () => {
     write('a.txt', 'x');
     commitAll('init');
     expect(() => assertAllConflictsResolved(repo, [])).not.toThrow();
+  });
+});
+
+describe('listConflicts / findNewConflictMarkers', () => {
+  it('lists conflicted files with their git status code, including modify/delete and spaces in names', () => {
+    write('both changed.txt', 'base\n');
+    write('gone.txt', 'base\n');
+    commitAll('base');
+    git('checkout', '-q', '-b', 'feature');
+    write('both changed.txt', 'feature\n');
+    write('gone.txt', 'feature changed\n');
+    commitAll('feature');
+    git('checkout', '-q', 'main');
+    write('both changed.txt', 'main\n');
+    git('rm', '-q', 'gone.txt');
+    commitAll('main');
+    expect(() => git('merge', '--no-commit', 'feature')).toThrow();
+
+    expect(listConflicts(repo)).toEqual([
+      { file: 'both changed.txt', code: 'UU' },
+      { file: 'gone.txt', code: 'DU' }
+    ]);
+  });
+
+  it('flags markers the merge introduced but not markers either side already had', () => {
+    write('app.txt', 'base\n');
+    commitAll('base');
+    git('checkout', '-q', '-b', 'feature');
+    write('app.txt', 'feature\n');
+    // A test fixture with markers that the incoming side added on purpose
+    write('fixture.txt', 'before\n<<<<<<< HEAD\nfixture\n>>>>>>> other\n');
+    commitAll('feature');
+    git('checkout', '-q', 'main');
+    write('app.txt', 'main\n');
+    commitAll('main');
+    expect(() => git('merge', '--no-commit', 'feature')).toThrow();
+
+    expect(findNewConflictMarkers(repo)).toEqual([]); // fixture.txt is staged, but its markers are the feature's own
+
+    git('add', 'app.txt'); // staged with the merge's markers still in it
+    expect(findNewConflictMarkers(repo)).toEqual(['app.txt']);
   });
 });

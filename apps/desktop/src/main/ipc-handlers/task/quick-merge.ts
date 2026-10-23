@@ -3,7 +3,13 @@
  *
  *   1. Fetch origin (best effort)
  *   2. Merge the local <target> into the feature branch, in the task worktree (or a temporary
- *      one), resolving conflicts with AI there — never in the user's project checkout
+ *      one), resolving conflicts there — never in the user's project checkout:
+ *        - generated artefacts (__pycache__, bin/, obj/, ...) take the target's version
+ *        - a few both-changed files: the per-file AI resolver
+ *        - many files, any modify/delete, or whatever the per-file resolver left: one agent
+ *          (merge-conflict-agent.ts) that sees the whole merge and fixes its fallout
+ *      then a gate (no unmerged files, no new conflict markers, verify command passes) before
+ *      the merge is committed in the worktree. A merge that doesn't build never reaches <target>.
  *   3. In the project checkout: checkout <target>, merge --no-ff the feature branch (clean after
  *      step 2), commit
  *
@@ -16,19 +22,42 @@
  */
 
 import { execFileSync } from 'child_process';
-import { existsSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 
+import { runVerifyCommand, tailOutput, type VerifyCommandResult } from '../../ai/orchestration/verify-command';
+import {
+  isModifyDeleteCode,
+  parseMergeResult,
+  runMergeConflictAgent,
+  type MergeAgentRunner
+} from '../../ai/runners/merge-conflict-agent';
+import { appLog } from '../../app-logger';
 import { getToolPath } from '../../cli-tool-manager';
 import { getIsolatedGitEnv } from '../../utils/git-isolation';
 import {
   assertAllConflictsResolved,
   conflictFailureMessage,
+  describeUnresolved,
+  findNewConflictMarkers,
+  hasConflictMarkers,
+  listConflicts,
   listUnmergedFiles,
   resolveAllConflictsOrThrow,
-  type ResolveConflictsOptions
+  resolveGitConflictsWithAI,
+  takeGeneratedArtifacts,
+  type ConflictEntry,
+  type ResolveConflictsOptions,
+  type UnresolvedConflict
 } from './git-conflict-resolution';
+
+/** More conflicted files than this go straight to the agent (one agent sees the whole picture) */
+export const AGENT_CONFLICT_THRESHOLD = 8;
+/** Overall time limit for the merge agent */
+export const MERGE_AGENT_TIMEOUT_MS = 20 * 60 * 1000;
+
+export type VerifyRunner = (command: string, cwd: string, abortSignal?: AbortSignal) => Promise<VerifyCommandResult>;
 
 export type QuickMergeStage = 'prepare-target' | 'sync-worktree' | 'checkout-target' | 'final-merge' | 'commit';
 
@@ -43,8 +72,17 @@ export interface QuickMergeGitInput {
   commitMessage: string;
   specId: string;
   emitProgress: (stage: string, percent: number, message: string) => void;
+  /** Project verify command (resolveVerifyCommand); gates a merge that needed conflict resolution */
+  verifyCommand?: string;
+  /** The task's spec.md, given to the merge agent so it knows the task's intent */
+  specPath?: string;
+  /** Cancels the merge agent and verify run; the worktree merge is then aborted */
+  abortSignal?: AbortSignal;
   /** Injectable for tests */
   resolve?: ResolveConflictsOptions['resolve'];
+  mergeAgent?: MergeAgentRunner;
+  verify?: VerifyRunner;
+  agentTimeoutMs?: number;
 }
 
 function errMsg(err: unknown): string {
@@ -87,7 +125,214 @@ function abortMerge(cwd: string): void {
 }
 
 /**
- * Merge `ref` into the branch checked out in `cwd`, resolving conflicts with AI.
+ * Agent or per-file resolver: the agent for many conflicts or any modify/delete (the per-file
+ * resolver can't do those and is slow one file at a time), the per-file resolver otherwise.
+ */
+export function shouldUseMergeAgent(conflicts: ConflictEntry[]): boolean {
+  return conflicts.length > AGENT_CONFLICT_THRESHOLD || conflicts.some((c) => isModifyDeleteCode(c.code));
+}
+
+function listUntracked(cwd: string): string[] {
+  return makeGit(cwd)(['ls-files', '--others', '--exclude-standard']).split('\n').filter(Boolean);
+}
+
+function readSpec(specPath: string | undefined): string | undefined {
+  if (!specPath) return undefined;
+  try {
+    return readFileSync(specPath, 'utf-8');
+  } catch {
+    return undefined;
+  }
+}
+
+/** Run the agent with an overall timeout; rejects on timeout/cancel even if the runner ignores the signal */
+async function runAgentBounded(
+  run: (signal: AbortSignal) => Promise<string>,
+  timeoutMs: number,
+  outer?: AbortSignal
+): Promise<string> {
+  const controller = new AbortController();
+  let reason = '';
+  const stop = (why: string) => {
+    if (!reason) reason = why;
+    controller.abort();
+  };
+  const timer = setTimeout(() => stop(`timed out after ${Math.round(timeoutMs / 60_000)} min`), timeoutMs);
+  const onOuterAbort = () => stop('cancelled');
+  if (outer?.aborted) stop('cancelled');
+  outer?.addEventListener('abort', onOuterAbort, { once: true });
+  const aborted = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener('abort', () => reject(new Error(reason)), { once: true });
+  });
+  try {
+    if (controller.signal.aborted) throw new Error(reason);
+    return await Promise.race([run(controller.signal), aborted]);
+  } catch (err) {
+    if (reason) throw new Error(reason);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener('abort', onOuterAbort);
+  }
+}
+
+interface SyncContext {
+  cwd: string;
+  input: QuickMergeGitInput;
+  logTag: string;
+}
+
+/**
+ * Step 2: merge the local target into the feature branch in `cwd` and commit it there.
+ * Returns an error message (the merge aborted, the worktree back as it was) or null.
+ */
+async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<string | null> {
+  const { projectPath, targetBranch, featureBranch, specId, emitProgress, resolve } = input;
+  const git = makeGit(cwd);
+  const headBefore = git(['rev-parse', 'HEAD']).trim();
+  const untrackedBefore = new Set(listUntracked(cwd));
+  // Uncommitted edits that were already there are not the agent's and stay out of the merge commit
+  const dirtyBefore = new Set(git(['diff', '--name-only']).split('\n').filter(Boolean));
+  try {
+    git(['merge', '--no-edit', targetBranch]);
+    return null; // clean merge, committed by git
+  } catch (mergeErr) {
+    if (listUnmergedFiles(cwd).length === 0) {
+      // Not a content conflict (dirty tree, unrelated histories, ...)
+      abortMerge(cwd);
+      return `git merge ${targetBranch} failed: ${errMsg(mergeErr)}`;
+    }
+  }
+
+  /** Abort the merge and remove files the agent created, so the worktree is as it was */
+  const fail = (message: string): string => {
+    abortMerge(cwd);
+    try {
+      if (git(['rev-parse', 'HEAD']).trim() !== headBefore) git(['reset', '--hard', headBefore]);
+      for (const file of listUntracked(cwd)) {
+        if (!untrackedBefore.has(file)) rmSync(path.join(cwd, file), { force: true });
+      }
+    } catch {
+      /* best effort */
+    }
+    return message;
+  };
+
+  takeGeneratedArtifacts(cwd, 'theirs');
+  let conflicts = listConflicts(cwd);
+  let unresolved: UnresolvedConflict[] = [];
+  const hadRealConflicts = conflicts.length > 0;
+
+  if (conflicts.length > 0 && !shouldUseMergeAgent(conflicts)) {
+    unresolved = await resolveGitConflictsWithAI(cwd, projectPath, {
+      targetSide: 'theirs',
+      logTag,
+      resolve,
+      onProgress: (msg) => emitProgress('resolving', 45, msg)
+    });
+    conflicts = listConflicts(cwd);
+  }
+
+  if (conflicts.length > 0) {
+    emitProgress('resolving', 50, `Resolving ${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} with an agent…`);
+    const runner = input.mergeAgent ?? runMergeConflictAgent;
+    let mergeBase = headBefore;
+    try {
+      mergeBase = git(['merge-base', 'HEAD', 'MERGE_HEAD']).trim();
+    } catch {
+      /* keep HEAD */
+    }
+    let text: string;
+    try {
+      text = await runAgentBounded(
+        (signal) =>
+          runner({
+            cwd,
+            projectPath,
+            targetBranch,
+            featureBranch,
+            mergeBase,
+            conflicts,
+            specText: readSpec(input.specPath),
+            verifyCommand: input.verifyCommand,
+            abortSignal: signal
+          }),
+        input.agentTimeoutMs ?? MERGE_AGENT_TIMEOUT_MS,
+        input.abortSignal
+      );
+    } catch (err) {
+      const msg = errMsg(err);
+      appLog.warn(`${logTag} stage=agent-resolve error=${msg}`);
+      return fail(`The merge agent did not finish (${msg}). ${describeUnresolved(conflicts.map((c) => c.file), unresolved)}.`);
+    }
+    const result = parseMergeResult(text);
+    const notes = result?.notes || 'no notes';
+
+    if (git(['rev-parse', 'HEAD']).trim() !== headBefore || !mergeInProgress(cwd)) {
+      appLog.warn(`${logTag} stage=agent-resolve error=agent changed git history notes=${notes}`);
+      return fail('The merge agent committed or aborted the merge itself, so its work was discarded.');
+    }
+
+    // Stage what the agent fixed but didn't add: tracked edits outside the conflicts, and
+    // both-sides files without markers. A modify/delete it left is not a decision, so it stays.
+    const stillUnmerged = new Set(listUnmergedFiles(cwd));
+    const edited = git(['diff', '--name-only']).split('\n').filter((f) => f && !stillUnmerged.has(f) && !dirtyBefore.has(f));
+    if (edited.length > 0) git(['add', '--', ...edited]);
+    for (const c of listConflicts(cwd)) {
+      if (c.code !== 'UU' && c.code !== 'AA') continue;
+      try {
+        if (!hasConflictMarkers(readFileSync(path.join(cwd, c.file), 'utf-8'))) git(['add', '--', c.file]);
+      } catch {
+        /* unreadable: stays unmerged */
+      }
+    }
+
+    const left = listUnmergedFiles(cwd);
+    if (left.length > 0 || result?.status !== 'resolved') {
+      const why = result ? (result.status === 'resolved' ? 'left files unresolved' : 'could not resolve the merge') : 'gave no result';
+      appLog.warn(`${logTag} stage=agent-resolve error=${why} remaining=${left.join(',')} notes=${notes}`);
+      const remaining = left.length > 0 ? ` ${describeUnresolved(left, unresolved)}.` : '';
+      return fail(`The merge agent ${why}: ${notes}.${remaining}`);
+    }
+    appLog.info(`${logTag} stage=agent-resolve resolved=${conflicts.length} verify=${result.verify} notes=${notes}`);
+  }
+
+  try {
+    assertAllConflictsResolved(cwd, unresolved);
+  } catch (err) {
+    return fail(conflictFailureMessage(err));
+  }
+  const markers = findNewConflictMarkers(cwd);
+  if (markers.length > 0) {
+    appLog.warn(`${logTag} stage=markers files=${markers.join(',')}`);
+    return fail(`Conflict markers remain in: ${markers.join(', ')}.`);
+  }
+
+  const verifyCommand = input.verifyCommand?.trim();
+  if (hadRealConflicts && verifyCommand) {
+    emitProgress('validating', 60, 'Running checks…');
+    const verify = input.verify ?? ((cmd, dir, signal) => runVerifyCommand(cmd, dir, { abortSignal: signal }));
+    const res = await verify(verifyCommand, cwd, input.abortSignal);
+    if (input.abortSignal?.aborted) return fail('Merge cancelled.');
+    if (!res.passed) {
+      const tail = tailOutput(res.output, 15, 1_500);
+      appLog.warn(`${logTag} stage=verify command=${verifyCommand} output=${tail}`);
+      return fail(`verify failed after resolving: ${tail}`);
+    }
+  }
+
+  try {
+    makeGit(cwd, { GIT_EDITOR: 'true' })(['merge', '--continue']);
+  } catch (err) {
+    appLog.warn(`${logTag} stage=commit-sync spec=${specId} error=${errMsg(err)}`);
+    return fail(`Could not commit the merge in the worktree: ${errMsg(err)}`);
+  }
+  return null;
+}
+
+/**
+ * Step 3: merge `ref` into the branch checked out in `cwd` without committing. Clean after
+ * step 2; the per-file resolver only covers a target that moved meanwhile.
  * Returns an error message (the merge aborted) or null.
  */
 async function mergeWithAI(
@@ -95,8 +340,7 @@ async function mergeWithAI(
   ref: string,
   projectPath: string,
   options: ResolveConflictsOptions,
-  mergeArgs: string[],
-  commitAfter: boolean
+  mergeArgs: string[]
 ): Promise<string | null> {
   const git = makeGit(cwd);
   try {
@@ -114,15 +358,7 @@ async function mergeWithAI(
       return conflictFailureMessage(resolveErr);
     }
   }
-  if (!commitAfter) return null;
-  try {
-    assertAllConflictsResolved(cwd, []);
-    if (mergeInProgress(cwd)) makeGit(cwd, { GIT_EDITOR: 'true' })(['merge', '--continue']);
-    return null;
-  } catch (err) {
-    abortMerge(cwd);
-    return conflictFailureMessage(err);
-  }
+  return null;
 }
 
 /**
@@ -192,24 +428,12 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
       }
       syncDir = dir;
     }
-    const syncError = await mergeWithAI(
-      syncDir,
-      targetBranch,
-      projectPath,
-      {
-        targetSide: 'theirs',
-        logTag,
-        resolve,
-        onProgress: (msg) => emitProgress('resolving', 45, msg)
-      },
-      ['--no-edit'],
-      true
-    );
+    const syncError = await syncWithTarget({ cwd: syncDir, input, logTag });
     if (syncError) {
       return {
         ok: false,
         stage: 'sync-worktree',
-        message: `${syncError} Resolve them in the task worktree manually; ${targetBranch} was not changed.`
+        message: `${syncError} The task worktree was left as it was and ${targetBranch} was not changed; merge ${targetBranch} into the task by hand to finish.`
       };
     }
   } finally {
@@ -245,8 +469,7 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
       resolve,
       onProgress: (msg) => emitProgress('resolving', 85, msg)
     },
-    ['--no-ff', '--no-commit'],
-    false
+    ['--no-ff', '--no-commit']
   );
   if (finalError) {
     return { ok: false, stage: 'final-merge', message: `${finalError} The merge into ${targetBranch} was aborted.` };
