@@ -60,7 +60,7 @@ describe('mapFeatureStateToStatus', () => {
   });
 
   it('should map each feature state to a valid status value', () => {
-    const validStatuses = new Set(['under_review', 'planned', 'in_progress', 'done']);
+    const validStatuses = new Set(['under_review', 'planned', 'in_progress', 'done', 'dismissed']);
     for (const state of FEATURE_STATE_NAMES) {
       const status = mapFeatureStateToStatus(state);
       expect(validStatuses.has(status)).toBe(true);

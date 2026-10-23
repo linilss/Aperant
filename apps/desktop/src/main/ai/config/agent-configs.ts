@@ -10,7 +10,7 @@
  * Tool lists are organized by category:
  * - Base tools: Core file operations (Read, Write, Edit, etc.)
  * - Web tools: Documentation and research (WebFetch, WebSearch)
- * - MCP tools: External integrations (Context7, Memory, etc.)
+ * - MCP tools: External integrations (Context7, etc.)
  * - Auto-Claude tools: Custom build management tools
  */
 
@@ -56,18 +56,6 @@ export const CONTEXT7_TOOLS = [
   'mcp__context7__query-docs',
 ] as const;
 
-/** Memory MCP tools for knowledge graph memory (when GRAPHITI_MCP_URL is set) */
-export const MEMORY_MCP_TOOLS = [
-  'mcp__graphiti-memory__search_nodes',
-  'mcp__graphiti-memory__search_facts',
-  'mcp__graphiti-memory__add_episode',
-  'mcp__graphiti-memory__get_episodes',
-  'mcp__graphiti-memory__get_entity_edge',
-] as const;
-
-/** @deprecated Use MEMORY_MCP_TOOLS instead */
-export const GRAPHITI_MCP_TOOLS = MEMORY_MCP_TOOLS;
-
 // =============================================================================
 // Browser Automation MCP Tools (QA agents only)
 // =============================================================================
@@ -105,7 +93,6 @@ export type AgentType =
   | 'spec_discovery'
   | 'spec_context'
   | 'spec_validation'
-  | 'spec_compaction'
   | 'spec_orchestrator'
   | 'build_orchestrator'
   | 'planner'
@@ -113,23 +100,15 @@ export type AgentType =
   | 'qa_reviewer'
   | 'qa_fixer'
   | 'insights'
-  | 'merge_resolver'
   | 'commit_message'
-  | 'pr_template_filler'
   | 'pr_reviewer'
-  | 'pr_orchestrator_parallel'
-  | 'pr_followup_parallel'
-  | 'pr_followup_extraction'
   | 'pr_finding_validator'
   | 'pr_security_specialist'
   | 'pr_quality_specialist'
   | 'pr_logic_specialist'
   | 'pr_codebase_fit_specialist'
   | 'analysis'
-  | 'batch_analysis'
-  | 'batch_validation'
   | 'roadmap_discovery'
-  | 'competitor_analysis'
   | 'ideation';
 
 /** Configuration for a single agent type */
@@ -198,12 +177,6 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     autoClaudeTools: [],
     thinkingDefault: 'high',
   },
-  spec_compaction: {
-    tools: [...SPEC_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'medium',
-  },
 
   /**
    * Spec Orchestrator — entry point for the full spec creation pipeline.
@@ -224,7 +197,7 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
    */
   build_orchestrator: {
     tools: [...ALL_BUILTIN_TOOLS, 'SpawnSubagent'],
-    mcpServers: ['context7', 'memory', 'auto-claude'],
+    mcpServers: ['context7', 'auto-claude'],
     autoClaudeTools: [
       TOOL_GET_BUILD_PROGRESS,
       TOOL_GET_SESSION_CONTEXT,
@@ -235,11 +208,11 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  // BUILD PHASES (Full tools + memory)
+  // BUILD PHASES (Full tools)
   // ═══════════════════════════════════════════════════════════════════════
   planner: {
     tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7', 'memory', 'auto-claude'],
+    mcpServers: ['context7', 'auto-claude'],
     autoClaudeTools: [
       TOOL_GET_BUILD_PROGRESS,
       TOOL_GET_SESSION_CONTEXT,
@@ -249,7 +222,7 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
   },
   coder: {
     tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7', 'memory', 'auto-claude'],
+    mcpServers: ['context7', 'auto-claude'],
     autoClaudeTools: [
       TOOL_UPDATE_SUBTASK_STATUS,
       TOOL_GET_BUILD_PROGRESS,
@@ -261,11 +234,11 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  // QA PHASES (Read + test + browser + memory)
+  // QA PHASES (Read + test + browser)
   // ═══════════════════════════════════════════════════════════════════════
   qa_reviewer: {
     tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7', 'memory', 'auto-claude', 'browser'],
+    mcpServers: ['context7', 'auto-claude', 'browser'],
     autoClaudeTools: [
       TOOL_GET_BUILD_PROGRESS,
       TOOL_UPDATE_QA_STATUS,
@@ -275,7 +248,7 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
   },
   qa_fixer: {
     tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7', 'memory', 'auto-claude', 'browser'],
+    mcpServers: ['context7', 'auto-claude', 'browser'],
     autoClaudeTools: [
       TOOL_UPDATE_SUBTASK_STATUS,
       TOOL_GET_BUILD_PROGRESS,
@@ -294,20 +267,8 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     autoClaudeTools: [],
     thinkingDefault: 'low',
   },
-  merge_resolver: {
-    tools: [],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
   commit_message: {
     tools: [],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
-  pr_template_filler: {
-    tools: [...ALL_BUILTIN_TOOLS],
     mcpServers: [],
     autoClaudeTools: [],
     thinkingDefault: 'low',
@@ -317,24 +278,6 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     mcpServers: ['context7'],
     autoClaudeTools: [],
     thinkingDefault: 'high',
-  },
-  pr_orchestrator_parallel: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'high',
-  },
-  pr_followup_parallel: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'high',
-  },
-  pr_followup_extraction: {
-    tools: [],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
   },
   pr_finding_validator: {
     tools: [...ALL_BUILTIN_TOOLS],
@@ -376,29 +319,11 @@ export const AGENT_CONFIGS: Record<AgentType, AgentConfig> = {
     autoClaudeTools: [],
     thinkingDefault: 'medium',
   },
-  batch_analysis: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
-  batch_validation: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: [],
-    autoClaudeTools: [],
-    thinkingDefault: 'low',
-  },
 
   // ═══════════════════════════════════════════════════════════════════════
   // ROADMAP & IDEATION
   // ═══════════════════════════════════════════════════════════════════════
   roadmap_discovery: {
-    tools: [...ALL_BUILTIN_TOOLS],
-    mcpServers: ['context7'],
-    autoClaudeTools: [],
-    thinkingDefault: 'high',
-  },
-  competitor_analysis: {
     tools: [...ALL_BUILTIN_TOOLS],
     mcpServers: ['context7'],
     autoClaudeTools: [],
@@ -448,9 +373,6 @@ export function getDefaultThinkingLevel(agentType: AgentType): ThinkingLevel {
  */
 const MCP_SERVER_NAME_MAP: Record<string, string> = {
   context7: 'context7',
-  'graphiti-memory': 'memory',
-  graphiti: 'memory',
-  memory: 'memory',
   electron: 'electron',
   puppeteer: 'puppeteer',
   'auto-claude': 'auto-claude',
@@ -484,8 +406,6 @@ export interface McpServerResolveOptions {
     is_electron?: boolean;
     is_web_frontend?: boolean;
   };
-  /** Whether memory MCP is available (GRAPHITI_MCP_URL is set) */
-  memoryEnabled?: boolean;
   /** Whether Electron MCP is enabled */
   electronMcpEnabled?: boolean;
   /** Whether Puppeteer MCP is enabled */
@@ -505,7 +425,6 @@ export interface McpServerResolveOptions {
  *
  * Handles dynamic server selection:
  * - "browser" → electron (if is_electron) or puppeteer (if is_web_frontend)
- * - "memory" → only if memoryEnabled is true
  * - Applies per-agent ADD/REMOVE overrides
  *
  * @param agentType - The agent type identifier
@@ -537,12 +456,6 @@ export function getRequiredMcpServers(
         servers.push('puppeteer');
       }
     }
-  }
-
-  // Filter memory if not enabled
-  if (!options.memoryEnabled) {
-    const idx = servers.indexOf('memory');
-    if (idx !== -1) servers.splice(idx, 1);
   }
 
   // Apply per-agent MCP additions

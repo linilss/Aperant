@@ -38,6 +38,7 @@ export interface AgentManagerEvents {
   exit: (taskId: string, code: number | null, processType: ProcessType, projectId?: string) => void;
   'execution-progress': (taskId: string, progress: ExecutionProgressData, projectId?: string) => void;
   'task-event': (taskId: string, event: TaskEventPayload, projectId?: string) => void;
+  'agent-trace-update': (taskId: string, entry: import('../../shared/types/trace-types').TraceEntry, projectId?: string) => void;
 }
 
 // IdeationConfig now imported from shared types to maintain consistency
@@ -45,6 +46,7 @@ export interface AgentManagerEvents {
 export interface RoadmapConfig {
   model?: string;          // Model shorthand (opus, sonnet, haiku)
   thinkingLevel?: string;  // Thinking level (low, medium, high)
+  guidance?: string;       // Free-text direction for a regenerate
 }
 
 export interface TaskExecutionOptions {

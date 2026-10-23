@@ -53,6 +53,12 @@ vi.mock('../claude-profile-manager', () => ({
   initializeClaudeProfileManager: vi.fn(),
 }));
 
+// No project is pinned to a Claude account in these tests
+vi.mock('../claude-profile/project-profile', () => ({
+  getStrictProjectPin: () => null,
+  resolveProfileForProject: () => ({ pinned: false, strict: false }),
+}));
+
 vi.mock('../claude-profile/credential-utils', () => ({
   getFullCredentialsFromKeychain: vi.fn(),
   clearKeychainCache: vi.fn(),

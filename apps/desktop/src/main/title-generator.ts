@@ -42,9 +42,10 @@ export class TitleGenerator extends EventEmitter {
   /**
    * Generate a task title from a description using Claude AI
    * @param description - The task description to generate a title from
+   * @param projectPath - Project the task belongs to (runs on its pinned Claude account)
    * @returns Promise resolving to the generated title or null on failure
    */
-  async generateTitle(description: string): Promise<string | null> {
+  async generateTitle(description: string, projectPath?: string): Promise<string | null> {
     const prompt = this.createTitlePrompt(description);
 
     debug('Generating title for description:', description.substring(0, 100) + '...');
@@ -67,6 +68,7 @@ export class TitleGenerator extends EventEmitter {
         systemPrompt: SYSTEM_PROMPT,
         modelShorthand: namingSettings.model,
         thinkingLevel: namingSettings.thinkingLevel as 'low' | 'medium' | 'high' | 'xhigh',
+        projectPath,
       });
 
       const result = streamText({

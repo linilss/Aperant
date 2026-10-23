@@ -80,14 +80,14 @@ export function TerminalHeader({
   const showResumeAllButton = pendingResumeCount >= 2;
 
   return (
-    <div className="electron-no-drag group/header flex h-9 items-center justify-between border-b border-border/50 bg-card/30 px-2">
-      <div className="flex items-center gap-2">
+    <div className="electron-no-drag group/header flex h-9 items-center justify-between border-b border-border/50 bg-card/30 px-2 max-md:h-11 max-md:gap-2">
+      <div className="flex items-center gap-2 max-md:min-w-0 max-md:overflow-x-auto">
         {/* Drag handle - visible on hover */}
         {dragHandleListeners && (
           <div
             {...dragHandleListeners}
             className={cn(
-              'flex items-center justify-center',
+              'flex items-center justify-center max-md:hidden',
               'w-4 h-6 -ml-1',
               'opacity-0 group-hover/header:opacity-60',
               'hover:opacity-100 transition-opacity',
@@ -98,7 +98,7 @@ export function TerminalHeader({
             <GripVertical className="h-3.5 w-3.5" />
           </div>
         )}
-        <div className={cn('h-2 w-2 rounded-full', STATUS_COLORS[status])} />
+        <div className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_COLORS[status])} />
         <div className="flex items-center gap-1.5">
           <TerminalSquare className="h-3.5 w-3.5 text-muted-foreground" />
           <TerminalTitle
@@ -160,14 +160,14 @@ export function TerminalHeader({
           )
         )}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 max-md:shrink-0">
         {/* Resume All button - shown when 2+ terminals have pending resume */}
         {showResumeAllButton && (
           <Button
             variant="ghost"
             size={terminalCount >= 4 ? 'icon' : 'sm'}
             className={cn(
-              'h-6 hover:bg-cyan-500/10 hover:text-cyan-500 animate-pulse',
+              'h-6 hover:bg-cyan-500/10 hover:text-cyan-500 animate-pulse max-md:h-9',
               terminalCount >= 4 ? 'w-6' : 'px-2 text-xs gap-1',
               'text-cyan-500 bg-cyan-500/10'
             )}
@@ -205,7 +205,7 @@ export function TerminalHeader({
             variant="ghost"
             size={terminalCount >= 4 ? 'icon' : 'sm'}
             className={cn(
-              'h-6 hover:bg-primary/10 hover:text-primary',
+              'h-6 hover:bg-primary/10 hover:text-primary max-md:h-9',
               terminalCount >= 4 ? 'w-6' : 'px-2 text-xs gap-1'
             )}
             onClick={(e) => {
@@ -240,12 +240,12 @@ export function TerminalHeader({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
+          className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive max-md:h-9 max-md:w-9"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
-          title={`${t('common:close')} (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+W)`}
+          title={`${t('common:buttons.close')} (${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+W)`}
         >
           <X className="h-3.5 w-3.5" />
         </Button>

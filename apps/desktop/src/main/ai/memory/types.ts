@@ -226,9 +226,7 @@ export interface WorkUnitResult {
 export interface MemoryService {
   store(entry: MemoryRecordEntry): Promise<string>;
   search(filters: MemorySearchFilters): Promise<Memory[]>;
-  searchByPattern(pattern: string): Promise<Memory | null>;
   insertUserTaught(content: string, projectId: string, tags: string[]): Promise<string>;
-  searchWorkflowRecipe(taskDescription: string, opts?: { limit?: number }): Promise<Memory[]>;
   updateAccessCount(memoryId: string): Promise<void>;
   deprecateMemory(memoryId: string): Promise<void>;
   verifyMemory(memoryId: string): Promise<void>;

@@ -1,3 +1,4 @@
+import { resolveVerifyCommand } from '../verify-detect';
 import { EventEmitter } from 'events';
 import path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
@@ -13,11 +14,12 @@ import {
   TaskExecutionOptions,
   RoadmapConfig
 } from './types';
-import type { IdeationConfig } from '../../shared/types';
+import type { IdeationConfig, IdeationRunStatus } from '../../shared/types';
 import { resetStuckSubtasks } from '../ipc-handlers/task/plan-file-utils';
 import { AUTO_BUILD_PATHS, getSpecsDir } from '../../shared/constants';
 import { projectStore } from '../project-store';
-import { resolveAuth, resolveAuthFromQueue } from '../ai/auth/resolver';
+import { applyProfilePinToQueue, queueHasProfileAccount, resolveAuth, resolveAuthFromQueue, resolveProfileOAuthAuth } from '../ai/auth/resolver';
+import { getProjectProfileBinding, resolveProfileForProject, type ProjectRef } from '../claude-profile/project-profile';
 import { resolveModelId } from '../ai/config/phase-config';
 import { detectProviderFromModel } from '../ai/providers/factory';
 import { resolveModelEquivalent } from '../../shared/constants/models';
@@ -29,6 +31,7 @@ import { findTaskWorktree } from '../worktree-paths';
 import { readSettingsFile } from '../settings-utils';
 import type { ProviderAccount } from '../../shared/types/provider-account';
 import { tryLoadPrompt } from '../ai/prompts/prompt-loader';
+import { buildMemoryContextForTask, buildTaskMemoryQuery, learnFromCompletedTask } from './agent-memory';
 
 /**
  * Main AgentManager - orchestrates agent process lifecycle
@@ -53,6 +56,8 @@ export class AgentManager extends EventEmitter {
     /** Generation counter to prevent stale cleanup after restart */
     generation: number;
   }> = new Map();
+  /** Successful build/QA runs to learn memories from, keyed by taskId */
+  private memoryLearningTargets: Map<string, Parameters<typeof learnFromCompletedTask>[0]> = new Map();
 
   constructor() {
     super();
@@ -72,6 +77,13 @@ export class AgentManager extends EventEmitter {
 
     // Listen for task completion to clean up context (prevent memory leak)
     this.on('exit', (taskId: string, code: number | null, _processType?: string, _projectId?: string) => {
+      // Learn project memories from a successful build / QA run (fire-and-forget)
+      const learningTarget = this.memoryLearningTargets.get(taskId);
+      if (learningTarget) {
+        this.memoryLearningTargets.delete(taskId);
+        if (code === 0) void learnFromCompletedTask(learningTarget);
+      }
+
       // Clean up context when:
       // 1. Task completed successfully (code === 0), or
       // 2. Task failed and won't be restarted (handled by auto-swap logic)
@@ -128,6 +140,12 @@ export class AgentManager extends EventEmitter {
     return accounts.length > 0;
   }
 
+  /** Pre-flight auth check against the profile the project runs on (pinned or active). */
+  private hasProjectAuth(profileManager: ClaudeProfileManager, projectId: string | undefined, projectPath: string): boolean {
+    const projectProfile = resolveProfileForProject({ projectId, projectPath });
+    return profileManager.hasValidAuth(projectProfile.pinned ? projectProfile.profile.id : undefined);
+  }
+
   /**
    * Resolve auth using the provider accounts priority queue.
    * Falls back to legacy Claude profile if no provider accounts exist.
@@ -135,6 +153,7 @@ export class AgentManager extends EventEmitter {
   private async resolveAuthFromProviderQueue(
     requestedModel: string,
     preferredProvider?: string | null,
+    project?: ProjectRef,
   ): Promise<{
     auth: { apiKey?: string; baseURL?: string } | null;
     provider: string;
@@ -145,6 +164,12 @@ export class AgentManager extends EventEmitter {
     const settings = readSettingsFile();
     const accounts = (settings?.providerAccounts as ProviderAccount[] | undefined) ?? [];
     const priorityOrder = (settings?.globalPriorityOrder as string[] | undefined) ?? [];
+    // Project pinned to a Claude profile: its Claude work runs on (and bills) that
+    // account. Phases explicitly set to another provider are not Claude work.
+    const requestedProvider = detectProviderFromModel(requestedModel) ?? 'anthropic';
+    const pin = requestedProvider === 'anthropic' && (!preferredProvider || preferredProvider === 'anthropic')
+      ? getProjectProfileBinding(project)
+      : null;
 
     if (accounts.length > 0 && priorityOrder.length > 0) {
       // Sort accounts by priority order
@@ -157,6 +182,15 @@ export class AgentManager extends EventEmitter {
         if (!priorityOrder.includes(account.id)) {
           orderedQueue.push(account);
         }
+      }
+
+      if (pin) {
+        // Pinned account first (strict: only it). Without a queue account for the
+        // pinned profile, skip the queue — the fallback below uses its credentials.
+        const pinnedQueue = queueHasProfileAccount(orderedQueue, pin.profileId)
+          ? applyProfilePinToQueue(orderedQueue, pin.profileId, pin.strict)
+          : [];
+        orderedQueue.splice(0, orderedQueue.length, ...pinnedQueue);
       }
 
       // If a preferred provider is specified, reorder queue to try that provider first
@@ -173,26 +207,38 @@ export class AgentManager extends EventEmitter {
         orderedQueue.splice(0, orderedQueue.length, ...preferred, ...rest);
       }
 
-      const resolved = await resolveAuthFromQueue(requestedModel, orderedQueue);
+      const resolved = orderedQueue.length > 0
+        ? await resolveAuthFromQueue(requestedModel, orderedQueue, {
+          profileConfigDirs: pin?.configDir ? { [pin.profileId]: pin.configDir } : undefined,
+        })
+        : null;
       if (resolved) {
         console.warn(`[AgentManager] Resolved auth from provider queue: account=${resolved.accountId} provider=${resolved.resolvedProvider} model=${resolved.resolvedModelId}`);
+        const onPinnedAccount = !!pin && accounts.some((a) => a.id === resolved.accountId && a.claudeProfileId === pin.profileId);
         return {
           auth: resolved,
           provider: resolved.resolvedProvider,
           modelId: resolved.resolvedModelId,
-          configDir: undefined, // Queue-based auth handles its own token refresh
+          // Queue-based auth handles its own token refresh; a pinned project's CLI
+          // sessions still need the pinned profile's config dir
+          configDir: onPinnedAccount ? pin?.configDir : undefined,
         };
       }
-      console.warn('[AgentManager] No available account in provider queue, falling back to legacy profile');
+      if (!pin) {
+        console.warn('[AgentManager] No available account in provider queue, falling back to legacy profile');
+      }
     }
 
-    // Fallback: legacy Claude profile system
+    // Fallback: legacy Claude profile system (the project's pinned profile, else the active one)
+    if (pin?.configDir) {
+      const auth = await resolveProfileOAuthAuth(pin.configDir);
+      return { auth, provider: 'anthropic', modelId: requestedModel, configDir: pin.configDir };
+    }
     const profileManager = getClaudeProfileManager();
     const activeProfile = profileManager?.getActiveProfile();
     const configDir = activeProfile?.configDir;
     const auth = await resolveAuth({ provider: 'anthropic', configDir });
-    const provider = detectProviderFromModel(requestedModel) ?? 'anthropic';
-    return { auth, provider, modelId: requestedModel, configDir };
+    return { auth, provider: requestedProvider, modelId: requestedModel, configDir };
   }
 
   /**
@@ -275,10 +321,12 @@ export class AgentManager extends EventEmitter {
   private registerTaskWithOperationRegistry(
     taskId: string,
     operationType: 'spec-creation' | 'task-execution',
-    metadata: Record<string, unknown>
+    metadata: Record<string, unknown>,
+    project?: ProjectRef
   ): void {
-    const profileManager = getClaudeProfileManager();
-    const activeProfile = profileManager.getActiveProfile();
+    // The task runs on its project's pinned profile, else the active one
+    const projectProfile = resolveProfileForProject(project);
+    const activeProfile = projectProfile.profile;
     if (!activeProfile) {
       return;
     }
@@ -297,7 +345,8 @@ export class AgentManager extends EventEmitter {
       activeProfile.id,
       activeProfile.name,
       (newProfileId: string) => this.restartTask(taskId, newProfileId),
-      { metadata }
+      // A strict pin keeps the task on its account: proactive swaps skip it
+      { metadata, pinned: projectProfile.strict }
     );
     console.log('[AgentManager] Task registered with OperationRegistry:', {
       taskId,
@@ -310,6 +359,12 @@ export class AgentManager extends EventEmitter {
   /**
    * Start spec creation process
    */
+  /** Resolve ProjectSettings.useClaudeMd (default true) for a project. */
+  private getUseClaudeMd(projectId: string | undefined, projectPath: string): boolean {
+    const project = projectStore.getProjects().find((p) => p.id === projectId || p.path === projectPath);
+    return project?.settings?.useClaudeMd !== false;
+  }
+
   async startSpecCreation(
     taskId: string,
     projectPath: string,
@@ -329,7 +384,7 @@ export class AgentManager extends EventEmitter {
       this.emit('error', taskId, 'Failed to initialize profile manager. Please check file permissions and disk space.');
       return;
     }
-    if (!profileManager.hasValidAuth() && !this.hasAnyProviderAccount()) {
+    if (!this.hasProjectAuth(profileManager, projectId, projectPath) && !this.hasAnyProviderAccount()) {
       this.emit('error', taskId, 'Authentication required. Please add an account in Settings > Accounts before starting tasks.');
       return;
     }
@@ -368,14 +423,22 @@ export class AgentManager extends EventEmitter {
       specModelId = resolveModelId(specModelShorthand);
     }
 
-    // Load system prompt from prompts directory
-    const systemPrompt = this.loadPrompt('spec_orchestrator') ?? this.buildDefaultSpecPrompt(taskDescription, specDir);
+    // Load system prompt from prompts directory (the worker's spec orchestrators
+    // assemble their own per-phase prompts; this is the single-session fallback)
+    const systemPrompt = this.loadPrompt('spec_orchestrator_agentic') ?? this.buildDefaultSpecPrompt(taskDescription, specDir);
 
     // Resolve auth from provider accounts priority queue (falls back to legacy profile)
-    const resolved = await this.resolveAuthFromProviderQueue(specModelId, preferredProvider);
+    const resolved = await this.resolveAuthFromProviderQueue(specModelId, preferredProvider, { projectId, projectPath });
 
     // Build the serializable session config for the worker
     const resolvedSpecDir = specDir ?? path.join(projectPath, '.malvy', 'specs', taskId);
+    const specProject = projectStore.getProjects().find((p) => p.id === projectId || p.path === projectPath);
+    const memoryContext = await buildMemoryContextForTask({
+      projectId: specProject?.id ?? projectId,
+      projectPath,
+      autoBuildPath: specProject?.autoBuildPath,
+      query: buildTaskMemoryQuery(resolvedSpecDir, taskDescription),
+    });
     const sessionConfig: SerializableSessionConfig = {
       agentType: 'spec_orchestrator' as const,
       systemPrompt,
@@ -396,8 +459,9 @@ export class AgentManager extends EventEmitter {
       configDir: resolved.configDir,
       mcpOptions: {
         context7Enabled: true,
-        memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
       },
+      useClaudeMd: this.getUseClaudeMd(projectId, projectPath),
+      memoryContext,
       toolContext: {
         cwd: projectPath,
         projectDir: projectPath,
@@ -417,7 +481,7 @@ export class AgentManager extends EventEmitter {
     this.storeTaskContext(taskId, projectPath, '', {}, true, taskDescription, specDir, metadata, baseBranch, projectId);
 
     // Register with unified OperationRegistry for proactive swap support
-    this.registerTaskWithOperationRegistry(taskId, 'spec-creation', { projectPath, taskDescription, specDir });
+    this.registerTaskWithOperationRegistry(taskId, 'spec-creation', { projectPath, taskDescription, specDir }, { projectId, projectPath });
 
     await this.processManager.spawnWorkerProcess(taskId, executorConfig, {}, 'spec-creation', projectId);
 
@@ -447,7 +511,7 @@ export class AgentManager extends EventEmitter {
       this.emit('error', taskId, 'Failed to initialize profile manager. Please check file permissions and disk space.');
       return;
     }
-    if (!profileManager.hasValidAuth() && !this.hasAnyProviderAccount()) {
+    if (!this.hasProjectAuth(profileManager, projectId, projectPath) && !this.hasAnyProviderAccount()) {
       this.emit('error', taskId, 'Authentication required. Please add an account in Settings > Accounts before starting tasks.');
       return;
     }
@@ -465,7 +529,7 @@ export class AgentManager extends EventEmitter {
     const systemPrompt = this.loadPrompt('planner') ?? this.buildDefaultPlannerPrompt(specId, projectPath);
 
     // Resolve auth from provider accounts priority queue (falls back to legacy profile)
-    const resolved = await this.resolveAuthFromProviderQueue(modelId, preferredProvider);
+    const resolved = await this.resolveAuthFromProviderQueue(modelId, preferredProvider, { projectId, projectPath });
 
     // Create or get existing git worktree for task isolation
     // This matches the Python backend's WorktreeManager.create_worktree() behavior
@@ -482,6 +546,7 @@ export class AgentManager extends EventEmitter {
           options.useLocalBranch ?? false,
           project?.settings?.pushNewBranches !== false,
           project?.autoBuildPath,
+          project?.settings,
         );
         worktreePath = result.worktreePath;
         // Spec dir in the worktree (spec files were copied by createOrGetWorktree)
@@ -489,8 +554,11 @@ export class AgentManager extends EventEmitter {
         console.warn(`[AgentManager] Task ${taskId} will run in worktree: ${worktreePath}`);
       } catch (err) {
         console.error(`[AgentManager] Failed to create worktree for ${taskId}:`, err);
-        // Fall back to running in project root (non-fatal)
-        console.warn(`[AgentManager] Falling back to project root for ${taskId}`);
+        // Never build in the user's own checkout: their work and the agent's would mix,
+        // and there'd be no branch to review or merge
+        const reason = err instanceof Error ? err.message : String(err);
+        this.emit('error', taskId, `Couldn't create the task's worktree, so the task was not started: ${reason}`);
+        return;
       }
     }
 
@@ -499,6 +567,14 @@ export class AgentManager extends EventEmitter {
 
     // Load initial context from spec directory
     const initialMessages = this.buildTaskExecutionMessages(worktreeSpecDir, specId, effectiveProjectDir);
+
+    const memoryProjectId = project?.id ?? projectId;
+    const memoryContext = await buildMemoryContextForTask({
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      query: buildTaskMemoryQuery(specDir),
+    });
 
     // Build the serializable session config for the worker
     const sessionConfig: SerializableSessionConfig = {
@@ -518,8 +594,11 @@ export class AgentManager extends EventEmitter {
       configDir: resolved.configDir,
       mcpOptions: {
         context7Enabled: true,
-        memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
       },
+      useClaudeMd: project?.settings?.useClaudeMd !== false,
+      memoryContext,
+      // Build + tests gate QA; detected from the project when not set ("none" = off)
+      verifyCommand: resolveVerifyCommand(project?.settings?.verifyCommand, projectPath),
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,
@@ -539,7 +618,16 @@ export class AgentManager extends EventEmitter {
     this.storeTaskContext(taskId, projectPath, specId, options, false, undefined, undefined, undefined, undefined, projectId);
 
     // Register with unified OperationRegistry for proactive swap support
-    this.registerTaskWithOperationRegistry(taskId, 'task-execution', { projectPath, specId, options });
+    this.registerTaskWithOperationRegistry(taskId, 'task-execution', { projectPath, specId, options }, { projectId, projectPath });
+
+    this.memoryLearningTargets.set(taskId, {
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      specId,
+      workDir: effectiveProjectDir,
+      specDir: worktreeSpecDir,
+    });
 
     await this.processManager.spawnWorkerProcess(taskId, executorConfig, {}, 'task-execution', projectId);
 
@@ -567,7 +655,7 @@ export class AgentManager extends EventEmitter {
       this.emit('error', taskId, 'Failed to initialize profile manager. Please check file permissions and disk space.');
       return;
     }
-    if (!profileManager.hasValidAuth() && !this.hasAnyProviderAccount()) {
+    if (!this.hasProjectAuth(profileManager, projectId, projectPath) && !this.hasAnyProviderAccount()) {
       this.emit('error', taskId, 'Authentication required. Please add an account in Settings > Accounts before starting tasks.');
       return;
     }
@@ -585,7 +673,7 @@ export class AgentManager extends EventEmitter {
     const systemPrompt = this.loadPrompt('qa_reviewer') ?? this.buildDefaultQAPrompt(specId, projectPath);
 
     // Resolve auth from provider accounts priority queue (falls back to legacy profile)
-    const resolved = await this.resolveAuthFromProviderQueue(modelId, preferredProvider);
+    const resolved = await this.resolveAuthFromProviderQueue(modelId, preferredProvider, { projectId, projectPath });
 
     // Find existing worktree for QA (created during task execution)
     const worktreePath = findTaskWorktree(projectPath, specId);
@@ -604,6 +692,14 @@ export class AgentManager extends EventEmitter {
     // Load initial context from spec directory
     const qaInitialMessages = this.buildQAInitialMessages(effectiveSpecDir, specId, effectiveProjectDir);
 
+    const memoryProjectId = project?.id ?? projectId;
+    const memoryContext = await buildMemoryContextForTask({
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      query: buildTaskMemoryQuery(specDir),
+    });
+
     // Build the serializable session config for the worker
     const sessionConfig: SerializableSessionConfig = {
       agentType: 'qa_reviewer',
@@ -619,8 +715,9 @@ export class AgentManager extends EventEmitter {
       configDir: resolved.configDir,
       mcpOptions: {
         context7Enabled: true,
-        memoryEnabled: !!process.env.GRAPHITI_MCP_URL,
       },
+      useClaudeMd: project?.settings?.useClaudeMd !== false,
+      memoryContext,
       toolContext: {
         cwd: effectiveCwd,
         projectDir: effectiveProjectDir,
@@ -635,6 +732,15 @@ export class AgentManager extends EventEmitter {
       processType: 'qa-process',
       session: sessionConfig,
     };
+
+    this.memoryLearningTargets.set(taskId, {
+      projectId: memoryProjectId,
+      projectPath,
+      autoBuildPath: project?.autoBuildPath,
+      specId,
+      workDir: effectiveProjectDir,
+      specDir: effectiveSpecDir,
+    });
 
     await this.processManager.spawnWorkerProcess(taskId, executorConfig, {}, 'qa-process', projectId);
 
@@ -689,6 +795,13 @@ export class AgentManager extends EventEmitter {
    */
   isIdeationRunning(projectId: string): boolean {
     return this.queueManager.isIdeationRunning(projectId);
+  }
+
+  /**
+   * Progress of the project's running ideation generation, or null when none is running
+   */
+  getIdeationRunStatus(projectId: string): IdeationRunStatus | null {
+    return this.queueManager.getIdeationRunStatus(projectId);
   }
 
   /**
@@ -785,6 +898,16 @@ export class AgentManager extends EventEmitter {
       swapCount: context.swapCount
     });
 
+    // A project pinned (strict) to an account never moves to another one: the task
+    // waits for its own account's limit to reset instead
+    if (newProfileId) {
+      const projectProfile = resolveProfileForProject({ projectId: context.projectId, projectPath: context.projectPath });
+      if (projectProfile.strict && projectProfile.profile.id !== newProfileId) {
+        console.warn('[AgentManager] Not switching task', taskId, 'to another account: project is pinned to', projectProfile.profile.name);
+        return false;
+      }
+    }
+
     // Prevent infinite swap loops
     if (context.swapCount >= 2) {
       console.error('[AgentManager] Max swap count reached for task:', taskId, '- stopping restart loop');
@@ -795,7 +918,8 @@ export class AgentManager extends EventEmitter {
     console.log('[AgentManager] Incremented swap count to:', context.swapCount);
 
     // If a new profile was specified, ensure it's set as active before restart
-    if (newProfileId) {
+    // (a pinned project runs on its own profile regardless of the active one)
+    if (newProfileId && !resolveProfileForProject({ projectId: context.projectId, projectPath: context.projectPath }).pinned) {
       const profileManager = getClaudeProfileManager();
       const currentActiveId = profileManager.getActiveProfile()?.id;
       if (currentActiveId !== newProfileId) {
@@ -967,7 +1091,7 @@ export class AgentManager extends EventEmitter {
         }
 
         if (shorthand) {
-          // First resolve to a full model ID (handles Anthropic shorthands like 'opus' → 'claude-opus-4-7')
+          // First resolve to a full model ID (handles Anthropic shorthands like 'opus' → 'claude-opus-5-5')
           const baseModelId = resolveModelId(shorthand);
 
           // If the target provider is non-Anthropic, translate the model ID to the

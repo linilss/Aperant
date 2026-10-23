@@ -4,6 +4,7 @@ import type {
   InsightsSessionSummary,
   InsightsChatMessage,
   InsightsModelConfig,
+  InsightsStreamStatus,
   ImageAttachment
 } from '../shared/types';
 import { MAX_IMAGES_PER_TASK } from '../shared/constants';
@@ -12,6 +13,7 @@ import { InsightsPaths } from './insights/paths';
 import { SessionStorage } from './insights/session-storage';
 import { SessionManager } from './insights/session-manager';
 import { InsightsExecutor } from './insights/insights-executor';
+import { InsightsStreamTracker } from './insights/stream-tracker';
 
 /**
  * Service for AI-powered codebase insights chat
@@ -29,6 +31,8 @@ export class InsightsService extends EventEmitter {
   private storage: SessionStorage;
   private sessionManager: SessionManager;
   private executor: InsightsExecutor;
+  /** Replies still streaming, per project, so the UI can restore them */
+  private streams = new InsightsStreamTracker();
 
   constructor() {
     super();
@@ -40,15 +44,17 @@ export class InsightsService extends EventEmitter {
     this.sessionManager = new SessionManager(this.storage, this.paths);
     this.executor = new InsightsExecutor(this.config);
 
-    // Forward executor events
+    // Forward executor events, tagged with the session the reply belongs to
     this.executor.on('status', (projectId, status) => {
-      this.emit('status', projectId, status);
+      this.streams.setStatus(projectId, status);
+      this.emit('status', projectId, status, this.streams.getSessionId(projectId));
     });
     this.executor.on('stream-chunk', (projectId, chunk) => {
-      this.emit('stream-chunk', projectId, chunk);
+      this.streams.applyChunk(projectId, chunk);
+      this.emit('stream-chunk', projectId, chunk, this.streams.getSessionId(projectId));
     });
     this.executor.on('error', (projectId, error) => {
-      this.emit('error', projectId, error);
+      this.emit('error', projectId, error, this.streams.getSessionId(projectId));
     });
     this.executor.on('sdk-rate-limit', (info) => {
       this.emit('sdk-rate-limit', info);
@@ -60,6 +66,13 @@ export class InsightsService extends EventEmitter {
    */
   configure(pythonPath?: string, autoBuildSourcePath?: string): void {
     this.config.configure(pythonPath, autoBuildSourcePath);
+  }
+
+  /**
+   * The project's reply that is still being generated, or null when none is
+   */
+  getStreamStatus(projectId: string): InsightsStreamStatus | null {
+    return this.streams.get(projectId);
   }
 
   /**
@@ -184,6 +197,10 @@ export class InsightsService extends EventEmitter {
     session.updatedAt = new Date();
     this.sessionManager.saveSession(projectPath, session);
 
+    // Track the reply for this session until it is saved
+    const streamToken = {};
+    this.streams.start(projectId, session.id, streamToken);
+
     // Build conversation history for context
     // Add notation when images are present so the AI has context
     // For historical messages (all but the last), use past tense to avoid confusion
@@ -229,10 +246,13 @@ export class InsightsService extends EventEmitter {
       session.messages.push(assistantMessage);
       session.updatedAt = new Date();
       this.sessionManager.saveSession(projectPath, session);
+      // Saved: a reload from now on gets the reply from the session itself
+      this.streams.finish(projectId, streamToken);
 
       // Emit session-updated event for real-time UI updates
       this.emit('session-updated', projectId, session);
     } catch (error) {
+      this.streams.finish(projectId, streamToken);
       // Error already emitted by executor
       console.error('[InsightsService] Error executing insights:', error);
     }

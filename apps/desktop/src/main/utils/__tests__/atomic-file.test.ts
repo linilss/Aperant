@@ -241,6 +241,13 @@ describe('readFileWithRetry', () => {
   });
 
   describe('basic operations', () => {
+    it('keeps the Node error code so callers can detect a missing file', async () => {
+      await expect(readFileWithRetry(path.join(TEST_DIR, 'missing.json'))).rejects.toMatchObject({
+        name: 'AtomicFileError',
+        code: 'ENOENT',
+      });
+    });
+
     it('should read file successfully', async () => {
       const filePath = path.join(TEST_DIR, 'read.txt');
       const content = 'Read me!';

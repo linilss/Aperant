@@ -1,5 +1,9 @@
-import { Zap, Palette, BookOpen, Shield, Gauge } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
+import { PAGE_BODY, PAGE_STICKY } from '../ui/page-header';
+import { cn } from '../../lib/utils';
+import { TypeIcon } from './TypeIcon';
+import { ALL_IDEATION_TYPES } from './constants';
 
 interface IdeationFiltersProps {
   activeTab: string;
@@ -7,32 +11,34 @@ interface IdeationFiltersProps {
   children: React.ReactNode;
 }
 
+/**
+ * Type tabs + content. Desktop: tabs wrap above a scrolling body. Phone: the tab row is a
+ * single sideways-scrolling line pinned to the top while the page scrolls.
+ */
 export function IdeationFilters({ activeTab, onTabChange, children }: IdeationFiltersProps) {
+  const { t } = useTranslation('common');
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="h-full flex flex-col">
-      <TabsList className="shrink-0 mx-4 mt-4 flex-wrap h-auto gap-1">
-        <TabsTrigger value="all">All</TabsTrigger>
-        <TabsTrigger value="code_improvements">
-          <Zap className="h-3 w-3 mr-1" />
-          Code
-        </TabsTrigger>
-        <TabsTrigger value="ui_ux_improvements">
-          <Palette className="h-3 w-3 mr-1" />
-          UI/UX
-        </TabsTrigger>
-        <TabsTrigger value="documentation_gaps">
-          <BookOpen className="h-3 w-3 mr-1" />
-          Docs
-        </TabsTrigger>
-        <TabsTrigger value="security_hardening">
-          <Shield className="h-3 w-3 mr-1" />
-          Security
-        </TabsTrigger>
-        <TabsTrigger value="performance_optimizations">
-          <Gauge className="h-3 w-3 mr-1" />
-          Performance
-        </TabsTrigger>
-      </TabsList>
+    <Tabs value={activeTab} onValueChange={onTabChange} className={cn('flex flex-col', PAGE_BODY)}>
+      <div className={cn('shrink-0 px-4 pt-4 max-md:px-3 max-md:py-2', PAGE_STICKY)}>
+        <TabsList
+          className={cn(
+            'h-auto w-full flex-wrap gap-1',
+            'max-md:flex-nowrap max-md:justify-start max-md:overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden'
+          )}
+        >
+          <TabsTrigger value="all" className="shrink-0 max-md:h-9">
+            {t('ideation.tabs.all')}
+          </TabsTrigger>
+          {ALL_IDEATION_TYPES.map((type) => (
+            <TabsTrigger key={type} value={type} className="shrink-0 max-md:h-9 [&_svg]:h-3 [&_svg]:w-3">
+              <span className="mr-1 inline-flex">
+                <TypeIcon type={type} />
+              </span>
+              {t(`ideation.tabs.${type}`)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
       {children}
     </Tabs>
   );

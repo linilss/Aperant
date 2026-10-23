@@ -11,6 +11,7 @@ import type { TaskMetadata, ImageAttachment } from './task';
 // Note: high_value_features removed - strategic features belong to Roadmap
 // low_hanging_fruit renamed to code_improvements to cover all code-revealed opportunities
 export type IdeationType =
+  | 'features'
   | 'code_improvements'
   | 'ui_ux_improvements'
   | 'documentation_gaps'
@@ -28,6 +29,8 @@ export interface IdeationConfig {
   append?: boolean; // If true, append to existing ideas instead of replacing
   model?: string;          // Model shorthand (opus, sonnet, haiku)
   thinkingLevel?: string;  // Thinking level (low, medium, high)
+  /** Optional free-text steer for the idea search (capped, see MAX_IDEATION_FOCUS_LENGTH) */
+  focus?: string;
 }
 
 export interface IdeaBase {
@@ -38,6 +41,30 @@ export interface IdeaBase {
   status: IdeationStatus;
   createdAt: Date;
   taskId?: string; // ID of the created task when status is 'converted'
+  /**
+   * Strategic direction ids (strategy.json) this idea advances.
+   * undefined = generated before direction tagging existed; [] = tagged, serves none.
+   */
+  directionIds?: string[];
+  /** Roadmap feature created from this idea ("Add to roadmap") */
+  roadmapFeatureId?: string;
+  /** Agent's 1–10 quality score (absent on older ideas) */
+  score?: number;
+  /** Why this matters now */
+  whyNow?: string;
+  /** Screen, file, doc or competitor the idea builds on */
+  evidence?: string;
+  /** Smallest shippable first version */
+  firstStep?: string;
+}
+
+/** New product capability for users (not a code chore) */
+export interface FeatureIdea extends IdeaBase {
+  type: 'features';
+  userValue: string;  // What the user gets out of it
+  targetUsers: string;  // Who it is for
+  complexity: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
 }
 
 export interface CodeImprovementIdea extends IdeaBase {
@@ -115,6 +142,7 @@ export interface CodeQualityIdea extends IdeaBase {
 }
 
 export type Idea =
+  | FeatureIdea
   | CodeImprovementIdea
   | UIUXImprovementIdea
   | DocumentationGapIdea
@@ -143,6 +171,29 @@ export interface IdeationGenerationStatus {
   progress: number;
   message: string;
   error?: string;
+}
+
+/** Per-type state of a running ideation generation, as tracked by main */
+export type IdeationRunTypeState = 'queued' | 'running' | 'done' | 'failed';
+
+/**
+ * Snapshot of an ideation run that is still in progress in main.
+ * Lets the renderer restore the progress UI after switching projects.
+ */
+export interface IdeationRunStatus {
+  isRunning: boolean;
+  /** ISO timestamp */
+  startedAt: string;
+  /** Run adds types to the existing session instead of replacing it */
+  append: boolean;
+  enabledTypes: IdeationType[];
+  /** Latest progress emitted for the run */
+  status: IdeationGenerationStatus;
+  typeStates: Partial<Record<IdeationType, IdeationRunTypeState>>;
+  /** Number of ideas produced by each finished type */
+  typeCounts: Partial<Record<IdeationType, number>>;
+  /** Ideas of the types that finished in this run (not yet in ideation.json) */
+  ideasByType: Partial<Record<IdeationType, Idea[]>>;
 }
 
 export interface IdeationSummary {
@@ -234,4 +285,22 @@ export interface InsightsStreamChunk {
     input?: string;  // Brief description of what's being searched/read
   };
   error?: string;
+}
+
+/**
+ * Assistant reply still being generated in main for a project's insights session.
+ * Lets the renderer restore the partial reply after switching projects or sessions.
+ */
+export interface InsightsStreamStatus {
+  projectId: string;
+  /** Session the reply will be saved into */
+  sessionId: string;
+  /** ISO timestamp */
+  startedAt: string;
+  status: InsightsChatStatus;
+  /** Reply text so far */
+  content: string;
+  currentTool: { name: string; input?: string } | null;
+  toolsUsed: InsightsToolUsage[];
+  suggestedTasks: NonNullable<InsightsStreamChunk['suggestedTasks']>;
 }

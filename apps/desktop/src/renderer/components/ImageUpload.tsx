@@ -362,7 +362,7 @@ export function ImageUpload({
                   variant="destructive"
                   size="icon"
                   className={cn(
-                    'absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity',
+                    'absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity',
                     'rounded-full'
                   )}
                   onClick={(e) => {

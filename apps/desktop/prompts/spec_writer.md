@@ -38,6 +38,8 @@ Prior phase outputs (project index, requirements.json, context.json) have been p
 
 **IMPORTANT**: Do NOT re-read these files from disk — they are already in your kickoff message. Only read additional project files if you need specific code patterns or details not covered in the provided context.
 
+**Project memory:** if your system prompt has a `## PROJECT MEMORY` section, it lists notes learned from earlier tasks in this project (gotchas, patterns, decisions). Use them as leads, check them against the current code before relying on them, and treat `[unverified]` items with extra care.
+
 If any prior phase output is missing or shows 0 files, this is likely a **greenfield/new project**. Adapt accordingly:
 - Skip sections that reference existing code (e.g., "Files to Modify", "Patterns to Follow")
 - Instead, focus on files to CREATE and the initial project structure

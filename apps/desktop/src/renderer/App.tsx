@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, RefreshCw, AlertCircle } from 'lucide-react';
 import { debugLog } from '../shared/utils/debug-logger';
@@ -27,24 +27,18 @@ import {
   DialogHeader,
   DialogTitle
 } from './components/ui/dialog';
-import { Sidebar, type SidebarView } from './components/Sidebar';
+import { Sidebar, BUILD_VIEWS, getNavItemLabelKey, type SidebarView } from './components/Sidebar';
+import { MobileDrawer, MobileDrawerStatus, MobileTopBar } from './components/MobileNav';
+import { useIsCompact, useIsMobile } from './hooks/useIsMobile';
 import { KanbanBoard } from './components/KanbanBoard';
+import { usePlanStageColumns } from './components/board/PlanStageColumns';
 import { TaskDetailModal } from './components/task-detail/TaskDetailModal';
+import { TaskDeployDialog } from './components/deploy/TaskDeployDialog';
 import { TaskCreationWizard } from './components/TaskCreationWizard';
 import { AppSettingsDialog, type AppSection } from './components/settings/AppSettings';
 import type { ProjectSettingsSection } from './components/settings/ProjectSettingsContent';
 import { TerminalGrid } from './components/TerminalGrid';
-import { Roadmap } from './components/Roadmap';
-import { Context } from './components/Context';
-import { Ideation } from './components/Ideation';
-import { Insights } from './components/Insights';
 import { ErrorBoundary } from './components/ui/error-boundary';
-import { Changelog } from './components/Changelog';
-import { Worktrees } from './components/Worktrees';
-import { AgentTools } from './components/AgentTools';
-import { ClaudeAgentsView } from './components/ClaudeAgentsView';
-import { ClaudeSkillsView } from './components/ClaudeSkillsView';
-import { Tests } from './components/tests/Tests';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { RateLimitModal } from './components/RateLimitModal';
 import { SDKRateLimitModal } from './components/SDKRateLimitModal';
@@ -55,6 +49,7 @@ import { AppUpdateNotification } from './components/AppUpdateNotification';
 import { ProactiveSwapListener } from './components/ProactiveSwapListener';
 import { useProjectStore, loadProjects, addProject, initializeProject, removeProject } from './stores/project-store';
 import { useTaskStore, loadTasks } from './stores/task-store';
+import { useFunnelProgressSync } from './stores/funnel-store';
 import { useSettingsStore, loadSettings, loadProfiles, saveSettings } from './stores/settings-store';
 import { useClaudeProfileStore, loadClaudeProfiles } from './stores/claude-profile-store';
 import { useTerminalStore, restoreTerminalSessions } from './stores/terminal-store';
@@ -69,33 +64,72 @@ import { ProjectTabBar } from './components/ProjectTabBar';
 import { AddProjectModal } from './components/AddProjectModal';
 import { ViewStateProvider } from './contexts/ViewStateContext';
 
+// Non-initial views are code-split so the first paint (kanban) loads less JS
+const Roadmap = lazy(() => import('./components/Roadmap').then((m) => ({ default: m.Roadmap })));
+const CompetitorAnalysis = lazy(() =>
+  import('./components/competitors/CompetitorAnalysis').then((m) => ({ default: m.CompetitorAnalysis }))
+);
+const Context = lazy(() => import('./components/Context').then((m) => ({ default: m.Context })));
+const CoreValuesView = lazy(() =>
+  import('./components/funnel/CoreValuesView').then((m) => ({ default: m.CoreValuesView }))
+);
+const DesignSystemView = lazy(() =>
+  import('./components/funnel/DesignSystemView').then((m) => ({ default: m.DesignSystemView }))
+);
+const Ideation = lazy(() => import('./components/Ideation').then((m) => ({ default: m.Ideation })));
+const Insights = lazy(() => import('./components/Insights').then((m) => ({ default: m.Insights })));
+const Changelog = lazy(() => import('./components/Changelog').then((m) => ({ default: m.Changelog })));
+const Worktrees = lazy(() => import('./components/Worktrees').then((m) => ({ default: m.Worktrees })));
+const AgentTools = lazy(() => import('./components/AgentTools').then((m) => ({ default: m.AgentTools })));
+const ClaudeAgentsView = lazy(() => import('./components/ClaudeAgentsView').then((m) => ({ default: m.ClaudeAgentsView })));
+const ClaudeSkillsView = lazy(() => import('./components/ClaudeSkillsView').then((m) => ({ default: m.ClaudeSkillsView })));
+const Tests = lazy(() => import('./components/tests/Tests').then((m) => ({ default: m.Tests })));
+const Deploy = lazy(() => import('./components/deploy/Deploy').then((m) => ({ default: m.Deploy })));
+
+function ViewFallback() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
 // Version constant for version-specific warnings (e.g., reauthentication notices)
 const VERSION_WARNING_275 = '2.7.5';
 
 // Wrapper component for ProjectTabBar
 interface ProjectTabBarWithContextProps {
   projects: Project[];
+  closedProjects: Project[];
   activeProjectId: string | null;
   onProjectSelect: (projectId: string) => void;
   onProjectClose: (projectId: string) => void;
+  onProjectOpen: (projectId: string) => void;
+  onProjectRemove: (projectId: string) => void;
   onAddProject: () => void;
   onSettingsClick: () => void;
 }
 
 function ProjectTabBarWithContext({
   projects,
+  closedProjects,
   activeProjectId,
   onProjectSelect,
   onProjectClose,
+  onProjectOpen,
+  onProjectRemove,
   onAddProject,
   onSettingsClick
 }: ProjectTabBarWithContextProps) {
   return (
     <ProjectTabBar
       projects={projects}
+      closedProjects={closedProjects}
       activeProjectId={activeProjectId}
       onProjectSelect={onProjectSelect}
       onProjectClose={onProjectClose}
+      onProjectOpen={onProjectOpen}
+      onProjectRemove={onProjectRemove}
       onAddProject={onAddProject}
       onSettingsClick={onSettingsClick}
     />
@@ -120,6 +154,7 @@ export function App() {
   const getProjectTabs = useProjectStore((state) => state.getProjectTabs);
   const openProjectIds = useProjectStore((state) => state.openProjectIds);
   const openProjectTab = useProjectStore((state) => state.openProjectTab);
+  const closeProjectTab = useProjectStore((state) => state.closeProjectTab);
   const setActiveProject = useProjectStore((state) => state.setActiveProject);
   const reorderTabs = useProjectStore((state) => state.reorderTabs);
   const tasks = useTaskStore((state) => state.tasks);
@@ -139,6 +174,21 @@ export function App() {
   const [settingsInitialSection, setSettingsInitialSection] = useState<AppSection | undefined>(undefined);
   const [settingsInitialProjectSection, setSettingsInitialProjectSection] = useState<ProjectSettingsSection | undefined>(undefined);
   const [activeView, setActiveView] = useState<SidebarView>('kanban');
+  // MoSCoW is a Roadmap tab; links like "View in MoSCoW" open Roadmap on that tab
+  const [roadmapTabRequest, setRoadmapTabRequest] = useState<{ tab?: string; id: number }>({ id: 0 });
+  const openRoadmapMoscow = useCallback(() => {
+    setRoadmapTabRequest((prev) => ({ tab: 'moscow', id: prev.id + 1 }));
+    setActiveView('roadmap');
+  }, []);
+  // Phone layout (LAN web UI): sidebar becomes a drawer behind a top bar
+  const isMobile = useIsMobile();
+  // Narrow desktop windows (800–1023px) get the icon-rail sidebar
+  const isCompact = useIsCompact();
+  const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
+  const handleViewChange = useCallback((view: SidebarView) => {
+    setActiveView(view);
+    setIsNavDrawerOpen(false);
+  }, []);
   const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
   const [isVersionWarningModalOpen, setIsVersionWarningModalOpen] = useState(false);
   const [isRefreshingTasks, setIsRefreshingTasks] = useState(false);
@@ -172,6 +222,13 @@ export function App() {
 
   // Get tabs and selected project
   const projectTabs = getProjectTabs();
+  // Projects that are still known to the app but have no open tab — reopenable from the tab bar
+  const closedProjects = projects.filter((p) => !openProjectIds.includes(p.id));
+  // Plan-funnel progress for every open tab (tab bars, sidebar checks, mobile drawer)
+  useFunnelProgressSync(
+    projectTabs.map((p) => p.id),
+    activeProjectId || selectedProjectId
+  );
   const selectedProject = projects.find((p) => p.id === (activeProjectId || selectedProjectId));
 
   // Initial load
@@ -371,7 +428,8 @@ export function App() {
       }
 
       // Cmd/Ctrl+T: Add new project (only when not on terminals view)
-      if ((e.ctrlKey || e.metaKey) && e.key === 't' && activeView !== 'terminals') {
+      // Not in the remote web UI: the native directory picker isn't available there
+      if ((e.ctrlKey || e.metaKey) && e.key === 't' && activeView !== 'terminals' && !window.isRemote) {
         e.preventDefault();
         try {
           const path = await window.electronAPI.selectDirectory();
@@ -420,7 +478,9 @@ export function App() {
   // Reload tasks when auto-refine completes in the background
   useEffect(() => {
     const unsub = window.electronAPI.onTaskRefineApplied((_taskId, projectId) => {
-      loadTasks(projectId, { forceRefresh: true });
+      // Only the project on screen: the store holds one project's tasks
+      const { activeProjectId: active, selectedProjectId: selected } = useProjectStore.getState();
+      if (projectId === (active || selected)) loadTasks(projectId, { forceRefresh: true });
     });
     return unsub;
   }, []);
@@ -611,6 +671,29 @@ export function App() {
     }
   };
 
+  const handleRunInTerminal = (command: string, title: string): boolean => {
+    const projectPath = selectedProject?.path;
+    if (!projectPath) return false;
+
+    const store = useTerminalStore.getState();
+    const terminal = store.addTerminal(projectPath, projectPath);
+    if (!terminal) return false;
+    store.updateTerminal(terminal.id, { title });
+    setActiveView('terminals');
+
+    // The PTY is created once the terminal mounts; send the command when it is running
+    const unsubscribe = useTerminalStore.subscribe((state) => {
+      const current = state.terminals.find((t) => t.id === terminal.id);
+      if (!current) {
+        unsubscribe();
+      } else if (current.status === 'running') {
+        unsubscribe();
+        setTimeout(() => window.electronAPI.sendTerminalInput(terminal.id, `${command}\r`), 300);
+      }
+    });
+    return true;
+  };
+
   const handleAddProject = () => {
     setShowAddProjectModal(true);
   };
@@ -630,7 +713,13 @@ export function App() {
   };
 
   const handleProjectTabClose = (projectId: string) => {
-    // Show confirmation dialog before removing the project
+    // Only closes the tab — the project stays in the app and can be reopened
+    // from the "+" menu in the tab bar or from the welcome screen
+    closeProjectTab(projectId);
+  };
+
+  const handleProjectTabRemove = (projectId: string) => {
+    // Show confirmation dialog before removing the project from the app entirely
     const project = projects.find(p => p.id === projectId);
     if (project) {
       setProjectToRemove(project);
@@ -698,7 +787,11 @@ export function App() {
     setInitSuccess(false);
     setInitError(null); // Clear any previous errors
     try {
-      const result = await initializeProject(projectId);
+      // Init finishes in milliseconds; hold the spinner briefly so the click visibly registers
+      const [result] = await Promise.all([
+        initializeProject(projectId),
+        new Promise((resolve) => setTimeout(resolve, 600))
+      ]);
       console.warn('[InitDialog] Initialization result:', result);
 
       if (result?.success) {
@@ -747,23 +840,67 @@ export function App() {
     }
   };
 
+  // Overview projects have no build views: land on the Backlog instead
+  const overviewOnly = selectedProject?.settings?.overviewOnly === true;
+  useEffect(() => {
+    if (overviewOnly && BUILD_VIEWS.includes(activeView)) setActiveView('roadmap');
+  }, [overviewOnly, activeView]);
+
+  // One board: ideas and roadmap stages before the task columns
+  const boardProjectId = activeProjectId || selectedProjectId || undefined;
+  const planStages = usePlanStageColumns(boardProjectId, { onGoToTask: handleGoToTask });
+
   return (
     <ViewStateProvider>
       <TooltipProvider>
         <ProactiveSwapListener />
-      <div className="flex h-screen bg-background">
-        {/* Sidebar */}
-        <Sidebar
-          onSettingsClick={() => setIsSettingsDialogOpen(true)}
-          onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
-          activeView={activeView}
-          onViewChange={setActiveView}
-        />
+      <div className="flex h-screen bg-background max-md:h-dvh max-md:flex-col max-md:overflow-x-hidden">
+        {isMobile ? (
+          <>
+            <MobileTopBar
+              viewTitle={t(getNavItemLabelKey(activeView) ?? 'navigation:items.kanban')}
+              onMenuClick={() => setIsNavDrawerOpen(true)}
+              projects={{
+                projects: projectTabs,
+                closedProjects,
+                activeProjectId,
+                onProjectSelect: handleProjectTabSelect,
+                onProjectOpen: openProjectTab,
+                onAddProject: handleAddProject
+              }}
+            />
+            <MobileDrawer open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
+              <MobileDrawerStatus />
+              <Sidebar
+                className="h-auto min-h-0 w-full flex-1 border-r-0"
+                onSettingsClick={() => {
+                  setIsNavDrawerOpen(false);
+                  setIsSettingsDialogOpen(true);
+                }}
+                onNewTaskClick={() => {
+                  setIsNavDrawerOpen(false);
+                  setIsNewTaskDialogOpen(true);
+                }}
+                activeView={activeView}
+                onViewChange={handleViewChange}
+              />
+            </MobileDrawer>
+          </>
+        ) : (
+          /* Sidebar */
+          <Sidebar
+            variant={isCompact ? 'rail' : 'full'}
+            onSettingsClick={() => setIsSettingsDialogOpen(true)}
+            onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
+            activeView={activeView}
+            onViewChange={handleViewChange}
+          />
+        )}
 
         {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Project Tabs */}
-          {projectTabs.length > 0 && (
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden max-md:min-h-0">
+          {/* Project Tabs (on mobile, project switching lives in the nav drawer) */}
+          {!isMobile && projectTabs.length > 0 && (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -773,9 +910,12 @@ export function App() {
               <SortableContext items={projectTabs.map(p => p.id)} strategy={horizontalListSortingStrategy}>
                 <ProjectTabBarWithContext
                   projects={projectTabs}
+                  closedProjects={closedProjects}
                   activeProjectId={activeProjectId}
                   onProjectSelect={handleProjectTabSelect}
                   onProjectClose={handleProjectTabClose}
+                  onProjectOpen={openProjectTab}
+                  onProjectRemove={handleProjectTabRemove}
                   onAddProject={handleAddProject}
                   onSettingsClick={() => setIsSettingsDialogOpen(true)}
                 />
@@ -796,18 +936,25 @@ export function App() {
           )}
 
           {/* Main content area */}
-          <main className="flex-1 overflow-hidden">
+          <main className="min-w-0 flex-1 overflow-hidden">
             {selectedProject ? (
               <>
                 {activeView === 'kanban' && (
                   <KanbanBoard
                     tasks={tasks}
+                    projectId={boardProjectId}
+                    leadingColumns={planStages.columns}
+                    todoExtras={planStages.todo}
+                    trailingColumns={planStages.trailing}
+                    onForeignDrop={planStages.onDrop}
+                    renderForeignOverlay={planStages.renderOverlay}
                     onTaskClick={handleTaskClick}
                     onNewTaskClick={() => setIsNewTaskDialogOpen(true)}
                     onRefresh={handleRefreshTasks}
                     isRefreshing={isRefreshingTasks}
                   />
                 )}
+                {activeView === 'kanban' && planStages.dialog}
                 {/* TerminalGrid is always mounted but hidden when not active to preserve terminal state */}
                 <div className={activeView === 'terminals' ? 'h-full' : 'hidden'}>
                   <TerminalGrid
@@ -816,8 +963,38 @@ export function App() {
                     isActive={activeView === 'terminals'}
                   />
                 </div>
+                <Suspense fallback={<ViewFallback />}>
+                {activeView === 'competitors' && (activeProjectId || selectedProjectId) && (
+                  <CompetitorAnalysis
+                    projectId={activeProjectId || selectedProjectId || ''}
+                    onGoToRoadmap={() => setActiveView('roadmap')}
+                    onGoToIdeation={() => setActiveView('ideation')}
+                    onEditCoreValues={() => setActiveView('core-values')}
+                  />
+                )}
                 {activeView === 'roadmap' && (activeProjectId || selectedProjectId) && (
-                  <Roadmap projectId={activeProjectId || selectedProjectId!} onGoToTask={handleGoToTask} />
+                  <Roadmap
+                    projectId={activeProjectId || selectedProjectId!}
+                    onGoToTask={handleGoToTask}
+                    onGoToCompetitors={() => setActiveView('competitors')}
+                    initialTab={roadmapTabRequest.tab}
+                    tabRequestId={roadmapTabRequest.id}
+                    onOpenIdeaSettings={() => setActiveView('ideation')}
+                  />
+                )}
+                {activeView === 'core-values' && (activeProjectId || selectedProjectId) && (
+                  <CoreValuesView
+                    projectId={activeProjectId || selectedProjectId || ''}
+                    onGoToContext={() => setActiveView('context')}
+                  />
+                )}
+                {activeView === 'design' && (activeProjectId || selectedProjectId) && (
+                  <ErrorBoundary>
+                    <DesignSystemView
+                      projectId={activeProjectId || selectedProjectId || ''}
+                      onGoToCompetitors={() => setActiveView('competitors')}
+                    />
+                  </ErrorBoundary>
                 )}
                 {activeView === 'context' && (activeProjectId || selectedProjectId) && (
                   <ErrorBoundary>
@@ -825,7 +1002,12 @@ export function App() {
                   </ErrorBoundary>
                 )}
                 {activeView === 'ideation' && (activeProjectId || selectedProjectId) && (
-                  <Ideation projectId={activeProjectId || selectedProjectId!} onGoToTask={handleGoToTask} />
+                  <Ideation
+                    projectId={activeProjectId || selectedProjectId!}
+                    onGoToTask={handleGoToTask}
+                    onGoToCompetitors={() => setActiveView('competitors')}
+                    onGoToMoscow={openRoadmapMoscow}
+                  />
                 )}
                 {activeView === 'insights' && (activeProjectId || selectedProjectId) && (
                   <Insights projectId={activeProjectId || selectedProjectId!} />
@@ -842,6 +1024,10 @@ export function App() {
                 {activeView === 'tests' && (activeProjectId || selectedProjectId) && (
                   <Tests projectId={activeProjectId || selectedProjectId!} />
                 )}
+                {activeView === 'deploy' && (activeProjectId || selectedProjectId) && (
+                  <Deploy projectId={activeProjectId || selectedProjectId!} onRunInTerminal={handleRunInTerminal} />
+                )}
+                </Suspense>
               </>
             ) : (
               <WelcomeScreen
@@ -863,6 +1049,19 @@ export function App() {
           onOpenChange={(open) => !open && handleCloseTaskDetail()}
           onSwitchToTerminals={() => setActiveView('terminals')}
           onOpenInbuiltTerminal={handleOpenInbuiltTerminal}
+        />
+
+        {/* Deploy a merged task (opened from task cards / task detail) */}
+        <TaskDeployDialog
+          onRunInTerminal={(command, title) => {
+            const started = handleRunInTerminal(command, title);
+            if (started) handleCloseTaskDetail();
+            return started;
+          }}
+          onOpenDeployView={() => {
+            handleCloseTaskDetail();
+            setActiveView('deploy');
+          }}
         />
 
         {/* Dialogs */}

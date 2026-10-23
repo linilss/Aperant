@@ -263,6 +263,7 @@ export async function generateCommitMessage(
       systemPrompt: SYSTEM_PROMPT,
       modelShorthand,
       thinkingLevel,
+      projectPath: projectDir,
     });
 
     const result = await generateText({

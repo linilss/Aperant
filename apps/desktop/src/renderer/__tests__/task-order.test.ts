@@ -40,7 +40,19 @@ function createTestTaskOrder(overrides: Partial<TaskOrderState> = {}): TaskOrder
 }
 
 describe('Task Order State Management', () => {
+  // Some tests replace localStorage methods; capture the originals so each
+  // test starts from a working localStorage even if a previous one failed
+  // before restoring them.
+  const originalStorage = {
+    getItem: localStorage.getItem,
+    setItem: localStorage.setItem,
+    removeItem: localStorage.removeItem
+  };
+
   beforeEach(() => {
+    localStorage.getItem = originalStorage.getItem;
+    localStorage.setItem = originalStorage.setItem;
+    localStorage.removeItem = originalStorage.removeItem;
     // Reset store to initial state before each test
     useTaskStore.setState({
       tasks: [],
@@ -54,7 +66,10 @@ describe('Task Order State Management', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    localStorage.getItem = originalStorage.getItem;
+    localStorage.setItem = originalStorage.setItem;
+    localStorage.removeItem = originalStorage.removeItem;
     localStorage.clear();
   });
 
@@ -246,16 +261,7 @@ describe('Task Order State Management', () => {
     it('should create empty task order if no stored order exists', () => {
       useTaskStore.getState().loadTaskOrder('project-1');
 
-      expect(useTaskStore.getState().taskOrder).toEqual({
-        backlog: [],
-        queue: [],
-        in_progress: [],
-        ai_review: [],
-        human_review: [],
-        done: [],
-        pr_created: [],
-        error: []
-      });
+      expect(useTaskStore.getState().taskOrder).toEqual(createTestTaskOrder());
     });
 
     it('should use project-specific localStorage keys', () => {
@@ -277,16 +283,7 @@ describe('Task Order State Management', () => {
       useTaskStore.getState().loadTaskOrder('project-1');
 
       // Should fall back to empty order state
-      expect(useTaskStore.getState().taskOrder).toEqual({
-        backlog: [],
-        queue: [],
-        in_progress: [],
-        ai_review: [],
-        human_review: [],
-        done: [],
-        pr_created: [],
-        error: []
-      });
+      expect(useTaskStore.getState().taskOrder).toEqual(createTestTaskOrder());
     });
 
     it('should handle localStorage access errors', () => {
@@ -299,16 +296,7 @@ describe('Task Order State Management', () => {
       useTaskStore.getState().loadTaskOrder('project-1');
 
       // Should fall back to empty order state
-      expect(useTaskStore.getState().taskOrder).toEqual({
-        backlog: [],
-        queue: [],
-        in_progress: [],
-        ai_review: [],
-        human_review: [],
-        done: [],
-        pr_created: [],
-        error: []
-      });
+      expect(useTaskStore.getState().taskOrder).toEqual(createTestTaskOrder());
 
       localStorage.getItem = originalGetItem;
     });
@@ -588,16 +576,7 @@ describe('Task Order State Management', () => {
       useTaskStore.getState().loadTaskOrder('project-1');
 
       // Empty string causes JSON.parse to throw - should fall back to empty order
-      expect(useTaskStore.getState().taskOrder).toEqual({
-        backlog: [],
-        queue: [],
-        in_progress: [],
-        ai_review: [],
-        human_review: [],
-        done: [],
-        pr_created: [],
-        error: []
-      });
+      expect(useTaskStore.getState().taskOrder).toEqual(createTestTaskOrder());
 
       consoleSpy.mockRestore();
     });

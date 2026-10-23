@@ -73,6 +73,11 @@ export interface RegisteredOperation {
   /** Optional metadata (project ID, PR number, etc.) */
   metadata?: Record<string, unknown>;
   /**
+   * The operation's project is pinned (strict) to this profile: it must never be
+   * moved to another account, so profile swaps leave it alone.
+   */
+  pinned?: boolean;
+  /**
    * Function to restart this operation with a new profile.
    * Returns true if restart was initiated successfully.
    * The registry will update the profileId after successful restart.
@@ -178,6 +183,7 @@ class ClaudeOperationRegistry extends EventEmitter {
     options?: {
       stopFn?: RegisteredOperation['stopFn'];
       metadata?: Record<string, unknown>;
+      pinned?: boolean;
     }
   ): void {
     const operation: RegisteredOperation = {
@@ -189,6 +195,7 @@ class ClaudeOperationRegistry extends EventEmitter {
       restartFn,
       stopFn: options?.stopFn,
       metadata: options?.metadata,
+      pinned: options?.pinned,
     };
 
     this.operations.set(id, operation);
@@ -331,7 +338,8 @@ class ClaudeOperationRegistry extends EventEmitter {
     newProfileId: string,
     newProfileName: string
   ): Promise<number> {
-    const operations = this.getOperationsByProfile(oldProfileId);
+    // Operations pinned to their profile stay on it (they pause on its limit instead)
+    const operations = this.getOperationsByProfile(oldProfileId).filter((op) => !op.pinned);
 
     if (operations.length === 0) {
       this.debugLog('No operations to restart on profile:', oldProfileId);

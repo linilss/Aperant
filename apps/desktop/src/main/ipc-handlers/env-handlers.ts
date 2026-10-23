@@ -7,6 +7,8 @@ import { app } from 'electron';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { projectStore } from '../project-store';
 import { parseEnvFile } from './utils';
+import { readSettingsFile } from '../settings-utils';
+import { PROJECT_MEMORY_ENV_KEY, resolveMemoryEnabled } from '../ai/memory/memory-enabled';
 
 /**
  * Register all env-related IPC handlers
@@ -39,49 +41,14 @@ export function registerEnvHandlers(
     if (config.defaultBranch !== undefined) {
       existingVars['DEFAULT_BRANCH'] = config.defaultBranch;
     }
+    // Built-in memory: only store a project override once it differs from the app-wide
+    // setting (or one already exists), so untouched projects keep following the app setting.
     if (config.memoryEnabled !== undefined) {
-      existingVars['GRAPHITI_ENABLED'] = config.memoryEnabled ? 'true' : 'false';
+      const inherited = readSettingsFile()?.memoryEnabled === true;
+      if (existingVars[PROJECT_MEMORY_ENV_KEY] !== undefined || config.memoryEnabled !== inherited) {
+        existingVars[PROJECT_MEMORY_ENV_KEY] = config.memoryEnabled ? 'true' : 'false';
+      }
     }
-    // Memory Provider Configuration (embeddings only - LLM uses Claude SDK)
-    if (config.memoryProviderConfig) {
-      const pc = config.memoryProviderConfig;
-      // Embedding provider only (LLM provider removed - Claude SDK handles RAG)
-      if (pc.embeddingProvider) existingVars['GRAPHITI_EMBEDDER_PROVIDER'] = pc.embeddingProvider;
-      // OpenAI Embeddings
-      if (pc.openaiApiKey) existingVars['OPENAI_API_KEY'] = pc.openaiApiKey;
-      if (pc.openaiEmbeddingModel) existingVars['OPENAI_EMBEDDING_MODEL'] = pc.openaiEmbeddingModel;
-      // Azure OpenAI Embeddings
-      if (pc.azureOpenaiApiKey) existingVars['AZURE_OPENAI_API_KEY'] = pc.azureOpenaiApiKey;
-      if (pc.azureOpenaiBaseUrl) existingVars['AZURE_OPENAI_BASE_URL'] = pc.azureOpenaiBaseUrl;
-      if (pc.azureOpenaiEmbeddingDeployment) existingVars['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'] = pc.azureOpenaiEmbeddingDeployment;
-      // Voyage Embeddings
-      if (pc.voyageApiKey) existingVars['VOYAGE_API_KEY'] = pc.voyageApiKey;
-      if (pc.voyageEmbeddingModel) existingVars['VOYAGE_EMBEDDING_MODEL'] = pc.voyageEmbeddingModel;
-      // Google Embeddings
-      if (pc.googleApiKey) existingVars['GOOGLE_API_KEY'] = pc.googleApiKey;
-      if (pc.googleEmbeddingModel) existingVars['GOOGLE_EMBEDDING_MODEL'] = pc.googleEmbeddingModel;
-      // Ollama Embeddings
-      if (pc.ollamaBaseUrl) existingVars['OLLAMA_BASE_URL'] = pc.ollamaBaseUrl;
-      if (pc.ollamaEmbeddingModel) existingVars['OLLAMA_EMBEDDING_MODEL'] = pc.ollamaEmbeddingModel;
-      if (pc.ollamaEmbeddingDim) existingVars['OLLAMA_EMBEDDING_DIM'] = String(pc.ollamaEmbeddingDim);
-      // LadybugDB (embedded database)
-      if (pc.dbPath) existingVars['GRAPHITI_DB_PATH'] = pc.dbPath;
-      if (pc.database) existingVars['GRAPHITI_DATABASE'] = pc.database;
-    }
-    // Legacy fields (still supported)
-    if (config.openaiApiKey !== undefined) {
-      existingVars['OPENAI_API_KEY'] = config.openaiApiKey;
-    }
-    if (config.memoryDatabase !== undefined) {
-      existingVars['GRAPHITI_DATABASE'] = config.memoryDatabase;
-    }
-    if (config.memoryDbPath !== undefined) {
-      existingVars['GRAPHITI_DB_PATH'] = config.memoryDbPath;
-    }
-    if (config.enableFancyUi !== undefined) {
-      existingVars['ENABLE_FANCY_UI'] = config.enableFancyUi ? 'true' : 'false';
-    }
-
     // MCP Server Configuration
     if (config.mcpServers) {
       if (config.mcpServers.context7Enabled !== undefined) {
@@ -93,7 +60,7 @@ export function registerEnvHandlers(
       if (config.mcpServers.puppeteerEnabled !== undefined) {
         existingVars['PUPPETEER_MCP_ENABLED'] = config.mcpServers.puppeteerEnabled ? 'true' : 'false';
       }
-      // Note: memoryEnabled is already handled via GRAPHITI_ENABLED above
+      // Note: memoryEnabled is handled via the project memory key above
     }
 
     // Per-agent MCP overrides (add/remove MCPs from specific agents)
@@ -126,23 +93,18 @@ export function registerEnvHandlers(
     }
 
     // Generate content with sections
-    const content = `# Auto Claude Framework Environment Variables
-# Managed by Auto Claude UI
+    const content = `# Malvy Environment Variables
+# Managed by the Malvy app
 
 # Model override (OPTIONAL)
-${existingVars['AUTO_BUILD_MODEL'] ? `AUTO_BUILD_MODEL=${existingVars['AUTO_BUILD_MODEL']}` : '# AUTO_BUILD_MODEL=claude-opus-4-7'}
+${existingVars['AUTO_BUILD_MODEL'] ? `AUTO_BUILD_MODEL=${existingVars['AUTO_BUILD_MODEL']}` : '# AUTO_BUILD_MODEL=claude-opus-5-5'}
 
 # =============================================================================
 # GIT/WORKTREE SETTINGS (OPTIONAL)
 # =============================================================================
 # Default base branch for worktree creation
-# If not set, Auto Claude will auto-detect main/master, or fall back to current branch
+# If not set, Malvy will auto-detect main/master, or fall back to current branch
 ${existingVars['DEFAULT_BRANCH'] ? `DEFAULT_BRANCH=${existingVars['DEFAULT_BRANCH']}` : '# DEFAULT_BRANCH=main'}
-
-# =============================================================================
-# UI SETTINGS (OPTIONAL)
-# =============================================================================
-${existingVars['ENABLE_FANCY_UI'] !== undefined ? `ENABLE_FANCY_UI=${existingVars['ENABLE_FANCY_UI']}` : '# ENABLE_FANCY_UI=true'}
 
 # =============================================================================
 # MCP SERVER CONFIGURATION (per-project overrides)
@@ -173,8 +135,10 @@ ${Object.entries(existingVars)
 ${existingVars['CUSTOM_MCP_SERVERS'] ? `CUSTOM_MCP_SERVERS=${existingVars['CUSTOM_MCP_SERVERS']}` : '# CUSTOM_MCP_SERVERS=[]'}
 
 # =============================================================================
-# MEMORY INTEGRATION
-# Embedding providers: OpenAI, Google AI, Azure OpenAI, Ollama, Voyage
+# MEMORY (built-in agent memory)
+# GRAPHITI_ENABLED (legacy key name): true/false overrides the app setting; unset = follow it
+# The embedding keys below are kept as-is but no longer read: the memory service
+# uses the app-wide embedding settings
 # =============================================================================
 ${existingVars['GRAPHITI_ENABLED'] ? `GRAPHITI_ENABLED=${existingVars['GRAPHITI_ENABLED']}` : '# GRAPHITI_ENABLED=true'}
 
@@ -203,9 +167,6 @@ ${existingVars['OLLAMA_BASE_URL'] ? `OLLAMA_BASE_URL=${existingVars['OLLAMA_BASE
 ${existingVars['OLLAMA_EMBEDDING_MODEL'] ? `OLLAMA_EMBEDDING_MODEL=${existingVars['OLLAMA_EMBEDDING_MODEL']}` : '# OLLAMA_EMBEDDING_MODEL=embeddinggemma'}
 ${existingVars['OLLAMA_EMBEDDING_DIM'] ? `OLLAMA_EMBEDDING_DIM=${existingVars['OLLAMA_EMBEDDING_DIM']}` : '# OLLAMA_EMBEDDING_DIM=768'}
 
-# LadybugDB Database (embedded - no Docker required)
-${existingVars['GRAPHITI_DATABASE'] ? `GRAPHITI_DATABASE=${existingVars['GRAPHITI_DATABASE']}` : '# GRAPHITI_DATABASE=auto_claude_memory'}
-${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_DB_PATH']}` : '# GRAPHITI_DB_PATH=~/.malvy/memories'}
 `;
 
     return content;
@@ -238,9 +199,7 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
 
       // Default config
       const config: ProjectEnvConfig = {
-        memoryEnabled: false,
-        enableFancyUi: true,
-        openaiKeyIsGlobal: false
+        memoryEnabled: false
       };
 
       // Parse project-specific .env if it exists
@@ -264,64 +223,13 @@ ${existingVars['GRAPHITI_DB_PATH'] ? `GRAPHITI_DB_PATH=${existingVars['GRAPHITI_
         config.defaultBranch = vars['DEFAULT_BRANCH'];
       }
 
-      if (vars['GRAPHITI_ENABLED']?.toLowerCase() === 'true') {
-        config.memoryEnabled = true;
-      }
-
-      // OpenAI API Key: project-specific takes precedence, then global
-      if (vars['OPENAI_API_KEY']) {
-        config.openaiApiKey = vars['OPENAI_API_KEY'];
-        config.openaiKeyIsGlobal = false;
-      } else if (globalSettings.globalOpenAIApiKey) {
-        config.openaiApiKey = globalSettings.globalOpenAIApiKey;
-        config.openaiKeyIsGlobal = true;
-      }
-
-      if (vars['GRAPHITI_DATABASE']) {
-        config.memoryDatabase = vars['GRAPHITI_DATABASE'];
-      }
-      if (vars['GRAPHITI_DB_PATH']) {
-        config.memoryDbPath = vars['GRAPHITI_DB_PATH'];
-      }
-
-      if (vars['ENABLE_FANCY_UI']?.toLowerCase() === 'false') {
-        config.enableFancyUi = false;
-      }
-
-      // Populate memoryProviderConfig from .env file (embeddings only - no LLM provider)
-      const embeddingProvider = vars['GRAPHITI_EMBEDDER_PROVIDER'];
-      if (embeddingProvider || vars['AZURE_OPENAI_API_KEY'] ||
-          vars['VOYAGE_API_KEY'] || vars['GOOGLE_API_KEY'] || vars['OLLAMA_BASE_URL']) {
-        config.memoryProviderConfig = {
-          embeddingProvider: (embeddingProvider as 'openai' | 'voyage' | 'azure_openai' | 'ollama' | 'google') || 'ollama',
-          // OpenAI Embeddings
-          openaiApiKey: vars['OPENAI_API_KEY'],
-          openaiEmbeddingModel: vars['OPENAI_EMBEDDING_MODEL'],
-          // Azure OpenAI Embeddings
-          azureOpenaiApiKey: vars['AZURE_OPENAI_API_KEY'],
-          azureOpenaiBaseUrl: vars['AZURE_OPENAI_BASE_URL'],
-          azureOpenaiEmbeddingDeployment: vars['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'],
-          // Voyage Embeddings
-          voyageApiKey: vars['VOYAGE_API_KEY'],
-          voyageEmbeddingModel: vars['VOYAGE_EMBEDDING_MODEL'],
-          // Google Embeddings
-          googleApiKey: vars['GOOGLE_API_KEY'],
-          googleEmbeddingModel: vars['GOOGLE_EMBEDDING_MODEL'],
-          // Ollama Embeddings
-          ollamaBaseUrl: vars['OLLAMA_BASE_URL'],
-          ollamaEmbeddingModel: vars['OLLAMA_EMBEDDING_MODEL'],
-          ollamaEmbeddingDim: vars['OLLAMA_EMBEDDING_DIM'] ? parseInt(vars['OLLAMA_EMBEDDING_DIM'], 10) : undefined,
-          // LadybugDB
-          database: vars['GRAPHITI_DATABASE'],   // env key kept for backward compat
-          dbPath: vars['GRAPHITI_DB_PATH'],        // env key kept for backward compat
-        };
-      }
+      // Built-in memory: project setting wins, else the app-wide (onboarding) setting
+      config.memoryEnabled = resolveMemoryEnabled(globalSettings.memoryEnabled, vars[PROJECT_MEMORY_ENV_KEY]);
 
       // MCP Server Configuration (per-project overrides)
       // Default: context7=true, electron/puppeteer=false
       config.mcpServers = {
         context7Enabled: vars['CONTEXT7_ENABLED']?.toLowerCase() !== 'false', // default true
-        memoryEnabled: config.memoryEnabled, // follows GRAPHITI_ENABLED
         electronEnabled: vars['ELECTRON_MCP_ENABLED']?.toLowerCase() === 'true', // default false
         puppeteerEnabled: vars['PUPPETEER_MCP_ENABLED']?.toLowerCase() === 'true', // default false
       };

@@ -13,6 +13,8 @@ import enTaskReview from './locales/en/taskReview.json';
 import enTerminal from './locales/en/terminal.json';
 import enErrors from './locales/en/errors.json';
 import enTests from './locales/en/tests.json';
+import enDeploy from './locales/en/deploy.json';
+import enContext from './locales/en/context.json';
 
 export const defaultNS = 'common';
 
@@ -28,7 +30,9 @@ export const resources = {
     taskReview: enTaskReview,
     terminal: enTerminal,
     errors: enErrors,
-    tests: enTests
+    tests: enTests,
+    deploy: enDeploy,
+    context: enContext
   }
 } as const;
 
@@ -39,7 +43,7 @@ i18n
     lng: 'en',
     fallbackLng: 'en',
     defaultNS,
-    ns: ['common', 'navigation', 'settings', 'tasks', 'welcome', 'onboarding', 'dialogs', 'taskReview', 'terminal', 'errors', 'tests'],
+    ns: ['common', 'navigation', 'settings', 'tasks', 'welcome', 'onboarding', 'dialogs', 'taskReview', 'terminal', 'errors', 'tests', 'deploy', 'context'],
     interpolation: {
       escapeValue: false // React already escapes values
     },

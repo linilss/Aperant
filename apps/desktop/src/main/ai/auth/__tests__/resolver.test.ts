@@ -47,6 +47,8 @@ import {
   refreshOAuthTokenReactive,
   resolveAuthFromQueue,
   buildDefaultQueueConfig,
+  applyProfilePinToQueue,
+  queueHasProfileAccount,
 } from '../resolver';
 
 const mockEnsureValidToken = vi.mocked(ensureValidToken);
@@ -434,6 +436,49 @@ describe('resolveAuthFromQueue', () => {
     const result = await resolveAuthFromQueue('sonnet', [noKeyAccount, goodAccount]);
 
     expect(result?.accountId).toBe('acc-2');
+  });
+});
+
+// =============================================================================
+// Per-project pinned Claude profile
+// =============================================================================
+
+describe('applyProfilePinToQueue', () => {
+  const account = (id: string, provider: 'anthropic', claudeProfileId?: string) => ({
+    id, provider, claudeProfileId, authType: 'oauth' as const, isActive: true, name: id,
+    billingModel: 'subscription' as const, createdAt: 0, updatedAt: 0,
+  });
+  const queue = [
+    account('personal', 'anthropic', 'p-personal'),
+    account('unpinned', 'anthropic'),
+    account('chippio', 'anthropic', 'p-chippio'),
+  ];
+
+  it('moves the pinned profile account first and keeps fallbacks when not strict', () => {
+    expect(applyProfilePinToQueue(queue, 'p-chippio', false).map((a) => a.id)).toEqual(['chippio', 'personal', 'unpinned']);
+  });
+
+  it('keeps only the pinned account when strict (no fallback to another account)', () => {
+    expect(applyProfilePinToQueue(queue, 'p-chippio', true).map((a) => a.id)).toEqual(['chippio']);
+  });
+
+  it('detects whether the queue has an account for the profile', () => {
+    expect(queueHasProfileAccount(queue, 'p-chippio')).toBe(true);
+    expect(queueHasProfileAccount(queue, 'p-other')).toBe(false);
+  });
+
+  it("reads a pinned profile's own credentials via profileConfigDirs", async () => {
+    mockScoreProviderAccount.mockReturnValue({ available: true, score: 100 });
+    mockResolveModelEquivalent.mockReturnValue({ modelId: 'claude-sonnet-4-5', reasoning: { type: 'none' } });
+    mockEnsureValidToken.mockResolvedValue({ token: 'sk-ant-oat01-chippio', wasRefreshed: false });
+
+    const result = await resolveAuthFromQueue('sonnet', [queue[2]], {
+      profileConfigDirs: { 'p-chippio': '/cfg/chippio' },
+    });
+
+    expect(mockEnsureValidToken).toHaveBeenCalledWith('/cfg/chippio');
+    expect(result?.accountId).toBe('chippio');
+    expect(result?.apiKey).toBe('sk-ant-oat01-chippio');
   });
 });
 

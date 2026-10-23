@@ -50,11 +50,6 @@ export {
 } from './pr-review.output';
 
 export {
-  TriageResultOutputSchema,
-  type TriageResultOutput,
-} from './triage.output';
-
-export {
   ExtractedInsightsOutputSchema,
   type ExtractedInsightsOutput,
 } from './insight-extractor.output';

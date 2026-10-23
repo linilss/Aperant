@@ -72,7 +72,7 @@ function ProjectNode({
           setExpanded((e) => !e);
         }}
         className={cn(
-          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors max-md:min-h-10',
           'hover:bg-accent hover:text-accent-foreground',
           isSelected && 'bg-accent text-accent-foreground',
         )}
@@ -137,7 +137,7 @@ function CategoryRow({ label, count, failed, isSelected, onSelect }: CategoryRow
       type="button"
       onClick={onSelect}
       className={cn(
-        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors',
+        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors max-md:min-h-10 max-md:text-sm',
         'hover:bg-accent hover:text-accent-foreground',
         isSelected && 'bg-accent/60 text-accent-foreground',
       )}

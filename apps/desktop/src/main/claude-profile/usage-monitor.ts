@@ -384,6 +384,17 @@ export class UsageMonitor extends EventEmitter {
   }
 
   /**
+   * User-requested refresh: one fresh fetch now, ignoring the 429/failure
+   * cooldowns (they exist to stop polling from hammering the endpoint).
+   */
+  async refreshNow(): Promise<ClaudeUsageSnapshot | null> {
+    this.rateLimitedProfiles.clear();
+    this.apiFailureTimestamps.clear();
+    await this.checkUsageAndSwap();
+    return this.getCurrentUsage();
+  }
+
+  /**
    * Get all profiles usage data (for multi-profile display in UI)
    * Returns cached data if fresh, otherwise fetches for all profiles
    *
@@ -2208,8 +2219,11 @@ export class UsageMonitor extends EventEmitter {
    *   "seven_day": {
    *     "utilization": 45,  // integer 0-100
    *     "resets_at": "2025-01-20T12:00:00Z"
-   *   }
+   *   },
+   *   // Also present (may be null), currently ignored:
+   *   "seven_day_opus": {...}, "seven_day_sonnet": {...}, "seven_day_overage_included": {...}
    * }
+   * Only five_hour / seven_day are read; unknown or null fields are tolerated.
    */
   private normalizeAnthropicResponse(
     data: any,

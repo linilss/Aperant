@@ -50,6 +50,8 @@ export interface ChangelogConfig {
   modelShorthand?: ModelShorthand;
   /** Thinking level (defaults to 'low') */
   thinkingLevel?: ThinkingLevel;
+  /** Project root; a pinned project's call runs on its Claude account */
+  projectDir?: string;
 }
 
 /** Result of changelog generation */
@@ -126,6 +128,7 @@ export async function generateChangelog(
   const {
     modelShorthand = 'sonnet',
     thinkingLevel = 'low',
+    projectDir,
   } = config;
 
   const prompt = buildChangelogPrompt(config);
@@ -135,6 +138,7 @@ export async function generateChangelog(
       systemPrompt: SYSTEM_PROMPT,
       modelShorthand,
       thinkingLevel,
+      projectPath: projectDir,
     });
 
     const result = await generateText({

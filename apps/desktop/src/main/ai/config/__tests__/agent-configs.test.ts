@@ -7,14 +7,13 @@ import {
   getRequiredMcpServers,
   mapMcpServerName,
   CONTEXT7_TOOLS,
-  MEMORY_MCP_TOOLS, GRAPHITI_MCP_TOOLS,
   PUPPETEER_TOOLS,
   ELECTRON_TOOLS,
   type AgentType,
 } from '../agent-configs';
 
 // =============================================================================
-// All Agent Types (26 total)
+// All Agent Types
 // =============================================================================
 
 const ALL_AGENT_TYPES: AgentType[] = [
@@ -25,31 +24,22 @@ const ALL_AGENT_TYPES: AgentType[] = [
   'spec_discovery',
   'spec_context',
   'spec_validation',
-  'spec_compaction',
   'planner',
   'coder',
   'qa_reviewer',
   'qa_fixer',
   'insights',
-  'merge_resolver',
   'commit_message',
-  'pr_template_filler',
   'pr_reviewer',
-  'pr_orchestrator_parallel',
-  'pr_followup_parallel',
-  'pr_followup_extraction',
   'pr_finding_validator',
   'analysis',
-  'batch_analysis',
-  'batch_validation',
   'roadmap_discovery',
-  'competitor_analysis',
   'ideation',
 ];
 
 describe('AGENT_CONFIGS', () => {
   it('should have all expected agent types configured', () => {
-    expect(Object.keys(AGENT_CONFIGS).length).toBeGreaterThanOrEqual(26);
+    expect(Object.keys(AGENT_CONFIGS).length).toBeGreaterThanOrEqual(ALL_AGENT_TYPES.length);
   });
 
   it('should contain all expected agent types', () => {
@@ -86,10 +76,10 @@ describe('AGENT_CONFIGS', () => {
     expect(config.thinkingDefault).toBe('low');
   });
 
-  it('should configure planner with memory and auto-claude MCP', () => {
+  it('should configure planner with context7 and auto-claude MCP (no external memory server)', () => {
     const config = AGENT_CONFIGS.planner;
     expect(config.mcpServers).toContain('context7');
-    expect(config.mcpServers).toContain('memory');
+    expect(config.mcpServers).not.toContain('memory');
     expect(config.mcpServers).toContain('auto-claude');
     expect(config.thinkingDefault).toBe('high');
   });
@@ -110,8 +100,8 @@ describe('AGENT_CONFIGS', () => {
     expect(config.mcpServers).toContain('context7');
   });
 
-  it('should configure merge_resolver with no tools', () => {
-    const config = AGENT_CONFIGS.merge_resolver;
+  it('should configure commit_message with no tools', () => {
+    const config = AGENT_CONFIGS.commit_message;
     expect(config.tools).toHaveLength(0);
     expect(config.mcpServers).toHaveLength(0);
   });
@@ -138,10 +128,6 @@ describe('MCP tool arrays', () => {
   it('CONTEXT7_TOOLS should have 2 tools', () => {
     expect(CONTEXT7_TOOLS).toHaveLength(2);
     expect(CONTEXT7_TOOLS).toContain('mcp__context7__resolve-library-id');
-  });
-
-  it('MEMORY_MCP_TOOLS should have 5 tools', () => {
-    expect(MEMORY_MCP_TOOLS).toHaveLength(5);
   });
 
   it('PUPPETEER_TOOLS should have 8 tools', () => {
@@ -188,13 +174,12 @@ describe('getDefaultThinkingLevel', () => {
 describe('mapMcpServerName', () => {
   it('should map known server names', () => {
     expect(mapMcpServerName('context7')).toBe('context7');
-    expect(mapMcpServerName('graphiti')).toBe('memory');
-    expect(mapMcpServerName('graphiti-memory')).toBe('memory');
     expect(mapMcpServerName('auto-claude')).toBe('auto-claude');
   });
 
   it('should return null for unknown names', () => {
     expect(mapMcpServerName('unknown')).toBeNull();
+    expect(mapMcpServerName('graphiti')).toBeNull();
   });
 
   it('should return null for empty string', () => {
@@ -203,7 +188,6 @@ describe('mapMcpServerName', () => {
 
   it('should be case-insensitive', () => {
     expect(mapMcpServerName('Context7')).toBe('context7');
-    expect(mapMcpServerName('GRAPHITI')).toBe('memory');
   });
 
   it('should accept custom server IDs', () => {
@@ -220,23 +204,17 @@ describe('getRequiredMcpServers', () => {
   });
 
   it('should return empty array for agents with no MCP', () => {
-    const servers = getRequiredMcpServers('merge_resolver');
+    const servers = getRequiredMcpServers('commit_message');
     expect(servers).toEqual([]);
   });
 
-  it('should filter memory when not enabled', () => {
-    const servers = getRequiredMcpServers('coder', { memoryEnabled: false });
+  it('should never include an external memory MCP server', () => {
+    const servers = getRequiredMcpServers('coder');
     expect(servers).not.toContain('memory');
-  });
-
-  it('should include memory when enabled', () => {
-    const servers = getRequiredMcpServers('coder', { memoryEnabled: true });
-    expect(servers).toContain('memory');
   });
 
   it('should resolve browser to electron for electron projects', () => {
     const servers = getRequiredMcpServers('qa_reviewer', {
-      memoryEnabled: true,
       projectCapabilities: { is_electron: true },
       electronMcpEnabled: true,
     });
@@ -246,7 +224,6 @@ describe('getRequiredMcpServers', () => {
 
   it('should resolve browser to puppeteer for web frontend projects', () => {
     const servers = getRequiredMcpServers('qa_reviewer', {
-      memoryEnabled: true,
       projectCapabilities: { is_web_frontend: true, is_electron: false },
       puppeteerMcpEnabled: true,
     });
@@ -270,10 +247,9 @@ describe('getRequiredMcpServers', () => {
 
   it('should support per-agent MCP removals but never remove auto-claude', () => {
     const servers = getRequiredMcpServers('coder', {
-      memoryEnabled: true,
-      agentMcpRemove: 'auto-claude,memory',
+      agentMcpRemove: 'auto-claude,context7',
     });
     expect(servers).toContain('auto-claude');
-    expect(servers).not.toContain('memory');
+    expect(servers).not.toContain('context7');
   });
 });

@@ -85,13 +85,6 @@ export interface TerminalAPI {
   onTerminalOAuthToken: (
     callback: (info: { terminalId: string; profileId?: string; email?: string; success: boolean; message?: string; detectedAt: string }) => void
   ) => () => void;
-  onTerminalAuthCreated: (
-    callback: (info: { terminalId: string; profileId: string; profileName: string }) => void
-  ) => () => void;
-  onTerminalOAuthCodeNeeded: (
-    callback: (info: { terminalId: string; profileId: string; profileName: string }) => void
-  ) => () => void;
-  submitOAuthCode: (terminalId: string, code: string) => Promise<IPCResult>;
   onTerminalClaudeBusy: (callback: (id: string, isBusy: boolean) => void) => () => void;
   onTerminalClaudeExit: (callback: (id: string) => void) => () => void;
   onTerminalPendingResume: (callback: (id: string, sessionId?: string) => void) => () => void;
@@ -104,7 +97,6 @@ export interface TerminalAPI {
   renameClaudeProfile: (profileId: string, newName: string) => Promise<IPCResult>;
   setActiveClaudeProfile: (profileId: string) => Promise<IPCResult>;
   switchClaudeProfile: (terminalId: string, profileId: string) => Promise<IPCResult>;
-  initializeClaudeProfile: (profileId: string) => Promise<IPCResult>;
   setClaudeProfileToken: (profileId: string, token: string, email?: string) => Promise<IPCResult>;
   authenticateClaudeProfile: (profileId: string) => Promise<IPCResult<{ terminalId: string; configDir: string }>>;
   verifyClaudeProfileAuth: (profileId: string) => Promise<IPCResult<{ authenticated: boolean; email?: string }>>;
@@ -121,7 +113,7 @@ export interface TerminalAPI {
   retryWithProfile: (request: import('../../shared/types').RetryWithProfileRequest) => Promise<IPCResult>;
 
   // Usage Monitoring (Proactive Account Switching)
-  requestUsageUpdate: () => Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>>;
+  requestUsageUpdate: (forceRefresh?: boolean) => Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>>;
   requestAllProfilesUsage: (forceRefresh?: boolean) => Promise<IPCResult<import('../../shared/types').AllProfilesUsage | null>>;
   onUsageUpdated: (callback: (usage: import('../../shared/types').ClaudeUsageSnapshot) => void) => () => void;
   onAllProfilesUsageUpdated: (callback: (allProfilesUsage: import('../../shared/types').AllProfilesUsage) => void) => () => void;
@@ -328,39 +320,6 @@ export const createTerminalAPI = (): TerminalAPI => ({
     };
   },
 
-  onTerminalAuthCreated: (
-    callback: (info: { terminalId: string; profileId: string; profileName: string }) => void
-  ): (() => void) => {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      info: { terminalId: string; profileId: string; profileName: string }
-    ): void => {
-      callback(info);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TERMINAL_AUTH_CREATED, handler);
-    return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_AUTH_CREATED, handler);
-    };
-  },
-
-  onTerminalOAuthCodeNeeded: (
-    callback: (info: { terminalId: string; profileId: string; profileName: string }) => void
-  ): (() => void) => {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      info: { terminalId: string; profileId: string; profileName: string }
-    ): void => {
-      callback(info);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TERMINAL_OAUTH_CODE_NEEDED, handler);
-    return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_OAUTH_CODE_NEEDED, handler);
-    };
-  },
-
-  submitOAuthCode: (terminalId: string, code: string): Promise<IPCResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_OAUTH_CODE_SUBMIT, terminalId, code),
-
   onTerminalClaudeBusy: (
     callback: (id: string, isBusy: boolean) => void
   ): (() => void) => {
@@ -442,9 +401,6 @@ export const createTerminalAPI = (): TerminalAPI => ({
   switchClaudeProfile: (terminalId: string, profileId: string): Promise<IPCResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_PROFILE_SWITCH, terminalId, profileId),
 
-  initializeClaudeProfile: (profileId: string): Promise<IPCResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_PROFILE_INITIALIZE, profileId),
-
   setClaudeProfileToken: (profileId: string, token: string, email?: string): Promise<IPCResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_PROFILE_SET_TOKEN, profileId, token, email),
 
@@ -524,8 +480,8 @@ export const createTerminalAPI = (): TerminalAPI => ({
     ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_RETRY_WITH_PROFILE, request),
 
   // Usage Monitoring (Proactive Account Switching)
-  requestUsageUpdate: (): Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.USAGE_REQUEST),
+  requestUsageUpdate: (forceRefresh?: boolean): Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.USAGE_REQUEST, forceRefresh ?? false),
 
   requestAllProfilesUsage: (forceRefresh?: boolean): Promise<IPCResult<import('../../shared/types').AllProfilesUsage | null>> =>
     ipcRenderer.invoke(IPC_CHANNELS.ALL_PROFILES_USAGE_REQUEST, forceRefresh ?? false),

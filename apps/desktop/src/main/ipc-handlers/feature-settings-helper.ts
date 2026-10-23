@@ -14,6 +14,7 @@
  */
 
 import { readSettingsFile } from '../settings-utils';
+import { resolveModelId } from '../ai/config/phase-config';
 import {
   DEFAULT_FEATURE_MODELS,
   DEFAULT_FEATURE_THINKING,
@@ -106,4 +107,14 @@ export function getActiveProviderFeatureSettings(featureKey: FeatureKey): Featur
   }
 
   return { model, thinkingLevel };
+}
+
+/**
+ * Claude model id for `claude` CLI runs of a feature (e.g. roadmap refinement,
+ * competitors): the feature's model setting when it is a Claude model, else sonnet.
+ */
+export function resolveClaudeCliFeatureModel(featureKey: FeatureKey): string {
+  const { model } = getActiveProviderFeatureSettings(featureKey);
+  const id = resolveModelId(model || 'sonnet');
+  return /claude|sonnet|opus|haiku|fable/i.test(id) ? id : resolveModelId('sonnet');
 }

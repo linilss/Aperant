@@ -40,17 +40,22 @@ import type { Tool as AITool } from 'ai';
 import type { SessionConfig, StreamEvent, SessionResult } from '../session/types';
 import { BuildOrchestrator } from '../orchestration/build-orchestrator';
 import { QALoop } from '../orchestration/qa-loop';
+import { buildLensSection, readTaskDiff, runReviewLenses } from '../orchestration/qa-lenses';
+import { gitCheckpoint, gitResetHard, isTaskWorktree } from '../orchestration/qa-git';
+import { runClaudeCliDetailed } from '../cli/claude-cli';
 import { SpecOrchestrator } from '../orchestration/spec-orchestrator';
 import type { SpecPhase } from '../orchestration/spec-orchestrator';
 import type { AgentType } from '../config/agent-configs';
 import type { Phase } from '../config/types';
 import type { ExecutionPhase } from '../../../shared/constants/phase-protocol';
-import { getPhaseThinking } from '../config/phase-config';
+import { getFastMode, getPhaseThinking } from '../config/phase-config';
 import { TaskLogWriter } from '../logging/task-log-writer';
 import { loadProjectInstructions, injectContext } from '../prompts/prompt-loader';
 import { createMcpClientsForAgent, mergeMcpTools, closeAllMcpClients } from '../mcp/client';
 import type { McpClientResult } from '../mcp/types';
 import { runProjectIndexer } from '../project/project-indexer';
+import { summarizeProjectIndex } from '../project/project-index-summary';
+import { taskAgentCliToolArgs } from '../security/release-guard';
 
 // =============================================================================
 // Validation
@@ -89,6 +94,15 @@ function postLog(data: string): void {
 
 function postError(data: string): void {
   postMessage({ type: 'error', taskId: config.taskId, data, projectId: config.projectId });
+}
+
+function buildArgsSummary(toolName: string, args: Record<string, unknown>): string {
+  const firstValue = Object.values(args)[0];
+  if (typeof firstValue === 'string') {
+    return firstValue.length > 80 ? `${firstValue.slice(0, 80)}…` : firstValue;
+  }
+  const keys = Object.keys(args);
+  return keys.length > 0 ? keys.slice(0, 3).join(', ') : '';
 }
 
 function postTaskEvent(eventType: string, extra?: Record<string, unknown>): void {
@@ -202,7 +216,11 @@ let mcpClients: McpClientResult[] = [];
 // Prompt Assembly (provider-agnostic context injection)
 // =============================================================================
 
+/** Task Fast Mode flag, read once per worker from task_metadata.json */
+let cachedFastMode: boolean | undefined;
+
 let cachedProjectInstructions: string | null | undefined;
+let cachedCoreValues: string | null = null;
 let cachedProjectInstructionsSource: string | null = null;
 
 /**
@@ -219,21 +237,50 @@ async function assemblePrompt(
 
   // Load project instructions once per worker lifetime
   if (cachedProjectInstructions === undefined) {
-    const result = await loadProjectInstructions(session.projectDir);
-    cachedProjectInstructions = result?.content ?? null;
+    const result = await loadProjectInstructions(session.projectDir, {
+      includeTeamDocs: session.useClaudeMd !== false,
+    });
+    cachedProjectInstructions = result?.content || null;
+    cachedCoreValues = result?.coreValues ?? null;
     cachedProjectInstructionsSource = result?.source ?? null;
     if (result) {
       postLog(`Project instructions loaded from ${result.source} (${(result.content.length / 1024).toFixed(1)}KB)`);
     } else {
-      postLog('No project instructions found (checked AGENTS.md, CLAUDE.md)');
+      postLog('No project instructions found (checked AGENTS.md, CLAUDE.md, .malvy/docs, .malvy/pointers.md)');
     }
+    if (session.memoryContext) {
+      postLog(`Project memory injected (${session.memoryContext.split('\n').length} items)`);
+    }
+  }
+
+  // HUMAN_INPUT.md is read on every prompt (not cached) so instructions the
+  // user drops into the spec dir mid-build reach the next session
+  const humanInput = readHumanInput(session.specDir);
+  if (humanInput) {
+    postLog('Human input injected from HUMAN_INPUT.md');
   }
 
   return injectContext(basePrompt, {
     specDir: session.specDir,
     projectDir: session.projectDir,
+    coreValues: cachedCoreValues,
     projectInstructions: cachedProjectInstructions,
+    memoryContext: session.memoryContext,
+    humanInput,
   });
+}
+
+/** Contents of `<specDir>/HUMAN_INPUT.md`, or null when absent or empty. */
+function readHumanInput(specDir: string | undefined): string | null {
+  if (!specDir) return null;
+  const filePath = join(specDir, 'HUMAN_INPUT.md');
+  if (!existsSync(filePath)) return null;
+  try {
+    const content = readFileSync(filePath, 'utf-8').trim();
+    return content.length > 0 ? content : null;
+  } catch {
+    return null;
+  }
 }
 
 // =============================================================================
@@ -279,9 +326,22 @@ async function runSessionViaCLI(
     '--print',
     '--verbose',
     '--output-format', 'stream-json',
-    '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep,WebFetch',
+    // Agents never release: Bash is allowed but deploy/publish/upload/git push are denied
+    ...taskAgentCliToolArgs(),
     '--model', modelId,
   ];
+  // Project setting "Use CLAUDE.md" off: skip project-level settings sources so the CLI
+  // does not auto-load the team's CLAUDE.md. 'local' keeps CLAUDE.local.md (Malvy's layer).
+  if (config.session.useClaudeMd === false) {
+    args.push('--setting-sources', 'user,local');
+  }
+  // Fast Mode (task_metadata.json fastMode): faster Opus output via the CLI's fastMode setting
+  if (cachedFastMode === undefined) {
+    cachedFastMode = config.session.specDir ? await getFastMode(config.session.specDir) : false;
+  }
+  if (cachedFastMode) {
+    args.push('--settings', JSON.stringify({ fastMode: true }));
+  }
 
   postLog(`[CLI] Spawning claude for ${agentType}: ${claudePath} ${args.join(' ')}`);
 
@@ -453,7 +513,7 @@ async function runSingleSession(
 ): Promise<SessionResult> {
   // Use queue-resolved model ID from baseSession (already mapped to the correct
   // provider-specific model, e.g., 'gpt-5.3-codex' for OpenAI Codex).
-  // getPhaseModel() only knows local shorthands (opus → claude-opus-4-6) and
+  // getPhaseModel() only knows local shorthands (opus → claude-opus-5-5) and
   // would create a mismatch when the provider queue selected a non-Anthropic account.
   const phaseModelId = baseSession.modelId;
   const phaseThinking = await getPhaseThinking(specDir, phase);
@@ -507,6 +567,8 @@ async function runSingleSession(
     logWriter.setSubtask(subtaskId);
   }
 
+  let lastToolCallInStep: { toolName: string; args: Record<string, unknown> } | null = null;
+
   const runnerOptions = {
     tools,
     onEvent: (event: StreamEvent) => {
@@ -521,6 +583,35 @@ async function runSingleSession(
         data: event,
         projectId: config.projectId,
       });
+      // Trace accumulation: capture last tool call per step
+      if (event.type === 'tool-call') {
+        lastToolCallInStep = { toolName: event.toolName, args: event.args };
+      } else if (event.type === 'step-finish') {
+        const stepToolName = lastToolCallInStep?.toolName ?? '(no tool)';
+        const stepArgs = lastToolCallInStep?.args ?? {};
+        const argsSummary = buildArgsSummary(stepToolName, stepArgs);
+        lastToolCallInStep = null;
+        postMessage({
+          type: 'trace-update',
+          taskId: config.taskId,
+          projectId: config.projectId,
+          data: {
+            stepNumber: event.stepNumber,
+            toolName: stepToolName,
+            argsSummary,
+            durationMs: 0,
+            usage: {
+              promptTokens: event.usage.promptTokens,
+              completionTokens: event.usage.completionTokens,
+              totalTokens: event.usage.totalTokens,
+              thinkingTokens: event.usage.thinkingTokens,
+              cacheReadTokens: event.usage.cacheReadTokens,
+              cacheCreationTokens: event.usage.cacheCreationTokens,
+            },
+            timestamp: Date.now(),
+          },
+        });
+      }
     },
     onAuthRefresh: baseSession.configDir
       ? () => refreshOAuthTokenReactive(baseSession.configDir as string)
@@ -543,6 +634,7 @@ async function runSingleSession(
       contextWindowLimit,
       apiKey: baseSession.apiKey,
       baseURL: baseSession.baseURL,
+      configDir: baseSession.configDir,
     });
   } catch (error) {
     // Ensure log cleanup happens on failure
@@ -581,7 +673,6 @@ async function run(): Promise<void> {
     try {
       mcpClients = await createMcpClientsForAgent(session.agentType, {
         context7Enabled: session.mcpOptions?.context7Enabled ?? true,
-        memoryEnabled: session.mcpOptions?.memoryEnabled ?? false,
         electronMcpEnabled: session.mcpOptions?.electronMcpEnabled ?? false,
         puppeteerMcpEnabled: session.mcpOptions?.puppeteerMcpEnabled ?? false,
         projectCapabilities: session.mcpOptions?.projectCapabilities,
@@ -688,6 +779,44 @@ async function runBuildOrchestrator(
     projectDir: session.projectDir,
     sourceSpecDir: session.sourceSpecDir,
     abortSignal: abortController.signal,
+    verifyCommand: session.verifyCommand,
+
+    // Independent risk / fast-scan reviews before each QA review (/proofread style)
+    runReviewLenses: async () => {
+      const diff = readTaskDiff(session.projectDir);
+      const specFile = join(session.specDir, 'spec.md');
+      const spec = existsSync(specFile) ? readFileSync(specFile, 'utf-8') : '';
+      const results = await runReviewLenses(diff, spec, async ({ prompt, model }) => {
+        const result = await runClaudeCliDetailed({
+          prompt,
+          cwd: session.projectDir,
+          modelId: model,
+          allowedTools: ['Read', 'Glob', 'Grep'],
+          restrictTools: true,
+          minimalContext: true,
+          projectContext: true,
+          maxTurns: 15,
+          abortSignal: abortController.signal,
+          // Worker threads can't look up the active profile: pass the task's account explicitly
+          env: session.configDir ? { CLAUDE_CONFIG_DIR: session.configDir } : {},
+        });
+        return result.text || result.resultText;
+      });
+      for (const r of results) {
+        postLog(`QA ${r.lens} review: ${r.error ? `failed (${r.error})` : `${r.findings.length} finding(s)`}`);
+      }
+      return buildLensSection(results);
+    },
+
+    // Revert safety for QA fixes: only inside a task worktree, never the user's checkout
+    checkpoint: async () => {
+      if (!isTaskWorktree(session.projectDir)) return null;
+      return gitCheckpoint(session.projectDir);
+    },
+    revertTo: async (commit) => {
+      if (!isTaskWorktree(session.projectDir)) return false;
+      return gitResetHard(session.projectDir, commit);
+    },
 
     generatePrompt: async (agentType, _phase, context) => {
       const promptName = agentType === 'coder' ? 'coder' : agentType;
@@ -932,6 +1061,30 @@ async function runQALoop(
 }
 
 /**
+ * Regenerate `<specDir>/project_index.json` and return a compact summary of it
+ * (plus the file path, so agents can Read the full index on demand).
+ * Non-fatal: returns undefined when indexing fails.
+ */
+function generateProjectIndexSummary(specDir: string, projectDir: string): string | undefined {
+  try {
+    const indexOutputPath = join(specDir, 'project_index.json');
+    postLog('Generating project index...');
+    runProjectIndexer(projectDir, indexOutputPath);
+    const fullIndex = readFileSync(indexOutputPath, 'utf-8');
+    const summary = summarizeProjectIndex(fullIndex);
+    if (!summary) return undefined;
+    postLog(`Project index generated (${(fullIndex.length / 1024).toFixed(1)}KB, summary ${(summary.length / 1024).toFixed(1)}KB)`);
+    return (
+      `${summary}\n\n` +
+      `Full index (dependencies, routes, models, env vars): \`${indexOutputPath}\` — Read it only if you need those details.`
+    );
+  } catch (error) {
+    postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
+/**
  * Run the spec creation orchestration pipeline with complexity-based phase routing.
  */
 async function runSpecOrchestrator(
@@ -949,16 +1102,7 @@ async function runSpecOrchestrator(
   postLog(`Starting SpecOrchestrator pipeline (complexity-first phase routing)`);
 
   // Generate project index BEFORE any agent runs — gives all phases project context
-  let projectIndexContent: string | undefined;
-  try {
-    const indexOutputPath = join(session.specDir, 'project_index.json');
-    postLog('Generating project index...');
-    runProjectIndexer(session.projectDir, indexOutputPath);
-    projectIndexContent = readFileSync(indexOutputPath, 'utf-8');
-    postLog(`Project index generated (${(projectIndexContent.length / 1024).toFixed(1)}KB)`);
-  } catch (error) {
-    postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const projectIndexContent = generateProjectIndexSummary(session.specDir, session.projectDir);
 
   const orchestrator = new SpecOrchestrator({
     specDir: session.specDir,
@@ -1095,16 +1239,7 @@ async function runAgenticSpecOrchestrator(
   postLog('Starting Agentic SpecOrchestrator (AI-driven pipeline via SpawnSubagent)');
 
   // Generate project index
-  let projectIndexContent: string | undefined;
-  try {
-    const indexOutputPath = join(session.specDir, 'project_index.json');
-    postLog('Generating project index...');
-    runProjectIndexer(session.projectDir, indexOutputPath);
-    projectIndexContent = readFileSync(indexOutputPath, 'utf-8');
-    postLog(`Project index generated (${(projectIndexContent.length / 1024).toFixed(1)}KB)`);
-  } catch (error) {
-    postLog(`Project index generation failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const projectIndexContent = generateProjectIndexSummary(session.specDir, session.projectDir);
 
   // Create the SubagentExecutor
   const model = createProvider({
@@ -1148,7 +1283,7 @@ async function runAgenticSpecOrchestrator(
   ];
 
   if (projectIndexContent) {
-    kickoffParts.push(`\n\n## PROJECT INDEX\n\n\`\`\`json\n${projectIndexContent}\n\`\`\``);
+    kickoffParts.push(`\n\n## PROJECT INDEX\n\n${projectIndexContent}`);
   }
 
   const kickoffMessage = kickoffParts.join('');
@@ -1184,6 +1319,8 @@ async function runAgenticSpecOrchestrator(
     logWriter.startPhase('spec', 'Agentic spec orchestration');
   }
 
+  let lastToolCallInStep: { toolName: string; args: Record<string, unknown> } | null = null;
+
   let result: SessionResult | undefined;
   try {
     result = await runContinuableSession(sessionConfig, {
@@ -1198,6 +1335,35 @@ async function runAgenticSpecOrchestrator(
           data: event,
           projectId: config.projectId,
         });
+        // Trace accumulation: capture last tool call per step
+        if (event.type === 'tool-call') {
+          lastToolCallInStep = { toolName: event.toolName, args: event.args };
+        } else if (event.type === 'step-finish') {
+          const stepToolName = lastToolCallInStep?.toolName ?? '(no tool)';
+          const stepArgs = lastToolCallInStep?.args ?? {};
+          const argsSummary = buildArgsSummary(stepToolName, stepArgs);
+          lastToolCallInStep = null;
+          postMessage({
+            type: 'trace-update',
+            taskId: config.taskId,
+            projectId: config.projectId,
+            data: {
+              stepNumber: event.stepNumber,
+              toolName: stepToolName,
+              argsSummary,
+              durationMs: 0,
+              usage: {
+                promptTokens: event.usage.promptTokens,
+                completionTokens: event.usage.completionTokens,
+                totalTokens: event.usage.totalTokens,
+                thinkingTokens: event.usage.thinkingTokens,
+                cacheReadTokens: event.usage.cacheReadTokens,
+                cacheCreationTokens: event.usage.cacheCreationTokens,
+              },
+              timestamp: Date.now(),
+            },
+          });
+        }
       },
       onAuthRefresh: session.configDir
         ? () => refreshOAuthTokenReactive(session.configDir as string)
@@ -1216,6 +1382,7 @@ async function runAgenticSpecOrchestrator(
       contextWindowLimit,
       apiKey: session.apiKey,
       baseURL: session.baseURL,
+      configDir: session.configDir,
     });
   } finally {
     if (logWriter) {
@@ -1244,7 +1411,6 @@ function specPhaseToPromptName(phase: SpecPhase): string {
     case 'complexity_assessment': return 'complexity_assessor';
     case 'research': return 'spec_researcher';
     case 'context': return 'spec_writer';
-    case 'historical_context': return 'spec_writer';
     case 'spec_writing': return 'spec_writer';
     case 'self_critique': return 'spec_critic';
     case 'planning': return 'planner';
@@ -1307,7 +1473,7 @@ function buildSpecKickoffMessage(
   const contextSections: string[] = [baseMessage];
 
   if (projectIndex) {
-    contextSections.push(`\n\n## PROJECT INDEX (pre-generated)\n\nThe following project structure analysis has been pre-generated for you. Use this as your starting point instead of scanning the entire project:\n\n\`\`\`json\n${projectIndex}\n\`\`\``);
+    contextSections.push(`\n\n## PROJECT INDEX (pre-generated)\n\nThe following project structure summary has been pre-generated for you. Use this as your starting point instead of scanning the entire project:\n\n${projectIndex}`);
   }
 
   if (priorPhaseOutputs && Object.keys(priorPhaseOutputs).length > 0) {

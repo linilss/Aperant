@@ -17,7 +17,6 @@ function createTestProject(overrides: Partial<Project> = {}): Project {
     autoBuildPath: '/path/to/test-project/.malvy',
     settings: {
       model: 'claude-3-haiku-20240307',
-      memoryBackend: 'file',
       notifications: {
         onTaskComplete: true,
         onTaskFailed: true,

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ScrollArea } from './ui/scroll-area';
+import { PageHeader, PAGE_BODY, PAGE_ROOT } from './ui/page-header';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import {
@@ -151,7 +152,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     description: 'Creates implementation plan with subtasks',
     category: 'build',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
-    mcp_servers: ['context7', 'memory', 'auto-claude'],
+    mcp_servers: ['context7', 'auto-claude'],
     mcp_optional: [],
     settingsSource: { type: 'phase', phase: 'planning' },
   },
@@ -160,7 +161,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     description: 'Implements individual subtasks',
     category: 'build',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
-    mcp_servers: ['context7', 'memory', 'auto-claude'],
+    mcp_servers: ['context7', 'auto-claude'],
     mcp_optional: [],
     settingsSource: { type: 'phase', phase: 'coding' },
   },
@@ -171,7 +172,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     description: 'Validates acceptance criteria. Uses Electron or Puppeteer based on project type.',
     category: 'qa',
     tools: ['Read', 'Glob', 'Grep', 'Bash', 'WebFetch', 'WebSearch'],
-    mcp_servers: ['context7', 'memory', 'auto-claude'],
+    mcp_servers: ['context7', 'auto-claude'],
     mcp_optional: ['electron', 'puppeteer'],
     settingsSource: { type: 'phase', phase: 'qa' },
   },
@@ -180,7 +181,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     description: 'Fixes QA-reported issues. Uses Electron or Puppeteer based on project type.',
     category: 'qa',
     tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
-    mcp_servers: ['context7', 'memory', 'auto-claude'],
+    mcp_servers: ['context7', 'auto-claude'],
     mcp_optional: ['electron', 'puppeteer'],
     settingsSource: { type: 'phase', phase: 'qa' },
   },
@@ -197,14 +198,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
   commit_message: {
     label: 'Commit Message',
     description: 'Generates commit messages',
-    category: 'utility',
-    tools: [],
-    mcp_servers: [],
-    settingsSource: { type: 'feature', feature: 'utility' },
-  },
-  merge_resolver: {
-    label: 'Merge Resolver',
-    description: 'Resolves merge conflicts',
     category: 'utility',
     tools: [],
     mcp_servers: [],
@@ -227,15 +220,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     // Analysis uses same as insights
     settingsSource: { type: 'feature', feature: 'insights' },
   },
-  batch_analysis: {
-    label: 'Batch Analysis',
-    description: 'Batch processing of issues or items',
-    category: 'utility',
-    tools: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'],
-    mcp_servers: [],
-    // Batch uses same as GitHub Issues
-    settingsSource: { type: 'feature', feature: 'githubIssues' },
-  },
 
   // Ideation & Roadmap - use feature settings
   ideation: {
@@ -254,14 +238,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     mcp_servers: ['context7'],
     settingsSource: { type: 'feature', feature: 'roadmap' },
   },
-  pr_template_filler: {
-    label: 'PR Template Filler',
-    description: 'Generates AI-powered PR descriptions from templates',
-    category: 'utility',
-    tools: ['Read', 'Glob', 'Grep'],
-    mcp_servers: [],
-    settingsSource: { type: 'feature', feature: 'utility' },
-  },
 };
 
 // MCP Server descriptions - accurate per backend models.py
@@ -271,19 +247,6 @@ const MCP_SERVERS: Record<string, { name: string; description: string; icon: Rea
     description: 'Documentation lookup for libraries and frameworks via @upstash/context7-mcp',
     icon: Search,
     tools: ['mcp__context7__resolve-library-id', 'mcp__context7__query-docs'],
-  },
-  'memory': {
-    name: 'Memory',
-    description: 'Knowledge graph for cross-session context. Requires GRAPHITI_MCP_URL env var.',
-    // Note: mcp__graphiti-memory__ tool names are the external MCP server's protocol names
-    icon: Brain,
-    tools: [
-      'mcp__graphiti-memory__search_nodes',
-      'mcp__graphiti-memory__search_facts',
-      'mcp__graphiti-memory__add_episode',
-      'mcp__graphiti-memory__get_episodes',
-      'mcp__graphiti-memory__get_entity_edge',
-    ],
   },
   'auto-claude': {
     name: 'malvy Tools',
@@ -329,7 +292,6 @@ const MCP_SERVERS: Record<string, { name: string; description: string; icon: Rea
 // All available MCP servers that can be added to agents
 const ALL_MCP_SERVERS = [
   'context7',
-  'memory',
   'electron',
   'puppeteer',
   'auto-claude'
@@ -390,7 +352,6 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
       if (customServers.some(s => s.id === mcp)) return true;
       switch (mcp) {
         case 'context7': return mcpServerStates.context7Enabled !== false;
-        case 'memory': return mcpServerStates.memoryEnabled !== false;
         case 'electron': return mcpServerStates.electronEnabled !== false;
         case 'puppeteer': return mcpServerStates.puppeteerEnabled !== false;
         default: return true;
@@ -465,7 +426,7 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowAddDialog(true); }}
-                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors max-md:min-h-10"
                 >
                   <Plus className="h-3 w-3" />
                   {t('mcp.addServer')}
@@ -497,7 +458,7 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onRemoveMcp(id, server); }}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                          className="opacity-0 group-hover:opacity-100 max-md:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
                           title={t('mcp.remove')}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -525,7 +486,7 @@ function AgentCard({ id, config, modelLabel, thinkingLabel, overrides, mcpServer
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onAddMcp(id, server); }}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all"
+                        className="opacity-0 group-hover:opacity-100 max-md:opacity-100 p-1 text-muted-foreground hover:text-primary transition-all"
                         title={t('mcp.restore')}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -966,7 +927,6 @@ export function AgentTools() {
   // Count enabled MCP servers
   const enabledCount = [
     mcpServers.context7Enabled !== false,
-    mcpServers.memoryEnabled && envConfig?.memoryProviderConfig,
     mcpServers.electronEnabled,
     mcpServers.puppeteerEnabled,
     true, // auto-claude always enabled
@@ -1005,39 +965,33 @@ export function AgentTools() {
   );
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border p-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-muted">
-            <Server className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-foreground">MCP Server Overview</h1>
-              {selectedProject && (
-                <span className="text-sm text-muted-foreground">
-                  for {selectedProject.name}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
+    <div className={PAGE_ROOT}>
+      <PageHeader
+        icon={Server}
+        title={
+          <>
+            {/* Phones already show the project name in the top bar */}
+            <span className="max-md:hidden">
               {selectedProject
-                ? t('settings:mcp.description')
-                : t('settings:mcp.descriptionNoProject')}
-            </p>
-          </div>
-          {envConfig && (
-            <div className="text-right">
-              <span className="text-sm text-muted-foreground">{t('settings:mcp.serversEnabled', { count: enabledCount })}</span>
-            </div>
-          )}
-        </div>
-      </div>
+                ? t('settings:mcp.titleWithProject', { projectName: selectedProject.name })
+                : t('settings:mcp.title')}
+            </span>
+            <span className="md:hidden">{t('settings:mcp.title')}</span>
+          </>
+        }
+        subtitle={selectedProject ? t('settings:mcp.description') : t('settings:mcp.descriptionNoProject')}
+        extra={
+          envConfig && (
+            <span className="whitespace-nowrap text-sm text-muted-foreground max-md:text-xs">
+              {t('settings:mcp.serversEnabled', { count: enabledCount })}
+            </span>
+          )
+        }
+      />
 
       {/* Content */}
-      <ScrollArea className="flex-1">
-        <div className="p-6 space-y-6">
+      <ScrollArea className={PAGE_BODY}>
+        <div className="p-6 space-y-6 max-md:p-3 max-md:space-y-4">
           {/* No project selected message */}
           {!selectedProject && (
             <div className="rounded-lg border border-border bg-card p-6 text-center">
@@ -1063,7 +1017,7 @@ export function AgentTools() {
           {/* MCP Server Configuration */}
           {envConfig && (
             <div className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-4">
                 <h2 className="text-sm font-medium text-foreground">{t('settings:mcp.configuration')}</h2>
                 <span className="text-xs text-muted-foreground">
                   {t('settings:mcp.configurationHint')}
@@ -1072,8 +1026,8 @@ export function AgentTools() {
 
               <div className="space-y-4">
                 {/* Context7 */}
-                <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.context7.name')}</span>
@@ -1086,24 +1040,19 @@ export function AgentTools() {
                   />
                 </div>
 
-                {/* Memory */}
-                <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-3">
+                {/* Built-in memory (not an MCP server: injected into agent prompts) */}
+                <div className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <Brain className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.memory.name')}</span>
                       <p className="text-xs text-muted-foreground">
-                        {envConfig.memoryProviderConfig
+                        {envConfig.memoryEnabled
                           ? t('settings:mcp.servers.memory.description')
-                          : t('settings:mcp.servers.memory.notConfigured')}
+                          : t('settings:mcp.servers.memory.disabled')}
                       </p>
                     </div>
                   </div>
-                  <Switch
-                    checked={mcpServers.memoryEnabled !== false && !!envConfig.memoryProviderConfig}
-                    onCheckedChange={(checked) => updateMcpServer('memoryEnabled', checked)}
-                    disabled={!envConfig.memoryProviderConfig}
-                  />
                 </div>
 
                 {/* Browser Automation Section */}
@@ -1116,8 +1065,8 @@ export function AgentTools() {
                   </div>
 
                   {/* Electron */}
-                  <div className="flex items-center justify-between py-2 border-b border-border">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-3 py-2 border-b border-border">
+                    <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                       <Monitor className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm font-medium">{t('settings:mcp.servers.electron.name')}</span>
@@ -1131,8 +1080,8 @@ export function AgentTools() {
                   </div>
 
                   {/* Puppeteer */}
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-3 py-2">
+                    <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                       <Globe className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm font-medium">{t('settings:mcp.servers.puppeteer.name')}</span>
@@ -1147,8 +1096,8 @@ export function AgentTools() {
                 </div>
 
                 {/* Auto-Claude (always enabled) */}
-                <div className="flex items-center justify-between py-2 border-t border-border opacity-60">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 py-2 border-t border-border opacity-60">
+                  <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                     <ListChecks className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm font-medium">{t('settings:mcp.servers.autoClaude.name')}</span>
@@ -1170,7 +1119,7 @@ export function AgentTools() {
                     <button
                       type="button"
                       onClick={() => { setEditingCustomServer(null); setShowCustomMcpDialog(true); }}
-                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors max-md:min-h-10"
                     >
                       <Plus className="h-3 w-3" />
                       {t('settings:mcp.addCustomServer')}
@@ -1204,9 +1153,9 @@ export function AgentTools() {
                         return (
                           <div
                             key={server.id}
-                            className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg group"
+                            className="flex items-center justify-between gap-3 py-2 px-3 bg-muted/50 rounded-lg group"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex min-w-0 items-center gap-3 [&>svg]:shrink-0">
                               {/* Status indicator */}
                               <StatusIndicator />
                               {server.type === 'command' ? (
@@ -1248,7 +1197,7 @@ export function AgentTools() {
                                 <span className="ml-1">Test</span>
                               </Button>
                               {/* Edit/Delete - show on hover */}
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity">
                                 <button
                                   type="button"
                                   onClick={() => { setEditingCustomServer(server); setShowCustomMcpDialog(true); }}
@@ -1295,7 +1244,7 @@ export function AgentTools() {
                 <button
                   type="button"
                   onClick={() => toggleCategory(categoryId)}
-                  className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-2 w-full text-left hover:opacity-80 transition-opacity max-md:min-h-10"
                 >
                   {isExpanded ? (
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />

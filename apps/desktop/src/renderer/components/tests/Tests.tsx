@@ -1,6 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTestsStore, loadSavedSolution, discoverProjects, runTests, stopTests, setupTestsListeners } from '../../stores/tests-store';
 import { ScrollArea } from '../ui/scroll-area';
+import { PAGE_BODY, PAGE_ROOT, PAGE_STICKY } from '../ui/page-header';
+import { cn } from '../../lib/utils';
+import { MobileBackBar } from '../MobileNav';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { TestsHeader } from './TestsHeader';
 import { TestsTree } from './TestsTree';
 import { TestsResults } from './TestsResults';
@@ -22,6 +26,10 @@ export function Tests({ projectId }: TestsProps) {
   const setSelectedCategory = useTestsStore((state) => state.setSelectedCategory);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+
+  // Phone: tree and results are shown one at a time (list → detail)
+  const isMobile = useIsMobile();
+  const [showMobileResults, setShowMobileResults] = useState(false);
 
   // Set up IPC listeners and load persisted results (without re-discovering)
   useEffect(() => {
@@ -47,14 +55,15 @@ export function Tests({ projectId }: TestsProps) {
 
   const handleSelectCategory = (cat: TestCategory | 'all') => {
     setSelectedCategory(cat);
+    setShowMobileResults(true);
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={PAGE_ROOT}>
       <TestsHeader
         isRunning={isRunning}
         isLoading={isLoading}
-        hasProjects={projects.length > 0}
+        projects={projects}
         selectedProjectId={selectedProjectId}
         onDiscover={handleDiscover}
         onRunAll={handleRunAll}
@@ -64,10 +73,10 @@ export function Tests({ projectId }: TestsProps) {
       {projects.length === 0 ? (
         <TestsEmptyState onDiscover={handleDiscover} isLoading={isLoading} />
       ) : (
-        <div className="flex flex-1 overflow-hidden">
+        <div className={cn(PAGE_BODY, 'flex overflow-hidden max-md:overflow-visible')}>
           {/* Left panel: project tree */}
-          <div className="w-64 shrink-0 border-r border-border">
-            <ScrollArea className="h-full">
+          <div className={isMobile ? (showMobileResults ? 'hidden' : 'flex-1') : 'w-64 shrink-0 border-r border-border'}>
+            <ScrollArea className="h-full max-md:h-auto">
               <TestsTree
                 projects={projects}
                 selectedProjectId={selectedProjectId}
@@ -79,12 +88,19 @@ export function Tests({ projectId }: TestsProps) {
           </div>
 
           {/* Right panel: results */}
-          <div className="flex-1 overflow-hidden">
-            <TestsResults
-              project={selectedProject}
-              selectedCategory={selectedCategory}
-              runningTestId={runningTestId}
-            />
+          <div className={isMobile ? (showMobileResults ? 'flex min-w-0 flex-1 flex-col' : 'hidden') : 'min-w-0 flex-1 overflow-hidden'}>
+            {isMobile && (
+              <div className={PAGE_STICKY}>
+                <MobileBackBar onBack={() => setShowMobileResults(false)} title={selectedProject?.name} />
+              </div>
+            )}
+            <div className={isMobile ? undefined : 'h-full'}>
+              <TestsResults
+                project={selectedProject}
+                selectedCategory={selectedCategory}
+                runningTestId={runningTestId}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -86,7 +86,26 @@
     "cancel": "Cancel",
     "adding": "Adding...",
     "addFeature": "Add Feature",
-    "failedToAdd": "Failed to add feature. Please try again."
+    "failedToAdd": "Failed to add feature. Please try again.",
+    "quickPlaceholder": "Describe the feature in one line, then press Enter",
+    "quickPlaceholderShort": "Describe the feature in one line",
+    "quickHint": "Adds to {{phase}} as {{priority}} — AI fills in the details in the background, or open more details.",
+    "moreDetails": "More details",
+    "fewerDetails": "Fewer details",
+    "done": "Done",
+    "refining": "Refining…",
+    "aiRefined": "AI refined",
+    "possibleDuplicate": "Possible duplicate of {{title}}",
+    "openFeature": "Open this feature",
+    "generate": {
+      "title": "Generate ideas with AI",
+      "hint": "Ideas are added to the Backlog; existing ones stay.",
+      "button_one": "Generate {{count}} type",
+      "button_other": "Generate {{count}} types",
+      "running": "Generating…",
+      "started": "Generating ideas",
+      "startedHint": "They appear in the Backlog as they come in."
+    }
   },
   "addProject": {
     "title": "Add Project",
@@ -171,35 +190,30 @@
     "failedToAdd": "Failed to add competitor"
   },
   "competitorAnalysis": {
-    "title": "Enable Competitor Analysis?",
-    "description": "Enhance your roadmap with insights from competitor products",
-    "whatItDoes": "What competitor analysis does:",
-    "identifiesCompetitors": "Identifies 3-5 main competitors based on your project type",
-    "searchesAppStores": "Searches app stores, forums, and social media for user feedback and pain points",
-    "suggestsFeatures": "Suggests features that address gaps in competitor products",
-    "webSearchesTitle": "Web searches will be performed",
-    "webSearchesDescription": "This feature will perform web searches to gather competitor information. Your project name and type will be used in search queries. No code or sensitive data is shared.",
-    "optionalInfo": "You can generate a roadmap without competitor analysis if you prefer. The roadmap will still be based on your project structure and best practices.",
-    "skipAnalysis": "No, Skip Analysis",
-    "enableAnalysis": "Yes, Enable Analysis",
+    "title": "Run competitor analysis first?",
+    "description": "No competitor analysis exists for this project yet. Run it now — the result is saved to the Competitors page, where you can rank directions later.",
+    "previewTitle": "Roadmap guided by competitor analysis",
+    "previewDescription": "Uses {{count}} analyzed competitors from the Competitors page (analyzed {{date}}).",
+    "competitorsHeading": "Competitors",
+    "directionsHeading": "Directions to pursue",
+    "noDirections": "No directions yet — rank them on the Competitors page to guide the roadmap.",
+    "notRanked": "Ranking not saved yet — directions are in AI order. Edit in Competitors to rank them.",
+    "whatItDoes": "What happens:",
+    "stepAnalyze": "Finds and profiles the most relevant competitors (web search)",
+    "stepRank": "Synthesizes strategic directions — saved to the Competitors page for ranking",
+    "stepGuide": "Generates the roadmap with those insights",
     "knowYourCompetitors": "Already know your competitors?",
-    "addThemDirectly": "Add them directly to improve analysis accuracy",
-    "addKnownCompetitors": "Add Known Competitors",
-    "addKnownCompetitorsDescription": "Manually add competitors you already know about to the existing analysis.",
-    "competitorsAdded": "{{count}} added"
-  },
-  "existingCompetitorAnalysis": {
-    "title": "Competitor Analysis Options",
-    "description": "This project has an existing competitor analysis from {{date}}",
-    "recently": "recently",
-    "useExistingTitle": "Use existing analysis",
-    "recommended": "(Recommended)",
-    "useExistingDescription": "Reuse the competitor insights you already have. Faster and no additional web searches.",
-    "runNewTitle": "Run new analysis",
-    "runNewDescription": "Perform fresh web searches to get updated competitor information. Takes longer.",
-    "skipTitle": "Skip competitor analysis",
-    "skipDescription": "Generate roadmap without any competitor insights.",
-    "cancel": "Cancel"
+    "addThemDirectly": "Add them here — they go to the Competitors pool and get analyzed first.",
+    "namePlaceholder": "Name",
+    "urlPlaceholder": "URL (optional)",
+    "add": "Add",
+    "added": "Added: {{names}}",
+    "webSearches": "Web searches will be performed. Your project name and type are used in search queries; no code is shared.",
+    "skipAnalysis": "Generate without",
+    "goToCompetitors": "Open Competitors",
+    "editInCompetitors": "Edit in Competitors",
+    "generateWithAnalysis": "Generate roadmap",
+    "analyzeAndGenerate": "Analyze & generate"
   },
   "versionWarning": {
     "title": "Action Required",
@@ -211,5 +225,16 @@
     "step3": "Click \"Re-authenticate\" on your profile",
     "gotIt": "Got It",
     "goToSettings": "Go to Settings"
+  },
+  "regenerateRoadmap": {
+    "title": "Regenerate Roadmap",
+    "description": "Steer the new roadmap. Point out what the current cards get wrong, or where you'd rather it went.",
+    "placeholder": "e.g. Less focus on enterprise admin tooling — prioritise the mobile onboarding flow and offline support instead.",
+    "placeholderShort": "e.g. Less admin tooling, more mobile onboarding",
+    "hint": "Optional. Leave empty to regenerate as usual.",
+    "shortcutHint": "⌘/Ctrl+Enter to continue.",
+    "cancel": "Cancel",
+    "continueWithGuidance": "Continue with direction",
+    "continueWithout": "Continue without direction"
   }
 }

@@ -82,8 +82,6 @@ function ProjectSettingsContentInner({
     isLoadingEnv,
     envError,
     updateEnvConfig,
-    showOpenAIKey,
-    setShowOpenAIKey,
     expandedSections: _expandedSections,
     toggleSection: _toggleSection,
     handleInitialize,
@@ -116,8 +114,6 @@ function ProjectSettingsContentInner({
         isLoadingEnv={isLoadingEnv}
         envError={envError}
         updateEnvConfig={updateEnvConfig}
-        showOpenAIKey={showOpenAIKey}
-        setShowOpenAIKey={setShowOpenAIKey}
         handleInitialize={handleInitialize}
       />
 

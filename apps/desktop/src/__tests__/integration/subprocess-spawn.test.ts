@@ -74,7 +74,7 @@ vi.mock('../../main/ai/providers/factory', () => ({
 // =============================================================================
 
 vi.mock('../../main/ai/worktree', () => ({
-  createOrGetWorktree: vi.fn().mockResolvedValue({ worktreePath: null }),
+  createOrGetWorktree: vi.fn().mockResolvedValue({ worktreePath: '/project/.malvy/worktrees/tasks/spec-001', branch: 'malvy/spec-001' }),
 }));
 
 vi.mock('../../main/worktree-paths', () => ({

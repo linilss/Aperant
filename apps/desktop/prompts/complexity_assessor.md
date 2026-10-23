@@ -147,7 +147,7 @@ Read the task description carefully. Look for:
 - "optional", "configurable", "toggle" → feature flags, conditional logic
 - "docker", "compose", "container" → infrastructure
 - Database names (postgres, redis, mongo, neo4j, falkordb) → infrastructure + config
-- API/SDK names (stripe, auth0, graphiti, openai) → external research needed
+- API/SDK names (stripe, auth0, twilio, openai) → external research needed
 - "migrate", "migration" → data/schema changes
 - "across", "all services", "everywhere" → cross-cutting
 - "new service", "microservice" → significant scope
@@ -594,7 +594,7 @@ START
 
 ### Example 5: Complex Feature Task
 
-**Task**: "Add Graphiti Memory Integration with LadybugDB (embedded database) as an optional layer controlled by .env variables"
+**Task**: "Add Stripe subscription billing with webhook handling as an optional feature controlled by .env variables"
 
 **Assessment**:
 ```json
@@ -602,35 +602,35 @@ START
   "complexity": "complex",
   "workflow_type": "feature",
   "confidence": 0.90,
-  "reasoning": "Multiple integrations (Graphiti, LadybugDB), new architectural pattern (memory layer with embedded database). Requires research for correct API usage and careful design.",
+  "reasoning": "External payment integration (Stripe) plus a new architectural pattern (billing layer driven by webhooks). Requires research for correct API usage and careful design.",
   "analysis": {
     "scope": {
       "estimated_files": 12,
       "estimated_services": 2,
       "is_cross_cutting": true,
-      "notes": "Memory integration will likely touch multiple parts of the system"
+      "notes": "Billing will likely touch multiple parts of the system"
     },
     "integrations": {
-      "external_services": ["Graphiti", "LadybugDB"],
-      "new_dependencies": ["graphiti-core", "real_ladybug"],
+      "external_services": ["Stripe"],
+      "new_dependencies": ["stripe"],
       "research_needed": true,
-      "notes": "Graphiti is a newer library, need to verify API patterns"
+      "notes": "Need to verify current Stripe Billing API patterns"
     },
     "infrastructure": {
       "docker_changes": false,
       "database_changes": true,
       "config_changes": true,
-      "notes": "LadybugDB is embedded, no Docker needed, new env vars required"
+      "notes": "New subscription table and env vars for API key and webhook secret"
     },
     "knowledge": {
       "patterns_exist": false,
       "research_required": true,
-      "unfamiliar_tech": ["graphiti-core", "LadybugDB"],
-      "notes": "No existing graph database patterns in codebase"
+      "unfamiliar_tech": ["Stripe Billing API"],
+      "notes": "No existing payment patterns in codebase"
     },
     "risk": {
       "level": "medium",
-      "concerns": ["Optional layer adds complexity", "Graph DB performance", "API key management"],
+      "concerns": ["Optional layer adds complexity", "Webhook reliability", "API key management"],
       "notes": "Need careful feature flag implementation"
     }
   },

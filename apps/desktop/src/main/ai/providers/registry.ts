@@ -88,7 +88,7 @@ function createProviderSDKInstance(
  * Builds a provider registry from the given configuration.
  *
  * The returned registry supports unified model access via
- * `registry.languageModel('anthropic:claude-sonnet-4-5-20250929')`.
+ * `registry.languageModel('anthropic:claude-sonnet-5-5')`.
  *
  * @param config - Provider configurations keyed by provider ID
  * @returns A provider registry instance
@@ -122,7 +122,7 @@ export type ProviderRegistry = ReturnType<typeof buildRegistry>;
  * using the given registry.
  *
  * @param registry - The provider registry to resolve from
- * @param providerAndModel - String in 'provider:model' format (e.g., 'anthropic:claude-sonnet-4-5-20250929')
+ * @param providerAndModel - String in 'provider:model' format (e.g., 'anthropic:claude-sonnet-5-5')
  * @returns A configured LanguageModel instance
  * @throws If the provider or model is not found in the registry
  */

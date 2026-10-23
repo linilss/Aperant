@@ -94,7 +94,8 @@ export const CANNY_STATUS_MAP = {
     under_review: 'under review',
     planned: 'planned',
     in_progress: 'in progress',
-    done: 'complete'
+    done: 'complete',
+    dismissed: 'closed'
   } as Record<RoadmapFeatureStatus, string>,
 
   fromProvider: {

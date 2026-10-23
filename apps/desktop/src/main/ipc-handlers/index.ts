@@ -33,6 +33,8 @@ import { registerTerminalWorktreeIpcHandlers } from './terminal';
 import { registerFeatureRefineHandlers } from './feature-refine-handlers';
 import { registerTaskRefineHandlers } from './task-refine-handlers';
 import { registerTestsHandlers } from './tests-handlers';
+import { registerCompetitorHandlers } from './competitor-handlers';
+import { registerFunnelHandlers } from './funnel-handlers';
 import { notificationService } from '../notification-service';
 import { setAgentManagerRef } from './utils';
 
@@ -56,6 +58,9 @@ export function setupIpcHandlers(
 
   // Project handlers
   registerProjectHandlers(getMainWindow);
+
+  // Plan-funnel progress (tab bars, sidebar checks)
+  registerFunnelHandlers(getMainWindow);
 
   // Task handlers
   registerTaskHandlers(agentManager, getMainWindow);
@@ -93,7 +98,7 @@ export function setupIpcHandlers(
   // Insights handlers
   registerInsightsHandlers(getMainWindow);
 
-  // Memory & infrastructure handlers (for LadybugDB)
+  // Memory & infrastructure handlers (built-in memory, libSQL)
   registerMemoryHandlers();
 
   // App auto-update handlers
@@ -122,6 +127,9 @@ export function setupIpcHandlers(
 
   // Tests handlers (discover, run, config)
   registerTestsHandlers(getMainWindow);
+
+  // Competitors page (Plan → Competitors)
+  registerCompetitorHandlers(getMainWindow);
 
   console.warn('[IPC] All handler modules registered successfully');
 }

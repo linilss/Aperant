@@ -102,7 +102,7 @@ export function Changelog() {
 
         {/* Content */}
         {step === 1 && (
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden max-md:flex-col max-md:overflow-y-auto">
             <ChangelogFilters
               sourceMode={sourceMode}
               onSourceModeChange={setSourceMode}

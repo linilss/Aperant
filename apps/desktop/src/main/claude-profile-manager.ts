@@ -665,13 +665,17 @@ export class ClaudeProfileManager {
   /**
    * Record a rate limit event for a profile
    */
-  recordRateLimitEvent(profileId: string, resetTimeStr: string): ClaudeRateLimitEvent {
+  recordRateLimitEvent(
+    profileId: string,
+    resetTimeStr: string,
+    limitType?: 'session' | 'weekly'
+  ): ClaudeRateLimitEvent {
     const profile = this.getProfile(profileId);
     if (!profile) {
       throw new Error('Profile not found');
     }
 
-    const event = recordRateLimitEventImpl(profile, resetTimeStr);
+    const event = recordRateLimitEventImpl(profile, resetTimeStr, limitType);
     this.save();
     return event;
   }

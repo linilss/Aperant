@@ -16,7 +16,7 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-import { Plus, Sparkles, Grid2X2, FolderTree, File, Folder, History, ChevronDown, Loader2, TerminalSquare, Settings } from 'lucide-react';
+import { Plus, Sparkles, Grid2X2, FolderTree, File, Folder, History, ChevronDown, Loader2, TerminalSquare, Settings, MoreHorizontal } from 'lucide-react';
 import { SortableTerminalWrapper } from './SortableTerminalWrapper';
 import { Button } from './ui/button';
 import {
@@ -34,6 +34,7 @@ import { useTaskStore } from '../stores/task-store';
 import { useFileExplorerStore } from '../stores/file-explorer-store';
 import { TERMINAL_DOM_UPDATE_DELAY_MS, PANEL_CLEANUP_GRACE_PERIOD_MS } from '../../shared/constants';
 import type { SessionDateInfo } from '../../shared/types';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 interface TerminalGridProps {
   projectPath?: string;
@@ -42,7 +43,8 @@ interface TerminalGridProps {
 }
 
 export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: TerminalGridProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation(['common', 'terminal']);
+  const isMobile = useIsMobile();
   const allTerminals = useTerminalStore((state) => state.terminals);
 
   // Track terminals that are in the grace period before being filtered out
@@ -322,6 +324,12 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
     setExpandedTerminalId(prev => prev === terminalId ? null : terminalId);
   }, []);
 
+  const canInvokeClaudeAll = terminals.some((term) => term.status === 'running' && !term.isCLIMode);
+
+  const openTerminalSettings = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-app-settings', { detail: 'terminal-fonts' }));
+  }, []);
+
   const handleInvokeClaudeAll = useCallback(() => {
     terminals.forEach((terminal) => {
       if (terminal.status === 'running' && !terminal.isCLIMode) {
@@ -437,6 +445,51 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
   // Terminal IDs for SortableContext
   const terminalIds = useMemo(() => terminals.map(t => t.id), [terminals]);
 
+  // Mobile: one terminal visible at a time (the active one, else the first)
+  const mobileVisibleId = terminals.some(t => t.id === activeTerminalId)
+    ? activeTerminalId
+    : terminals[0]?.id ?? null;
+
+  // Keep the store's active terminal in sync with the visible one, and refit after switching
+  useEffect(() => {
+    if (!isMobile || !mobileVisibleId) return;
+    if (mobileVisibleId !== useTerminalStore.getState().activeTerminalId) {
+      setActiveTerminal(mobileVisibleId);
+    }
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('terminal-refit-all'));
+    }, TERMINAL_DOM_UPDATE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isMobile, mobileVisibleId, setActiveTerminal]);
+
+  // Mobile: iOS keeps the layout viewport when the soft keyboard opens, so cap the
+  // grid height at the visual viewport bottom to keep the key bar above the keyboard.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [viewportMaxHeight, setViewportMaxHeight] = useState<number | null>(null);
+  const hasTerminals = terminals.length > 0;
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!isMobile || !viewport || !hasTerminals) {
+      setViewportMaxHeight(null);
+      return;
+    }
+    const update = () => {
+      const el = rootRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setViewportMaxHeight(Math.max(0, Math.floor(viewport.pageTop + viewport.height - top)));
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [isMobile, hasTerminals]);
+
   // Empty state
   if (terminals.length === 0) {
     return (
@@ -468,15 +521,21 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-full flex-col">
-        {/* Toolbar */}
-        <div className="flex h-10 items-center justify-between border-b border-border bg-card/30 px-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              {terminals.length} / 12 terminals
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
+      <div
+        ref={rootRef}
+        className="flex h-full flex-col"
+        style={viewportMaxHeight !== null ? { maxHeight: viewportMaxHeight } : undefined}
+      >
+        {/* Toolbar — wraps instead of clipping; secondary actions go icon-only below lg and into "⋯" on phones */}
+        <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border bg-card/30 px-3 py-1 max-md:px-2 max-md:py-1.5">
+          <span
+            className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+            title={t('terminal:toolbar.count', { count: terminals.length, max: 12 })}
+          >
+            <span className="max-md:hidden">{t('terminal:toolbar.count', { count: terminals.length, max: 12 })}</span>
+            <span className="md:hidden">{t('terminal:toolbar.countShort', { count: terminals.length, max: 12 })}</span>
+          </span>
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             {/* Claude Code CLI status */}
             <ClaudeCodeStatusBadge />
             {/* Session history dropdown */}
@@ -486,21 +545,23 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs gap-1.5"
+                    className="h-7 text-xs gap-1.5 max-md:h-10"
                     disabled={isRestoring || isLoadingDates}
+                    aria-label={t('terminal:toolbar.history')}
+                    title={t('terminal:toolbar.history')}
                   >
                     {isRestoring ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <History className="h-3 w-3" />
                     )}
-                    History
+                    <span className="max-lg:hidden">{t('terminal:toolbar.history')}</span>
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    Restore sessions from...
+                    {t('terminal:toolbar.restoreFrom')}
                   </div>
                   <DropdownMenuSeparator />
                   {sessionDates.map((dateInfo) => (
@@ -511,7 +572,7 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
                     >
                       <span>{dateInfo.label}</span>
                       <span className="text-xs text-muted-foreground">
-                        {dateInfo.sessionCount} session{dateInfo.sessionCount !== 1 ? 's' : ''}
+                        {t('terminal:toolbar.sessionCount', { count: dateInfo.sessionCount })}
                       </span>
                     </DropdownMenuItem>
                   ))}
@@ -521,35 +582,37 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs gap-1.5"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('open-app-settings', { detail: 'terminal-fonts' }));
-              }}
+              className="h-7 text-xs gap-1.5 max-md:hidden"
+              onClick={openTerminalSettings}
+              aria-label={t('actions.settings')}
+              title={t('actions.settings')}
             >
               <Settings className="h-3 w-3" />
-              {t('actions.settings')}
+              <span className="max-lg:hidden">{t('actions.settings')}</span>
             </Button>
-            {terminals.some((t) => t.status === 'running' && !t.isCLIMode) && (
+            {canInvokeClaudeAll && (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 text-xs gap-1.5 max-md:hidden"
                 onClick={handleInvokeClaudeAll}
+                aria-label={t('terminal:toolbar.invokeClaudeAll')}
+                title={t('terminal:toolbar.invokeClaudeAll')}
               >
                 <Sparkles className="h-3 w-3" />
-                Invoke Claude All
+                <span className="max-lg:hidden">{t('terminal:toolbar.invokeClaudeAll')}</span>
               </Button>
             )}
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs gap-1.5"
+              className="h-7 text-xs gap-1.5 max-md:h-10"
               onClick={handleAddTerminal}
               disabled={!canAddTerminal(projectPath)}
             >
               <Plus className="h-3 w-3" />
-              New Terminal
-              <kbd className="ml-1 text-[10px] text-muted-foreground">
+              {t('terminal:toolbar.newTerminal')}
+              <kbd className="ml-1 text-[10px] text-muted-foreground max-lg:hidden">
                 {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+T
               </kbd>
             </Button>
@@ -558,24 +621,121 @@ export function TerminalGrid({ projectPath, onNewTaskClick, isActive = false }: 
               <Button
                 variant={fileExplorerOpen ? 'default' : 'outline'}
                 size="sm"
-                className="h-7 text-xs gap-1.5"
+                className="h-7 text-xs gap-1.5 max-md:hidden"
                 onClick={toggleFileExplorer}
+                aria-label={t('terminal:toolbar.files')}
+                title={t('terminal:toolbar.files')}
               >
                 <FolderTree className="h-3 w-3" />
-                Files
+                <span className="max-lg:hidden">{t('terminal:toolbar.files')}</span>
               </Button>
             )}
+            {/* Phone: secondary actions fold into a menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 md:hidden"
+                  aria-label={t('terminal:toolbar.moreActions')}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[12rem]">
+                <DropdownMenuItem onSelect={openTerminalSettings} className="min-h-10 gap-2">
+                  <Settings className="h-4 w-4" />
+                  {t('actions.settings')}
+                </DropdownMenuItem>
+                {canInvokeClaudeAll && (
+                  <DropdownMenuItem onSelect={handleInvokeClaudeAll} className="min-h-10 gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    {t('terminal:toolbar.invokeClaudeAll')}
+                  </DropdownMenuItem>
+                )}
+                {projectPath && (
+                  <DropdownMenuItem onSelect={toggleFileExplorer} className="min-h-10 gap-2">
+                    <FolderTree className="h-4 w-4" />
+                    {t('terminal:toolbar.files')}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
+
+        {/* Mobile terminal switcher */}
+        {isMobile && (
+          <div
+            role="tablist"
+            aria-label={t('terminal:mobile.switcherLabel')}
+            className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-card/30 px-2 py-1.5"
+          >
+            {terminals.map((terminal) => {
+              const selected = terminal.id === mobileVisibleId;
+              return (
+                <button
+                  key={terminal.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setActiveTerminal(terminal.id)}
+                  className={cn(
+                    'flex h-10 max-w-48 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium',
+                    selected
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border bg-card text-muted-foreground'
+                  )}
+                >
+                  {terminal.isCLIMode ? (
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  ) : (
+                    <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="truncate">{terminal.title || 'Terminal'}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Main content area with terminal grid and file explorer sidebar */}
         <div className="flex flex-1 overflow-hidden">
           {/* Terminal grid using resizable panels */}
           <div className={cn(
-            "flex-1 overflow-hidden p-2 transition-all duration-300 ease-out",
+            "flex-1 overflow-hidden p-2 transition-all duration-300 ease-out max-md:p-1",
             fileExplorerOpen && "pr-0"
           )}>
-            {expandedTerminalId ? (
+            {isMobile ? (
+              // Mobile: all terminals stay mounted and stacked (sessions keep running and
+              // keep their size); only the selected one is visible.
+              <SortableContext items={terminalIds} strategy={rectSortingStrategy}>
+              <div className="relative h-full">
+                {terminals.map((terminal) => {
+                  const visible = terminal.id === mobileVisibleId;
+                  return (
+                    <div
+                      key={terminal.id}
+                      className={cn('absolute inset-0', !visible && 'invisible pointer-events-none')}
+                      aria-hidden={!visible}
+                    >
+                      <SortableTerminalWrapper
+                        id={terminal.id}
+                        cwd={terminal.cwd || projectPath}
+                        projectPath={projectPath}
+                        isActive={visible && terminal.id === activeTerminalId}
+                        onClose={() => handleCloseTerminal(terminal.id)}
+                        onActivate={() => setActiveTerminal(terminal.id)}
+                        tasks={tasks}
+                        onNewTaskClick={onNewTaskClick}
+                        terminalCount={1}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              </SortableContext>
+            ) : expandedTerminalId ? (
               // Show only the expanded terminal
               (() => {
                 const expandedTerminal = terminals.find(t => t.id === expandedTerminalId);

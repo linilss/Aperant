@@ -186,7 +186,6 @@ export class ChangelogService extends EventEmitter {
       const autoBuildEnv = this.loadAutoBuildEnv();
 
       this.generator = new ChangelogGenerator(
-        '',
         claudePath,
         autoBuildSource,
         autoBuildEnv,
@@ -222,7 +221,6 @@ export class ChangelogService extends EventEmitter {
       const { autoBuildSource, claudePath } = this.ensurePrerequisites();
 
       this.versionSuggester = new VersionSuggester(
-        '',
         claudePath,
         autoBuildSource,
         this.isDebugEnabled()
@@ -254,7 +252,10 @@ export class ChangelogService extends EventEmitter {
           title: task.title,
           description: task.description,
           completedAt: task.updatedAt,
-          hasSpecs
+          hasSpecs,
+          ...(task.metadata?.deployments?.length
+            ? { lastDeployment: task.metadata.deployments[task.metadata.deployments.length - 1] }
+            : {})
         };
       })
       .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
@@ -470,7 +471,7 @@ export class ChangelogService extends EventEmitter {
    * Suggest version using AI analysis of git commits
    */
   async suggestVersionFromCommits(
-    _projectPath: string,
+    projectPath: string,
     commits: import('../../shared/types').GitCommit[],
     currentVersion?: string
   ): Promise<{ version: string; reason: string }> {
@@ -487,7 +488,7 @@ export class ChangelogService extends EventEmitter {
 
       // Use AI to analyze commits and suggest version bump
       const suggester = this.getVersionSuggester();
-      const suggestion = await suggester.suggestVersionBump(commits, currentVersion);
+      const suggestion = await suggester.suggestVersionBump(commits, currentVersion, projectPath);
 
       this.debug('AI version suggestion', suggestion);
 

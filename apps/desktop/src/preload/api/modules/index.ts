@@ -12,3 +12,4 @@ export * from './changelog-api';
 export * from './shell-api';
 export * from './debug-api';
 export * from './tests-api';
+export * from './competitor-api';

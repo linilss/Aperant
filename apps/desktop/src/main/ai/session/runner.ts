@@ -6,7 +6,7 @@
  *
  * Uses Vercel AI SDK v6:
  * - `streamText()` with `stopWhen: stepCountIs(N)` for agentic looping
- * - `prepareStep` callback for between-step memory injection (optional)
+ * - `prepareStep` callback for between-step context-window and convergence guards
  * - `onStepFinish` callbacks for progress tracking
  * - `fullStream` for text-delta, tool-call, tool-result, reasoning events
  *
@@ -14,14 +14,10 @@
  * - Token refresh mid-session (catch 401 → reactive refresh → retry)
  * - Cancellation via AbortSignal
  * - Structured SessionResult with usage, outcome, messages
- * - Memory-aware step limits via calibration factor
  */
 
 import { streamText, stepCountIs, Output } from 'ai';
 import type { Tool as AITool } from 'ai';
-import type { WorkerObserverProxy } from '../memory/ipc/worker-observer-proxy';
-import { StepMemoryState } from '../memory/injection/step-memory-state';
-import { buildMemoryAwareStopCondition } from '../memory/injection/memory-stop-condition';
 
 import { buildThinkingProviderOptions } from '../config/types';
 import { createStreamHandler } from './stream-handler';
@@ -82,18 +78,6 @@ const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
 // =============================================================================
 
 /**
- * Memory context for active injection into the agent loop.
- * When provided, `runAgentSession()` uses `prepareStep` to inject
- * memory-derived context between agent steps.
- */
-export interface MemorySessionContext {
-  /** Worker-side proxy for main-thread memory operations */
-  proxy: WorkerObserverProxy;
-  /** Pre-computed calibration factor for step limit adjustment (from getCalibrationFactor()) */
-  calibrationFactor?: number;
-}
-
-/**
  * Options for `runAgentSession()` beyond the core SessionConfig.
  */
 export interface RunnerOptions {
@@ -109,12 +93,6 @@ export interface RunnerOptions {
   onModelRefresh?: (newToken: string) => import('ai').LanguageModel;
   /** Tools resolved for this session (from client factory) */
   tools?: Record<string, AITool>;
-  /**
-   * Optional memory context. When provided, enables active injection via
-   * `prepareStep` (between-step gotcha injection, scratchpad reflection,
-   * search short-circuit) and calibrated step limits.
-   */
-  memoryContext?: MemorySessionContext;
   /**
    * Called when an account switch is needed (429 rate limit or 401 auth failure).
    * Returns new resolved auth from the next account in the global priority queue, or null.
@@ -148,7 +126,7 @@ export async function runAgentSession(
   config: SessionConfig,
   options: RunnerOptions = {},
 ): Promise<SessionResult> {
-  const { onEvent, onAuthRefresh, onModelRefresh, tools, memoryContext, onAccountSwitch, currentAccountId } = options;
+  const { onEvent, onAuthRefresh, onModelRefresh, tools, onAccountSwitch, currentAccountId } = options;
   const startTime = Date.now();
 
   let authRetries = 0;
@@ -158,7 +136,7 @@ export async function runAgentSession(
   // Retry loop for auth refresh and account switching
   while (authRetries <= MAX_AUTH_RETRIES) {
     try {
-      const result = await executeStream(activeConfig, tools, onEvent, memoryContext);
+      const result = await executeStream(activeConfig, tools, onEvent);
       return {
         ...result,
         durationMs: Date.now() - startTime,
@@ -239,20 +217,6 @@ export async function runAgentSession(
 // Stream Execution
 // =============================================================================
 
-// =============================================================================
-// Memory Injection Helpers
-// =============================================================================
-
-/**
- * Number of initial steps to skip before starting memory injection.
- * The agent needs time to process the initial context before injections are useful.
- */
-const MEMORY_INJECTION_WARMUP_STEPS = 5;
-
-// =============================================================================
-// Stream Execution
-// =============================================================================
-
 /**
  * Execute the AI SDK streamText call and process the full stream.
  *
@@ -262,14 +226,10 @@ async function executeStream(
   config: SessionConfig,
   tools: Record<string, AITool> | undefined,
   onEvent: SessionEventCallback | undefined,
-  memoryContext: MemorySessionContext | undefined,
 ): Promise<Omit<SessionResult, 'durationMs'>> {
   const baseMaxSteps = config.maxSteps ?? DEFAULT_MAX_STEPS;
 
-  // Apply calibration-adjusted step limit if memory context is available
-  const stopCondition = memoryContext
-    ? buildMemoryAwareStopCondition(baseMaxSteps, memoryContext.calibrationFactor)
-    : stepCountIs(baseMaxSteps);
+  const stopCondition = stepCountIs(baseMaxSteps);
 
   const maxSteps = baseMaxSteps; // Keep for outcome detection
   const progressTracker = new ProgressTracker();
@@ -297,9 +257,6 @@ async function executeStream(
   if (config.abortSignal) signals.push(config.abortSignal);
   const mergedAbortSignal = AbortSignal.any(signals);
 
-  // Per-step state for memory injection (only allocated when memory is active)
-  const stepMemoryState = memoryContext ? new StepMemoryState() : null;
-
   // Convergence nudge: track whether we've already nudged the agent to wrap up
   let convergenceNudgeInjected = false;
 
@@ -307,15 +264,6 @@ async function executeStream(
   const emitEvent: SessionEventCallback = (event) => {
     // Feed progress tracker
     progressTracker.processEvent(event);
-    // Track tool calls in memory state for injection decisions
-    if (stepMemoryState && event.type === 'tool-call') {
-      stepMemoryState.recordToolCall(event.toolName, event.args);
-      // Also notify the observer proxy fire-and-forget
-      memoryContext?.proxy.onToolCall(event.toolName, event.args, 0);
-    }
-    if (stepMemoryState && event.type === 'tool-result') {
-      memoryContext?.proxy.onToolResult(event.toolName, event.result, 0);
-    }
     // Track prompt tokens for context window guard
     if (event.type === 'step-finish') {
       lastPromptTokens = event.usage.promptTokens;
@@ -340,7 +288,7 @@ async function executeStream(
     ? buildThinkingProviderOptions(modelId, config.thinkingLevel)
     : undefined;
 
-  // Execute streamText — prepareStep is only added when memory context exists
+  // Execute streamText
   //
   // IMPORTANT: Output.object() must NOT be combined with tools in the same streamText()
   // call. This is a known AI SDK limitation (GitHub #8354, #8984, #12016):
@@ -419,35 +367,6 @@ async function executeStream(
 
       const systemMessage = systemParts.length > 0 ? systemParts.join('\n\n') : undefined;
 
-      // Memory injection (only when memory context is active)
-      if (memoryContext && stepMemoryState) {
-        if (stepNumber < MEMORY_INJECTION_WARMUP_STEPS) {
-          memoryContext.proxy.onStepComplete(stepNumber);
-          return systemMessage ? { system: systemMessage } : {};
-        }
-
-        const recentContext = stepMemoryState.getRecentContext(5);
-        const injection = await memoryContext.proxy.requestStepInjection(
-          stepNumber,
-          recentContext,
-        );
-
-        memoryContext.proxy.onStepComplete(stepNumber);
-
-        if (!injection) {
-          return systemMessage ? { system: systemMessage } : {};
-        }
-
-        stepMemoryState.markInjected(injection.memoryIds);
-
-        const combinedSystem = systemMessage
-          ? `${systemMessage}\n\n${injection.content}`
-          : injection.content;
-
-        return { system: combinedSystem };
-      }
-
-      // No memory context — just return system message if applicable
       return systemMessage ? { system: systemMessage } : {};
     },
     onStepFinish: (_stepResult) => {

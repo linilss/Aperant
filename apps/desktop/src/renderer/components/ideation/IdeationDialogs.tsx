@@ -17,6 +17,7 @@ import {
 import type { IdeationType, IdeationConfig } from '../../../shared/types';
 import { TypeIcon } from './TypeIcon';
 import { ALL_IDEATION_TYPES } from './constants';
+import { IdeationFocusInput } from './IdeationFocusInput';
 
 interface IdeationDialogsProps {
   showConfigDialog: boolean;
@@ -56,7 +57,12 @@ export function IdeationDialogs({
               Configure which types of ideas to generate
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4 max-h-96 overflow-y-auto">
+          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto max-md:max-h-[70dvh]">
+            <IdeationFocusInput
+              value={config.focus ?? ''}
+              onChange={(focus) => onSetConfig({ focus })}
+            />
+
             <div className="space-y-3">
               <h4 className="text-sm font-medium">Ideation Types</h4>
               {ALL_IDEATION_TYPES.map((type) => (

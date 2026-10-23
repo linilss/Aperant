@@ -17,12 +17,19 @@ export * from './settings';
 export * from './changelog';
 export * from './insights';
 export * from './roadmap';
+export * from './competitors';
 export * from './integrations';
 export * from './app-update';
 export * from './cli';
 export * from './provider-account';
 
 export * from './tests';
+export * from './trace-types';
+export * from './claude-docs';
+export * from './core-values';
+export * from './design-system';
+export * from './funnel';
+export * from './remote-access';
 
 // IPC types (must be last to use types from other modules)
 export * from './ipc';

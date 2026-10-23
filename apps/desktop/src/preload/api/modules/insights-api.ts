@@ -4,6 +4,7 @@ import type {
   InsightsSessionSummary,
   InsightsChatStatus,
   InsightsStreamChunk,
+  InsightsStreamStatus,
   InsightsModelConfig,
   ImageAttachment,
   Task,
@@ -36,16 +37,18 @@ export interface InsightsAPI {
   unarchiveInsightsSession: (projectId: string, sessionId: string) => Promise<IPCResult>;
   renameInsightsSession: (projectId: string, sessionId: string, newTitle: string) => Promise<IPCResult>;
   updateInsightsModelConfig: (projectId: string, sessionId: string, modelConfig: InsightsModelConfig) => Promise<IPCResult>;
+  /** Reply still streaming in main for the project (null when none) */
+  getInsightsStreamStatus: (projectId: string) => Promise<IPCResult<InsightsStreamStatus | null>>;
 
   // Event Listeners
   onInsightsStreamChunk: (
-    callback: (projectId: string, chunk: InsightsStreamChunk) => void
+    callback: (projectId: string, chunk: InsightsStreamChunk, sessionId?: string) => void
   ) => IpcListenerCleanup;
   onInsightsStatus: (
-    callback: (projectId: string, status: InsightsChatStatus) => void
+    callback: (projectId: string, status: InsightsChatStatus, sessionId?: string) => void
   ) => IpcListenerCleanup;
   onInsightsError: (
-    callback: (projectId: string, error: string) => void
+    callback: (projectId: string, error: string, sessionId?: string) => void
   ) => IpcListenerCleanup;
   onInsightsSessionUpdated: (
     callback: (projectId: string, session: InsightsSession) => void
@@ -104,19 +107,22 @@ export const createInsightsAPI = (): InsightsAPI => ({
   updateInsightsModelConfig: (projectId: string, sessionId: string, modelConfig: InsightsModelConfig): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.INSIGHTS_UPDATE_MODEL_CONFIG, projectId, sessionId, modelConfig),
 
+  getInsightsStreamStatus: (projectId: string): Promise<IPCResult<InsightsStreamStatus | null>> =>
+    invokeIpc(IPC_CHANNELS.INSIGHTS_GET_STREAM_STATUS, projectId),
+
   // Event Listeners
   onInsightsStreamChunk: (
-    callback: (projectId: string, chunk: InsightsStreamChunk) => void
+    callback: (projectId: string, chunk: InsightsStreamChunk, sessionId?: string) => void
   ): IpcListenerCleanup =>
     createIpcListener(IPC_CHANNELS.INSIGHTS_STREAM_CHUNK, callback),
 
   onInsightsStatus: (
-    callback: (projectId: string, status: InsightsChatStatus) => void
+    callback: (projectId: string, status: InsightsChatStatus, sessionId?: string) => void
   ): IpcListenerCleanup =>
     createIpcListener(IPC_CHANNELS.INSIGHTS_STATUS, callback),
 
   onInsightsError: (
-    callback: (projectId: string, error: string) => void
+    callback: (projectId: string, error: string, sessionId?: string) => void
   ): IpcListenerCleanup =>
     createIpcListener(IPC_CHANNELS.INSIGHTS_ERROR, callback),
 

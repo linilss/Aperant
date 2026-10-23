@@ -173,6 +173,7 @@ async function generatePRBody(
   commitLog: string,
   modelShorthand: ModelShorthand,
   thinkingLevel: ThinkingLevel,
+  projectDir: string,
 ): Promise<string | null> {
   const prompt = `Create a GitHub Pull Request description for the following change:
 
@@ -194,6 +195,7 @@ Write a professional PR description. Output ONLY the Markdown body — no preamb
       systemPrompt: SYSTEM_PROMPT,
       modelShorthand,
       thinkingLevel,
+      projectPath: projectDir,
     });
 
     const result = await generateText({
@@ -235,7 +237,7 @@ function pushBranch(
         encoding: 'utf-8',
         stdio: 'pipe',
       });
-      execFileSync(gitPath, ['commit', '-m', `auto-claude: save uncommitted work for ${specId}`], {
+      execFileSync(gitPath, ['commit', '-m', 'Save uncommitted work'], {
         cwd: worktreePath,
         encoding: 'utf-8',
         stdio: 'pipe',
@@ -340,6 +342,7 @@ export async function createPR(config: CreatePRConfig): Promise<CreatePRResult> 
     commitLog,
     modelShorthand,
     thinkingLevel,
+    projectDir,
   );
 
   const prBody = aiBody || extractSpecSummary(projectDir, specId);

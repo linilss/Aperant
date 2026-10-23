@@ -7,10 +7,35 @@
 // Ideation Types
 // ============================================
 
+// Every ideation type, in display order ('features' first)
+export const ALL_IDEATION_TYPES = [
+  'features',
+  'code_improvements',
+  'ui_ux_improvements',
+  'documentation_gaps',
+  'security_hardening',
+  'performance_optimizations',
+  'code_quality'
+] as const;
+
+// Types that existed before 'features'. A saved config without `known_types`
+// was made when only these existed, so any other type is new to it.
+export const LEGACY_IDEATION_TYPES = [
+  'code_improvements',
+  'ui_ux_improvements',
+  'documentation_gaps',
+  'security_hardening',
+  'performance_optimizations',
+  'code_quality'
+] as const;
+
+// Max characters of the free-text ideation focus sent to the agent
+export const MAX_IDEATION_FOCUS_LENGTH = 1000;
+
 // Ideation type labels and descriptions
-// Note: high_value_features removed - strategic features belong to Roadmap
 // low_hanging_fruit renamed to code_improvements to cover all code-revealed opportunities
 export const IDEATION_TYPE_LABELS: Record<string, string> = {
+  features: 'Features',
   code_improvements: 'Code Improvements',
   ui_ux_improvements: 'UI/UX Improvements',
   documentation_gaps: 'Documentation',
@@ -20,6 +45,7 @@ export const IDEATION_TYPE_LABELS: Record<string, string> = {
 };
 
 export const IDEATION_TYPE_DESCRIPTIONS: Record<string, string> = {
+  features: 'New product features and capabilities for your users, guided by core values and strategic directions',
   code_improvements: 'Code-revealed opportunities from patterns, architecture, and infrastructure analysis',
   ui_ux_improvements: 'Visual and interaction improvements identified through app analysis',
   documentation_gaps: 'Missing or outdated documentation that needs attention',
@@ -30,6 +56,7 @@ export const IDEATION_TYPE_DESCRIPTIONS: Record<string, string> = {
 
 // Ideation type colors
 export const IDEATION_TYPE_COLORS: Record<string, string> = {
+  features: 'bg-primary/10 text-primary border-primary/30',
   code_improvements: 'bg-success/10 text-success border-success/30',
   ui_ux_improvements: 'bg-info/10 text-info border-info/30',
   documentation_gaps: 'bg-amber-500/10 text-amber-500 border-amber-500/30',
@@ -40,6 +67,7 @@ export const IDEATION_TYPE_COLORS: Record<string, string> = {
 
 // Ideation type icons (Lucide icon names)
 export const IDEATION_TYPE_ICONS: Record<string, string> = {
+  features: 'Rocket',
   code_improvements: 'Zap',
   ui_ux_improvements: 'Palette',
   documentation_gaps: 'BookOpen',
@@ -166,9 +194,9 @@ export const CODE_QUALITY_SEVERITY_COLORS: Record<string, string> = {
 // ============================================
 
 // Default ideation config
-// Note: high_value_features removed, low_hanging_fruit renamed to code_improvements
+// Note: low_hanging_fruit renamed to code_improvements; 'features' is on by default
 export const DEFAULT_IDEATION_CONFIG = {
-  enabledTypes: ['code_improvements', 'ui_ux_improvements', 'security_hardening'] as const,
+  enabledTypes: ['features', 'code_improvements', 'ui_ux_improvements', 'security_hardening'] as const,
   includeRoadmapContext: true,
   includeKanbanContext: true,
   maxIdeasPerType: 5

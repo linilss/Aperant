@@ -11,27 +11,28 @@ import type {
   KanbanPreferences,
   GitBranchDetail,
   InfrastructureStatus,
-  MemoryValidationResult
+  MemoryValidationResult,
+  DeployScript,
+  DeployPreflight,
+  TaskDeployment,
+  ClaudeDocsListing,
+  DocPointer,
+  CreatePointerInput,
+  DocProposal,
+  ApplyDocProposalsResult,
+  CodeBranch,
+  ProjectSummary,
+  PendingDocsState,
+  DocsOptimizeOptions,
+  DocsOptimizerResult,
+  BranchProgressEvent,
+  CoreValues,
+  SaveCoreValuesResult,
+  DesignSystemState,
+  DesignPublishPlan,
+  DesignSystemRunResult,
+  FunnelProgress
 } from '../../shared/types';
-
-/** Structured documentation generated for a project by the AI documentation runner. */
-export interface ProjectDocumentation {
-  generatedAt: string;
-  projectName: string;
-  overview: string;
-  architecture: string;
-  modules: Array<{
-    name: string;
-    path: string;
-    description: string;
-    responsibilities: string[];
-    keyFiles: string[];
-  }>;
-  apiSurface: string;
-  dataModels: string;
-  developerGuide: string;
-  techStack: string;
-}
 
 // Tab state interface (persisted in main process)
 export interface TabState {
@@ -52,6 +53,34 @@ export interface ProjectAPI {
   initializeProject: (projectId: string) => Promise<IPCResult<InitializationResult>>;
   checkProjectVersion: (projectId: string) => Promise<IPCResult<AutoBuildVersionInfo>>;
   clearProjectData: (projectId: string) => Promise<IPCResult<void>>;
+  listDeployScripts: (projectId: string) => Promise<IPCResult<DeployScript[]>>;
+  getDeployPreflight: (projectId: string) => Promise<IPCResult<DeployPreflight>>;
+  /** Path of a clean, detached checkout of the project's HEAD to deploy from */
+  prepareDeployCheckout: (projectId: string) => Promise<IPCResult<string>>;
+  /** Run the project's verify command on the main checkout; an agent fixes collisions */
+  /** Verify command detected from the project's files (used when the setting is empty) */
+  detectVerifyCommand: (projectId: string) => Promise<IPCResult<string | null>>;
+  verifyBeforeDeploy: (projectId: string, mergedTitles: string[]) => Promise<IPCResult<import('../../shared/types').DeployVerifyResult>>;
+  recordTaskDeployment: (
+    projectId: string,
+    taskId: string,
+    deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
+  ) => Promise<IPCResult<TaskDeployment[]>>;
+  /** `.malvy/deploy.md`, or a generated first version (exists: false) */
+  getDeployRunbook: (projectId: string) => Promise<IPCResult<{ content: string; exists: boolean }>>;
+  saveDeployRunbook: (projectId: string, content: string) => Promise<IPCResult>;
+  /** Start a runbook deploy (includes every merged task that is not live yet) */
+  startDeploy: (projectId: string, taskIds: string[]) => Promise<IPCResult<import('../../shared/types').DeployRunRecord>>;
+  getDeployStatus: (projectId: string) => Promise<IPCResult<{ active: import('../../shared/types').DeployRunRecord | null; history: import('../../shared/types').DeployRunRecord[] }>>;
+  getDeployLog: (projectId: string, deployId: string) => Promise<IPCResult<string>>;
+  cancelDeploy: (projectId: string) => Promise<IPCResult<boolean>>;
+  /** Read finished deploy logs into the tasks' deployments (taskId → deployments) */
+  resolveTaskDeployments: (projectId: string, taskIds: string[]) => Promise<IPCResult<Record<string, TaskDeployment[]>>>;
+
+  // Plan funnel (project tab progress, sidebar checks)
+  getFunnelProgress: (projectIds: string[]) => Promise<IPCResult<Record<string, FunnelProgress>>>;
+  getProjectActivity: (projectIds: string[]) => Promise<IPCResult<Record<string, import('../../shared/types').ProjectActivity>>>;
+  onFunnelChanged: (cb: (projectId: string) => void) => () => void;
 
   // Tab State (persisted in main process for reliability)
   getTabState: () => Promise<IPCResult<TabState>>;
@@ -68,16 +97,43 @@ export interface ProjectAPI {
   searchMemories: (projectId: string, query: string) => Promise<IPCResult<unknown>>;
   getRecentMemories: (projectId: string, limit?: number) => Promise<IPCResult<unknown>>;
 
-  // Documentation Operations
-  getProjectDocumentation: (projectId: string) => Promise<IPCResult<ProjectDocumentation | null>>;
-  generateProjectDocumentation: (projectId: string) => void;
-  stopProjectDocumentation: (projectId: string) => void;
-  onDocumentationChunk: (cb: (projectId: string, chunk: string) => void) => () => void;
-  onDocumentationToolUse: (cb: (projectId: string, toolName: string) => void) => () => void;
-  onDocumentationComplete: (cb: (projectId: string, doc: ProjectDocumentation) => void) => () => void;
-  onDocumentationError: (cb: (projectId: string, error: string) => void) => () => void;
+  // CLAUDE.md docs tree + optimizer
+  listClaudeDocs: (projectId: string) => Promise<IPCResult<ClaudeDocsListing>>;
+  readClaudeDoc: (projectId: string, relativePath: string) => Promise<IPCResult<string>>;
+  listCodeBranches: (projectId: string) => Promise<IPCResult<CodeBranch[]>>;
+  getProjectSummary: (projectId: string) => Promise<IPCResult<ProjectSummary | null>>;
+  getCoreValues: (projectId: string) => Promise<IPCResult<CoreValues>>;
+  saveCoreValues: (projectId: string, text: string) => Promise<IPCResult<SaveCoreValuesResult>>;
+  /** AI first draft from the project summary + root docs (not saved) */
+  draftCoreValues: (projectId: string) => Promise<IPCResult<string>>;
+  getPendingDocsRun: (projectId: string) => Promise<IPCResult<PendingDocsState>>;
+  discardPendingDocsRun: (projectId: string) => Promise<IPCResult>;
+  optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) => void;
+  stopClaudeDocsOptimizer: (projectId: string) => void;
+  applyDocProposals: (projectId: string, proposals: DocProposal[]) => Promise<IPCResult<ApplyDocProposalsResult>>;
+  onDocsOptimizerChunk: (cb: (projectId: string, chunk: string) => void) => () => void;
+  onDocsOptimizerBranchProgress: (cb: (projectId: string, progress: BranchProgressEvent) => void) => () => void;
+  onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => () => void;
+  onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => () => void;
 
-  // Memory Infrastructure operations (LadybugDB - no Docker required)
+  // Design system (Design view)
+  getDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemState>>;
+  /** Empty strings clear an override */
+  saveDesignSystemOverrides: (
+    projectId: string,
+    input: { artifactUrl?: string; sourceDir?: string }
+  ) => Promise<IPCResult<DesignSystemState>>;
+  readDesignSystemFile: (projectId: string, relativePath: string) => Promise<IPCResult<string>>;
+  getDesignPublishPlan: (projectId: string) => Promise<IPCResult<DesignPublishPlan | null>>;
+  /** Read-only: snapshot the artifact into .malvy/design-system/ */
+  syncDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemRunResult>>;
+  /** Agent writes a design system from the project's UI code into .malvy/design-system */
+  generateDesignSystem: (projectId: string) => Promise<IPCResult<DesignSystemRunResult>>;
+  /** User-confirmed publish of these artifact paths */
+  publishDesignSystem: (projectId: string, paths: string[]) => Promise<IPCResult<DesignSystemRunResult>>;
+  onDesignSystemProgress: (cb: (projectId: string, text: string) => void) => () => void;
+
+  // Memory Infrastructure operations (built-in memory, libSQL)
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
   listMemoryDatabases: (dbPath?: string) => Promise<IPCResult<string[]>>;
   testMemoryConnection: (dbPath?: string, database?: string) => Promise<IPCResult<MemoryValidationResult>>;
@@ -87,6 +143,12 @@ export interface ProjectAPI {
   pinMemory: (memoryId: string, pinned: boolean) => Promise<IPCResult<void>>;
   deprecateMemory: (memoryId: string) => Promise<IPCResult<void>>;
   deleteMemory: (memoryId: string) => Promise<IPCResult<void>>;
+
+  // Developer pointers (user_taught memories)
+  listPointers: (projectId: string) => Promise<IPCResult<DocPointer[]>>;
+  createPointer: (projectId: string, input: CreatePointerInput) => Promise<IPCResult<DocPointer>>;
+  updatePointer: (projectId: string, memoryId: string, content: string) => Promise<IPCResult<void>>;
+  deletePointer: (projectId: string, memoryId: string) => Promise<IPCResult<void>>;
 
   // Environment Configuration
   getProjectEnv: (projectId: string) => Promise<IPCResult<ProjectEnvConfig>>;
@@ -101,16 +163,7 @@ export interface ProjectAPI {
   ) => Promise<IPCResult<import('../../shared/types').CreateProjectFolderResult>>;
   getDefaultProjectLocation: () => Promise<string | null>;
 
-   // Ollama Model Management
-   scanOllamaModels: (baseUrl: string) => Promise<IPCResult<{
-     models: Array<{
-       name: string;
-       size: number;
-       modified_at: string;
-       digest: string;
-     }>;
-   }>>;
-   downloadOllamaModel: (baseUrl: string, modelName: string) => Promise<IPCResult<{ message: string }>>;
+   // Ollama model download progress
    onDownloadProgress: (callback: (data: {
      modelName: string;
      status: string;
@@ -197,6 +250,45 @@ export const createProjectAPI = (): ProjectAPI => ({
   clearProjectData: (projectId: string): Promise<IPCResult<void>> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROJECT_CLEAR_DATA, projectId),
 
+  listDeployScripts: (projectId: string): Promise<IPCResult<DeployScript[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_LIST_DEPLOY_SCRIPTS, projectId),
+
+  getDeployPreflight: (projectId: string): Promise<IPCResult<DeployPreflight>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_PREFLIGHT, projectId),
+  prepareDeployCheckout: (projectId: string): Promise<IPCResult<string>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_CLEAN_CHECKOUT, projectId),
+  verifyBeforeDeploy: (projectId: string, mergedTitles: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_VERIFY, projectId, mergedTitles),
+  detectVerifyCommand: (projectId: string): Promise<IPCResult<string | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DETECT_VERIFY, projectId),
+
+  recordTaskDeployment: (
+    projectId: string,
+    taskId: string,
+    deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
+  ): Promise<IPCResult<TaskDeployment[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT, projectId, taskId, deployment),
+  getDeployRunbook: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_GET, projectId),
+  saveDeployRunbook: (projectId: string, content: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_SAVE, projectId, content),
+  startDeploy: (projectId: string, taskIds: string[]) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_START, projectId, taskIds),
+  getDeployStatus: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_STATUS, projectId),
+  getDeployLog: (projectId: string, deployId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_LOG, projectId, deployId),
+  cancelDeploy: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.PROJECT_DEPLOY_CANCEL, projectId),
+  resolveTaskDeployments: (projectId: string, taskIds: string[]): Promise<IPCResult<Record<string, TaskDeployment[]>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_RESOLVE_TASK_DEPLOYMENTS, projectId, taskIds),
+
+  getFunnelProgress: (projectIds: string[]): Promise<IPCResult<Record<string, FunnelProgress>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_FUNNEL_PROGRESS, projectIds),
+  getProjectActivity: (projectIds: string[]): Promise<IPCResult<Record<string, import('../../shared/types').ProjectActivity>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROJECT_ACTIVITY, projectIds),
+
+  onFunnelChanged: (cb: (projectId: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string) => cb(projectId);
+    ipcRenderer.on(IPC_CHANNELS.PROJECT_FUNNEL_CHANGED, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.PROJECT_FUNNEL_CHANGED, listener);
+  },
+
   // Tab State (persisted in main process for reliability)
   getTabState: (): Promise<IPCResult<TabState>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TAB_STATE_GET),
@@ -227,42 +319,96 @@ export const createProjectAPI = (): ProjectAPI => ({
   getRecentMemories: (projectId: string, limit?: number) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_MEMORIES, projectId, limit),
 
-  // Documentation Operations
-  getProjectDocumentation: (projectId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_DOCUMENTATION, projectId),
+  // CLAUDE.md docs tree + optimizer
+  listClaudeDocs: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_LIST, projectId),
 
-  generateProjectDocumentation: (projectId: string) =>
-    ipcRenderer.send(IPC_CHANNELS.CONTEXT_GENERATE_DOCUMENTATION, projectId),
+  readClaudeDoc: (projectId: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_READ, projectId, relativePath),
 
-  stopProjectDocumentation: (projectId: string) =>
-    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCUMENTATION_STOP, projectId),
+  listCodeBranches: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_BRANCHES, projectId),
 
-  onDocumentationChunk: (cb: (projectId: string, chunk: string) => void) => {
+  getProjectSummary: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_SUMMARY, projectId),
+
+  getCoreValues: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_GET, projectId),
+
+  saveCoreValues: (projectId: string, text: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_SAVE, projectId, text),
+
+  draftCoreValues: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_CORE_VALUES_DRAFT, projectId),
+
+  getDesignSystem: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_GET, projectId),
+
+  saveDesignSystemOverrides: (projectId: string, input: { artifactUrl?: string; sourceDir?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_SAVE_OVERRIDES, projectId, input),
+
+  readDesignSystemFile: (projectId: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_READ_FILE, projectId, relativePath),
+
+  getDesignPublishPlan: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_PUBLISH_PLAN, projectId),
+
+  syncDesignSystem: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_SYNC, projectId),
+
+  generateDesignSystem: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_GENERATE, projectId),
+
+  publishDesignSystem: (projectId: string, paths: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DESIGN_PUBLISH, projectId, paths),
+
+  onDesignSystemProgress: (cb: (projectId: string, text: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, text: string) => cb(projectId, text);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DESIGN_PROGRESS, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DESIGN_PROGRESS, listener);
+  },
+
+  getPendingDocsRun: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_PENDING, projectId),
+
+  discardPendingDocsRun: (projectId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_DISCARD, projectId),
+
+  optimizeClaudeDocs: (projectId: string, options?: DocsOptimizeOptions) =>
+    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCS_OPTIMIZE, projectId, options),
+
+  stopClaudeDocsOptimizer: (projectId: string) =>
+    ipcRenderer.send(IPC_CHANNELS.CONTEXT_DOCS_STOP, projectId),
+
+  applyDocProposals: (projectId: string, proposals: DocProposal[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_DOCS_APPLY, projectId, proposals),
+
+  onDocsOptimizerChunk: (cb: (projectId: string, chunk: string) => void) => {
     const listener = (_: Electron.IpcRendererEvent, projectId: string, chunk: string) =>
       cb(projectId, chunk);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_CHUNK, listener);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_CHUNK, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_CHUNK, listener);
   },
 
-  onDocumentationToolUse: (cb: (projectId: string, toolName: string) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, projectId: string, toolName: string) =>
-      cb(projectId, toolName);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_TOOL_USE, listener);
+  onDocsOptimizerBranchProgress: (cb: (projectId: string, progress: BranchProgressEvent) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, progress: BranchProgressEvent) =>
+      cb(projectId, progress);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_BRANCH_PROGRESS, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_BRANCH_PROGRESS, listener);
   },
 
-  onDocumentationComplete: (cb: (projectId: string, doc: ProjectDocumentation) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, projectId: string, doc: ProjectDocumentation) =>
-      cb(projectId, doc);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_COMPLETE, listener);
+  onDocsOptimizerComplete: (cb: (projectId: string, result: DocsOptimizerResult) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, projectId: string, result: DocsOptimizerResult) =>
+      cb(projectId, result);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_COMPLETE, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_COMPLETE, listener);
   },
 
-  onDocumentationError: (cb: (projectId: string, error: string) => void) => {
+  onDocsOptimizerError: (cb: (projectId: string, error: string) => void) => {
     const listener = (_: Electron.IpcRendererEvent, projectId: string, error: string) =>
       cb(projectId, error);
-    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR, listener);
-    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCUMENTATION_ERROR, listener);
+    ipcRenderer.on(IPC_CHANNELS.CONTEXT_DOCS_ERROR, listener);
+    return () => ipcRenderer.off(IPC_CHANNELS.CONTEXT_DOCS_ERROR, listener);
   },
 
   // Memory Management
@@ -277,6 +423,19 @@ export const createProjectAPI = (): ProjectAPI => ({
 
   deleteMemory: (memoryId: string): Promise<IPCResult<void>> =>
     ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_MEMORY_DELETE, memoryId),
+
+  // Developer pointers (user_taught memories)
+  listPointers: (projectId: string): Promise<IPCResult<DocPointer[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_POINTERS_LIST, projectId),
+
+  createPointer: (projectId: string, input: CreatePointerInput): Promise<IPCResult<DocPointer>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_MEMORY_CREATE, projectId, input),
+
+  updatePointer: (projectId: string, memoryId: string, content: string): Promise<IPCResult<void>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_MEMORY_UPDATE, projectId, memoryId, content),
+
+  deletePointer: (projectId: string, memoryId: string): Promise<IPCResult<void>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_POINTERS_DELETE, projectId, memoryId),
 
   // Environment Configuration
   getProjectEnv: (projectId: string): Promise<IPCResult<ProjectEnvConfig>> =>
@@ -299,20 +458,7 @@ export const createProjectAPI = (): ProjectAPI => ({
   getDefaultProjectLocation: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.DIALOG_GET_DEFAULT_PROJECT_LOCATION),
 
-  // Ollama Model Management
-  scanOllamaModels: (baseUrl: string): Promise<IPCResult<{
-    models: Array<{
-      name: string;
-      size: number;
-      modified_at: string;
-      digest: string;
-    }>;
-  }>> =>
-    ipcRenderer.invoke('scan-ollama-models', baseUrl),
-
-  downloadOllamaModel: (baseUrl: string, modelName: string): Promise<IPCResult<{ message: string }>> =>
-    ipcRenderer.invoke('download-ollama-model', baseUrl, modelName),
-
+  // Ollama model download progress
   onDownloadProgress: (callback: (data: {
     modelName: string;
     status: string;
@@ -363,7 +509,7 @@ export const createProjectAPI = (): ProjectAPI => ({
   pullOllamaModel: (modelName: string, baseUrl?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.OLLAMA_PULL_MODEL, modelName, baseUrl),
 
-  // Memory Infrastructure operations (LadybugDB - no Docker required)
+  // Memory Infrastructure operations (built-in memory, libSQL)
   getMemoryInfrastructureStatus: (dbPath?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.INFRASTRUCTURE_GET_STATUS, dbPath),
 

@@ -13,6 +13,7 @@ import { McpAPI, createMcpAPI } from './modules/mcp-api';
 import { ProfileAPI, createProfileAPI } from './profile-api';
 import { ScreenshotAPI, createScreenshotAPI } from './screenshot-api';
 import { QueueAPI, createQueueAPI } from './queue-api';
+import { RemoteAccessAPI, createRemoteAccessAPI } from './modules/remote-access-api';
 
 export interface ElectronAPI extends
   ProjectAPI,
@@ -28,7 +29,8 @@ export interface ElectronAPI extends
   ClaudeCodeAPI,
   McpAPI,
   ProfileAPI,
-  ScreenshotAPI {
+  ScreenshotAPI,
+  RemoteAccessAPI {
   /** Queue routing API for rate limit recovery */
   queue: QueueAPI;
 }
@@ -46,6 +48,7 @@ export const createElectronAPI = (): ElectronAPI => ({
   ...createMcpAPI(),
   ...createProfileAPI(),
   ...createScreenshotAPI(),
+  ...createRemoteAccessAPI(),
   queue: createQueueAPI()  // Queue routing for rate limit recovery
 });
 

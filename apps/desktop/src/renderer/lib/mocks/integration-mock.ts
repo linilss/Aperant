@@ -7,8 +7,7 @@ export const integrationMock = {
   getProjectEnv: async () => ({
     success: true,
     data: {
-      memoryEnabled: false,
-      enableFancyUi: true
+      memoryEnabled: false
     }
   }),
 

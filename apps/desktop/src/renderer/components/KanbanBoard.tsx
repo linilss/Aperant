@@ -1,12 +1,14 @@
-import { useState, useMemo, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, memo, Fragment, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useViewState } from '../contexts/ViewStateContext';
 import {
   DndContext,
   DragOverlay,
   closestCorners,
+  pointerWithin,
+  type CollisionDetection,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -14,25 +16,31 @@ import {
   type DragEndEvent,
   type DragOverEvent
 } from '@dnd-kit/core';
+import { MouseAndPenSensor, TOUCH_DRAG_ACTIVATION } from '../lib/dnd-sensors';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2 } from 'lucide-react';
+import { Plus, Inbox, Loader2, Eye, CheckCircle2, Archive, RefreshCw, GitPullRequest, GitMerge, X, Settings, ListPlus, ChevronLeft, ChevronRight, ChevronsRight, Lock, Unlock, Trash2, PauseCircle, Rocket, Combine } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import type { LeadingColumn, TodoExtras } from './board/PlanStageColumns';
 import { TaskCard } from './TaskCard';
+import { ConsolidateTasksDialog } from './ConsolidateTasksDialog';
 import { SortableTaskCard } from './SortableTaskCard';
 import { QueueSettingsModal } from './QueueSettingsModal';
 import { TASK_STATUS_COLUMNS, TASK_STATUS_LABELS } from '../../shared/constants';
 import { cn } from '../lib/utils';
 import { persistTaskStatus, forceCompleteTask, archiveTasks, deleteTasks, useTaskStore, isQueueAtCapacity, DEFAULT_MAX_PARALLEL_TASKS } from '../stores/task-store';
 import { updateProjectSettings, useProjectStore } from '../stores/project-store';
+import { isMergeOnly, isTaskNotLive } from '../../shared/utils/task-deployments';
+import { useDeployDialogStore } from '../stores/deploy-dialog-store';
 import { useKanbanSettingsStore, DEFAULT_COLUMN_WIDTH, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH, COLLAPSED_COLUMN_WIDTH_REM, MIN_COLUMN_WIDTH_REM, MAX_COLUMN_WIDTH_REM, DEFAULT_COLUMN_WIDTH_REM, BASE_FONT_SIZE, pxToRem } from '../stores/kanban-settings-store';
 import { useToast } from '../hooks/use-toast';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { WorktreeCleanupDialog } from './WorktreeCleanupDialog';
 import { BulkPRDialog } from './BulkPRDialog';
 import {
@@ -47,6 +55,20 @@ import {
 } from './ui/alert-dialog';
 import type { Task, TaskStatus, TaskOrderState } from '../../shared/types';
 
+/**
+ * Prefer the card under the pointer over the column it sits in, so a drop lands
+ * where it was released (reordering the queue); fall back to the nearest corners.
+ */
+const cardFirstCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  const cards = hits.filter((c) => !VALID_DROP_COLUMNS.has(String(c.id)));
+  if (cards.length > 0) return cards;
+  return hits.length > 0 ? hits : closestCorners(args);
+};
+
+/** Columns the board shows: Queue lives inside In Progress, AI Review inside Review */
+const BOARD_COLUMNS = TASK_STATUS_COLUMNS.filter((s) => s !== 'queue' && s !== 'ai_review');
+
 // Type guard for valid drop column targets - preserves literal type from TASK_STATUS_COLUMNS
 const VALID_DROP_COLUMNS = new Set<string>(TASK_STATUS_COLUMNS);
 function isValidDropColumn(id: string): id is typeof TASK_STATUS_COLUMNS[number] {
@@ -59,8 +81,19 @@ function isValidDropColumn(id: string): id is typeof TASK_STATUS_COLUMNS[number]
  * error tasks are displayed in the 'human_review' column (errors need human attention).
  * This is used to compare visual positions during drag-and-drop operations.
  */
+/** The status group a task sorts in (before queue / ai_review are folded into their column) */
+function getStatusGroup(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number] {
+  if (status === 'pr_created') return 'pending_merge';
+  if (status === 'error') return 'human_review';
+  return status;
+}
+
 function getVisualColumn(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number] {
   if (status === 'pr_created') return 'pending_merge';
+  // Queued tasks wait at the bottom of In Progress
+  if (status === 'queue') return 'in_progress';
+  // AI review runs at the top of Review
+  if (status === 'ai_review') return 'human_review';
   if (status === 'error') return 'human_review';
   // pending_merge is a real column — pass through as-is
   return status;
@@ -68,6 +101,18 @@ function getVisualColumn(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number]
 
 interface KanbanBoardProps {
   tasks: Task[];
+  /** Board project (falls back to the first task's) */
+  projectId?: string;
+  /** Planning-stage columns (ideas, roadmap) shown before the task columns */
+  leadingColumns?: LeadingColumn[];
+  /** Roadmap features waiting for their task, shown at the top of To do */
+  todoExtras?: TodoExtras;
+  /** Columns shown after the task columns (e.g. Dismissed) */
+  trailingColumns?: LeadingColumn[];
+  /** A dragged item that isn't a task (idea, feature) was dropped */
+  onForeignDrop?: (activeId: string, target: { stage?: string; taskColumn?: TaskStatus }) => void;
+  /** Drag preview for a non-task item */
+  renderForeignOverlay?: (activeId: string) => ReactNode;
   onTaskClick: (task: Task) => void;
   onNewTaskClick?: () => void;
   onRefresh?: () => void;
@@ -101,9 +146,15 @@ interface DroppableColumnProps {
   isResizing?: boolean;
   onResizeStart?: (startX: number) => void;
   onResizeEnd?: () => void;
+  /** Planning column: consolidate related tasks into as few as possible, then queue them */
+  onConsolidate?: () => void;
+  /** Extra content above the task cards plus a header action (To do: planned features) */
+  extras?: TodoExtras;
   // Lock props
   isLocked?: boolean;
   onToggleLocked?: () => void;
+  /** Phone layout: full-width column whose list grows with the page (no inner scroller) */
+  flat?: boolean;
 }
 
 /**
@@ -160,7 +211,10 @@ function droppableColumnPropsAreEqual(
   if (prevProps.onResizeStart !== nextProps.onResizeStart) return false;
   if (prevProps.onResizeEnd !== nextProps.onResizeEnd) return false;
   if (prevProps.isLocked !== nextProps.isLocked) return false;
+  if (prevProps.onConsolidate !== nextProps.onConsolidate) return false;
+  if (prevProps.extras !== nextProps.extras) return false;
   if (prevProps.onToggleLocked !== nextProps.onToggleLocked) return false;
+  if (prevProps.flat !== nextProps.flat) return false;
 
   // Compare selection props
   const prevSelected = prevProps.selectedTaskIds;
@@ -182,6 +236,133 @@ function droppableColumnPropsAreEqual(
   }
 
   return tasksEqual;
+}
+
+/** Desktop: the column list scrolls inside the column. Phone (flat): it grows and the page scrolls. */
+function ColumnListScroller({ flat, children }: { flat?: boolean; children: ReactNode }) {
+  if (flat) return <div className="px-3 pb-3 pt-2">{children}</div>;
+  return <ScrollArea className="h-full px-3 pb-3 pt-2">{children}</ScrollArea>;
+}
+
+/**
+ * Pending Merge header rocket: merge every task oldest first (AI resolves conflicts),
+ * run the verify command (AI fixes collisions), then deploy once. Two clicks to start.
+ */
+function DeployAllButton({ tasks }: { tasks: Task[] }) {
+  const { t } = useTranslation(['deploy']);
+  const projectId = tasks[0]?.projectId;
+  const mergeOnly = useProjectStore((s) => isMergeOnly(s.projects.find((p) => p.id === projectId)?.settings));
+  const batch = useDeployDialogStore((s) => (projectId ? s.batches[projectId] : undefined));
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+
+  const label = batch
+    ? t(`deploy:batch.step.${batch.step}`, { index: batch.index, total: batch.total })
+    : armed
+      ? t(mergeOnly ? 'deploy:batch.confirmMergeOnly' : 'deploy:batch.confirm', { count: tasks.length })
+      : t(mergeOnly ? 'deploy:batch.mergeButton' : 'deploy:batch.button', { count: tasks.length });
+
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <Button
+          variant={armed ? 'destructive' : 'ghost'}
+          size={armed || batch ? 'sm' : 'icon'}
+          className={cn(
+            'h-7 max-md:h-9',
+            armed || batch ? 'px-2 text-xs' : 'w-7 max-md:w-9 hover:bg-primary/10 hover:text-primary'
+          )}
+          disabled={!!batch}
+          aria-label={label}
+          onClick={() => {
+            if (!armed) {
+              setArmed(true);
+              return;
+            }
+            setArmed(false);
+            useDeployDialogStore.getState().deployAll(tasks);
+          }}
+        >
+          {batch ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+          {(armed || batch) && <span className="ml-1.5 whitespace-nowrap">{label}</span>}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{t(mergeOnly ? 'deploy:batch.mergeOnlyTooltip' : 'deploy:batch.tooltip')}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Done header: how many merged tasks are not live yet, and a rocket to deploy them (two clicks). */
+function DeployNotLiveButton({ tasks }: { tasks: Task[] }) {
+  const { t } = useTranslation(['deploy']);
+  const mergeOnly = useProjectStore((s) => isMergeOnly(s.projects.find((p) => p.id === tasks[0]?.projectId)?.settings));
+  const notLive = tasks.filter(isTaskNotLive);
+  const projectId = tasks[0]?.projectId;
+  const running = useDeployDialogStore((s) => (projectId ? s.runs[projectId] : undefined));
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  if (mergeOnly || (!running && notLive.length === 0)) return null;
+  const label = running
+    ? t(`deploy:runs.phase.${running.phase ?? 'running'}`, { step: running.currentStep ?? '' })
+    : armed
+      ? t('deploy:notLive.confirm', { count: notLive.length })
+      : t('deploy:notLive.count', { count: notLive.length });
+  return (
+    <Button
+      variant={armed ? 'destructive' : 'ghost'}
+      size="sm"
+      className={cn('h-7 px-2 text-xs max-md:h-9', !armed && !running && 'text-warning hover:bg-warning/10')}
+      disabled={!!running}
+      title={t('deploy:notLive.tooltip')}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        useDeployDialogStore.getState().deployTask(notLive[notLive.length - 1]);
+      }}
+    >
+      {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+      <span className="ml-1.5 whitespace-nowrap">{label}</span>
+    </Button>
+  );
+}
+
+/** Horizontal swipe distance (px) that switches the phone column tab */
+const SWIPE_THRESHOLD = 60;
+
+type StatusColumn = typeof TASK_STATUS_COLUMNS[number];
+
+const mobileTabStorageKey = (projectId: string) => `kanban-mobile-tab:${projectId}`;
+
+function readStoredMobileTab(projectId: string | undefined): StatusColumn {
+  if (projectId) {
+    try {
+      const stored = localStorage.getItem(mobileTabStorageKey(projectId));
+      if (stored && isValidDropColumn(stored) && stored !== 'queue') return stored;
+    } catch {
+      // Storage unavailable (private mode etc.) — fall back to the first column
+    }
+  }
+  return BOARD_COLUMNS[0];
+}
+
+function storeMobileTab(projectId: string | undefined, tab: StatusColumn) {
+  if (!projectId) return;
+  try {
+    localStorage.setItem(mobileTabStorageKey(projectId), tab);
+  } catch {
+    // Best effort only
+  }
 }
 
 // Empty state content for each column
@@ -237,11 +418,23 @@ const getEmptyStateContent = (status: TaskStatus, t: (key: string) => string): {
   }
 };
 
-const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskClick, onStatusChange, isOver, onAddClick, onArchiveAll, onQueueSettings, onQueueAll, maxParallelTasks, archivedCount, showArchived, onToggleArchived, selectedTaskIds, onSelectAll, onDeselectAll, onToggleSelect, isCollapsed, onToggleCollapsed, columnWidth, isResizing, onResizeStart, onResizeEnd, isLocked, onToggleLocked }: DroppableColumnProps) {
+const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskClick, onStatusChange, isOver, onAddClick, onArchiveAll, onQueueSettings, onQueueAll, maxParallelTasks, archivedCount, showArchived, onToggleArchived, selectedTaskIds, onSelectAll, onDeselectAll, onToggleSelect, isCollapsed, onToggleCollapsed, columnWidth, isResizing, onResizeStart, onResizeEnd, isLocked, onToggleLocked, onConsolidate, extras, flat }: DroppableColumnProps) {
   const { t } = useTranslation(['tasks', 'common']);
   const { setNodeRef } = useDroppable({
     id: status
   });
+
+  // Rate-limit-paused tasks sit in this column but hold no slot, so the capacity
+  // badge counts them separately from the tasks actually consuming parallelism.
+  const rateLimitPauses = useTaskStore((state) => state.rateLimitPauses);
+  const pausedTaskCount = status === 'in_progress'
+    ? tasks.filter((t) => rateLimitPauses[t.id]).length
+    : 0;
+  // In Progress also lists the queue (status 'queue') below its running tasks
+  const queuedCount = status === 'in_progress' ? tasks.filter((t) => t.status === 'queue').length : 0;
+  const activeTaskCount = tasks.length - queuedCount - pausedTaskCount;
+  // Auto-promotion stands down while any task is parked on a rate limit
+  const isQueueHeldByRateLimit = queuedCount > 0 && Object.keys(rateLimitPauses).length > 0;
 
   // Calculate selection state for this column
   const taskCount = tasks.length;
@@ -300,9 +493,30 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
   const taskCards = useMemo(() => {
     if (tasks.length === 0) return null;
     const isSelectable = !!onToggleSelectHandlers;
-    return tasks.map((task) => (
+    const firstQueued = tasks.findIndex((t) => t.status === 'queue');
+    // Review: a divider between AI reviews still running and what waits for the user
+    const firstYours = tasks.some((t) => t.status === 'ai_review') ? tasks.findIndex((t) => t.status !== 'ai_review') : -1;
+    return tasks.map((task, index) => (
+      <Fragment key={task.id}>
+      {index === firstYours && (
+        <div className="flex items-center gap-2 pt-1 text-xs font-medium text-muted-foreground">
+          <span>{t('tasks:kanban.yourReview', { count: tasks.length - firstYours })}</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      )}
+      {index === firstQueued && (
+        <div className="flex items-center gap-2 pt-1 text-xs font-medium text-muted-foreground">
+          <span>{t('tasks:queue.upNext', { count: tasks.length - firstQueued })}</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      )}
+      <div className={firstQueued >= 0 && index >= firstQueued ? 'flex gap-2' : undefined}>
+      {firstQueued >= 0 && index >= firstQueued && (
+        // Start order: 1 starts next
+        <span className="w-4 shrink-0 pt-4 text-right text-xs font-medium tabular-nums text-muted-foreground">{index - firstQueued + 1}</span>
+      )}
+      <div className={firstQueued >= 0 && index >= firstQueued ? 'min-w-0 flex-1' : undefined}>
       <SortableTaskCard
-        key={task.id}
         task={task}
         onClick={onClickHandlers.get(task.id)!}
         onStatusChange={onStatusChangeHandlers.get(task.id)}
@@ -310,8 +524,11 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
         isSelected={isSelectable ? selectedTaskIds?.has(task.id) : undefined}
         onToggleSelect={onToggleSelectHandlers?.get(task.id)}
       />
+      </div>
+      </div>
+      </Fragment>
     ));
-  }, [tasks, onClickHandlers, onStatusChangeHandlers, onToggleSelectHandlers, selectedTaskIds]);
+  }, [tasks, onClickHandlers, onStatusChangeHandlers, onToggleSelectHandlers, selectedTaskIds, t]);
 
   const getColumnBorderColor = (): string => {
     switch (status) {
@@ -335,7 +552,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
   const emptyState = getEmptyStateContent(status, t);
 
   // Collapsed state: show narrow vertical strip with rotated title and task count
-  if (isCollapsed) {
+  if (isCollapsed && !flat) {
     return (
       <div
         ref={setNodeRef}
@@ -354,7 +571,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 hover:bg-primary/10 hover:text-primary transition-colors"
+                className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-primary/10 hover:text-primary transition-colors"
                 onClick={onToggleCollapsed}
                 aria-label={t('kanban.expandColumn')}
               >
@@ -387,29 +604,30 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
 
   return (
     <div
-      className="relative flex"
-      style={{ width: columnWidth ? pxToRem(columnWidth) : DEFAULT_COLUMN_WIDTH_REM, minWidth: MIN_COLUMN_WIDTH_REM, maxWidth: MAX_COLUMN_WIDTH_REM, flexShrink: 0 }}
+      className={flat ? 'relative flex w-full' : 'relative flex'}
+      style={flat ? undefined : { width: columnWidth ? pxToRem(columnWidth) : DEFAULT_COLUMN_WIDTH_REM, minWidth: MIN_COLUMN_WIDTH_REM, maxWidth: MAX_COLUMN_WIDTH_REM, flexShrink: 0 }}
     >
       <div
         ref={setNodeRef}
         className={cn(
-          'flex flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
+          // min-w-0: long card content must not widen the column past its set width
+          'flex min-w-0 flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
           getColumnBorderColor(),
           'border-t-2',
           isOver && 'drop-zone-highlight'
         )}
       >
         {/* Column header - enhanced styling */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between p-4 border-b border-white/5 max-md:px-3 max-md:py-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           {/* Collapse button */}
-          {onToggleCollapsed && (
+          {onToggleCollapsed && !flat && (
             <Tooltip delayDuration={200}>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
+                  className="h-6 w-6 max-md:h-9 max-md:w-9 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
                   onClick={onToggleCollapsed}
                   aria-label={t('kanban.collapseColumn')}
                 >
@@ -444,28 +662,44 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
             {t(TASK_STATUS_LABELS[status])}
           </h2>
           {status === 'in_progress' && maxParallelTasks ? (
-            <span className={cn(
-              "column-count-badge",
-              tasks.length >= maxParallelTasks && "bg-warning/20 text-warning border-warning/30"
-            )}>
-              {tasks.length}/{maxParallelTasks}
-            </span>
+            // Count only tasks actually working — paused ones released their slot
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <span className={cn(
+                  "column-count-badge",
+                  activeTaskCount >= maxParallelTasks && "bg-warning/20 text-warning border-warning/30"
+                )}>
+                  {activeTaskCount}/{maxParallelTasks}
+                  {pausedTaskCount > 0 && (
+                    <span className="ml-1 opacity-70">+{pausedTaskCount}</span>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <span>
+                  {pausedTaskCount > 0
+                    ? t('tasks:queue.capacityWithPaused', { active: activeTaskCount, max: maxParallelTasks, paused: pausedTaskCount })
+                    : t('tasks:queue.capacity', { active: activeTaskCount, max: maxParallelTasks })}
+                </span>
+              </TooltipContent>
+            </Tooltip>
           ) : (
             <span className="column-count-badge">
-              {tasks.length}
+              {tasks.length + (extras?.count ?? 0)}
             </span>
           )}
         </div>
         <div className="flex items-center gap-1">
+          {extras?.action}
           {/* Lock toggle button - available for all columns */}
-          {onToggleLocked && (
+          {onToggleLocked && !flat && (
             <Tooltip delayDuration={200}>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    'h-7 w-7 transition-colors',
+                    'h-7 w-7 max-md:h-9 max-md:w-9 transition-colors',
                     isLocked
                       ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20'
                       : 'hover:bg-muted-foreground/10 hover:text-muted-foreground'
@@ -484,11 +718,23 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
           )}
           {status === 'backlog' && (
             <>
+              {onConsolidate && tasks.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-primary/10 hover:text-primary transition-colors"
+                  onClick={onConsolidate}
+                  title={t('consolidate.button')}
+                  aria-label={t('consolidate.button')}
+                >
+                  <Combine className="h-4 w-4" />
+                </Button>
+              )}
               {onQueueAll && tasks.length > 0 && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
+                  className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
                   onClick={onQueueAll}
                   title={t('queue.queueAll')}
                 >
@@ -499,7 +745,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary transition-colors"
+                  className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-primary/10 hover:text-primary transition-colors"
                   onClick={onAddClick}
                   aria-label={t('kanban.addTaskAriaLabel')}
                 >
@@ -508,22 +754,24 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
               )}
             </>
           )}
-          {status === 'queue' && onQueueSettings && (
+          {onQueueSettings && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
+              className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
               onClick={onQueueSettings}
               title={t('kanban.queueSettings')}
             >
               <Settings className="h-4 w-4" />
             </Button>
           )}
+          {status === 'pending_merge' && tasks.length > 0 && <DeployAllButton tasks={tasks} />}
+          {status === 'done' && <DeployNotLiveButton tasks={tasks} />}
           {status === 'done' && onArchiveAll && tasks.length > 0 && !showArchived && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
+              className="h-7 w-7 max-md:h-9 max-md:w-9 hover:bg-muted-foreground/10 hover:text-muted-foreground transition-colors"
               onClick={onArchiveAll}
               aria-label={t('tooltips.archiveAllDone')}
             >
@@ -537,7 +785,7 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    'h-7 w-7 transition-colors relative',
+                    'h-7 w-7 max-md:h-9 max-md:w-9 transition-colors relative',
                     showArchived
                       ? 'text-primary bg-primary/10 hover:bg-primary/20'
                       : 'hover:bg-muted-foreground/10 hover:text-muted-foreground'
@@ -562,13 +810,23 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
 
       {/* Task list */}
       <div className="flex-1 min-h-0">
-        <ScrollArea className="h-full px-3 pb-3 pt-2">
+        <ColumnListScroller flat={flat}>
           <SortableContext
             items={taskIds}
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-3 min-h-[120px]">
-              {tasks.length === 0 ? (
+              {/* Explain why a non-empty queue isn't moving */}
+              {isQueueHeldByRateLimit && (
+                <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
+                  <PauseCircle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
+                  <span className="text-xs text-warning">
+                    {t('tasks:queue.heldByRateLimit')}
+                  </span>
+                </div>
+              )}
+              {extras?.content}
+              {tasks.length === 0 && extras?.content ? null : tasks.length === 0 ? (
                 <div
                   className={cn(
                     'empty-column-dropzone flex flex-col items-center justify-center py-6',
@@ -601,15 +859,15 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
               )}
             </div>
           </SortableContext>
-        </ScrollArea>
+        </ColumnListScroller>
       </div>
       </div>
 
       {/* Resize handle on right edge */}
-      {onResizeStart && onResizeEnd && (
+      {onResizeStart && onResizeEnd && !flat && (
         <div
           className={cn(
-            "absolute right-0 top-0 bottom-0 w-1 touch-none z-10",
+            "absolute right-0 top-0 bottom-0 w-1 touch-none z-10 max-md:hidden",
             "transition-colors duration-150",
             isLocked
               ? "cursor-not-allowed bg-transparent"
@@ -640,10 +898,11 @@ const DroppableColumn = memo(function DroppableColumn({ status, tasks, onTaskCli
   );
 }, droppableColumnPropsAreEqual);
 
-export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isRefreshing }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns = [], todoExtras, trailingColumns = [], onForeignDrop, renderForeignOverlay, onTaskClick, onNewTaskClick, onRefresh, isRefreshing }: KanbanBoardProps) {
   const { t } = useTranslation(['tasks', 'dialogs', 'common']);
   const { toast } = useToast();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeForeignId, setActiveForeignId] = useState<string | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const { showArchived, toggleShowArchived } = useViewState();
 
@@ -657,7 +916,6 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   const toggleColumnCollapsed = useKanbanSettingsStore((state) => state.toggleColumnCollapsed);
   const setColumnCollapsed = useKanbanSettingsStore((state) => state.setColumnCollapsed);
   const setColumnWidth = useKanbanSettingsStore((state) => state.setColumnWidth);
-  const toggleColumnLocked = useKanbanSettingsStore((state) => state.toggleColumnLocked);
 
   // Column resize state
   const [resizingColumn, setResizingColumn] = useState<typeof TASK_STATUS_COLUMNS[number] | null>(null);
@@ -667,17 +925,74 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   const resizeProjectIdRef = useRef<string | null>(null);
 
   // Get projectId from first task
-  const projectId = tasks[0]?.projectId;
+  const projectId = boardProjectId ?? tasks[0]?.projectId;
   const project = projectId ? projects.find((p) => p.id === projectId) : undefined;
   const maxParallelTasks = project?.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
+
+  // Phone layout: one column at a time, picked via sticky segmented tabs (remembered per project)
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState<StatusColumn>(() => readStoredMobileTab(projectId));
+  // A planning-stage tab (leading column) shown instead of a status column
+  const [mobileLeading, setMobileLeading] = useState<string | null>(null);
+  const mobileTabIds = [...leadingColumns.map((c) => c.id), ...BOARD_COLUMNS, ...trailingColumns.map((c) => c.id)];
+  const extraColumns = [...leadingColumns, ...trailingColumns];
+  const currentMobileTab = mobileLeading ?? mobileTab;
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileToolbarRef = useRef<HTMLDivElement>(null);
+  const mobileTabListRef = useRef<HTMLDivElement>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    setMobileTab(readStoredMobileTab(projectId));
+  }, [projectId]);
+
+  // Keep the selected tab visible in the horizontally scrolling tab row
+  useEffect(() => {
+    if (!isMobile) return;
+    const list = mobileTabListRef.current;
+    const tab = list?.querySelector<HTMLElement>(`[data-tab="${currentMobileTab}"]`);
+    if (!list || !tab) return;
+    list.scrollLeft = tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2;
+  }, [isMobile, currentMobileTab]);
+
+  const selectMobileTab = (tab: string) => {
+    if (tab === currentMobileTab) return;
+    if ((BOARD_COLUMNS as readonly string[]).includes(tab)) {
+      setMobileLeading(null);
+      setMobileTab(tab as StatusColumn);
+      storeMobileTab(projectId, tab as StatusColumn);
+    } else {
+      setMobileLeading(tab);
+    }
+    // Show the new list from its top (just below the sticky tabs) if scrolled past it
+    const scroller = mobileScrollRef.current;
+    const toolbarHeight = mobileToolbarRef.current?.offsetHeight ?? 0;
+    if (scroller && scroller.scrollTop > toolbarHeight) scroller.scrollTop = toolbarHeight;
+  };
+
+  const handleSwipeStart = (e: ReactTouchEvent) => {
+    const touch = e.touches[0];
+    swipeStart.current = e.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const handleSwipeEnd = (e: ReactTouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const touch = e.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    // Mostly-horizontal gestures only, so vertical scrolling never switches columns
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const next = mobileTabIds[mobileTabIds.indexOf(currentMobileTab) + (dx < 0 ? 1 : -1)];
+    if (next) selectMobileTab(next);
+  };
 
   // Queue settings modal state
   const [showQueueSettings, setShowQueueSettings] = useState(false);
   // Store projectId when modal opens to prevent modal from disappearing if tasks change
   const queueSettingsProjectIdRef = useRef<string | null>(null);
 
-  // Queue processing lock to prevent race conditions
-  const isProcessingQueueRef = useRef(false);
 
   // Selection state for bulk actions (Human Review column)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
@@ -715,7 +1030,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   // Calculate collapsed column count for "Expand All" button
   const collapsedColumnCount = useMemo(() => {
     if (!columnPreferences) return 0;
-    return TASK_STATUS_COLUMNS.filter(
+    return BOARD_COLUMNS.filter(
       (status) => columnPreferences[status]?.isCollapsed
     ).length;
   }, [columnPreferences]);
@@ -729,11 +1044,12 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   }, [tasks, showArchived]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseAndPenSensor, {
       activationConstraint: {
         distance: 8 // 8px movement required before drag starts
       }
     }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_DRAG_ACTIVATION }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
@@ -757,8 +1073,10 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     };
 
     filteredTasks.forEach((task) => {
-      // Map pr_created tasks to the done column, error tasks to human_review
-      const targetColumn = getVisualColumn(task.status);
+      // Group by status (pr_created → pending_merge, error → human_review); queue and
+      // ai_review keep their own groups here and are appended to their visual column below,
+      // after the running work
+      const targetColumn = getStatusGroup(task.status);
       if (grouped[targetColumn]) {
         grouped[targetColumn].push(task);
       }
@@ -795,8 +1113,11 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
           .filter(t => validOrderSet.has(t.id))
           .sort((a, b) => (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0));
 
-        // 5. Prepend new tasks at top, then ordered tasks
-        grouped[statusKey] = [...newTasks, ...orderedTasks];
+        // 5. Prepend new tasks at top, then ordered tasks (the queue appends them, oldest first)
+        grouped[statusKey] = statusKey === 'queue' ? [...orderedTasks, ...newTasks.reverse()] : [...newTasks, ...orderedTasks];
+      } else if (statusKey === 'queue') {
+        // Same order the main-process queue starts them in
+        grouped.queue.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       } else {
         // No custom order: fallback to createdAt sort (newest first)
         grouped[statusKey].sort((a, b) => {
@@ -807,6 +1128,14 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
       }
     });
 
+    // Done: latest merge first (tasks merged before merge times were recorded go last, newest first)
+    const mergedTime = (t: Task) => (t.metadata?.mergedAt ? new Date(t.metadata.mergedAt).getTime() : 0);
+    grouped.done.sort((a, b) => mergedTime(b) - mergedTime(a) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    // In Progress shows the running tasks, then the queue in start order
+    grouped.in_progress = [...grouped.in_progress, ...grouped.queue];
+    // Review shows the AI reviews still running, then what waits for the user
+    grouped.human_review = [...grouped.ai_review, ...grouped.human_review];
     return grouped;
   }, [filteredTasks, taskOrder]);
 
@@ -921,10 +1250,14 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    // A long-press drag on the phone must not also count as a column swipe
+    swipeStart.current = null;
     const { active } = event;
     const task = tasks.find((t) => t.id === active.id);
     if (task) {
       setActiveTask(task);
+    } else {
+      setActiveForeignId(String(active.id));
     }
   };
 
@@ -947,7 +1280,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     // Check if over a task - get its column
     const overTask = tasks.find((t) => t.id === overId);
     if (overTask) {
-      setOverColumnId(overTask.status);
+      setOverColumnId(getVisualColumn(overTask.status));
     }
   };
 
@@ -1031,6 +1364,10 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   /**
    * Move all backlog tasks to queue
    */
+  // Consolidate (To do column)
+  const [showConsolidate, setShowConsolidate] = useState(false);
+  const openConsolidate = useCallback(() => setShowConsolidate(true), []);
+
   const handleQueueAll = async () => {
     const backlogTasks = tasksByStatus.backlog;
     if (backlogTasks.length === 0) return;
@@ -1083,71 +1420,10 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
    * Automatically move tasks from Queue to In Progress to fill available capacity
    * Promotes multiple tasks if needed (e.g., after bulk queue)
    */
+  // The queue runs in the main process for every project; this just nudges it now
   const processQueue = useCallback(async () => {
-    // Prevent concurrent executions to avoid race conditions
-    if (isProcessingQueueRef.current) {
-      console.log('[Queue] Already processing queue, skipping duplicate call');
-      return;
-    }
-
-    isProcessingQueueRef.current = true;
-
-    try {
-      // Track tasks we've already attempted to promote (to avoid infinite retries)
-      const attemptedTaskIds = new Set<string>();
-      let consecutiveFailures = 0;
-      const MAX_CONSECUTIVE_FAILURES = 10; // Safety limit to prevent infinite loop
-
-      // Loop until capacity is full or queue is empty
-      while (true) {
-        // Get CURRENT state from store to ensure accuracy
-        const currentTasks = useTaskStore.getState().tasks;
-        const inProgressCount = currentTasks.filter((t) =>
-          t.status === 'in_progress' && !t.metadata?.archivedAt
-        ).length;
-        const queuedTasks = currentTasks.filter((t) =>
-          t.status === 'queue' && !t.metadata?.archivedAt && !attemptedTaskIds.has(t.id)
-        );
-
-        // Stop if no capacity, no queued tasks, or too many consecutive failures
-        if (inProgressCount >= maxParallelTasks || queuedTasks.length === 0) {
-          break;
-        }
-
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          console.warn(`[Queue] Stopping queue processing after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`);
-          break;
-        }
-
-        // Get the oldest task in queue (FIFO ordering)
-        const nextTask = queuedTasks.sort((a, b) => {
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          return dateA - dateB; // Ascending order (oldest first)
-        })[0];
-
-        console.log(`[Queue] Auto-promoting task ${nextTask.id} from Queue to In Progress (${inProgressCount + 1}/${maxParallelTasks})`);
-        const result = await persistTaskStatus(nextTask.id, 'in_progress');
-
-        if (result.success) {
-          // Reset consecutive failures on success
-          consecutiveFailures = 0;
-        } else {
-          // If promotion failed, log error, mark as attempted, and skip to next task
-          console.error(`[Queue] Failed to promote task ${nextTask.id} to In Progress:`, result.error);
-          attemptedTaskIds.add(nextTask.id);
-          consecutiveFailures++;
-        }
-      }
-
-      // Log if we had failed tasks
-      if (attemptedTaskIds.size > 0) {
-        console.warn(`[Queue] Skipped ${attemptedTaskIds.size} task(s) that failed to promote`);
-      }
-    } finally {
-      isProcessingQueueRef.current = false;
-    }
-  }, [maxParallelTasks]);
+    await window.electronAPI.processTaskQueue(projectId);
+  }, [projectId]);
 
   // Register task status change listener for queue auto-promotion
   // This ensures processQueue() is called whenever a task leaves in_progress
@@ -1164,6 +1440,20 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
 
     // Cleanup: unregister listener when component unmounts
     return unregister;
+  }, [processQueue]);
+
+  // Re-run the queue when a rate-limit pause clears: the parked task resumes and
+  // any slots freed while it waited can now be filled.
+  useEffect(() => {
+    return useTaskStore.subscribe((state, prev) => {
+      if (state.rateLimitPauses === prev.rateLimitPauses) return;
+      const cleared =
+        Object.keys(state.rateLimitPauses).length < Object.keys(prev.rateLimitPauses).length;
+      if (cleared) {
+        console.log('[Queue] Rate limit pause cleared, processing queue');
+        processQueue();
+      }
+    });
   }, [processQueue]);
 
   // Get task order actions from store
@@ -1185,12 +1475,29 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     return success;
   }, [saveTaskOrderToStorage, toast, t]);
 
-  // Load task order on mount and when project changes
+  // Load task order on mount and when project changes; the queue's order lives in
+  // the main process (it decides what starts next), so take that one from there
   useEffect(() => {
-    if (projectId) {
-      loadTaskOrder(projectId);
-    }
-  }, [projectId, loadTaskOrder]);
+    if (!projectId) return;
+    loadTaskOrder(projectId);
+    let cancelled = false;
+    void window.electronAPI.getTaskQueueOrder(projectId).then((queue) => {
+      const current = useTaskStore.getState().taskOrder;
+      if (!cancelled && current && queue.length > 0) setTaskOrder({ ...current, queue });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, loadTaskOrder, setTaskOrder]);
+
+  /** Save a new queue order (first starts first) here and in the main process */
+  const saveQueueOrder = useCallback((queue: string[]) => {
+    const current = useTaskStore.getState().taskOrder;
+    if (!projectId || !current) return;
+    setTaskOrder({ ...current, queue });
+    saveTaskOrder(projectId);
+    void window.electronAPI.setTaskQueueOrder(projectId, queue);
+  }, [projectId, setTaskOrder, saveTaskOrder]);
 
   // Load kanban column preferences on mount and when project changes
   useEffect(() => {
@@ -1232,18 +1539,6 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   }, [columnPreferences, setColumnCollapsed, saveKanbanPreferences, projectId]);
 
   // Create a callback to toggle locked state and save to storage
-  const handleToggleColumnLocked = useCallback((status: typeof TASK_STATUS_COLUMNS[number]) => {
-    // Capture projectId at function start to avoid stale closure in setTimeout
-    const currentProjectId = projectId;
-    toggleColumnLocked(status);
-    // Save preferences after toggling
-    if (currentProjectId) {
-      // Use setTimeout to ensure state is updated before saving
-      setTimeout(() => {
-        saveKanbanPreferences(currentProjectId);
-      }, 0);
-    }
-  }, [toggleColumnLocked, saveKanbanPreferences, projectId]);
 
   // Resize handlers for column width adjustment
   const handleResizeStart = useCallback((status: typeof TASK_STATUS_COLUMNS[number], startX: number) => {
@@ -1358,6 +1653,7 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
+    setActiveForeignId(null);
     setOverColumnId(null);
 
     if (!over) return;
@@ -1365,80 +1661,133 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
     const activeTaskId = active.id as string;
     const overId = over.id as string;
 
-    // Determine target status
-    let newStatus: TaskStatus | null = null;
-    let oldStatus: TaskStatus | null = null;
+    // Ideas and roadmap features: the board owner decides what a drop means
+    if (!tasks.some((t) => t.id === activeTaskId)) {
+      if (overId.startsWith('stage:')) onForeignDrop?.(activeTaskId, { stage: overId.slice('stage:'.length) });
+      else if (isValidDropColumn(overId)) onForeignDrop?.(activeTaskId, { taskColumn: overId });
+      else {
+        const overTask = tasks.find((t) => t.id === overId);
+        if (overTask) onForeignDrop?.(activeTaskId, { taskColumn: overTask.status });
+      }
+      return;
+    }
 
     // Get the task being dragged
     const task = tasks.find((t) => t.id === activeTaskId);
     if (!task) return;
-    oldStatus = task.status;
+    const overTask = isValidDropColumn(overId) ? undefined : tasks.find((t) => t.id === overId);
+    const targetColumn = isValidDropColumn(overId) ? getVisualColumn(overId) : overTask ? getVisualColumn(overTask.status) : null;
+    if (!targetColumn) return;
 
-    // Check if dropped on a column
-    if (isValidDropColumn(overId)) {
-      newStatus = overId;
-    } else {
-      // Check if dropped on another task - move to that task's column
-      const overTask = tasks.find((t) => t.id === overId);
-      if (overTask) {
-        const task = tasks.find((t) => t.id === activeTaskId);
-        if (!task) return;
-
-        // Compare visual columns
-        const taskVisualColumn = getVisualColumn(task.status);
-        const overTaskVisualColumn = getVisualColumn(overTask.status);
-
-        // Same visual column: reorder within column
-        if (taskVisualColumn === overTaskVisualColumn) {
-          // Ensure both tasks are in the order array before reordering
-          // This handles tasks that existed before ordering was enabled
-          const currentColumnOrder = taskOrder?.[taskVisualColumn] ?? [];
-          const activeInOrder = currentColumnOrder.includes(activeTaskId);
-          const overInOrder = currentColumnOrder.includes(overId);
-
-          if (!activeInOrder || !overInOrder) {
-            // Sync the current visual order to the stored order
-            // This ensures existing tasks can be reordered
-            const visualOrder = tasksByStatus[taskVisualColumn].map(t => t.id);
-            setTaskOrder({
-              ...taskOrder,
-              [taskVisualColumn]: visualOrder
-            } as TaskOrderState);
-          }
-
-          // Reorder tasks within the same column using the visual column key
-          reorderTasksInColumn(taskVisualColumn, activeTaskId, overId);
-
-          if (projectId) {
-            saveTaskOrder(projectId);
-          }
-          return;
-        }
-
-        // Different visual column: move to that task's column (status change)
-        // Use the visual column key for ordering to ensure consistency
-        newStatus = overTask.status;
-        moveTaskToColumnTop(activeTaskId, overTaskVisualColumn, taskVisualColumn);
-
-        // Persist task order
-        if (projectId) {
-          saveTaskOrder(projectId);
-        }
+    // In Progress: a drop joins the queue (at the card it was dropped on, else last);
+    // the main-process queue starts it when a slot is free. Running cards stay put.
+    if (targetColumn === 'in_progress') {
+      if (task.status === 'in_progress') return;
+      const queue = tasksByStatus.queue.map((t) => t.id).filter((id) => id !== activeTaskId);
+      const at = overTask?.status === 'queue' ? queue.indexOf(overTask.id) : -1;
+      queue.splice(at >= 0 ? at : queue.length, 0, activeTaskId);
+      saveQueueOrder(queue);
+      if (task.status !== 'queue') {
+        await handleStatusChange(activeTaskId, 'queue', task);
+        await processQueue();
       }
+      return;
     }
 
-    if (!newStatus || newStatus === oldStatus) return;
+    const taskVisualColumn = getVisualColumn(task.status);
+    if (overTask && taskVisualColumn === targetColumn) {
+      // Same visual column: reorder within column
+      // Ensure both tasks are in the order array before reordering
+      // This handles tasks that existed before ordering was enabled
+      const currentColumnOrder = taskOrder?.[targetColumn] ?? [];
+      if (!currentColumnOrder.includes(activeTaskId) || !currentColumnOrder.includes(overId)) {
+        // Sync the current visual order to the stored order
+        setTaskOrder({
+          ...taskOrder,
+          [targetColumn]: tasksByStatus[targetColumn].map(t => t.id)
+        } as TaskOrderState);
+      }
+      reorderTasksInColumn(targetColumn, activeTaskId, overId);
+      if (projectId) saveTaskOrder(projectId);
+      return;
+    }
 
-    // Persist status change via handleStatusChange which enforces queue capacity,
-    // handles worktree cleanup dialogs, and calls processQueue() when a task
-    // leaves in_progress.
+    if (overTask) {
+      // Different visual column: move to the top of that task's column
+      moveTaskToColumnTop(activeTaskId, targetColumn, taskVisualColumn);
+      if (projectId) saveTaskOrder(projectId);
+    }
+
+    // A drop on a card takes that card's status, except in Review (a running AI review
+    // isn't a status to move into)
+    const newStatus: TaskStatus = overTask && targetColumn !== 'human_review' ? overTask.status : targetColumn;
+    if (newStatus === task.status) return;
+
+    // Persist status change via handleStatusChange which enforces queue capacity
+    // and handles worktree cleanup dialogs
     await handleStatusChange(activeTaskId, newStatus, task);
   };
 
+  const renderColumn = (status: StatusColumn, flat = false) => (
+    <DroppableColumn
+      key={status}
+      status={status}
+      tasks={tasksByStatus[status]}
+      onTaskClick={onTaskClick}
+      onStatusChange={handleStatusChange}
+      isOver={overColumnId === status}
+      onAddClick={status === 'backlog' ? onNewTaskClick : undefined}
+      onQueueAll={status === 'backlog' ? handleQueueAll : undefined}
+      onConsolidate={status === 'backlog' ? openConsolidate : undefined}
+      extras={status === 'backlog' ? todoExtras : undefined}
+      onQueueSettings={status === 'in_progress' ? () => {
+        // Only open modal if we have a valid projectId
+        if (!projectId) return;
+        queueSettingsProjectIdRef.current = projectId;
+        setShowQueueSettings(true);
+      } : undefined}
+      onArchiveAll={status === 'done' ? handleArchiveAll : undefined}
+      maxParallelTasks={status === 'in_progress' ? maxParallelTasks : undefined}
+      archivedCount={status === 'done' ? archivedCount : undefined}
+      showArchived={status === 'done' ? showArchived : undefined}
+      onToggleArchived={status === 'done' ? toggleShowArchived : undefined}
+      selectedTaskIds={selectedTaskIds}
+      onSelectAll={() => selectAllTasks(status)}
+      onDeselectAll={deselectAllTasks}
+      onToggleSelect={toggleTaskSelection}
+      isCollapsed={columnPreferences?.[status]?.isCollapsed}
+      onToggleCollapsed={() => handleToggleColumnCollapsed(status)}
+      columnWidth={columnPreferences?.[status]?.width}
+      isResizing={resizingColumn === status}
+      onResizeStart={(startX) => handleResizeStart(status, startX)}
+      onResizeEnd={handleResizeEnd}
+      flat={flat}
+    />
+  );
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      ref={mobileScrollRef}
+      // Phone: the page itself scrolls (toolbar scrolls away, tabs stay pinned)
+      className={isMobile ? 'h-full overflow-y-auto overscroll-contain' : 'flex h-full flex-col'}
+    >
       {/* Kanban header with refresh button and expand all */}
-      {(onRefresh || collapsedColumnCount >= 3) && (
+      {isMobile ? (
+        onRefresh && (
+          <div ref={mobileToolbarRef} className="flex items-center justify-end px-3 pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="h-9 gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+              {isRefreshing ? t('common:buttons.refreshing') : t('tasks:refreshTasks')}
+            </Button>
+          </div>
+        )
+      ) : (onRefresh || collapsedColumnCount >= 3) && (
         <div className="flex items-center justify-between px-6 pt-4 pb-2">
           <div className="flex items-center gap-2">
             {/* Expand All button - appears when 3+ columns are collapsed */}
@@ -1473,48 +1822,103 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
       {/* Kanban columns */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={cardFirstCollision}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6">
-          {TASK_STATUS_COLUMNS.map((status) => (
-            <DroppableColumn
-              key={status}
-              status={status}
-              tasks={tasksByStatus[status]}
-              onTaskClick={onTaskClick}
-              onStatusChange={handleStatusChange}
-              isOver={overColumnId === status}
-              onAddClick={status === 'backlog' ? onNewTaskClick : undefined}
-              onQueueAll={status === 'backlog' ? handleQueueAll : undefined}
-              onQueueSettings={status === 'queue' ? () => {
-                // Only open modal if we have a valid projectId
-                if (!projectId) return;
-                queueSettingsProjectIdRef.current = projectId;
-                setShowQueueSettings(true);
-              } : undefined}
-              onArchiveAll={status === 'done' ? handleArchiveAll : undefined}
-              maxParallelTasks={status === 'in_progress' ? maxParallelTasks : undefined}
-              archivedCount={status === 'done' ? archivedCount : undefined}
-              showArchived={status === 'done' ? showArchived : undefined}
-              onToggleArchived={status === 'done' ? toggleShowArchived : undefined}
-              selectedTaskIds={selectedTaskIds}
-              onSelectAll={() => selectAllTasks(status)}
-              onDeselectAll={deselectAllTasks}
-              onToggleSelect={toggleTaskSelection}
-              isCollapsed={columnPreferences?.[status]?.isCollapsed}
-              onToggleCollapsed={() => handleToggleColumnCollapsed(status)}
-              columnWidth={columnPreferences?.[status]?.width}
-              isResizing={resizingColumn === status}
-              onResizeStart={(startX) => handleResizeStart(status, startX)}
-              onResizeEnd={handleResizeEnd}
-              isLocked={columnPreferences?.[status]?.isLocked}
-              onToggleLocked={() => handleToggleColumnLocked(status)}
-            />
-          ))}
-        </div>
+        {isMobile ? (
+          <>
+            {/* Sticky segmented column tabs with counts; the row scrolls sideways */}
+            <div className="sticky top-0 z-10 border-b border-border bg-background">
+              <div
+                ref={mobileTabListRef}
+                role="tablist"
+                aria-label={t('tasks:kanban.columnTabsLabel')}
+                className="mx-3 my-2 flex gap-0.5 overflow-x-auto rounded-lg bg-secondary/60 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {leadingColumns.map((column) => {
+                  const selected = column.id === currentMobileTab;
+                  return (
+                    <button
+                      key={column.id}
+                      type="button"
+                      role="tab"
+                      data-tab={column.id}
+                      aria-selected={selected}
+                      onClick={() => selectMobileTab(column.id)}
+                      className={cn(
+                        'flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                        selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {column.label}
+                      <span className="tabular-nums text-muted-foreground">{column.count}</span>
+                    </button>
+                  );
+                })}
+                {BOARD_COLUMNS.map((status) => {
+                  const selected = status === currentMobileTab;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      role="tab"
+                      data-tab={status}
+                      aria-selected={selected}
+                      onClick={() => selectMobileTab(status)}
+                      className={cn(
+                        'flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                        selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {t(TASK_STATUS_LABELS[status])}
+                      <span className="tabular-nums text-muted-foreground">{tasksByStatus[status].length}</span>
+                    </button>
+                  );
+                })}
+                {trailingColumns.map((column) => {
+                  const selected = column.id === currentMobileTab;
+                  return (
+                    <button
+                      key={column.id}
+                      type="button"
+                      role="tab"
+                      data-tab={column.id}
+                      aria-selected={selected}
+                      onClick={() => selectMobileTab(column.id)}
+                      className={cn(
+                        'flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                        selected ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {column.label}
+                      <span className="tabular-nums text-muted-foreground">{column.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div
+              className="min-h-[60vh] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              onTouchStart={handleSwipeStart}
+              onTouchEnd={handleSwipeEnd}
+              onTouchCancel={() => {
+                swipeStart.current = null;
+              }}
+            >
+              {mobileLeading
+                ? extraColumns.find((c) => c.id === mobileLeading)?.render(true)
+                : renderColumn(mobileTab, true)}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-1 gap-4 overflow-x-auto p-6">
+            {leadingColumns.map((column) => column.render(false))}
+            {BOARD_COLUMNS.map((status) => renderColumn(status))}
+            {trailingColumns.map((column) => column.render(false))}
+          </div>
+        )}
 
         {/* Drag overlay - enhanced visual feedback */}
         <DragOverlay>
@@ -1522,13 +1926,25 @@ export function KanbanBoard({ tasks, onTaskClick, onNewTaskClick, onRefresh, isR
             <div className="drag-overlay-card">
               <TaskCard task={activeTask} onClick={() => {}} />
             </div>
+          ) : activeForeignId ? (
+            <div className="drag-overlay-card w-80">{renderForeignOverlay?.(activeForeignId)}</div>
           ) : null}
         </DragOverlay>
       </DndContext>
 
+      {projectId && (
+        <ConsolidateTasksDialog
+          open={showConsolidate}
+          onOpenChange={setShowConsolidate}
+          projectId={projectId}
+          tasks={tasksByStatus.backlog}
+          onApplied={async () => undefined}
+        />
+      )}
+
       {selectedTaskIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-border bg-card shadow-lg backdrop-blur-sm">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-md:bottom-[max(1rem,env(safe-area-inset-bottom))] max-md:w-[calc(100vw-1.5rem)]">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-border bg-card shadow-lg backdrop-blur-sm max-md:flex-wrap max-md:justify-center max-md:gap-2 max-md:px-3">
             <span className="text-sm font-medium text-foreground">
               {t('kanban.selectedCountOther', { count: selectedTaskIds.size })}
             </span>

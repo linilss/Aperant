@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
 import { SettingsSection } from './SettingsSection';
 import { ProviderAgentTabs } from './ProviderAgentTabs';
@@ -82,7 +81,6 @@ function ToolDetectionDisplay({ info, isLoading, t }: ToolDetectionDisplayProps)
 export function GeneralSettings({ settings, onSettingsChange, section }: GeneralSettingsProps) {
   const { t } = useTranslation('settings');
   const [toolsInfo, setToolsInfo] = useState<{
-    python: ToolDetectionResult;
     git: ToolDetectionResult;
     gh: ToolDetectionResult;
     claude: ToolDetectionResult;
@@ -95,7 +93,7 @@ export function GeneralSettings({ settings, onSettingsChange, section }: General
       setIsLoadingTools(true);
       window.electronAPI
         .getCliToolsInfo()
-        .then((result: { success: boolean; data?: { python: ToolDetectionResult; git: ToolDetectionResult; gh: ToolDetectionResult; claude: ToolDetectionResult } }) => {
+        .then((result: { success: boolean; data?: { git: ToolDetectionResult; gh: ToolDetectionResult; claude: ToolDetectionResult } }) => {
           if (result.success && result.data) {
             setToolsInfo(result.data);
           }
@@ -121,21 +119,6 @@ export function GeneralSettings({ settings, onSettingsChange, section }: General
           description={t('general.otherAgentSettingsDescription')}
         >
           <div className="space-y-6">
-            <div className="space-y-3">
-              <Label htmlFor="agentFramework" className="text-sm font-medium text-foreground">{t('general.agentFramework')}</Label>
-              <p className="text-sm text-muted-foreground">{t('general.agentFrameworkDescription')}</p>
-              <Select
-                value={settings.agentFramework}
-                onValueChange={(value) => onSettingsChange({ ...settings, agentFramework: value })}
-              >
-                <SelectTrigger id="agentFramework" className="w-full max-w-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto-claude">{t('general.agentFrameworkAutoClaude')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between max-w-md">
                 <div className="space-y-1">
@@ -166,24 +149,6 @@ export function GeneralSettings({ settings, onSettingsChange, section }: General
       description={t('general.pathsDescription')}
     >
       <div className="space-y-6">
-        <div className="space-y-3">
-          <Label htmlFor="pythonPath" className="text-sm font-medium text-foreground">{t('general.pythonPath')}</Label>
-          <p className="text-sm text-muted-foreground">{t('general.pythonPathDescription')}</p>
-          <Input
-            id="pythonPath"
-            placeholder={t('general.pythonPathPlaceholder')}
-            className="w-full max-w-lg"
-            value={settings.pythonPath || ''}
-            onChange={(e) => onSettingsChange({ ...settings, pythonPath: e.target.value })}
-          />
-          {!settings.pythonPath && (
-            <ToolDetectionDisplay
-              info={toolsInfo?.python || null}
-              isLoading={isLoadingTools}
-              t={t}
-            />
-          )}
-        </div>
         <div className="space-y-3">
           <Label htmlFor="gitPath" className="text-sm font-medium text-foreground">{t('general.gitPath')}</Label>
           <p className="text-sm text-muted-foreground">{t('general.gitPathDescription')}</p>

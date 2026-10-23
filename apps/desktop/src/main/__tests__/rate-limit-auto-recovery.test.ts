@@ -138,7 +138,20 @@ Stack trace follows`;
 
       expect(mockProfileManager.recordRateLimitEvent).toHaveBeenCalledWith(
         'profile-mai',
-        'Dec 17 at 6am'
+        'Dec 17 at 6am',
+        'weekly'
+      );
+    });
+
+    it('should record the limit kind from the current CLI message', async () => {
+      const { detectRateLimit } = await import('../rate-limit-detector');
+
+      detectRateLimit("You've hit your session limit · resets 3pm (Europe/Stockholm)", 'profile-mai');
+
+      expect(mockProfileManager.recordRateLimitEvent).toHaveBeenCalledWith(
+        'profile-mai',
+        '3pm (Europe/Stockholm)',
+        'session'
       );
     });
   });

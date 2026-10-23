@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useToast } from '../../hooks/use-toast';
@@ -33,22 +33,29 @@ import {
   GitMerge,
   Sparkles,
   GitBranch,
+  RefreshCw,
+  Rocket,
 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { calculateProgress } from '../../lib/utils';
 import { stopTask, submitReview, recoverStuckTask, deleteTask, useTaskStore, startTaskOrQueue } from '../../stores/task-store';
 import { useProjectStore } from '../../stores/project-store';
+import { useDeployDialogStore } from '../../stores/deploy-dialog-store';
+import { getTaskBranchName } from '../../../shared/utils/task-branch';
 import { TASK_STATUS_LABELS } from '../../../shared/constants';
 import { TaskEditDialog } from '../TaskEditDialog';
 import { useTaskDetail } from './hooks/useTaskDetail';
-import { RefineTaskPanel } from './RefineTaskPanel';
+import { RefineTerminalTab } from './RefineTerminalTab';
+import { StopTaskButton } from '../StopTaskButton';
 import { TaskMetadata } from './TaskMetadata';
 import { TaskWarnings } from './TaskWarnings';
 import { TaskSubtasks } from './TaskSubtasks';
 import { TaskLogs } from './TaskLogs';
 import { TaskFiles } from './TaskFiles';
 import { TaskReview } from './TaskReview';
+import { TaskFailurePanel } from './TaskFailurePanel';
+import { CollapsibleTraceSection } from './AgentTracePanel';
 import type { Task, WorktreeCreatePROptions } from '../../../shared/types';
 
 interface TaskDetailModalProps {
@@ -84,17 +91,44 @@ const isFilesTabEnabled = () => {
 
 // Separate component to use hooks only when task exists
 function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals, onOpenInbuiltTerminal }: { open: boolean; task: Task; onOpenChange: (open: boolean) => void; onSwitchToTerminals?: () => void; onOpenInbuiltTerminal?: (id: string, cwd: string) => void }) {
-  const { t } = useTranslation(['tasks']);
+  const { t } = useTranslation(['tasks', 'deploy']);
   const { toast } = useToast();
   const state = useTaskDetail({ task });
   const activeProject = useProjectStore(s => s.getActiveProject());
   const showFilesTab = isFilesTabEnabled();
-  const [showRefinePanel, setShowRefinePanel] = useState<false | 'interactive' | 'auto'>(false);
+  const [refineTerminalMode, setRefineTerminalMode] = useState<false | 'interactive' | 'auto'>(false);
+  const [refineCompleted, setRefineCompleted] = useState(false);
+  const [showRefineBranchModal, setShowRefineBranchModal] = useState(false);
+  const [refineBranchInput, setRefineBranchInput] = useState('');
+  const [pendingRefineMode, setPendingRefineMode] = useState<'interactive' | 'auto'>('interactive');
+  const [isSyncingWorktree, setIsSyncingWorktree] = useState(false);
+  const [showRebaseBranchModal, setShowRebaseBranchModal] = useState(false);
+  const [rebaseBranchInput, setRebaseBranchInput] = useState('');
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [baseBranchInput, setBaseBranchInput] = useState('');
   const progressPercent = calculateProgress(task.subtasks);
   const completedSubtasks = task.subtasks.filter(s => s.status === 'completed').length;
   const totalSubtasks = task.subtasks.length;
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI?.taskRefineGetSession(task.id).then((result) => {
+      if (cancelled) return;
+      if (result?.success && result.data) {
+        const session = (result.data as { session: { completedPhases: string[] } }).session;
+        setRefineCompleted(session?.completedPhases?.length >= 4);
+      }
+    }).catch(() => {});
+    // A refine run still going in main (dialog reopened): show its tab again so it can be re-attached
+    window.electronAPI?.taskRefineGetStatus?.(task.id).then((result) => {
+      if (cancelled || !result?.success || !result.data?.isRunning) return;
+      const mode = result.data.autoMode ? 'auto' : 'interactive';
+      setRefineTerminalMode((current) => current || mode);
+    }).catch(() => {
+      // No status: the Refine buttons still start a run
+    });
+    return () => { cancelled = true; };
+  }, [task.id]);
 
   // Event Handlers
   const handleStartStop = async () => {
@@ -120,7 +154,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
       }
     } else if (task.status === 'backlog' || task.status === 'in_progress') {
       // Show branch confirmation modal before starting
-      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'dev');
+      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
       setShowBranchModal(true);
     } else {
       const result = await startTaskOrQueue(task.id);
@@ -136,7 +170,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     setShowBranchModal(false);
     // Persist baseBranch to task metadata before starting
     await window.electronAPI.updateTask(task.id, {
-      metadata: { ...task.metadata, baseBranch: baseBranchInput || 'dev' },
+      metadata: { ...task.metadata, baseBranch: baseBranchInput || activeProject?.settings?.mainBranch || 'main' },
     });
     const result = await startTaskOrQueue(task.id);
     if (!result.success) {
@@ -144,6 +178,21 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
     } else if (result.action === 'queued') {
       toast({ title: t('tasks:queue.movedToQueue') });
     }
+  };
+
+  const handleStartRefine = (mode: 'interactive' | 'auto') => {
+    setPendingRefineMode(mode);
+    setRefineBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
+    setShowRefineBranchModal(true);
+  };
+
+  const handleConfirmRefineBranch = async () => {
+    setShowRefineBranchModal(false);
+    await window.electronAPI.updateTask(task.id, {
+      metadata: { ...task.metadata, baseBranch: refineBranchInput || activeProject?.settings?.mainBranch || 'main' },
+    });
+    setRefineTerminalMode(pendingRefineMode);
+    state.setActiveTab('refine');
   };
 
   const handleRecover = async () => {
@@ -261,6 +310,27 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
       } catch { /* non-fatal */ }
     }
     onOpenChange(false);
+  };
+
+  const handleSyncWorktree = () => {
+    setRebaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
+    setShowRebaseBranchModal(true);
+  };
+
+  const handleConfirmRebase = async () => {
+    setShowRebaseBranchModal(false);
+    setIsSyncingWorktree(true);
+    const result = await window.electronAPI.syncWorktree(task.id, rebaseBranchInput || activeProject?.settings?.mainBranch || 'main');
+    setIsSyncingWorktree(false);
+    if (result.success && result.data) {
+      toast({
+        title: result.data.success ? 'Worktree rebased' : 'Rebase failed',
+        description: result.data.message + (result.data.hadConflicts ? ' (conflicts resolved by AI)' : ''),
+        variant: result.data.success ? 'default' : 'destructive',
+      });
+    } else {
+      toast({ title: 'Rebase failed', description: result.error, variant: 'destructive' });
+    }
   };
 
   const handleMergeButtonClick = async () => {
@@ -387,6 +457,10 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
       );
     }
 
+    if (state.isRunning && !state.isStuck) {
+      return <StopTaskButton taskId={task.id} size="default" />;
+    }
+
     if (task.status === 'backlog' || task.status === 'in_progress') {
       return (
         <Button
@@ -426,9 +500,26 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             </button>
           )}
           <Button
+            variant="outline"
+            onClick={handleSyncWorktree}
+            disabled={isSyncingWorktree || state.isMerging}
+          >
+            {isSyncingWorktree ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Rebasing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Rebase
+              </>
+            )}
+          </Button>
+          <Button
             variant="default"
             onClick={handleMergeButtonClick}
-            disabled={state.isMerging}
+            disabled={state.isMerging || isSyncingWorktree}
             className="bg-teal-600 hover:bg-teal-700 text-white"
           >
             {state.isMerging ? (
@@ -512,14 +603,17 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
               'data-[state=open]:animate-in data-[state=closed]:animate-out',
               'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
               'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-              'duration-200'
+              'duration-200',
+              // Phone (LAN web UI): full-screen inside the safe area
+              'max-md:inset-x-0 max-md:top-[env(safe-area-inset-top)] max-md:bottom-[env(safe-area-inset-bottom)]',
+              'max-md:translate-x-0 max-md:w-full max-md:max-w-none max-md:h-auto max-md:rounded-none max-md:border-0'
             )}
           >
             {/* Header */}
-            <div className="p-5 pb-4 border-b border-border shrink-0">
+            <div className="p-5 pb-4 border-b border-border shrink-0 max-md:p-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0 overflow-hidden">
-                  <DialogPrimitive.Title className="text-xl font-semibold leading-tight text-foreground truncate">
+                  <DialogPrimitive.Title className="text-xl font-semibold leading-tight text-foreground truncate max-md:text-lg max-md:whitespace-normal max-md:line-clamp-2">
                     {task.title}
                   </DialogPrimitive.Title>
                   <DialogPrimitive.Description asChild>
@@ -619,6 +713,16 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                 </div>
               )}
 
+              {/* What the user has to do next (Review column) */}
+              {task.status === 'human_review' && task.reviewReason && task.reviewReason !== 'errors' && task.reviewReason !== 'qa_rejected' && (
+                <p className="mt-3 rounded-lg border border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+                  {t(`tasks:reviewReason.${task.reviewReason === 'plan_review' ? 'approvePlan' : task.reviewReason}Hint`)}
+                </p>
+              )}
+
+              {/* What QA found and a one-click fix */}
+              <TaskFailurePanel task={task} />
+
               {/* Error details banner */}
               {task.reviewReason === 'errors' && task.errorMessage && (
                 <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
@@ -631,31 +735,39 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
             {/* Body - Single Column with Tabs */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <Tabs value={state.activeTab} onValueChange={state.setActiveTab} className="flex flex-col h-full">
-                <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-5 h-auto shrink-0">
+                <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-5 h-auto shrink-0 max-md:overflow-x-auto max-md:px-2 max-md:[scrollbar-width:none]">
                   <TabsTrigger
                     value="overview"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                   >
                     Overview
                   </TabsTrigger>
                   <TabsTrigger
                     value="subtasks"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                   >
                     Subtasks ({task.subtasks.length})
                   </TabsTrigger>
                   <TabsTrigger
                     value="logs"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                   >
                     Logs
                   </TabsTrigger>
                   {showFilesTab && (
                     <TabsTrigger
                       value="files"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
                     >
                       {t('tasks:files.tab')}
+                    </TabsTrigger>
+                  )}
+                  {refineTerminalMode && (
+                    <TabsTrigger
+                      value="refine"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:shrink-0 max-md:px-3"
+                    >
+                      Refine
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -666,6 +778,8 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                     <div className="p-5 space-y-5 overflow-x-hidden max-w-full">
                       {/* Metadata */}
                       <TaskMetadata task={task} />
+
+                      <CollapsibleTraceSection task={task} modelId={task.metadata?.phaseModels?.coding} />
 
                       {/* Human Review Section */}
                       {state.needsReview && (
@@ -742,11 +856,23 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                     <TaskFiles task={task} />
                   </TabsContent>
                 )}
+
+                {refineTerminalMode && (
+                  <TabsContent value="refine" className="flex-1 min-h-0 overflow-hidden mt-0">
+                    <RefineTerminalTab
+                      taskId={task.id}
+                      taskTitle={task.title}
+                      taskDescription={task.description || ''}
+                      autoMode={refineTerminalMode === 'auto'}
+                      isActive={state.activeTab === 'refine'}
+                    />
+                  </TabsContent>
+                )}
               </Tabs>
             </div>
 
             {/* Footer - Actions */}
-            <div className="flex items-center gap-3 px-5 py-3 border-t border-border shrink-0">
+            <div className="flex items-center gap-3 px-5 py-3 border-t border-border shrink-0 max-md:flex-wrap max-md:gap-2 max-md:px-3">
               <Button
                 variant="ghost"
                 size="sm"
@@ -771,23 +897,29 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
               {/* Refine buttons — visible for backlog/in_progress tasks when not running */}
               {(task.status === 'backlog' || task.status === 'in_progress') && !state.isRunning && (
                 <>
+                  {refineCompleted && (
+                    <Badge variant="outline" className="text-success border-success/30 bg-success/10 gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Refined
+                    </Badge>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRefinePanel('interactive')}
+                    onClick={() => handleStartRefine('interactive')}
                     className="gap-1.5"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    Refine
+                    {refineCompleted ? 'Re-refine' : 'Refine'}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRefinePanel('auto')}
+                    onClick={() => handleStartRefine('auto')}
                     className="gap-1.5"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    Auto-refine
+                    {refineCompleted ? 'Re-auto-refine' : 'Auto-refine'}
                   </Button>
                 </>
               )}
@@ -810,6 +942,24 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
                     </>
                   )}
                 </Button>
+              )}
+              {/* Deploy: merged (Done) tasks only; review/pending-merge tasks must be merged first */}
+              {task.status === 'done' ? (
+                <Button
+                  variant="outline"
+                  onClick={() => useDeployDialogStore.getState().openForTask(task)}
+                  title={t('deploy:task.buttonTooltip')}
+                >
+                  <Rocket className="mr-2 h-4 w-4" />
+                  {t('deploy:task.button')}
+                </Button>
+              ) : (task.status === 'human_review' || task.status === 'pending_merge') && (
+                <span title={t('deploy:task.mergeFirst')}>
+                  <Button variant="outline" disabled aria-label={t('deploy:task.mergeFirst')}>
+                    <Rocket className="mr-2 h-4 w-4" />
+                    {t('deploy:task.button')}
+                  </Button>
+                </span>
               )}
               <Button variant="outline" onClick={handleClose}>
                 Close
@@ -979,6 +1129,95 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Refine Branch Picker */}
+      <AlertDialog open={showRefineBranchModal} onOpenChange={setShowRefineBranchModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-primary" />
+              Refine Task
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                <p>Which branch should the AI explore when refining this task?</p>
+                <div className="space-y-1">
+                  <label htmlFor="refine-branch-input" className="text-xs font-medium text-foreground">
+                    Base branch
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                    <Input
+                      id="refine-branch-input"
+                      value={refineBranchInput}
+                      onChange={(e) => setRefineBranchInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmRefineBranch(); } }}
+                      placeholder="dev"
+                      className="h-8 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmRefineBranch(); }}
+              disabled={!refineBranchInput.trim()}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {pendingRefineMode === 'auto' ? 'Auto-refine' : 'Refine'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rebase Branch Picker */}
+      <AlertDialog open={showRebaseBranchModal} onOpenChange={setShowRebaseBranchModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Rebase Worktree
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-3">
+                <p>Merge the latest commits from a branch into this worktree.</p>
+                <div className="space-y-1">
+                  <label htmlFor="rebase-branch-input" className="text-xs font-medium text-foreground">
+                    Source branch
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                    <Input
+                      id="rebase-branch-input"
+                      value={rebaseBranchInput}
+                      onChange={(e) => setRebaseBranchInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmRebase(); } }}
+                      placeholder="dev"
+                      className="h-8 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Conflicts will be resolved automatically by AI if possible.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleConfirmRebase(); }}
+              disabled={!rebaseBranchInput.trim()}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Rebase
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Merge Info / Confirmation Dialog */}
       <AlertDialog open={state.showMergeInfoDialog} onOpenChange={state.setShowMergeInfoDialog}>
         <AlertDialogContent>
@@ -1039,7 +1278,7 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
           <AlertDialogHeader>
             <AlertDialogTitle>Delete branch?</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete <span className="font-mono">malvy/{task.specId}</span> locally and from remote?
+              Delete <span className="font-mono">{state.mergeInfo?.sourceBranch ?? getTaskBranchName(task.specId, activeProject?.settings)}</span> locally and from remote?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1055,15 +1294,6 @@ function TaskDetailModalContent({ open, task, onOpenChange, onSwitchToTerminals,
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Refine Panel (interactive or auto) */}
-      {showRefinePanel && (
-        <RefineTaskPanel
-          taskId={task.id}
-          taskTitle={task.title}
-          autoMode={showRefinePanel === 'auto'}
-          onClose={() => setShowRefinePanel(false)}
-        />
-      )}
     </TooltipProvider>
   );
 }

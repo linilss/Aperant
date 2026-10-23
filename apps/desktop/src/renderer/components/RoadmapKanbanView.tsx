@@ -4,7 +4,7 @@ import {
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -12,18 +12,23 @@ import {
   type DragEndEvent,
   type DragOverEvent
 } from '@dnd-kit/core';
+import { MouseAndPenSensor, TOUCH_DRAG_ACTIVATION } from '../lib/dnd-sensors';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Plus, Inbox, Eye, Calendar, Play, Check } from 'lucide-react';
+import { Plus, Inbox, Eye, Calendar, Play, Check, Ban, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { SortableFeatureCard } from './SortableFeatureCard';
 import { cn } from '../lib/utils';
 import { useRoadmapStore } from '../stores/roadmap-store';
+import { useIsMobile } from '../hooks/useIsMobile';
+import type { MoveToOption } from './roadmap/MoveToMenu';
 import {
   ROADMAP_STATUS_COLUMNS,
   type RoadmapStatusColumn
@@ -48,7 +53,22 @@ interface DroppableStatusColumnProps {
   onGoToTask?: (specId: string) => void;
   onArchive?: (featureId: string) => void;
   isOver: boolean;
+  /** Phone layout: compact cards with a "Move to…" status menu */
+  mobileMove?: {
+    options: MoveToOption[];
+    onMove: (feature: RoadmapFeature, status: RoadmapFeatureStatus) => void;
+  };
+  /** Planned column: proofread every feature without a task yet and create the tasks */
+  onPlanAll?: { count: number; run: () => void };
 }
+
+const STATUS_DOT_CLASSES: Record<string, string> = {
+  under_review: 'bg-muted-foreground/50',
+  planned: 'bg-info',
+  in_progress: 'bg-primary',
+  done: 'bg-success',
+  dismissed: 'bg-destructive/50'
+};
 
 // Get icon component for status
 function getStatusIcon(iconName: string) {
@@ -61,6 +81,8 @@ function getStatusIcon(iconName: string) {
       return <Play className="h-3.5 w-3.5" />;
     case 'Check':
       return <Check className="h-3.5 w-3.5" />;
+    case 'Ban':
+      return <Ban className="h-3.5 w-3.5" />;
     default:
       return null;
   }
@@ -74,8 +96,11 @@ function DroppableStatusColumn({
   onConvertToSpec,
   onGoToTask,
   onArchive,
-  isOver
+  isOver,
+  mobileMove,
+  onPlanAll
 }: DroppableStatusColumnProps) {
+  const { t } = useTranslation(['common']);
   const { setNodeRef } = useDroppable({
     id: column.id
   });
@@ -86,7 +111,7 @@ function DroppableStatusColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex min-w-80 max-w-[32rem] flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200',
+        'flex min-w-80 max-w-[32rem] flex-1 flex-col rounded-xl border border-white/5 bg-linear-to-b from-secondary/30 to-transparent backdrop-blur-sm transition-all duration-200 max-md:w-[85vw] max-md:min-w-[85vw] max-md:max-w-[85vw] max-md:flex-none max-md:snap-start',
         column.color,
         'border-t-2',
         isOver && 'drop-zone-highlight'
@@ -104,6 +129,8 @@ function DroppableStatusColumn({
                 ? 'bg-primary/10 text-primary'
                 : column.id === 'planned'
                 ? 'bg-info/10 text-info'
+                : column.id === 'dismissed'
+                ? 'bg-destructive/10 text-destructive'
                 : 'bg-muted text-muted-foreground'
             )}
           >
@@ -116,11 +143,24 @@ function DroppableStatusColumn({
             {features.length}
           </span>
         </div>
+        {onPlanAll && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={onPlanAll.run}
+            title={t('roadmap.planAll.tooltip')}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {t('roadmap.planAll.button', { count: onPlanAll.count })}
+          </Button>
+        )}
       </div>
 
       {/* Features list */}
-      <div className="flex-1 min-h-0">
-        <ScrollArea className="h-full px-3 pb-3 pt-2">
+      {/* Phones scroll the whole page, so the column grows to its content instead of scrolling */}
+      <div className="flex-1 min-h-0 max-md:flex-none">
+        <ScrollArea className="h-full px-3 pb-3 pt-2 max-md:h-auto">
           <SortableContext
             items={featureIds}
             strategy={verticalListSortingStrategy}
@@ -162,6 +202,14 @@ function DroppableStatusColumn({
                     onConvertToSpec={onConvertToSpec}
                     onGoToTask={onGoToTask}
                     onArchive={onArchive}
+                    compact={!!mobileMove}
+                    moveTo={
+                      mobileMove && {
+                        options: mobileMove.options,
+                        current: feature.status,
+                        onSelect: (id) => mobileMove.onMove(feature, id as RoadmapFeatureStatus)
+                      }
+                    }
                   />
                 ))
               )}
@@ -185,13 +233,34 @@ export function RoadmapKanbanView({
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
 
   const updateFeatureStatus = useRoadmapStore((state) => state.updateFeatureStatus);
+  const isMobile = useIsMobile();
+
+  const mobileMove = useMemo(
+    () =>
+      isMobile
+        ? {
+            options: ROADMAP_STATUS_COLUMNS.map((c) => ({
+              id: c.id,
+              label: c.label,
+              dotClass: STATUS_DOT_CLASSES[c.id]
+            })),
+            onMove: (feature: RoadmapFeature, status: RoadmapFeatureStatus) => {
+              if (feature.status === status) return;
+              updateFeatureStatus(feature.id, status);
+              onSave?.();
+            }
+          }
+        : undefined,
+    [isMobile, updateFeatureStatus, onSave]
+  );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseAndPenSensor, {
       activationConstraint: {
         distance: 8 // 8px movement required before drag starts
       }
     }),
+    useSensor(TouchSensor, { activationConstraint: TOUCH_DRAG_ACTIVATION }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
@@ -208,6 +277,16 @@ export function RoadmapKanbanView({
 
   // Get all status IDs for detecting column drops
   const statusIds = useMemo(() => ROADMAP_STATUS_COLUMNS.map((c) => c.id), []);
+
+  // Planned features that haven't been proofread into a task yet (and aren't being now)
+  const refiningIds = useRoadmapStore((state) => state.refiningFeatureIds);
+  const unplannedIds = (featuresByStatus.planned ?? [])
+    .filter((f) => !f.linkedSpecId && !refiningIds[f.id])
+    .map((f) => f.id);
+  const planAll =
+    unplannedIds.length > 0
+      ? { count: unplannedIds.length, run: () => void window.electronAPI.planRoadmapFeatures(roadmap.projectId, unplannedIds) }
+      : undefined;
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -286,7 +365,7 @@ export function RoadmapKanbanView({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col max-md:h-auto">
       {/* Kanban columns */}
       <DndContext
         sensors={sensors}
@@ -295,7 +374,7 @@ export function RoadmapKanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-6">
+        <div className="flex flex-1 gap-4 overflow-x-auto p-6 max-md:items-start max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:gap-3 max-md:p-3">
           {ROADMAP_STATUS_COLUMNS.map((column) => (
             <DroppableStatusColumn
               key={column.id}
@@ -307,6 +386,8 @@ export function RoadmapKanbanView({
               onGoToTask={onGoToTask}
               onArchive={onArchive}
               isOver={overColumnId === column.id}
+              mobileMove={mobileMove}
+              onPlanAll={column.id === 'planned' ? planAll : undefined}
             />
           ))}
         </div>

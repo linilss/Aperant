@@ -37,7 +37,7 @@ export interface ProviderConfig {
  * Result of resolving a model shorthand to a full provider model configuration.
  */
 export interface ModelResolution {
-  /** The resolved full model ID (e.g., 'claude-sonnet-4-5-20250929') */
+  /** The resolved full model ID (e.g., 'claude-sonnet-5-5') */
   modelId: string;
   /** The provider to use for this model */
   provider: SupportedProvider;

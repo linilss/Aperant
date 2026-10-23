@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, MoreVertical, Upload, Check } from 'lucide-react';
+import { Play, Square, Clock, Zap, Target, Shield, Gauge, Palette, FileCode, Bug, Wrench, Loader2, AlertTriangle, RotateCcw, Archive, GitPullRequest, GitBranch, RefreshCw, MoreVertical, Upload, Check, Sparkles, PauseCircle, Rocket, Lock } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -31,8 +31,15 @@ import {
   JSON_ERROR_PREFIX,
   JSON_ERROR_TITLE_SUFFIX
 } from '../../shared/constants';
-import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue } from '../stores/task-store';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { Input } from './ui/input';
+import { stopTask, checkTaskRunning, recoverStuckTask, isIncompleteHumanReview, archiveTasks, hasRecentActivity, startTaskOrQueue, useTaskStore } from '../stores/task-store';
+import { useRefineRunStore } from '../stores/refine-run-store';
+import { StopTaskButton } from './StopTaskButton';
+import { useProjectStore } from '../stores/project-store';
 import { useToast } from '../hooks/use-toast';
+import { useDeployDialogStore } from '../stores/deploy-dialog-store';
+import { formatDeployedVersion, getLastDeployment, isAppStoreDeployment, isMergeOnly, isTaskNotLive } from '../../shared/utils/task-deployments';
 import type { Task, TaskCategory, ReviewReason, TaskStatus } from '../../shared/types';
 
 // Category icon mapping
@@ -105,6 +112,11 @@ function taskCardPropsAreEqual(prevProps: TaskCardProps, nextProps: TaskCardProp
     prevTask.metadata?.complexity === nextTask.metadata?.complexity &&
     prevTask.metadata?.archivedAt === nextTask.metadata?.archivedAt &&
     prevTask.metadata?.prUrl === nextTask.metadata?.prUrl &&
+    prevTask.metadata?.refined === nextTask.metadata?.refined &&
+    prevTask.metadata?.deployments?.length === nextTask.metadata?.deployments?.length &&
+    prevTask.metadata?.deployments?.at(-1)?.status === nextTask.metadata?.deployments?.at(-1)?.status &&
+    prevTask.metadata?.mergedAt === nextTask.metadata?.mergedAt &&
+    prevTask.metadata?.deployments?.at(-1)?.version === nextTask.metadata?.deployments?.at(-1)?.version &&
     // Check if any subtask statuses changed (compare all subtasks)
     prevTask.subtasks.every((s, i) => s.status === nextTask.subtasks[i]?.status)
   );
@@ -133,7 +145,7 @@ export const TaskCard = memo(function TaskCard({
   isSelected,
   onToggleSelect
 }: TaskCardProps) {
-  const { t } = useTranslation(['tasks', 'errors']);
+  const { t } = useTranslation(['tasks', 'errors', 'deploy']);
   const { toast } = useToast();
   const [isStuck, setIsStuck] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -143,7 +155,39 @@ export const TaskCard = memo(function TaskCard({
 
   const isRunning = task.status === 'in_progress';
   const executionPhase = task.executionProgress?.phase;
-  const hasActiveExecution = executionPhase && executionPhase !== 'idle' && executionPhase !== 'complete' && executionPhase !== 'failed';
+  // A rate-limit-paused task is still in_progress but idle — don't show a spinning
+  // phase badge for work that isn't happening, and don't let it look like it's running.
+  const rateLimitPause = useTaskStore((state) => state.rateLimitPauses[task.id]);
+  const refinePhase = useRefineRunStore((state) => state.runs[task.id]);
+  // CLI runs report no progress while planning; a running task without subtasks is planning, not idle
+  const displayPhase =
+    isRunning && !rateLimitPause && (!executionPhase || executionPhase === 'idle')
+      ? task.subtasks.length === 0 ? 'planning' : 'coding'
+      : executionPhase;
+  const hasActiveExecution = !rateLimitPause && executionPhase && executionPhase !== 'idle' && executionPhase !== 'complete' && executionPhase !== 'failed';
+
+  // Coarse countdown to the reset the provider reported. Ticks every 30s — the
+  // badge shows minutes/hours, so anything finer would just cause re-renders.
+  const [rateLimitResetIn, setRateLimitResetIn] = useState<string | null>(null);
+  const rateLimitResetAt = rateLimitPause?.resetAt ?? null;
+  useEffect(() => {
+    if (!rateLimitResetAt) {
+      setRateLimitResetIn(null);
+      return;
+    }
+    const update = () => {
+      const remainingMs = new Date(rateLimitResetAt).getTime() - Date.now();
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+        setRateLimitResetIn(null);
+        return;
+      }
+      const minutes = Math.ceil(remainingMs / 60_000);
+      setRateLimitResetIn(minutes >= 60 ? `${Math.ceil(minutes / 60)}h` : `${minutes}m`);
+    };
+    update();
+    const intervalId = setInterval(update, 30_000);
+    return () => clearInterval(intervalId);
+  }, [rateLimitResetAt]);
 
   // Check if task is in human_review but has no completed subtasks (crashed/incomplete)
   const isIncomplete = isIncompleteHumanReview(task);
@@ -228,12 +272,20 @@ export const TaskCard = memo(function TaskCard({
     };
   }, [task.id, isRunning]);
 
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [baseBranchInput, setBaseBranchInput] = useState('');
+
   const handleStartStop = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isRunning) {
-      // Allow stopping both running and stuck tasks
-      // User should be able to force-stop a stuck task
       stopTask(task.id);
+    } else if (task.status === 'backlog' || task.status === 'in_progress') {
+      // Show branch confirmation before starting
+      const activeProject = useProjectStore.getState().projects.find(
+        p => p.id === task.projectId
+      );
+      setBaseBranchInput(task.metadata?.baseBranch || activeProject?.settings?.mainBranch || 'main');
+      setShowBranchModal(true);
     } else {
       const result = await startTaskOrQueue(task.id);
       if (!result.success) {
@@ -248,6 +300,23 @@ export const TaskCard = memo(function TaskCard({
     }
   };
 
+  const handleConfirmBranch = async () => {
+    setShowBranchModal(false);
+    await window.electronAPI.updateTask(task.id, {
+      metadata: { ...task.metadata, baseBranch: baseBranchInput || 'dev' },
+    });
+    const result = await startTaskOrQueue(task.id);
+    if (!result.success) {
+      toast({
+        title: t('tasks:wizard.errors.startFailed'),
+        description: result.error,
+        variant: 'destructive',
+      });
+    } else if (result.action === 'queued') {
+      toast({ title: t('tasks:queue.movedToQueue') });
+    }
+  };
+
   const handleRecover = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsRecovering(true);
@@ -259,12 +328,75 @@ export const TaskCard = memo(function TaskCard({
     setIsRecovering(false);
   };
 
+  const [isResumingRateLimit, setIsResumingRateLimit] = useState(false);
+
+  /**
+   * Skip the remaining rate-limit wait. Writes the RESUME sentinel the worker is
+   * polling for; the pause badge clears when the file watcher sees the pause file
+   * removed. Useful after switching to an account that still has capacity.
+   */
+  const handleResumeRateLimited = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsResumingRateLimit(true);
+    const result = await window.electronAPI.resumePausedTask(task.id);
+    setIsResumingRateLimit(false);
+    if (!result.success) {
+      toast({
+        title: t('labels.resumeFailed'),
+        description: result.error,
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncWorktree = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSyncing(true);
+    const result = await window.electronAPI.syncWorktree(task.id);
+    setIsSyncing(false);
+    if (result.success && result.data) {
+      toast({
+        title: result.data.success ? 'Worktree synced' : 'Sync failed',
+        description: result.data.message,
+        variant: result.data.success ? 'default' : 'destructive',
+      });
+    } else {
+      toast({ title: 'Sync failed', description: result.error, variant: 'destructive' });
+    }
+  };
+
+  const hasWorktree = task.location === 'worktree' || ['in_progress', 'ai_review', 'human_review', 'pending_merge'].includes(task.status);
+
   const handleArchive = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const result = await archiveTasks(task.projectId, [task.id]);
     if (!result.success) {
       console.error('[TaskCard] Failed to archive task:', task.id, result.error);
     }
+  };
+
+  const lastDeployment = getLastDeployment(task);
+
+  const deployStage = useDeployDialogStore((s) => s.inFlight[task.id]);
+  const mergeOnly = useProjectStore((s) => isMergeOnly(s.projects.find((p) => p.id === task.projectId)?.settings));
+  // Deploy is outward-facing: first click arms, second click merges (if needed) and deploys
+  const [deployArmed, setDeployArmed] = useState(false);
+  useEffect(() => {
+    if (!deployArmed) return;
+    const timer = setTimeout(() => setDeployArmed(false), 3000);
+    return () => clearTimeout(timer);
+  }, [deployArmed]);
+
+  const handleDeploy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!deployArmed) {
+      setDeployArmed(true);
+      return;
+    }
+    setDeployArmed(false);
+    useDeployDialogStore.getState().deployTask(task);
   };
 
   const handleViewPR = (e: React.MouseEvent) => {
@@ -335,19 +467,20 @@ export const TaskCard = memo(function TaskCard({
     }
   };
 
-  const getReviewReasonLabel = (reason?: ReviewReason): { label: string; variant: 'success' | 'destructive' | 'warning' } | null => {
+  // The label says what the user has to do; the tooltip says how
+  const getReviewReasonLabel = (reason?: ReviewReason): { label: string; hint: string; variant: 'success' | 'destructive' | 'warning' } | null => {
     if (!reason) return null;
     switch (reason) {
       case 'completed':
-        return { label: t('reviewReason.completed'), variant: 'success' };
+        return { label: t('reviewReason.completed'), hint: t('reviewReason.completedHint'), variant: 'success' };
       case 'errors':
-        return { label: t('reviewReason.hasErrors'), variant: 'destructive' };
+        return { label: t('reviewReason.hasErrors'), hint: t('reviewReason.hasErrorsHint'), variant: 'destructive' };
       case 'qa_rejected':
-        return { label: t('reviewReason.qaIssues'), variant: 'warning' };
+        return { label: t('reviewReason.qaIssues'), hint: t('reviewReason.qaIssuesHint'), variant: 'warning' };
       case 'plan_review':
-        return { label: t('reviewReason.approvePlan'), variant: 'warning' };
+        return { label: t('reviewReason.approvePlan'), hint: t('reviewReason.approvePlanHint'), variant: 'warning' };
       case 'stopped':
-        return { label: t('reviewReason.stopped'), variant: 'warning' };
+        return { label: t('reviewReason.stopped'), hint: t('reviewReason.stoppedHint'), variant: 'warning' };
       default:
         return null;
     }
@@ -361,7 +494,38 @@ export const TaskCard = memo(function TaskCard({
 
   const isArchived = !!task.metadata?.archivedAt;
 
+  // Finished tasks deploy in one go: unmerged ones are merged first. Re-deploys stay available.
+  // In merge-only projects the button just merges into the main branch.
+  const needsMerge = task.status !== 'done';
+  const deployLabel = deployStage
+    ? t(deployStage === 'merging' ? 'deploy:task.merging' : 'deploy:task.deploying')
+    : deployArmed
+      ? t(mergeOnly ? 'deploy:task.confirmMergeOnly' : needsMerge ? 'deploy:task.confirmMerge' : 'deploy:task.confirmShort')
+      : t(mergeOnly ? 'deploy:task.mergeButton' : 'deploy:task.button');
+  const deployButton = mergeOnly && !needsMerge ? null : (
+    <Button
+      variant={deployArmed ? 'destructive' : needsMerge ? 'default' : 'outline'}
+      size="sm"
+      className="h-7 px-2.5 text-xs max-md:h-9 max-md:px-3"
+      onClick={handleDeploy}
+      disabled={!!deployStage}
+      title={t(mergeOnly ? 'deploy:task.mergeOnlyTooltip' : needsMerge ? 'deploy:task.mergeAndDeployTooltip' : 'deploy:task.buttonTooltip')}
+      aria-label={deployLabel}
+    >
+      {deployStage ? (
+        <Loader2 className="h-3 w-3 animate-spin md:mr-1.5" />
+      ) : mergeOnly ? (
+        <GitBranch className="h-3 w-3 md:mr-1.5" />
+      ) : (
+        <Rocket className="h-3 w-3 md:mr-1.5" />
+      )}
+      <span className={deployArmed || deployStage ? undefined : 'max-md:hidden'}>{deployLabel}</span>
+    </Button>
+  );
+  const canDeployFromReview = task.status === 'human_review' && effectiveReviewReason === 'completed';
+
   return (
+    <>
     <Card
       className={cn(
         'card-surface task-card-enhanced cursor-pointer',
@@ -403,13 +567,34 @@ export const TaskCard = memo(function TaskCard({
         )}
 
         {/* Metadata badges */}
-        {(task.metadata || isStuck || isIncomplete || hasActiveExecution || reviewReasonInfo) && (
+        {(task.metadata || isStuck || isIncomplete || hasActiveExecution || reviewReasonInfo || rateLimitPause) && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {/* Rate limit pause - the task is parked, not working, and holds no slot */}
+            {rateLimitPause && (
+              <Badge
+                variant="outline"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
+                title={
+                  rateLimitPause.pinnedProfileName
+                    ? t('labels.rateLimitedPinned', { account: rateLimitPause.pinnedProfileName })
+                    : rateLimitPause.error
+                }
+              >
+                {rateLimitPause.pinnedProfileName ? (
+                  <Lock className="h-2.5 w-2.5" />
+                ) : (
+                  <PauseCircle className="h-2.5 w-2.5" />
+                )}
+                {rateLimitResetIn
+                  ? t('labels.rateLimitedUntil', { time: rateLimitResetIn })
+                  : t('labels.rateLimited')}
+              </Badge>
+            )}
             {/* Stuck indicator - highest priority */}
             {isStuck && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30 badge-priority-urgent"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30 badge-priority-urgent"
               >
                 <AlertTriangle className="h-2.5 w-2.5" />
                 {t('labels.stuck')}
@@ -419,7 +604,7 @@ export const TaskCard = memo(function TaskCard({
             {isIncomplete && !isStuck && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-orange-500/10 text-orange-400 border-orange-500/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-orange-500/10 text-orange-400 border-orange-500/30"
               >
                 <AlertTriangle className="h-2.5 w-2.5" />
                 {t('labels.incomplete')}
@@ -429,10 +614,22 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.archivedAt && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-muted text-muted-foreground border-border"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-muted text-muted-foreground border-border"
               >
                 <Archive className="h-2.5 w-2.5" />
                 {t('status.archived')}
+              </Badge>
+            )}
+            {/* Deployed indicator - last deploy started from the Deploy button */}
+            {lastDeployment && <DeploymentBadge deployment={lastDeployment} />}
+            {!mergeOnly && isTaskNotLive(task) && lastDeployment?.status !== 'running' && lastDeployment?.status !== 'failed' && (
+              <Badge
+                variant="outline"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-warning/10 text-warning border-warning/30"
+                title={t('deploy:task.notLiveTooltip')}
+              >
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {t('deploy:task.notLive')}
               </Badge>
             )}
             {/* Execution phase badge - shown when actively running */}
@@ -440,7 +637,7 @@ export const TaskCard = memo(function TaskCard({
               <Badge
                 variant="outline"
                 className={cn(
-                  'text-[10px] px-1.5 py-0.5 flex items-center gap-1',
+                  'text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1',
                   EXECUTION_PHASE_BADGE_COLORS[executionPhase]
                 )}
               >
@@ -448,19 +645,20 @@ export const TaskCard = memo(function TaskCard({
                 {EXECUTION_PHASE_LABELS[executionPhase]}
               </Badge>
             )}
-             {/* Status badge - hide when execution phase badge is showing */}
-             {!hasActiveExecution && (
+             {/* Status badge - hide when execution phase badge is showing, and in Review when
+                 the reason badge already says what is needed */}
+             {!hasActiveExecution && !(task.status === 'human_review' && reviewReasonInfo && !isStuck && !isIncomplete) && (
                task.status === 'done' ? (
                     <Badge
                       variant={getStatusBadgeVariant(task.status)}
-                      className="text-[10px] px-1.5 py-0.5"
+                      className="text-[11px] max-md:text-xs px-1.5 py-0.5"
                     >
                       {getStatusLabel(task.status)}
                     </Badge>
                   ) : (
                    <Badge
                      variant={isStuck ? 'warning' : isIncomplete ? 'warning' : getStatusBadgeVariant(task.status)}
-                     className="text-[10px] px-1.5 py-0.5"
+                     className="text-[11px] max-md:text-xs px-1.5 py-0.5"
                    >
                      {isStuck ? t('labels.needsRecovery') : isIncomplete ? t('labels.needsResume') : getStatusLabel(task.status)}
                    </Badge>
@@ -470,7 +668,8 @@ export const TaskCard = memo(function TaskCard({
             {reviewReasonInfo && !isStuck && !isIncomplete && (
               <Badge
                 variant={reviewReasonInfo.variant}
-                className="text-[10px] px-1.5 py-0.5"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5"
+                title={reviewReasonInfo.hint}
               >
                 {reviewReasonInfo.label}
               </Badge>
@@ -479,17 +678,37 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.fastMode && (
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
               >
                 <Zap className="h-2.5 w-2.5" />
                 {t('metadata.fastMode')}
               </Badge>
             )}
-            {/* Category badge with icon */}
-            {task.metadata?.category && (
+            {/* Refine pipeline still running in the background */}
+            {refinePhase && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_CATEGORY_COLORS[task.metadata.category])}
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-primary/10 text-primary border-primary/30"
+              >
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                {t('metadata.refining', { phase: refinePhase })}
+              </Badge>
+            )}
+            {/* Refined badge */}
+            {task.metadata?.refined && (
+              <Badge
+                variant="outline"
+                className="text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1 bg-success/10 text-success border-success/30"
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                {t('metadata.refined')}
+              </Badge>
+            )}
+            {/* Category badge with icon */}
+            {task.metadata?.category && TASK_CATEGORY_LABELS[task.metadata.category] && (
+              <Badge
+                variant="outline"
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_CATEGORY_COLORS[task.metadata.category])}
               >
                 {CategoryIcon[task.metadata.category] && (
                   (() => {
@@ -501,28 +720,28 @@ export const TaskCard = memo(function TaskCard({
               </Badge>
             )}
             {/* Impact badge - high visibility for important tasks */}
-            {task.metadata?.impact && (task.metadata.impact === 'high' || task.metadata.impact === 'critical') && (
+            {task.metadata?.impact && (task.metadata.impact === 'high' || task.metadata.impact === 'critical') && TASK_IMPACT_LABELS[task.metadata.impact] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.impact])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.impact])}
               >
                 {TASK_IMPACT_LABELS[task.metadata.impact]}
               </Badge>
             )}
             {/* Complexity badge */}
-            {task.metadata?.complexity && (
+            {task.metadata?.complexity && TASK_COMPLEXITY_LABELS[task.metadata.complexity] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_COMPLEXITY_COLORS[task.metadata.complexity])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_COMPLEXITY_COLORS[task.metadata.complexity])}
               >
                 {TASK_COMPLEXITY_LABELS[task.metadata.complexity]}
               </Badge>
             )}
             {/* Priority badge - only show urgent/high */}
-            {task.metadata?.priority && (task.metadata.priority === 'urgent' || task.metadata.priority === 'high') && (
+            {task.metadata?.priority && (task.metadata.priority === 'urgent' || task.metadata.priority === 'high') && TASK_PRIORITY_LABELS[task.metadata.priority] && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_PRIORITY_COLORS[task.metadata.priority])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_PRIORITY_COLORS[task.metadata.priority])}
               >
                 {TASK_PRIORITY_LABELS[task.metadata.priority]}
               </Badge>
@@ -531,7 +750,7 @@ export const TaskCard = memo(function TaskCard({
             {task.metadata?.securitySeverity && (
               <Badge
                 variant="outline"
-                className={cn('text-[10px] px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.securitySeverity])}
+                className={cn('text-[11px] max-md:text-xs px-1.5 py-0', TASK_IMPACT_COLORS[task.metadata.securitySeverity])}
               >
                 {task.metadata.securitySeverity} {t('metadata.severity')}
               </Badge>
@@ -543,7 +762,7 @@ export const TaskCard = memo(function TaskCard({
         {(task.subtasks.length > 0 || hasActiveExecution || isRunning || isStuck) && (
           <div className="mt-4">
             <PhaseProgressIndicator
-              phase={executionPhase}
+              phase={displayPhase}
               subtasks={task.subtasks}
               phaseProgress={task.executionProgress?.phaseProgress}
               isStuck={isStuck}
@@ -553,15 +772,32 @@ export const TaskCard = memo(function TaskCard({
         )}
 
         {/* Footer */}
-        <div className="mt-4 flex items-center justify-between">
+        {/* Wraps on narrow columns so the actions (incl. the ⋮ menu) stay inside the card */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             <span>{relativeTime}</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5">
             {/* Action buttons */}
-            {isStuck ? (
+            {rateLimitPause ? (
+              <Button
+                variant="warning"
+                size="sm"
+                className="h-7 px-2.5"
+                onClick={handleResumeRateLimited}
+                disabled={isResumingRateLimit}
+                title={t('labels.rateLimitedHint')}
+              >
+                {isResumingRateLimit ? (
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="mr-1.5 h-3 w-3" />
+                )}
+                {t('actions.resumeNow')}
+              </Button>
+            ) : isStuck ? (
               <Button
                 variant="warning"
                 size="sm"
@@ -593,6 +829,23 @@ export const TaskCard = memo(function TaskCard({
               </Button>
             ) : task.status === 'human_review' ? (
               <div className="flex items-center gap-1.5">
+                {canDeployFromReview && deployButton}
+                {hasWorktree && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleSyncWorktree}
+                    disabled={isSyncing}
+                    title="Merge latest base branch into this worktree"
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                  </Button>
+                )}
                 {isPushed === true ? (
                   <span className="flex items-center gap-1 text-xs text-green-500 font-medium">
                     <Check className="h-3 w-3" />
@@ -618,6 +871,7 @@ export const TaskCard = memo(function TaskCard({
               </div>
             ) : task.status === 'done' && task.metadata?.prUrl ? (
               <div className="flex gap-1">
+                {deployButton}
                 {task.metadata?.prUrl && (
                   <Button
                     variant="ghost"
@@ -641,17 +895,43 @@ export const TaskCard = memo(function TaskCard({
                   </Button>
                 )}
               </div>
-            ) : task.status === 'done' && !task.metadata?.archivedAt ? (
+            ) : task.status === 'done' ? (
+              <div className="flex items-center gap-1">
+                {deployButton}
+                {!task.metadata?.archivedAt && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2.5 hover:bg-muted-foreground/10 max-md:h-9"
+                    onClick={handleArchive}
+                    title={t('tooltips.archiveTask')}
+                    aria-label={t('tooltips.archiveTask')}
+                  >
+                    <Archive className="h-3 w-3 md:mr-1.5" />
+                    <span className="max-md:hidden">{t('actions.archive')}</span>
+                  </Button>
+                )}
+              </div>
+            ) : task.status === 'pending_merge' ? (
+              <div className="flex items-center gap-1.5">
+              {deployButton}
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2.5 hover:bg-muted-foreground/10"
-                onClick={handleArchive}
-                title={t('tooltips.archiveTask')}
+                className="h-7 px-2.5 text-xs"
+                onClick={handleSyncWorktree}
+                disabled={isSyncing}
+                title="Merge latest base branch into this worktree"
               >
-                <Archive className="mr-1.5 h-3 w-3" />
-                {t('actions.archive')}
+                {isSyncing ? (
+                  <><Loader2 className="mr-1.5 h-3 w-3 animate-spin" />Rebasing...</>
+                ) : (
+                  <><RefreshCw className="mr-1.5 h-3 w-3" />Rebase</>
+                )}
               </Button>
+              </div>
+            ) : isRunning ? (
+              <StopTaskButton taskId={task.id} className="h-7 px-2.5" />
             ) : (task.status === 'backlog' || task.status === 'in_progress') && (
               <Button
                 variant={isRunning ? 'destructive' : 'default'}
@@ -680,7 +960,7 @@ export const TaskCard = memo(function TaskCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0"
+                    className="h-7 w-7 p-0 max-md:h-9 max-md:w-9"
                     onClick={(e) => e.stopPropagation()}
                     aria-label={t('actions.taskActions')}
                   >
@@ -702,5 +982,84 @@ export const TaskCard = memo(function TaskCard({
         </div>
       </CardContent>
     </Card>
+
+    {/* Branch selection modal */}
+    <AlertDialog open={showBranchModal} onOpenChange={setShowBranchModal}>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-primary" />
+            Start Task
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="text-sm text-muted-foreground space-y-3">
+              <p>Which branch should development be based on?</p>
+              <div className="space-y-1">
+                <label htmlFor={`base-branch-${task.id}`} className="text-xs font-medium text-foreground">
+                  Base branch
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground font-mono shrink-0">origin/</span>
+                  <Input
+                    id={`base-branch-${task.id}`}
+                    value={baseBranchInput}
+                    onChange={(e) => setBaseBranchInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleConfirmBranch(); } }}
+                    placeholder="dev"
+                    className="h-8 font-mono text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => { e.preventDefault(); handleConfirmBranch(); }}
+            disabled={!baseBranchInput.trim()}
+          >
+            <Play className="mr-2 h-4 w-4" />
+            Start Task
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }, taskCardPropsAreEqual);
+
+/** Last deploy of a task: running, failed, or what shipped (TestFlight / web version) */
+export function DeploymentBadge({ deployment }: { deployment: import('../../shared/types').TaskDeployment }) {
+  const { t } = useTranslation(['deploy']);
+  const time = formatRelativeTime(new Date(deployment.at));
+  const version = formatDeployedVersion(deployment);
+  const failed = deployment.status === 'failed';
+  const running = deployment.status === 'running';
+  const label = running
+    ? t('deploy:task.deployingNow')
+    : failed
+      ? t('deploy:task.deployFailed', { time })
+      : version
+        ? t(isAppStoreDeployment(deployment) ? 'deploy:task.inTestFlight' : 'deploy:task.liveVersion', { version })
+        : t('deploy:task.deployed', { time });
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'text-[11px] max-md:text-xs px-1.5 py-0.5 flex items-center gap-1',
+        failed
+          ? 'bg-destructive/10 text-destructive border-destructive/30'
+          : running
+            ? 'bg-info/10 text-info border-info/30'
+            : 'bg-success/10 text-success border-success/30'
+      )}
+      title={[t('deploy:task.deployedTooltip', { time, script: deployment.script }), deployment.summary, deployment.reason]
+        .filter(Boolean)
+        .join('\n')}
+    >
+      {running ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Rocket className="h-2.5 w-2.5" />}
+      {label}
+    </Badge>
+  );
+}

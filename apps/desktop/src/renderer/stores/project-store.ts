@@ -455,3 +455,8 @@ export async function initializeProject(
     return null;
   }
 }
+
+/** Overview project (a folder of many apps): planning and analysis only, no tasks or deploys */
+export function useIsOverviewProject(projectId: string | null | undefined): boolean {
+  return useProjectStore((state) => !!projectId && state.projects.find((p) => p.id === projectId)?.settings?.overviewOnly === true);
+}

@@ -19,6 +19,7 @@ import { isWindows } from '../platform';
 import { debugLog, debugError } from '../../shared/utils/debug-logger';
 import { safeSendToRenderer } from '../ipc-handlers/utils';
 import { getClaudeCodeEnv } from '../claude-code-settings';
+import { getProjectProfileEnv } from '../claude-profile/project-profile';
 
 /**
  * Options for terminal restoration
@@ -27,7 +28,7 @@ export interface RestoreOptions {
   resumeClaudeSession: boolean;
   captureSessionId: (terminalId: string, projectPath: string, startTime: number) => void;
   /** Callback triggered when a Claude session needs to be resumed.
-   * Note: sessionId is deprecated and ignored - resumeClaude uses --continue */
+   * resumeClaude uses `--resume <sessionId>` when a session ID is known, else `--continue` */
   onResumeNeeded?: (terminalId: string, sessionId: string | undefined) => void;
 }
 
@@ -63,7 +64,12 @@ export async function createTerminal(
 
   try {
     // For auth terminals, don't inject existing OAuth token - we want a fresh login
-    const profileEnv = skipOAuthToken ? {} : PtyManager.getActiveProfileEnv();
+    // A project terminal runs on the project's Claude account (pinned profile, else active)
+    const profileEnv = skipOAuthToken
+      ? {}
+      : projectPath
+        ? getProjectProfileEnv({ projectPath })
+        : PtyManager.getActiveProfileEnv();
 
     // Read env vars from Claude Code CLI settings files (.claude/settings.json hierarchy)
     const claudeCodeEnv = getClaudeCodeEnv(projectPath);

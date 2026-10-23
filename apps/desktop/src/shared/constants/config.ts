@@ -32,12 +32,9 @@ export const DEFAULT_APP_SETTINGS = {
   theme: 'dark' as const,
   colorTheme: 'default' as const,
   defaultModel: 'opus',
-  agentFramework: 'malvy',
-  pythonPath: undefined as string | undefined,
   gitPath: undefined as string | undefined,
   githubCLIPath: undefined as string | undefined,
   autoBuildPath: undefined as string | undefined,
-  autoUpdateAutoBuild: true,
   autoNameTerminals: true,
   onboardingCompleted: false,
   notifications: {
@@ -60,8 +57,6 @@ export const DEFAULT_APP_SETTINGS = {
   logOrder: 'chronological' as const,
   // Beta updates opt-in (receive pre-release versions)
   betaUpdates: false,
-  // Language preference (default to English)
-  language: 'en' as const,
   // Anonymous error reporting (Sentry) - enabled by default to help improve the app
   sentryEnabled: true,
   // Auto-name Claude terminals based on initial message (enabled by default)
@@ -78,7 +73,6 @@ export const DEFAULT_APP_SETTINGS = {
 
 export const DEFAULT_PROJECT_SETTINGS = {
   model: 'opus',
-  memoryBackend: 'file' as const,
   notifications: {
     onTaskComplete: true,
     onTaskFailed: true,
@@ -113,7 +107,6 @@ export const AUTO_BUILD_PATHS = {
   IDEATION_FILE: 'ideation.json',
   IDEATION_CONTEXT: 'ideation_context.json',
   PROJECT_INDEX: '.malvy/project_index.json',
-  DOCUMENTATION_FILE: '.malvy/project_documentation.json',
   MEMORY_STATE: '.memory_state.json'
 } as const;
 

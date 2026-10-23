@@ -18,8 +18,6 @@ interface SectionRouterProps {
   isLoadingEnv: boolean;
   envError: string | null;
   updateEnvConfig: (updates: Partial<ProjectEnvConfig>) => void;
-  showOpenAIKey: boolean;
-  setShowOpenAIKey: React.Dispatch<React.SetStateAction<boolean>>;
   handleInitialize: () => Promise<void>;
 }
 
@@ -39,8 +37,6 @@ export function SectionRouter({
   isLoadingEnv,
   envError,
   updateEnvConfig,
-  showOpenAIKey,
-  setShowOpenAIKey,
   handleInitialize
 }: SectionRouterProps) {
   const { t } = useTranslation('settings');
@@ -80,8 +76,6 @@ export function SectionRouter({
               settings={settings}
               setSettings={setSettings}
               updateEnvConfig={updateEnvConfig}
-              showOpenAIKey={showOpenAIKey}
-              setShowOpenAIKey={setShowOpenAIKey}
               expanded={true}
               onToggle={() => {}}
             />

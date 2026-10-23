@@ -21,11 +21,22 @@ import {
 
 describe('MODEL_ID_MAP', () => {
   it('should map all model shorthands', () => {
-    expect(MODEL_ID_MAP.opus).toBe('claude-opus-4-7');
-    expect(MODEL_ID_MAP['opus-1m']).toBe('claude-opus-4-6');
+    // Unversioned shorthands track the newest model in their tier
+    expect(MODEL_ID_MAP.opus).toBe('claude-opus-5-5');
+    expect(MODEL_ID_MAP.sonnet).toBe('claude-sonnet-5-5');
+    expect(MODEL_ID_MAP.fable).toBe('claude-fable-5-1');
+    expect(MODEL_ID_MAP['opus-1m']).toBe('claude-opus-5-5');
     expect(MODEL_ID_MAP['opus-4.5']).toBeDefined();
-    expect(MODEL_ID_MAP.sonnet).toBeDefined();
-    expect(MODEL_ID_MAP.haiku).toBeDefined();
+    expect(MODEL_ID_MAP.haiku).toBe('claude-haiku-4-5-20251001');
+  });
+
+  it('should keep version-pinned shorthands on their own model', () => {
+    expect(MODEL_ID_MAP['opus-5.5']).toBe('claude-opus-5-5');
+    expect(MODEL_ID_MAP['opus-5']).toBe('claude-opus-5');
+    expect(MODEL_ID_MAP['opus-4.8']).toBe('claude-opus-4-8');
+    expect(MODEL_ID_MAP['opus-4.7']).toBe('claude-opus-4-7');
+    expect(MODEL_ID_MAP['sonnet-5']).toBe('claude-sonnet-5');
+    expect(MODEL_ID_MAP['sonnet-4.6']).toBe('claude-sonnet-4-6');
   });
 });
 
@@ -100,7 +111,7 @@ describe('resolveModelId', () => {
   });
 
   it('should resolve shorthands to model IDs', () => {
-    expect(resolveModelId('opus')).toBe('claude-opus-4-7');
+    expect(resolveModelId('opus')).toBe('claude-opus-5-5');
     expect(resolveModelId('sonnet')).toMatch(/^claude-sonnet/);
     expect(resolveModelId('haiku')).toMatch(/^claude-haiku/);
   });
@@ -133,10 +144,8 @@ describe('resolveModelId', () => {
 });
 
 describe('getModelBetas', () => {
-  it('should return betas for opus-1m', () => {
-    const betas = getModelBetas('opus-1m');
-    expect(betas).toHaveLength(1);
-    expect(betas[0]).toContain('context-1m');
+  it('should not need a 1M-context beta for opus-1m (Opus 5.5 is 1M by default)', () => {
+    expect(getModelBetas('opus-1m')).toEqual([]);
   });
 
   it('should return empty array for models without betas', () => {

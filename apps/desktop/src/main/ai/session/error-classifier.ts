@@ -65,6 +65,13 @@ const RATE_LIMIT_PATTERNS = [
   'quota exceeded',
 ] as const;
 
+/**
+ * Claude Code CLI usage-limit line (2.1.x): "You've hit your session limit · resets 3pm (...)",
+ * also "weekly limit", "Opus limit", "Sonnet limit", "Fable limit", "monthly spend limit",
+ * "team's shared budget", or just "limit". Matched against the lowercased error string.
+ */
+const HIT_YOUR_LIMIT_PATTERN = /hit your [^\n]*?(?:limit|budget)\b/;
+
 const AUTH_PATTERNS = [
   'authentication failed',
   'authentication error',
@@ -98,6 +105,7 @@ export function isRateLimitError(error: unknown): boolean {
   if (isBillingError(error)) return false;
   const errorStr = errorToString(error);
   if (WORD_BOUNDARY_429.test(errorStr)) return true;
+  if (HIT_YOUR_LIMIT_PATTERN.test(errorStr)) return true;
   return RATE_LIMIT_PATTERNS.some((p) => errorStr.includes(p));
 }
 

@@ -19,6 +19,8 @@ export interface ChangelogTask {
   description: string;
   completedAt: Date;
   hasSpecs: boolean;
+  /** Latest deploy of the task, if any (shows what shipped it, e.g. a TestFlight build) */
+  lastDeployment?: import('./task').TaskDeployment;
 }
 
 export interface TaskSpecContent {
@@ -127,6 +129,23 @@ export interface ChangelogGenerationProgress {
   error?: string;
 }
 
+/**
+ * A project's changelog generation as tracked by main: still running, finished
+ * with a result, or failed. Kept after it ends until the renderer clears it, so the
+ * view can restore it after a project switch (changelog:getStatus).
+ */
+export interface ChangelogRunStatus {
+  state: 'running' | 'done' | 'error';
+  sourceMode: ChangelogSourceMode;
+  version: string;
+  /** Latest progress emitted for the run */
+  progress: ChangelogGenerationProgress;
+  /** Set when state is 'done' */
+  result?: ChangelogGenerationResult;
+  /** Set when state is 'error' */
+  error?: string;
+}
+
 export interface ExistingChangelog {
   exists: boolean;
   content?: string;
@@ -137,71 +156,6 @@ export interface ExistingChangelog {
 // ============================================
 // Release Types
 // ============================================
-
-export interface ReleaseableVersion {
-  version: string;
-  tagName: string;
-  date: string;
-  content: string;
-  taskSpecIds: string[];
-  isReleased: boolean;
-  releaseUrl?: string;
-}
-
-export interface ReleasePreflightCheck {
-  passed: boolean;
-  message: string;
-  uncommittedFiles?: string[];
-  unpushedCount?: number;
-  unmergedWorktrees?: UnmergedWorktreeInfo[];
-}
-
-export interface ReleasePreflightStatus {
-  canRelease: boolean;
-  checks: {
-    gitClean: ReleasePreflightCheck;
-    commitsPushed: ReleasePreflightCheck;
-    tagAvailable: ReleasePreflightCheck;
-    githubConnected: ReleasePreflightCheck;
-    worktreesMerged: ReleasePreflightCheck;
-  };
-  blockers: string[];
-}
-
-export interface UnmergedWorktreeInfo {
-  specId: string;
-  taskTitle: string;
-  worktreePath: string;
-  branch: string;
-  taskStatus: import('./task').TaskStatus;
-}
-
-export interface CreateReleaseRequest {
-  projectId: string;
-  version: string;
-  title?: string;
-  body: string;
-  draft?: boolean;
-  prerelease?: boolean;
-  /** Main branch to push version bump to (uses project setting if not specified) */
-  mainBranch?: string;
-  /** Whether to bump version in package.json before release (default: true) */
-  bumpVersion?: boolean;
-}
-
-export interface CreateReleaseResult {
-  success: boolean;
-  releaseUrl?: string;
-  tagName?: string;
-  error?: string;
-}
-
-export interface ReleaseProgress {
-  stage: 'bumping_version' | 'checking' | 'tagging' | 'pushing' | 'creating_release' | 'complete' | 'error';
-  progress: number;
-  message: string;
-  error?: string;
-}
 
 /**
  * AI-powered version suggestion result

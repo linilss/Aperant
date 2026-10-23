@@ -1,8 +1,9 @@
+import { detectVerifyCommand, resolveVerifyCommand } from '../verify-detect';
 import { ipcMain, shell } from 'electron';
 import { existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import path from 'path';
-import { IPC_CHANNELS } from '../../shared/constants';
+import { IPC_CHANNELS, getSpecsDir } from '../../shared/constants';
 import type {
   Project,
   ProjectSettings,
@@ -10,9 +11,21 @@ import type {
   InitializationResult,
   AutoBuildVersionInfo,
   GitStatus,
-  GitBranchDetail
+  GitBranchDetail,
+  DeployScript,
+  DeployPreflight,
+  DeployVerifyResult,
+  DeployRunRecord,
+  TaskDeployment
 } from '../../shared/types';
 import { projectStore } from '../project-store';
+import { findDeployScripts } from '../deploy-scripts';
+import { verifyAndFixAfterMerge } from '../deploy-verify';
+import { prepareDeployCheckout, startDeploy, getActiveDeploy, getDeployHistory, cancelDeploy } from '../deploy-manager';
+import { readRunbook, seedRunbook, writeRunbook } from '../deploy-runbook';
+import { readFileSync as readFileSyncFs } from 'fs';
+import { appendTaskDeployment, resolveTaskDeployments } from '../task-deployments';
+import { findAllSpecPaths } from '../utils/spec-path-helpers';
 import {
   initializeProject,
   isInitialized,
@@ -195,6 +208,37 @@ function getCurrentGitBranch(projectPath: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Cheap pre-deploy check of the project's working tree (no fetch): current branch,
+ * main branch (configured, else local main/master) and whether there are uncommitted changes.
+ */
+function getDeployPreflight(projectPath: string, configuredMainBranch?: string): DeployPreflight {
+  const git = (args: string[]): string | null => {
+    try {
+      return execFileSync(getToolPath('git'), args, {
+        cwd: projectPath,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 5000
+      }).trim();
+    } catch {
+      return null;
+    }
+  };
+
+  let mainBranch = configuredMainBranch?.trim() || null;
+  if (!mainBranch) {
+    mainBranch = ['main', 'master'].find((b) => git(['rev-parse', '--verify', '--quiet', `refs/heads/${b}`]) !== null) ?? null;
+  }
+  const status = git(['status', '--porcelain', '--untracked-files=no']);
+
+  return {
+    currentBranch: getCurrentGitBranch(projectPath),
+    mainBranch,
+    hasUncommittedChanges: !!status
+  };
 }
 
 /**
@@ -387,6 +431,197 @@ export function registerProjectHandlers(
         }
 
         return { success: result.success, data: result, error: result.error };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_LIST_DEPLOY_SCRIPTS,
+    async (_, projectId: string): Promise<IPCResult<DeployScript[]>> => {
+      try {
+        const project = projectStore.getProject(projectId);
+        if (!project) {
+          return { success: false, error: 'Project not found' };
+        }
+        return { success: true, data: await findDeployScripts(project.path) };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_GET,
+    async (_, projectId: string): Promise<IPCResult<{ content: string; exists: boolean }>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      const existing = readRunbook(project.path);
+      if (existing !== null) return { success: true, data: { content: existing, exists: true } };
+      const scripts = (await findDeployScripts(project.path)).map((s) => s.relativePath);
+      const smoke = ['scripts/smoke-prod.sh', 'scripts/smoke.sh', 'smoke.sh'].filter((f) => existsSync(path.join(project.path, f)));
+      let claudeMd = '';
+      try {
+        claudeMd = readFileSyncFs(path.join(project.path, 'CLAUDE.md'), 'utf-8');
+      } catch {
+        claudeMd = '';
+      }
+      return { success: true, data: { content: seedRunbook(project.name, scripts, smoke, claudeMd), exists: false } };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_RUNBOOK_SAVE,
+    async (_, projectId: string, content: string): Promise<IPCResult> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      writeRunbook(project.path, content);
+      return { success: true };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_START,
+    async (_, projectId: string, taskIds: string[]): Promise<IPCResult<DeployRunRecord>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      if (project.settings?.overviewOnly) return { success: false, error: "This is an overview project: deploy from the app's own project." };
+      if (readRunbook(project.path) === null) {
+        return { success: false, error: 'No deploy runbook yet. Open Ship → Deploy, check the generated runbook and save it.' };
+      }
+      try {
+        return { success: true, data: startDeploy(project, taskIds ?? []) };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not start the deploy' };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_STATUS,
+    async (_, projectId: string): Promise<IPCResult<{ active: DeployRunRecord | null; history: DeployRunRecord[] }>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      return { success: true, data: { active: getActiveDeploy(projectId), history: getDeployHistory(project).slice(0, 10) } };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_LOG,
+    async (_, projectId: string, deployId: string): Promise<IPCResult<string>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      if (!/^[\w-]+$/.test(deployId)) return { success: false, error: 'Bad deploy id' };
+      try {
+        const text = readFileSyncFs(path.join(project.path, '.malvy', 'deploys', `${deployId}.log`), 'utf-8');
+        return { success: true, data: text.split('\n').slice(-600).join('\n') };
+      } catch {
+        return { success: true, data: '' };
+      }
+    }
+  );
+
+  ipcMain.handle(IPC_CHANNELS.PROJECT_DEPLOY_CANCEL, async (_, projectId: string): Promise<IPCResult<boolean>> => ({
+    success: true,
+    data: cancelDeploy(projectId)
+  }));
+
+  ipcMain.handle(IPC_CHANNELS.PROJECT_DETECT_VERIFY, (_, projectId: string): IPCResult<string | null> => {
+    const project = projectStore.getProject(projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+    return { success: true, data: detectVerifyCommand(project.path) ?? null };
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_VERIFY,
+    async (_, projectId: string, mergedTitles: string[]): Promise<IPCResult<DeployVerifyResult>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      try {
+        return {
+          success: true,
+          data: await verifyAndFixAfterMerge(project.path, resolveVerifyCommand(project.settings?.verifyCommand, project.path), mergedTitles ?? [])
+        };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Verify failed' };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_CLEAN_CHECKOUT,
+    async (_, projectId: string): Promise<IPCResult<string>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      try {
+        return { success: true, data: prepareDeployCheckout(project.path, project.autoBuildPath || '.malvy') };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not prepare a clean checkout' };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_DEPLOY_PREFLIGHT,
+    async (_, projectId: string): Promise<IPCResult<DeployPreflight>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+      return { success: true, data: getDeployPreflight(project.path, project.settings?.mainBranch) };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_RESOLVE_TASK_DEPLOYMENTS,
+    async (_, projectId: string, taskIds: string[]): Promise<IPCResult<Record<string, TaskDeployment[]>>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) return { success: false, error: 'Project not found' };
+      const data: Record<string, TaskDeployment[]> = {};
+      for (const taskId of taskIds) {
+        const specPaths = findAllSpecPaths(project.path, getSpecsDir(project.autoBuildPath), taskId);
+        data[taskId] = resolveTaskDeployments(project.path, specPaths);
+      }
+      projectStore.invalidateTasksCache(projectId);
+      return { success: true, data };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROJECT_RECORD_TASK_DEPLOYMENT,
+    async (
+      _,
+      projectId: string,
+      taskId: string,
+      deployment: { script: string; args?: string; log?: string; commit?: string; steps?: string[] }
+    ): Promise<IPCResult<TaskDeployment[]>> => {
+      try {
+        const project = projectStore.getProject(projectId);
+        if (!project) {
+          return { success: false, error: 'Project not found' };
+        }
+        const specPaths = findAllSpecPaths(project.path, getSpecsDir(project.autoBuildPath), taskId);
+        const entry: TaskDeployment = {
+          script: deployment.script,
+          ...(deployment.args?.trim() ? { args: deployment.args.trim() } : {}),
+          at: new Date().toISOString(),
+          ...(deployment.log ? { log: deployment.log, status: 'running' as const } : {}),
+          ...(deployment.commit ? { commit: deployment.commit } : {}),
+          ...(deployment.steps?.length ? { steps: deployment.steps } : {})
+        };
+        const deployments = appendTaskDeployment(specPaths, entry);
+        if (!deployments) {
+          return { success: false, error: 'Task not found' };
+        }
+        projectStore.invalidateTasksCache(projectId);
+        return { success: true, data: deployments };
       } catch (error) {
         return {
           success: false,

@@ -384,12 +384,14 @@ export function AdvancedSettings({ settings, onSettingsChange, section, version 
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {isAppUpdateDownloaded ? (
+                  !window.isRemote && (
                   <Button onClick={handleInstallAppUpdate} disabled={showReadOnlyWarning}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     {t('updates.installAndRestart')}
                   </Button>
+                  )
                 ) : (
                   <Button
                     onClick={handleDownloadAppUpdate}
@@ -411,21 +413,6 @@ export function AdvancedSettings({ settings, onSettingsChange, section, version 
               </div>
             </div>
           )}
-
-          <div className="flex items-center justify-between p-4 rounded-lg border border-border">
-            <div className="space-y-1">
-              <Label className="font-medium text-foreground">{t('updates.autoUpdateProjects')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('updates.autoUpdateProjectsDescription')}
-              </p>
-            </div>
-            <Switch
-              checked={settings.autoUpdateAutoBuild}
-              onCheckedChange={(checked) =>
-                onSettingsChange({ ...settings, autoUpdateAutoBuild: checked })
-              }
-            />
-          </div>
 
           <div className="flex items-center justify-between p-4 rounded-lg border border-border">
             <div className="space-y-1">
@@ -539,7 +526,7 @@ export function AdvancedSettings({ settings, onSettingsChange, section, version 
                   variant="ghost"
                   onClick={dismissStableDowngrade}
                 >
-                  {t('common:actions.dismiss')}
+                  {t('common:labels.dismiss')}
                 </Button>
               </div>
             </div>

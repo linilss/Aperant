@@ -62,7 +62,6 @@ export interface SerializableSessionConfig {
   /** MCP options resolved from project settings (serialized for worker) */
   mcpOptions?: {
     context7Enabled?: boolean;
-    memoryEnabled?: boolean;
     electronMcpEnabled?: boolean;
     puppeteerMcpEnabled?: boolean;
     projectCapabilities?: {
@@ -74,6 +73,22 @@ export interface SerializableSessionConfig {
   };
   /** Enable agentic orchestration mode where the AI drives the pipeline via SpawnSubagent tool */
   useAgenticOrchestration?: boolean;
+  /**
+   * Include the team's CLAUDE.md/AGENTS.md in agent context (ProjectSettings.useClaudeMd).
+   * Defaults to true. Malvy's own layer (.malvy/docs, pointers) is always included.
+   */
+  useClaudeMd?: boolean;
+  /**
+   * Relevant project memories, built in the main process (the worker can't open the
+   * memory database). Injected into every system prompt as the PROJECT MEMORY section.
+   * Absent when memory is disabled or nothing relevant was found.
+   */
+  memoryContext?: string;
+  /**
+   * Project verify command (ProjectSettings.verifyCommand) for the build orchestrator's
+   * quality gate. Absent = no gate.
+   */
+  verifyCommand?: string;
   /** Tool context serialized fields */
   toolContext: {
     cwd: string;
@@ -98,7 +113,8 @@ export type WorkerMessage =
   | WorkerProgressMessage
   | WorkerStreamEventMessage
   | WorkerResultMessage
-  | WorkerTaskEventMessage;
+  | WorkerTaskEventMessage
+  | WorkerTraceUpdateMessage;
 
 export interface WorkerLogMessage {
   type: 'log';
@@ -139,6 +155,13 @@ export interface WorkerTaskEventMessage {
   type: 'task-event';
   taskId: string;
   data: Record<string, unknown>;
+  projectId?: string;
+}
+
+export interface WorkerTraceUpdateMessage {
+  type: 'trace-update';
+  taskId: string;
+  data: import('../../../shared/types/trace-types').TraceEntry;
   projectId?: string;
 }
 

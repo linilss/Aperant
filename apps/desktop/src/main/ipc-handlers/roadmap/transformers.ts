@@ -1,3 +1,4 @@
+import { directionIdsFromRaw, externalFieldsFromSnakeCase, intakeFieldsFromRaw } from './feature-persistence';
 import type {
   Roadmap,
   RoadmapFeature,
@@ -44,6 +45,8 @@ interface RawRoadmapFeature {
   linkedSpecId?: string;
   competitor_insight_ids?: string[];
   competitorInsightIds?: string[];
+  direction_ids?: string[];
+  directionIds?: string[];
 }
 
 interface RawRoadmap {
@@ -107,6 +110,8 @@ const STATUS_MAP: Record<string, RoadmapFeature['status']> = {
   'planned': 'planned',
   'in_progress': 'in_progress',
   'done': 'done',
+  'dismissed': 'dismissed',
+  'rejected': 'dismissed',
   // Early-stage / ideation statuses → under_review
   'idea': 'under_review',
   'backlog': 'under_review',
@@ -162,7 +167,10 @@ function transformFeature(raw: RawRoadmapFeature): RoadmapFeature {
     acceptanceCriteria: raw.acceptance_criteria || raw.acceptanceCriteria || [],
     userStories: raw.user_stories || raw.userStories || [],
     linkedSpecId: raw.linked_spec_id || raw.linkedSpecId,
-    competitorInsightIds: raw.competitor_insight_ids || raw.competitorInsightIds
+    competitorInsightIds: raw.competitor_insight_ids || raw.competitorInsightIds,
+    directionIds: directionIdsFromRaw(raw as unknown as Record<string, unknown>),
+    ...externalFieldsFromSnakeCase(raw as unknown as Record<string, unknown>),
+    ...intakeFieldsFromRaw(raw as unknown as Record<string, unknown>)
   };
 }
 

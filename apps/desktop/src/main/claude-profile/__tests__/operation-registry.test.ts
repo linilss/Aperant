@@ -413,6 +413,22 @@ describe('OperationRegistry', () => {
       expect(op2?.profileName).toBe('Profile 2');
     });
 
+    it('should leave operations pinned to their profile alone (strict project pin)', async () => {
+      const registry = getOperationRegistry();
+      const pinnedRestart = vi.fn().mockResolvedValue(true);
+      const freeRestart = vi.fn().mockResolvedValue(true);
+
+      registry.registerOperation('pinned', 'task-execution', 'profile1', 'Profile 1', pinnedRestart, { pinned: true });
+      registry.registerOperation('free', 'task-execution', 'profile1', 'Profile 1', freeRestart);
+
+      const count = await registry.restartOperationsOnProfile('profile1', 'profile2', 'Profile 2');
+
+      expect(count).toBe(1);
+      expect(pinnedRestart).not.toHaveBeenCalled();
+      expect(freeRestart).toHaveBeenCalledWith('profile2');
+      expect(registry.getOperation('pinned')?.profileId).toBe('profile1');
+    });
+
     it('should call stopFn before restart if provided', async () => {
       const registry = getOperationRegistry();
       const mockStop = vi.fn().mockResolvedValue(undefined);

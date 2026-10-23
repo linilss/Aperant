@@ -1,3 +1,4 @@
+import { isBuildArtifactPath } from '../utils/build-artifact-paths';
 import type { BrowserWindow } from "electron";
 import path from "path";
 import { execFileSync } from "child_process";
@@ -8,6 +9,7 @@ import type {
   SDKRateLimitInfo,
   AuthFailureInfo,
   ImplementationPlan,
+  RateLimitPauseInfo,
 } from "../../shared/types";
 import { XSTATE_SETTLED_STATES, XSTATE_ACTIVE_STATES, XSTATE_TO_PHASE, mapStateToLegacy } from "../../shared/state-machines";
 import { AgentManager } from "../agent";
@@ -17,11 +19,14 @@ import { fileWatcher } from "../file-watcher";
 import { notificationService } from "../notification-service";
 import { persistPlanLastEventSync, getPlanPath, persistPlanPhaseSync, persistPlanStatusAndReasonSync, hasPlanWithSubtasks, syncPlanPhasesToMainSync } from "./task/plan-file-utils";
 import { findTaskWorktree } from "../worktree-paths";
+import { consumeSafeStoppedMarker, takeSafeStop } from "../task-safe-stop";
 import { getToolPath } from "../cli-tool-manager";
 import { findTaskAndProject } from "./task/shared";
 import { safeSendToRenderer } from "./utils";
 import { getClaudeProfileManager } from "../claude-profile-manager";
+import { getStrictProjectPin } from "../claude-profile/project-profile";
 import { taskStateManager } from "../task-state-manager";
+import { readAssessedComplexity, shouldRequirePlanReview } from "../agent/plan-review-policy";
 
 // Timeout for fallback safety net to check if task is still stuck after process exit
 const STUCK_TASK_FALLBACK_TIMEOUT_MS = 500;
@@ -102,6 +107,27 @@ export function registerAgenteventsHandlers(
     // Use projectId from event to scope the lookup (prevents cross-project contamination)
     const { task: exitTask, project: exitProject } = findTaskAndProject(taskId, projectId);
     const exitProjectId = exitProject?.id || projectId;
+
+    // A safe stop ended the build between subtasks (or came during spec creation, before
+    // coding starts): same outcome as pressing Stop. A build that finished on its own
+    // before reaching the next subtask is handled normally.
+    const safeStop = takeSafeStop(taskId);
+    const safeStoppedOnDisk =
+      !!exitTask && !!exitProject &&
+      consumeSafeStoppedMarker(path.join(exitProject.path, getSpecsDir(exitProject.autoBuildPath), exitTask.specId));
+    if (safeStoppedOnDisk || (safeStop.pending && (safeStop.consumed || processType === 'spec-creation'))) {
+      cancelFallbackTimer(taskId);
+      if (exitTask && exitProject) {
+        taskStateManager.handleUiEvent(
+          taskId,
+          { type: 'USER_STOPPED', hasPlan: hasPlanWithSubtasks(exitProject, exitTask) },
+          exitTask,
+          exitProject
+        );
+        taskStateManager.prepareForRestart(taskId);
+      }
+      return;
+    }
 
     // Skip handleProcessExited for successful spec-creation exits — the spec → build
     // transition (line 132+) will start a new agent, and calling handleProcessExited
@@ -210,7 +236,33 @@ export function registerAgenteventsHandlers(
           const specsBaseDir = getSpecsDir(specProject.autoBuildPath);
           const specDir = path.join(specProject.path, specsBaseDir, specTask.specId);
           const specFilePath = path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE);
-          if (existsSync(specFilePath)) {
+          // Plan checkpoint: explicit per-task option wins, otherwise complex tasks wait for approval
+          const complexity = readAssessedComplexity(specDir);
+          const planHasSubtasks = hasPlanWithSubtasks(specProject, specTask);
+          if (
+            existsSync(specFilePath) &&
+            planHasSubtasks &&
+            shouldRequirePlanReview(specTask.metadata?.requireReviewBeforeCoding, complexity)
+          ) {
+            console.warn(`[Task ${taskId}] Spec created (complexity: ${complexity ?? 'unknown'}) — waiting for plan approval`);
+            // The task just finished planning, whatever a stray progress event left in its state
+            // (e.g. AI Review): otherwise PLANNING_COMPLETE is ignored and the task hangs at 0%
+            let planningTask = specTask;
+            if (taskStateManager.getCurrentState(taskId) !== 'planning') {
+              taskStateManager.clearTask(taskId);
+              planningTask = {
+                ...specTask,
+                status: 'in_progress',
+                executionProgress: { ...(specTask.executionProgress ?? { phase: 'planning', phaseProgress: 0, overallProgress: 0 }), phase: 'planning' },
+              } as typeof specTask;
+            }
+            taskStateManager.handleUiEvent(taskId, {
+              type: 'PLANNING_COMPLETE',
+              hasSubtasks: true,
+              subtaskCount: specTask.subtasks?.length ?? 0,
+              requireReviewBeforeCoding: true,
+            }, planningTask, specProject);
+          } else if (existsSync(specFilePath)) {
             console.warn(`[Task ${taskId}] Spec created successfully — starting task execution`);
             // Re-watch the spec directory for the build phase
             fileWatcher.watch(taskId, specDir).catch((err) => {
@@ -265,9 +317,27 @@ export function registerAgenteventsHandlers(
               ['add', '.'],
               { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
             );
-            execFileSync(
+            // Keep build output the ignore rules missed out of the commit
+            const artifacts = execFileSync(
               getToolPath('git'),
-              ['commit', '-m', `malvy: save uncommitted work for ${task.specId}`],
+              ['diff', '--cached', '--name-only', '-z'],
+              { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+            ).split('\0').filter((p) => p && isBuildArtifactPath(p));
+            if (artifacts.length > 0) {
+              execFileSync(
+                getToolPath('git'),
+                ['reset', '-q', '--pathspec-from-file=-', '--pathspec-file-nul'],
+                { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe', input: artifacts.map((p) => `:(literal)${p}`).join('\0') }
+              );
+            }
+            const stillStaged = execFileSync(
+              getToolPath('git'),
+              ['diff', '--cached', '--name-only'],
+              { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
+            ).trim();
+            if (stillStaged) execFileSync(
+              getToolPath('git'),
+              ['commit', '-m', `Save uncommitted work for ${taskTitle}`],
               { cwd: completedWorktreePath, encoding: 'utf-8', stdio: 'pipe' }
             );
             console.warn(`[agent-events-handlers] Auto-committed uncommitted work for task ${taskId}`);
@@ -321,6 +391,18 @@ export function registerAgenteventsHandlers(
       reviewReason: task.reviewReason,
       phase: task.executionProgress?.phase
     });
+
+    // Guard: if the task is already in a terminal XState state (pr_created, done),
+    // kill the ghost agent process instead of processing more events
+    const currentXState = taskStateManager.getCurrentState(taskId);
+    if (currentXState && ['pr_created', 'done'].includes(currentXState)) {
+      console.warn(
+        `[agent-events-handlers] Ghost agent detected: task ${taskId} is in terminal state '${currentXState}' ` +
+        `but received ${event.type}. Killing ghost process.`
+      );
+      agentManager.killTask(taskId);
+      return;
+    }
 
     const accepted = taskStateManager.handleTaskEvent(taskId, event, task, project);
     console.debug(`[agent-events-handlers] Event ${event.type} accepted: ${accepted}`);
@@ -423,6 +505,10 @@ export function registerAgenteventsHandlers(
     );
   });
 
+  agentManager.on("agent-trace-update", (taskId: string, entry, projectId?: string) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_TRACE_UPDATE, taskId, entry, projectId);
+  });
+
   // ============================================
   // File Watcher Events → Renderer
   // ============================================
@@ -487,6 +573,27 @@ export function registerAgenteventsHandlers(
     // File watcher events don't carry projectId — fall back to lookup
     const { project } = findTaskAndProject(taskId);
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_ERROR, taskId, error, project?.id);
+  });
+
+  // Rate-limit pause/resume. The task keeps running (its worker is blocked in
+  // waitForRateLimitResume), but it is not doing any work — the renderer uses
+  // this to stop counting it against the parallel task limit.
+  fileWatcher.on("rate-limit-pause", (taskId: string, info: RateLimitPauseInfo) => {
+    const { project } = findTaskAndProject(taskId);
+    console.warn(`[FileWatcher→Renderer] Task ${taskId} paused on rate limit`, {
+      resetAt: info.resetAt,
+      projectId: project?.id ?? 'UNKNOWN'
+    });
+    // A project pinned (strict) to an account waits for that account instead of switching
+    const pin = project ? getStrictProjectPin({ projectId: project.id, projectPath: project.path }) : null;
+    const pauseInfo: RateLimitPauseInfo = pin ? { ...info, pinnedProfileName: pin.profileName } : info;
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, taskId, pauseInfo, project?.id);
+  });
+
+  fileWatcher.on("rate-limit-resume", (taskId: string) => {
+    const { project } = findTaskAndProject(taskId);
+    console.warn(`[FileWatcher→Renderer] Task ${taskId} resumed from rate limit`);
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.TASK_RATE_LIMIT_RESUME, taskId, project?.id);
   });
 }
 

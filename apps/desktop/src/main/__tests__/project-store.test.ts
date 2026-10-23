@@ -225,13 +225,28 @@ describe('ProjectStore', () => {
 
       const project = store.addProject(TEST_PROJECT_PATH);
       const updated = store.updateProjectSettings(project.id, {
-        model: 'sonnet',
-        memoryBackend: 'file'
+        model: 'sonnet'
       });
 
       expect(updated).toBeDefined();
       expect(updated?.settings.model).toBe('sonnet');
-      expect(updated?.settings.memoryBackend).toBe('file');
+    });
+
+    it('should persist the pinned Claude account across reloads and clear it again', async () => {
+      const { ProjectStore } = await import('../project-store');
+      const store = new ProjectStore();
+
+      const project = store.addProject(TEST_PROJECT_PATH);
+      store.updateProjectSettings(project.id, { claudeProfileId: 'chippio', claudeProfileStrict: false });
+
+      const reloaded = new ProjectStore().getProjects().find((p) => p.id === project.id);
+      expect(reloaded?.settings.claudeProfileId).toBe('chippio');
+      expect(reloaded?.settings.claudeProfileStrict).toBe(false);
+
+      store.updateProjectSettings(project.id, { claudeProfileId: undefined, claudeProfileStrict: undefined });
+      const cleared = new ProjectStore().getProjects().find((p) => p.id === project.id);
+      expect(cleared?.settings.claudeProfileId).toBeUndefined();
+      expect(cleared?.settings.model).toBe(project.settings.model);
     });
 
     it('should update updatedAt timestamp', async () => {
@@ -281,6 +296,33 @@ describe('ProjectStore', () => {
       const tasks = store.getTasks(project.id);
 
       expect(tasks).toEqual([]);
+    });
+
+    it('moves a done task back to pending_merge only when its branch is not merged', async () => {
+      const { execFileSync } = await import('child_process');
+      const gitIn = (...args: string[]) => execFileSync('git', args, { cwd: TEST_PROJECT_PATH, stdio: 'pipe' });
+      mkdirSync(TEST_PROJECT_PATH, { recursive: true });
+      gitIn('init', '-q', '-b', 'main');
+      gitIn('config', 'user.email', 't@t');
+      gitIn('config', 'user.name', 't');
+      gitIn('commit', '-q', '--allow-empty', '-m', 'base');
+      gitIn('branch', 'malvy/001-merged');
+      gitIn('checkout', '-q', '-b', 'malvy/002-open');
+      gitIn('commit', '-q', '--allow-empty', '-m', 'task work');
+      gitIn('checkout', '-q', 'main');
+      for (const id of ['001-merged', '002-open']) {
+        const dir = path.join(TEST_PROJECT_PATH, '.malvy', 'specs', id);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, 'implementation_plan.json'), JSON.stringify({ feature: id, status: 'done', phases: [] }));
+      }
+
+      const { ProjectStore } = await import('../project-store');
+      const store = new ProjectStore();
+      const project = store.addProject(TEST_PROJECT_PATH);
+      const byId = Object.fromEntries(store.getTasks(project.id).map((t) => [t.specId, t.status]));
+
+      expect(byId['001-merged']).toBe('done');
+      expect(byId['002-open']).toBe('pending_merge');
     });
 
     it('should read tasks from filesystem correctly', async () => {

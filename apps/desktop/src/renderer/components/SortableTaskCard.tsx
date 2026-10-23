@@ -63,7 +63,8 @@ export const SortableTaskCard = memo(function SortableTaskCard({ task, onClick, 
       ref={setNodeRef}
       style={style}
       className={cn(
-        'touch-none transition-all duration-200',
+        // Touch screens (phone or iPad): swipes scroll, a long press drags
+        'touch-none pointer-coarse:touch-manipulation pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] transition-all duration-200',
         isDragging && 'dragging-placeholder opacity-40 scale-[0.98]',
         isOver && !isDragging && 'ring-2 ring-primary/30 ring-offset-2 ring-offset-background rounded-xl'
       )}

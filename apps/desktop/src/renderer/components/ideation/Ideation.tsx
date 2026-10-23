@@ -1,4 +1,7 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TabsContent } from '../ui/tabs';
+import { PAGE_ROOT } from '../ui/page-header';
 import { IDEATION_TYPE_DESCRIPTIONS } from '../../../shared/constants';
 import { IdeationEmptyState } from './IdeationEmptyState';
 import { IdeationHeader } from './IdeationHeader';
@@ -10,13 +13,27 @@ import { IdeaDetailPanel } from './IdeaDetailPanel';
 import { useIdeation } from './hooks/useIdeation';
 import { useViewState } from '../../contexts/ViewStateContext';
 import { ALL_IDEATION_TYPES } from './constants';
+import { StrategyGuidanceBar, StrategyGuidanceChip } from '../competitors/StrategyGuidanceChip';
+import { useProjectDirections } from '../competitors/DirectionTagChips';
+import { DirectionFilterBar } from '../competitors/DirectionFilterBar';
+import { filterFeaturesByDirection, hasDirectionTagging } from '../moscow/direction-filter';
+import { loadCompetitors } from '../../stores/competitor-store';
+import { useAddIdeaToRoadmap } from './hooks/useAddIdeaToRoadmap';
+import type { Idea } from '../../../shared/types';
+
+const NO_IDEAS: Idea[] = [];
 
 interface IdeationProps {
   projectId: string;
   onGoToTask?: (taskId: string) => void;
+  /** Back to Plan → Competitors (from the "Guided by" chip) */
+  onGoToCompetitors?: () => void;
+  /** Plan → MoSCoW (after "Add to roadmap") */
+  onGoToMoscow?: () => void;
 }
 
-export function Ideation({ projectId, onGoToTask }: IdeationProps) {
+export function Ideation({ projectId, onGoToTask, onGoToCompetitors, onGoToMoscow }: IdeationProps) {
+  const { t } = useTranslation('common');
   // Get showArchived from shared context for cross-page sync
   const { showArchived } = useViewState();
 
@@ -65,6 +82,25 @@ export function Ideation({ projectId, onGoToTask }: IdeationProps) {
     getIdeasByType
   } = useIdeation(projectId, { onGoToTask, showArchived });
 
+  const { handleAddToRoadmap, addingIdeas } = useAddIdeaToRoadmap(projectId, onGoToMoscow);
+
+  // Direction tags + filter (directions come from the Competitors ranking)
+  /** Selected direction ids / UNTAGGED_FILTER; empty = all directions */
+  const [directionFilter, setDirectionFilter] = useState<string[]>([]);
+  const directions = useProjectDirections(projectId);
+  useEffect(() => {
+    void loadCompetitors(projectId);
+    setDirectionFilter([]);
+  }, [projectId]);
+  const allIdeas = session?.ideas ?? NO_IDEAS;
+  const isDirectionTagged = useMemo(() => hasDirectionTagging(allIdeas), [allIdeas]);
+  const filterActive = isDirectionTagged && directions.length > 0;
+  const byDirection = (ideas: Idea[]) =>
+    filterActive ? filterFeaturesByDirection(ideas, directionFilter, directions) : ideas;
+  const visibleIdeas = byDirection(activeIdeas);
+  // Fresh copy from the store so the panel reflects conversions made while it is open
+  const panelIdea = selectedIdea ? (allIdeas.find((i) => i.id === selectedIdea.id) ?? selectedIdea) : null;
+
   // Show generation progress with streaming ideas (use isGenerating flag for reliable state)
   if (isGenerating) {
     return (
@@ -88,14 +124,22 @@ export function Ideation({ projectId, onGoToTask }: IdeationProps) {
   if (!session) {
     return (
       <>
-        <IdeationEmptyState
-          config={config}
-          hasToken={hasToken}
-          isCheckingToken={isCheckingToken}
-          onGenerate={handleGenerate}
-          onOpenConfig={() => setShowConfigDialog(true)}
-          onToggleIdeationType={toggleIdeationType}
-        />
+        <div className="flex h-full flex-col">
+          <div className="flex shrink-0 justify-center p-3 pb-0 empty:hidden">
+            <StrategyGuidanceChip projectId={projectId} onClick={onGoToCompetitors} />
+          </div>
+          <div className="min-h-0 flex-1">
+          <IdeationEmptyState
+            config={config}
+            hasToken={hasToken}
+            isCheckingToken={isCheckingToken}
+            onGenerate={handleGenerate}
+            onOpenConfig={() => setShowConfigDialog(true)}
+            onToggleIdeationType={toggleIdeationType}
+            onFocusChange={(focus) => setConfig({ focus })}
+          />
+          </div>
+        </div>
 
         <IdeationDialogs
           showConfigDialog={showConfigDialog}
@@ -115,7 +159,10 @@ export function Ideation({ projectId, onGoToTask }: IdeationProps) {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className={PAGE_ROOT}>
+      {/* Funnel handoff from Plan → Competitors */}
+      <StrategyGuidanceBar projectId={projectId} onClick={onGoToCompetitors} />
+
       {/* Header */}
       <IdeationHeader
         totalIdeas={summary.totalIdeas}
@@ -137,75 +184,95 @@ export function Ideation({ projectId, onGoToTask }: IdeationProps) {
         canAddMore={getAvailableTypesToAdd().length > 0}
       />
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <IdeationFilters activeTab={activeTab} onTabChange={setActiveTab}>
-          {/* All Ideas View */}
-          <TabsContent value="all" className="flex-1 overflow-auto p-4">
-            <div className="grid gap-3">
-              {activeIdeas.map((idea) => (
-                <IdeaCard
-                  key={idea.id}
-                  idea={idea}
-                  isSelected={selectedIds.has(idea.id)}
-                  onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
-                  onConvert={handleConvertToTask}
-                  onGoToTask={handleGoToTask}
-                  onDismiss={handleDismiss}
-                  onToggleSelect={toggleSelectIdea}
-                />
-              ))}
-              {activeIdeas.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No ideas to display
-                </div>
-              )}
-            </div>
-          </TabsContent>
+      <DirectionFilterBar
+        directions={directions}
+        selected={directionFilter}
+        onChange={setDirectionFilter}
+        isTagged={isDirectionTagged}
+        untaggedHint={t('ideation.directions.untaggedHint')}
+        ariaLabel={t('ideation.directions.filterLabel')}
+        className="border-b border-border px-4 py-2 max-md:px-3"
+      />
 
-          {/* Type-specific Views */}
-          {ALL_IDEATION_TYPES.map((type) => {
-            const typeIdeas = getIdeasByType(type).filter((idea) => {
+      {/* Content: type tabs pinned on phones, body scrolls (desktop) / grows (phone) */}
+      <IdeationFilters activeTab={activeTab} onTabChange={setActiveTab}>
+        {/* All Ideas View */}
+        <TabsContent value="all" className="min-h-0 flex-1 overflow-auto p-4 max-md:mt-0 max-md:flex-none max-md:overflow-visible max-md:p-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+            {visibleIdeas.map((idea) => (
+              <IdeaCard
+                key={idea.id}
+                idea={idea}
+                isSelected={selectedIds.has(idea.id)}
+                onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
+                onConvert={handleConvertToTask}
+                onGoToTask={handleGoToTask}
+                onDismiss={handleDismiss}
+                onToggleSelect={toggleSelectIdea}
+                onAddToRoadmap={handleAddToRoadmap}
+                onGoToMoscow={onGoToMoscow}
+                projectId={projectId}
+              />
+            ))}
+            {visibleIdeas.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                {t('ideation.noIdeasToDisplay')}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Type-specific Views */}
+        {ALL_IDEATION_TYPES.map((type) => {
+          const typeIdeas = byDirection(
+            getIdeasByType(type).filter((idea) => {
               if (!showDismissed && idea.status === 'dismissed') return false;
               if (!showArchived && idea.status === 'archived') return false;
               return true;
-            });
-            return (
-              <TabsContent key={type} value={type} className="flex-1 overflow-auto p-4">
-                <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    {IDEATION_TYPE_DESCRIPTIONS[type]}
-                  </p>
-                </div>
-                <div className="grid gap-3">
-                  {typeIdeas.map((idea) => (
-                    <IdeaCard
-                      key={idea.id}
-                      idea={idea}
-                      isSelected={selectedIds.has(idea.id)}
-                      onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
-                      onConvert={handleConvertToTask}
-                      onGoToTask={handleGoToTask}
-                      onDismiss={handleDismiss}
-                      onToggleSelect={toggleSelectIdea}
-                    />
-                  ))}
-                </div>
-              </TabsContent>
-            );
-          })}
-        </IdeationFilters>
-      </div>
+            })
+          );
+          return (
+            <TabsContent key={type} value={type} className="min-h-0 flex-1 overflow-auto p-4 max-md:mt-0 max-md:flex-none max-md:overflow-visible max-md:p-3">
+              <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  {IDEATION_TYPE_DESCRIPTIONS[type]}
+                </p>
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+                {typeIdeas.map((idea) => (
+                  <IdeaCard
+                    key={idea.id}
+                    idea={idea}
+                    isSelected={selectedIds.has(idea.id)}
+                    onClick={() => setSelectedIdea(selectedIdea?.id === idea.id ? null : idea)}
+                    onConvert={handleConvertToTask}
+                    onGoToTask={handleGoToTask}
+                    onDismiss={handleDismiss}
+                    onToggleSelect={toggleSelectIdea}
+                    onAddToRoadmap={handleAddToRoadmap}
+                    onGoToMoscow={onGoToMoscow}
+                    projectId={projectId}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+          );
+        })}
+      </IdeationFilters>
 
       {/* Idea Detail Panel */}
-      {selectedIdea && (
+      {panelIdea && (
         <IdeaDetailPanel
-          idea={selectedIdea}
+          idea={panelIdea}
           onClose={() => setSelectedIdea(null)}
           onConvert={handleConvertToTask}
           onGoToTask={handleGoToTask}
           onDismiss={handleDismiss}
-          isConverting={convertingIdeas.has(selectedIdea.id)}
+          isConverting={convertingIdeas.has(panelIdea.id)}
+          onAddToRoadmap={handleAddToRoadmap}
+          isAddingToRoadmap={addingIdeas.has(panelIdea.id)}
+          onGoToMoscow={onGoToMoscow}
+          projectId={projectId}
         />
       )}
 

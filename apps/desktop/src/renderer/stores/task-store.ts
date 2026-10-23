@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { arrayMove } from '@dnd-kit/sortable';
-import type { Task, TaskStatus, SubtaskStatus, ImplementationPlan, Subtask, TaskMetadata, ExecutionProgress, ExecutionPhase, ReviewReason, TaskDraft, ImageAttachment, TaskOrderState } from '../../shared/types';
+import type { Task, TaskStatus, SubtaskStatus, ImplementationPlan, Subtask, TaskMetadata, ExecutionProgress, ExecutionPhase, ReviewReason, TaskDraft, ImageAttachment, TaskOrderState, RateLimitPauseInfo } from '../../shared/types';
 import { debugLog, debugWarn } from '../../shared/utils/debug-logger';
 import { useProjectStore } from './project-store';
+import type { TraceEntry, AgentTrace } from '../../shared/types/trace-types';
 
 /** Default max parallel tasks when no project setting is configured */
-export const DEFAULT_MAX_PARALLEL_TASKS = 3;
+export const DEFAULT_MAX_PARALLEL_TASKS = 2;
 
 
 /** Maximum log entries stored per task to prevent renderer OOM */
@@ -17,6 +18,19 @@ interface TaskState {
   isLoading: boolean;
   error: string | null;
   taskOrder: TaskOrderState | null;  // Per-column task ordering for kanban board
+  /**
+   * Tasks currently blocked on a provider rate limit, keyed by task id.
+   * These are still `in_progress` — their worker is alive but parked in
+   * waitForRateLimitResume — so they do not consume a parallel task slot.
+   * Populated from the RATE_LIMIT_PAUSE sentinel via the file watcher, and
+   * deliberately not persisted: a pause only exists while its worker does.
+   */
+  rateLimitPauses: Record<string, RateLimitPauseInfo>;
+
+  // Trace state: per-task agent decision traces
+  agentTraces: Record<string, AgentTrace>;
+  appendTraceEntry: (taskId: string, entry: TraceEntry) => void;
+  clearTrace: (taskId: string) => void;
 
   // Actions
   setTasks: (tasks: Task[]) => void;
@@ -31,6 +45,8 @@ interface TaskState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearTasks: () => void;
+  setRateLimitPause: (taskId: string, info: RateLimitPauseInfo) => void;
+  clearRateLimitPause: (taskId: string) => void;
   // Task order actions for kanban drag-and-drop reordering
   setTaskOrder: (order: TaskOrderState) => void;
   reorderTasksInColumn: (status: TaskStatus, activeId: string, overId: string) => void;
@@ -201,6 +217,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   isLoading: false,
   error: null,
   taskOrder: null,
+  agentTraces: {},
+  rateLimitPauses: {},
 
   setTasks: (tasks) => {
     debugLog('[TaskStore.setTasks] Hydrating tasks:', {
@@ -537,7 +555,25 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   setError: (error) => set({ error }),
 
-  clearTasks: () => set({ tasks: [], selectedTaskId: null, taskOrder: null }),
+  clearTasks: () => set({ tasks: [], selectedTaskId: null, taskOrder: null, rateLimitPauses: {} }),
+
+  setRateLimitPause: (taskId, info) =>
+    set((state) => {
+      // Resolve to the canonical task id — pause events arrive keyed by whichever
+      // id the agent layer used (task id or spec id), same as the other listeners.
+      const index = findTaskIndex(state.tasks, taskId);
+      const key = index === -1 ? taskId : state.tasks[index].id;
+      return { rateLimitPauses: { ...state.rateLimitPauses, [key]: info } };
+    }),
+
+  clearRateLimitPause: (taskId) =>
+    set((state) => {
+      const index = findTaskIndex(state.tasks, taskId);
+      const key = index === -1 ? taskId : state.tasks[index].id;
+      if (!(key in state.rateLimitPauses)) return state;
+      const { [key]: _removed, ...rest } = state.rateLimitPauses;
+      return { rateLimitPauses: rest };
+    }),
 
   // Task order actions for kanban drag-and-drop reordering
   setTaskOrder: (order) => set({ taskOrder: order }),
@@ -665,6 +701,35 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  appendTraceEntry: (taskId, entry) =>
+    set((state) => {
+      const existing = state.agentTraces[taskId];
+      const entries = existing ? [...existing.entries, entry] : [entry];
+      const prev = existing?.cumulativeUsage ?? {
+        promptTokens: 0, completionTokens: 0, totalTokens: 0,
+      };
+      const cumulativeUsage = {
+        promptTokens: prev.promptTokens + entry.usage.promptTokens,
+        completionTokens: prev.completionTokens + entry.usage.completionTokens,
+        totalTokens: prev.totalTokens + entry.usage.totalTokens,
+        thinkingTokens: (prev.thinkingTokens ?? 0) + (entry.usage.thinkingTokens ?? 0),
+        cacheReadTokens: (prev.cacheReadTokens ?? 0) + (entry.usage.cacheReadTokens ?? 0),
+        cacheCreationTokens: (prev.cacheCreationTokens ?? 0) + (entry.usage.cacheCreationTokens ?? 0),
+      };
+      return {
+        agentTraces: {
+          ...state.agentTraces,
+          [taskId]: { taskId, entries, cumulativeUsage },
+        },
+      };
+    }),
+
+  clearTrace: (taskId) =>
+    set((state) => {
+      const { [taskId]: _removed, ...rest } = state.agentTraces;
+      return { agentTraces: rest };
+    }),
+
   getSelectedTask: () => {
     const state = get();
     return state.tasks.find((t) => t.id === state.selectedTaskId);
@@ -710,6 +775,11 @@ export async function loadTasks(projectId: string, options?: { forceRefresh?: bo
       taskCount: result.data?.length || 0,
       error: result.error
     });
+
+    // The user switched project while this loaded: its tasks must not replace the new project's
+    const { activeProjectId, selectedProjectId } = useProjectStore.getState();
+    const current = activeProjectId || selectedProjectId;
+    if (current && current !== projectId) return;
 
     if (result.success && result.data) {
       debugLog('[TaskStore.loadTasks] Tasks loaded successfully:', {
@@ -854,11 +924,29 @@ export async function forceCompleteTask(taskId: string): Promise<PersistStatusRe
  */
 export function isQueueAtCapacity(excludeTaskId?: string): boolean {
   const maxParallelTasks = useProjectStore.getState().getActiveProject()?.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
-  const currentTasks = useTaskStore.getState().tasks;
+  const { tasks: currentTasks, rateLimitPauses } = useTaskStore.getState();
+  // Tasks parked in a rate-limit wait release their slot — they are in_progress
+  // but idle, and holding capacity for them stalls the whole board.
   const inProgressCount = currentTasks.filter((t) =>
-    t.status === 'in_progress' && !t.metadata?.archivedAt && (!excludeTaskId || t.id !== excludeTaskId)
+    t.status === 'in_progress' &&
+    !t.metadata?.archivedAt &&
+    !rateLimitPauses[t.id] &&
+    (!excludeTaskId || t.id !== excludeTaskId)
   ).length;
   return inProgressCount >= maxParallelTasks;
+}
+
+/**
+ * Whether any task is currently parked in a rate-limit wait.
+ *
+ * The orchestrator only pauses after profile auto-swap failed to find an
+ * account with capacity, so an active pause means there is no usable session
+ * right now. Auto-promotion honours this: without it, every freed slot would
+ * be refilled by a task that immediately hits the same limit and pauses too,
+ * draining the queue into a pile of parked tasks.
+ */
+export function isRateLimitPaused(): boolean {
+  return Object.keys(useTaskStore.getState().rateLimitPauses).length > 0;
 }
 
 export interface StartTaskOrQueueResult {

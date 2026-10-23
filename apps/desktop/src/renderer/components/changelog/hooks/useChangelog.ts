@@ -8,7 +8,12 @@ import {
   generateChangelog,
   saveChangelog,
   copyChangelogToClipboard,
-  canGenerate as canGenerateSelector
+  canGenerate as canGenerateSelector,
+  handleGenerationProgressEvent,
+  handleGenerationCompleteEvent,
+  handleGenerationErrorEvent,
+  restoreGenerationStatus,
+  dismissGenerationStatus
 } from '../../../stores/changelog-store';
 import { loadTasks } from '../../../stores/task-store';
 
@@ -88,9 +93,6 @@ export function useChangelog() {
   const setEmojiLevel = useChangelogStore((state) => state.setEmojiLevel);
   const setCustomInstructions = useChangelogStore((state) => state.setCustomInstructions);
   const updateGeneratedChangelog = useChangelogStore((state) => state.updateGeneratedChangelog);
-  const setError = useChangelogStore((state) => state.setError);
-  const setIsGenerating = useChangelogStore((state) => state.setIsGenerating);
-  const setGenerationProgress = useChangelogStore((state) => state.setGenerationProgress);
   const reset = useChangelogStore((state) => state.reset);
 
   const [step, setStep] = useState<WizardStep>(1);
@@ -105,11 +107,23 @@ export function useChangelog() {
     initializeFromSettings();
   }, [initializeFromSettings]);
 
-  // Load data when project changes
+  // Load data when project changes, and restore a generation main still tracks
+  // for it (running, finished or failed while another project was shown)
   useEffect(() => {
+    useChangelogStore.getState().setCurrentProjectId(selectedProjectId ?? null);
+    // The wizard step belongs to the previous project; start over
+    setStep(1);
     if (selectedProjectId) {
       loadChangelogData(selectedProjectId);
       loadGitData(selectedProjectId);
+      let cancelled = false;
+      restoreGenerationStatus(selectedProjectId).then((run) => {
+        // Generation is started from step 2; show its progress/result there
+        if (run && !cancelled) setStep(2);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [selectedProjectId]);
 
@@ -120,55 +134,18 @@ export function useChangelog() {
     }
   }, [selectedProjectId, sourceMode]);
 
-  // Set up event listeners for generation
+  // Set up event listeners for generation (events of other projects are ignored)
   useEffect(() => {
-    const cleanupProgress = window.electronAPI.onChangelogGenerationProgress(
-      (projectId, progress) => {
-        if (projectId === selectedProjectId) {
-          setGenerationProgress(progress);
-        }
-      }
-    );
-
-    const cleanupComplete = window.electronAPI.onChangelogGenerationComplete(
-      (projectId, result) => {
-        if (projectId === selectedProjectId) {
-          setIsGenerating(false);
-          if (result.success) {
-            updateGeneratedChangelog(result.changelog);
-            setGenerationProgress({
-              stage: 'complete',
-              progress: 100,
-              message: 'Changelog generated successfully!'
-            });
-          } else {
-            setError(result.error || 'Generation failed');
-          }
-        }
-      }
-    );
-
-    const cleanupError = window.electronAPI.onChangelogGenerationError(
-      (projectId, errorMsg) => {
-        if (projectId === selectedProjectId) {
-          setIsGenerating(false);
-          setError(errorMsg);
-          setGenerationProgress({
-            stage: 'error',
-            progress: 0,
-            message: errorMsg,
-            error: errorMsg
-          });
-        }
-      }
-    );
+    const cleanupProgress = window.electronAPI.onChangelogGenerationProgress(handleGenerationProgressEvent);
+    const cleanupComplete = window.electronAPI.onChangelogGenerationComplete(handleGenerationCompleteEvent);
+    const cleanupError = window.electronAPI.onChangelogGenerationError(handleGenerationErrorEvent);
 
     return () => {
       cleanupProgress();
       cleanupComplete();
       cleanupError();
     };
-  }, [selectedProjectId, setError, setGenerationProgress, setIsGenerating, updateGeneratedChangelog]);
+  }, []);
 
   const handleGenerate = async () => {
     if (selectedProjectId) {
@@ -238,6 +215,7 @@ export function useChangelog() {
     reset();
     setStep(1);
     if (selectedProjectId) {
+      dismissGenerationStatus(selectedProjectId);
       await loadTasks(selectedProjectId);
       loadChangelogData(selectedProjectId);
     }

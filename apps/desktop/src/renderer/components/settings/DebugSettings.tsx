@@ -110,33 +110,38 @@ export function DebugSettings() {
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={handleOpenLogsFolder}
-            className="flex items-center gap-2"
-          >
-            <FolderOpen className="h-4 w-4" />
-            {t('debug.openLogsFolder', 'Open Logs Folder')}
-          </Button>
+          {/* Logs folder and clipboard live on the host machine — not reachable from the LAN web UI */}
+          {!window.isRemote && (
+            <>
+            <Button
+              variant="outline"
+              onClick={handleOpenLogsFolder}
+              className="flex items-center gap-2"
+            >
+              <FolderOpen className="h-4 w-4" />
+              {t('debug.openLogsFolder', 'Open Logs Folder')}
+            </Button>
 
-          <Button
-            variant="outline"
-            onClick={handleCopyDebugInfo}
-            className="flex items-center gap-2"
-            disabled={copySuccess}
-          >
-            {copySuccess ? (
-              <>
-                <Check className="h-4 w-4 text-green-500" />
-                {t('debug.copied', 'Copied!')}
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" />
-                {t('debug.copyDebugInfo', 'Copy Debug Info')}
-              </>
-            )}
-          </Button>
+            <Button
+              variant="outline"
+              onClick={handleCopyDebugInfo}
+              className="flex items-center gap-2"
+              disabled={copySuccess}
+            >
+              {copySuccess ? (
+                <>
+                  <Check className="h-4 w-4 text-green-500" />
+                  {t('debug.copied', 'Copied!')}
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  {t('debug.copyDebugInfo', 'Copy Debug Info')}
+                </>
+              )}
+            </Button>
+            </>
+          )}
 
           <Button
             variant="outline"

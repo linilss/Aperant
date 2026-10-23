@@ -22,7 +22,9 @@
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Sparkles, X } from 'lucide-react';
+import { GenerateIdeasSection } from './roadmap/GenerateIdeasSection';
+import { toast } from '../hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +44,8 @@ import {
   SelectTrigger,
   SelectValue
 } from './ui/select';
-import { useRoadmapStore } from '../stores/roadmap-store';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { refineFeatureWithAI, useRoadmapStore } from '../stores/roadmap-store';
 import {
   ROADMAP_PRIORITY_LABELS
 } from '../../shared/constants';
@@ -64,6 +67,8 @@ interface AddFeatureDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Optional callback when feature is successfully added, receives the new feature ID */
   onFeatureAdded?: (featureId: string) => void;
+  /** Take the user to a feature this dialog added (on Done, or a click on an added row) */
+  onOpenFeature?: (featureId: string) => void;
   /** Optional default phase ID to pre-select */
   defaultPhaseId?: string;
 }
@@ -87,9 +92,11 @@ export function AddFeatureDialog({
   open,
   onOpenChange,
   onFeatureAdded,
+  onOpenFeature,
   defaultPhaseId
 }: AddFeatureDialogProps) {
   const { t } = useTranslation('dialogs');
+  const isMobile = useIsMobile();
 
   // Form state
   const [title, setTitle] = useState('');
@@ -103,6 +110,9 @@ export function AddFeatureDialog({
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Quick add: one line per feature; the full form is opt-in
+  const [showDetails, setShowDetails] = useState(false);
+  const [added, setAdded] = useState<Array<{ id: string; title: string }>>([]);
 
   // Store actions
   const addFeature = useRoadmapStore((state) => state.addFeature);
@@ -118,6 +128,8 @@ export function AddFeatureDialog({
       setComplexity('medium');
       setImpact('medium');
       setError(null);
+      setShowDetails(false);
+      setAdded([]);
     }
   }, [open, defaultPhaseId, phases]);
 
@@ -125,10 +137,6 @@ export function AddFeatureDialog({
     // Validate required fields
     if (!title.trim()) {
       setError(t('addFeature.titleRequired'));
-      return;
-    }
-    if (!description.trim()) {
-      setError(t('addFeature.descriptionRequired'));
       return;
     }
     if (!phaseId) {
@@ -143,7 +151,8 @@ export function AddFeatureDialog({
       // Add feature to store
       const newFeatureId = addFeature({
         title: title.trim(),
-        description: description.trim(),
+        // One-line adds use the line as description too; refine it later in the roadmap
+        description: description.trim() || title.trim(),
         rationale: rationale.trim() || `User-created feature for ${title.trim()}`,
         priority,
         complexity,
@@ -164,11 +173,21 @@ export function AddFeatureDialog({
         if (!result.success) {
           throw new Error(result.error || 'Failed to save roadmap');
         }
+        // Quick add: AI turns the line into a proper feature in the background
+        if (!showDetails) {
+          void refineFeatureWithAI(roadmap.projectId, newFeatureId, title.trim(), { suggestPriority: true });
+        }
       }
 
-      // Success - close dialog and notify parent
-      onOpenChange(false);
       onFeatureAdded?.(newFeatureId);
+      if (showDetails) {
+        onOpenChange(false);
+        onOpenFeature?.(newFeatureId);
+      } else {
+        // Quick add: stay open for the next line
+        setAdded((prev) => [...prev, { id: newFeatureId, title: title.trim() }]);
+        setTitle('');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('addFeature.failedToAdd'));
     } finally {
@@ -182,8 +201,23 @@ export function AddFeatureDialog({
     }
   };
 
+  // Done after quick adds: land on the last feature added
+  const handleDone = () => {
+    if (isSaving) return;
+    const last = added[added.length - 1];
+    onOpenChange(false);
+    if (last) onOpenFeature?.(last.id);
+  };
+
+  const openAdded = (featureId: string) => {
+    onOpenChange(false);
+    onOpenFeature?.(featureId);
+  };
+
+  const roadmapProjectId = useRoadmapStore((state) => state.roadmap?.projectId);
+
   // Form validation
-  const isValid = title.trim().length > 0 && description.trim().length > 0 && phaseId !== '';
+  const isValid = title.trim().length > 0 && phaseId !== '';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -196,25 +230,76 @@ export function AddFeatureDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-4">
-          {/* Title (Required) */}
+          {/* Or let AI propose ideas (Ideation's types and focus); they land in the Backlog */}
+          {roadmapProjectId && (
+            <GenerateIdeasSection
+              projectId={roadmapProjectId}
+              onStarted={() => {
+                toast({ title: t('addFeature.generate.started'), description: t('addFeature.generate.startedHint') });
+                handleClose();
+              }}
+            />
+          )}
+
+          {/* One line is enough; Enter adds and clears for the next */}
           <div className="space-y-2">
             <Label htmlFor="add-feature-title" className="text-sm font-medium text-foreground">
-              {t('addFeature.featureTitle')} <span className="text-destructive">*</span>
+              {t('addFeature.featureTitle')}
             </Label>
             <Input
               id="add-feature-title"
-              placeholder={t('addFeature.featureTitlePlaceholder')}
+              placeholder={t(isMobile ? 'addFeature.quickPlaceholderShort' : 'addFeature.quickPlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && isValid && !isSaving) {
+                  e.preventDefault();
+                  void handleSave();
+                }
+              }}
               disabled={isSaving}
+              autoFocus
               aria-required="true"
             />
+            {!showDetails && (
+              <p className="text-xs text-muted-foreground">
+                {t('addFeature.quickHint', {
+                  phase: phases.find((p) => p.id === phaseId)?.name ?? '—',
+                  priority: ROADMAP_PRIORITY_LABELS[priority],
+                })}
+              </p>
+            )}
+            {added.length > 0 && (
+              <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
+                {added.map((feature) => (
+                  <AddedFeatureRow
+                    key={feature.id}
+                    featureId={feature.id}
+                    typedTitle={feature.title}
+                    onOpen={onOpenFeature ? () => openAdded(feature.id) : undefined}
+                  />
+                ))}
+              </ul>
+            )}
           </div>
 
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-8 text-xs text-muted-foreground max-md:h-10 max-md:text-sm"
+            onClick={() => setShowDetails((v) => !v)}
+          >
+            <ChevronDown className={`mr-1 h-3.5 w-3.5 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+            {showDetails ? t('addFeature.fewerDetails') : t('addFeature.moreDetails')}
+          </Button>
+
+          {showDetails && (
+          <>
           {/* Description (Required) */}
           <div className="space-y-2">
             <Label htmlFor="add-feature-description" className="text-sm font-medium text-foreground">
-              {t('addFeature.featureDescription')} <span className="text-destructive">*</span>
+              {t('addFeature.featureDescription')} <span className="text-muted-foreground font-normal">({t('addFeature.optional')})</span>
             </Label>
             <Textarea
               id="add-feature-description"
@@ -223,7 +308,6 @@ export function AddFeatureDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               disabled={isSaving}
-              aria-required="true"
             />
           </div>
 
@@ -243,7 +327,7 @@ export function AddFeatureDialog({
           </div>
 
           {/* Classification Fields */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-md:gap-3">
             {/* Phase */}
             <div className="space-y-2">
               <Label htmlFor="add-feature-phase" className="text-sm font-medium text-foreground">
@@ -337,6 +421,9 @@ export function AddFeatureDialog({
             </div>
           </div>
 
+          </>
+          )}
+
           {/* Error */}
           {error && (
             <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-sm text-destructive" role="alert">
@@ -347,8 +434,8 @@ export function AddFeatureDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isSaving}>
-            {t('addFeature.cancel')}
+          <Button variant="outline" onClick={added.length > 0 ? handleDone : handleClose} disabled={isSaving}>
+            {added.length > 0 ? t('addFeature.done') : t('addFeature.cancel')}
           </Button>
           <Button
             onClick={handleSave}
@@ -366,5 +453,50 @@ export function AddFeatureDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One quick-added feature: spinner while AI refines it, then the refined title */
+function AddedFeatureRow({ featureId, typedTitle, onOpen }: { featureId: string; typedTitle: string; onOpen?: () => void }) {
+  const { t } = useTranslation('dialogs');
+  const feature = useRoadmapStore((state) => state.roadmap?.features.find((f) => f.id === featureId));
+  const refining = useRoadmapStore((state) => !!state.refiningFeatureIds[featureId]);
+  const duplicateTitle = useRoadmapStore((state) =>
+    feature?.duplicateOf ? state.roadmap?.features.find((f) => f.id === feature.duplicateOf)?.title : undefined
+  );
+
+  return (
+    <li className="min-w-0">
+      <div className="flex items-center gap-1.5 min-w-0">
+        {refining ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-label={t('addFeature.refining')} />
+        ) : (
+          <Check className="h-3.5 w-3.5 shrink-0 text-success" />
+        )}
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            title={t('addFeature.openFeature')}
+            className="min-w-0 truncate text-left underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {feature?.title ?? typedTitle}
+          </button>
+        ) : (
+          <span className="truncate">{feature?.title ?? typedTitle}</span>
+        )}
+        {!refining && feature?.refinedAt && (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded border border-primary/30 px-1 text-[11px] text-primary max-md:text-xs">
+            <Sparkles className="h-2.5 w-2.5" />
+            {t('addFeature.aiRefined')}
+          </span>
+        )}
+      </div>
+      {!refining && duplicateTitle && (
+        <p className="pl-5 text-[11px] text-warning truncate">
+          {t('addFeature.possibleDuplicate', { title: duplicateTitle })}
+        </p>
+      )}
+    </li>
   );
 }

@@ -60,6 +60,13 @@ export interface RawIdea extends Record<string, unknown> {
   implementation?: string;
   tradeoffs?: string;
 
+  // Features specific (complexity/impact: low|medium|high)
+  user_value?: string;
+  userValue?: string;
+  target_users?: string;
+  targetUsers?: string;
+  complexity?: string;
+
   // Code quality specific
   code_example?: string;
   codeExample?: string;
@@ -72,20 +79,32 @@ export interface RawIdea extends Record<string, unknown> {
 
   // Linked task
   linked_task_id?: string;
+
+  // Funnel links
+  direction_ids?: string[];
+  directionIds?: string[];
+  /** Roadmap feature created from this idea */
+  roadmap_feature_id?: string;
+}
+
+/** Ideation config as saved in ideation.json */
+export interface RawIdeationConfig {
+  enabled_types?: string[];
+  enabledTypes?: string[];
+  /** Every type that existed when saved; absent in configs saved before 'features' */
+  known_types?: string[];
+  include_roadmap_context?: boolean;
+  includeRoadmapContext?: boolean;
+  include_kanban_context?: boolean;
+  includeKanbanContext?: boolean;
+  max_ideas_per_type?: number;
+  maxIdeasPerType?: number;
+  focus?: string;
 }
 
 export interface RawIdeationData {
   id?: string;
-  config?: {
-    enabled_types?: string[];
-    enabledTypes?: string[];
-    include_roadmap_context?: boolean;
-    includeRoadmapContext?: boolean;
-    include_kanban_context?: boolean;
-    includeKanbanContext?: boolean;
-    max_ideas_per_type?: number;
-    maxIdeasPerType?: number;
-  };
+  config?: RawIdeationConfig;
   ideas?: RawIdea[];
   project_context?: {
     existing_features?: string[];

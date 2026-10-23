@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
 import { useTaskStore } from '../stores/task-store';
-import { useRoadmapStore } from '../stores/roadmap-store';
+import { loadRoadmap, useRoadmapStore } from '../stores/roadmap-store';
 import { useRateLimitStore } from '../stores/rate-limit-store';
 import { useAuthFailureStore } from '../stores/auth-failure-store';
 import { useProjectStore } from '../stores/project-store';
-import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
+import { refinePhaseLabel, useRefineRunStore } from '../stores/refine-run-store';
+import { useSafeStopStore } from '../stores/safe-stop-store';
+import type { ImplementationPlan, TaskStatus, RoadmapGenerationStatus, Roadmap, RoadmapFeature, ExecutionProgress, RateLimitInfo, SDKRateLimitInfo, AuthFailureInfo } from '../../shared/types';
+import type { TraceEntry } from '../../shared/types/trace-types';
 
 /** Maximum log entries to buffer in the batch queue between flushes (OOM prevention) */
 const MAX_BATCH_QUEUE_LOGS = 100;
@@ -174,6 +177,8 @@ export function useIpcListeners(): void {
   const appendLog = useTaskStore((state) => state.appendLog);
   const batchAppendLogs = useTaskStore((state) => state.batchAppendLogs);
   const setError = useTaskStore((state) => state.setError);
+  const appendTraceEntry = useTaskStore((state) => state.appendTraceEntry);
+  const clearTrace = useTaskStore((state) => state.clearTrace);
 
   // Update module-level store actions reference for batch flushing
   // This ensures flushBatch() always has access to current action implementations
@@ -186,6 +191,24 @@ export function useIpcListeners(): void {
         // Filter by project to prevent multi-project interference
         if (!isTaskForCurrentProject(projectId)) return;
         queueUpdate(taskId, { plan });
+      }
+    );
+
+    // A rate-limited task keeps its in_progress status but stops consuming a
+    // parallel slot, so the queue can put the freed capacity to work.
+    const cleanupRateLimitPause = window.electronAPI.onTaskRateLimitPause(
+      (taskId: string, info, projectId?: string) => {
+        if (!isTaskForCurrentProject(projectId)) return;
+        useTaskStore.getState().setRateLimitPause(taskId, info);
+        appendLog(taskId, `[RATE LIMIT] Paused: ${info.error}`);
+      }
+    );
+
+    const cleanupRateLimitResume = window.electronAPI.onTaskRateLimitResume(
+      (taskId: string, projectId?: string) => {
+        if (!isTaskForCurrentProject(projectId)) return;
+        useTaskStore.getState().clearRateLimitPause(taskId);
+        appendLog(taskId, '[RATE LIMIT] Resumed');
       }
     );
 
@@ -218,8 +241,14 @@ export function useIpcListeners(): void {
           projectId
         });
         // Filter by project to prevent multi-project interference
+        if (status !== 'in_progress') useSafeStopStore.getState().clear(taskId);
         if (!isTaskForCurrentProject(projectId)) return;
         queueUpdate(taskId, { status, reviewReason, errorMessage });
+
+        // Clear stale trace data when a task restarts
+        if (status === 'in_progress') {
+          clearTrace(taskId);
+        }
 
         // Sync roadmap feature when task completes
         if (status === 'done' || status === 'pr_created') {
@@ -242,7 +271,11 @@ export function useIpcListeners(): void {
         // This is the critical fix for issue #723 - without this check,
         // execution progress from Project A's task could update Project B's UI
         if (!isTaskForCurrentProject(projectId)) return;
-        queueUpdate(taskId, { progress });
+        // Progress from a task the board still shows as queued means the queue started it
+        // and its status event was missed (e.g. sent while another project was open)
+        const current = useTaskStore.getState().tasks.find((t) => t.id === taskId || t.specId === taskId);
+        const running = progress.phase && progress.phase !== 'idle' && progress.phase !== 'complete' && progress.phase !== 'failed';
+        queueUpdate(taskId, current?.status === 'queue' && running ? { progress, status: 'in_progress' } : { progress });
       }
     );
 
@@ -337,6 +370,37 @@ export function useIpcListeners(): void {
       }
     );
 
+    // AI feature refinement (quick add → proper feature). Main already wrote
+    // roadmap.json; only the store is updated here.
+    const cleanupFeatureRefineStarted = window.electronAPI.onRoadmapFeatureRefineStarted(
+      (projectId: string, featureId: string) => {
+        if (isCurrentProject(projectId)) {
+          useRoadmapStore.getState().setFeatureRefining(featureId, true);
+        }
+      }
+    );
+    const cleanupFeatureRefined = window.electronAPI.onRoadmapFeatureRefined(
+      (projectId: string, feature: RoadmapFeature) => {
+        const store = useRoadmapStore.getState();
+        if (isCurrentProject(projectId) && store.roadmap?.projectId === projectId) {
+          // A feature main just created (a split part) needs a reload to appear
+          if (!store.roadmap.features.some((f) => f.id === feature.id)) void loadRoadmap(projectId);
+          else store.applyRefinedFeature(feature);
+        } else {
+          store.setFeatureRefining(feature.id, false);
+        }
+      }
+    );
+    // Task refine pipelines run in main; cards show which are still going
+    const cleanupTaskRefinePhase = window.electronAPI.onTaskRefinePhaseChange((taskId, _phase, _index, phases) => {
+      useRefineRunStore.getState().setRun(taskId, refinePhaseLabel(phases));
+    });
+    const cleanupFeatureRefineFailed = window.electronAPI.onRoadmapFeatureRefineFailed(
+      (_projectId: string, featureId: string) => {
+        useRoadmapStore.getState().setFeatureRefining(featureId, false);
+      }
+    );
+
     // Terminal rate limit listener
     const showRateLimitModal = useRateLimitStore.getState().showRateLimitModal;
     const cleanupRateLimit = window.electronAPI.onTerminalRateLimit(
@@ -379,6 +443,14 @@ export function useIpcListeners(): void {
       }
     );
 
+    // Agent trace update listener — applied immediately (not batched)
+    const cleanupTraceUpdate = window.electronAPI.onTaskTraceUpdate(
+      (taskId: string, entry: TraceEntry, projectId?: string) => {
+        if (!isTaskForCurrentProject(projectId)) return;
+        appendTraceEntry(taskId, entry);
+      }
+    );
+
     // Cleanup on unmount
     return () => {
       // Flush any pending batched updates before cleanup
@@ -388,6 +460,8 @@ export function useIpcListeners(): void {
         batchTimeout = null;
       }
       cleanupProgress();
+      cleanupRateLimitPause();
+      cleanupRateLimitResume();
       cleanupError();
       cleanupLog();
       cleanupStatus();
@@ -396,11 +470,16 @@ export function useIpcListeners(): void {
       cleanupRoadmapComplete();
       cleanupRoadmapError();
       cleanupRoadmapStopped();
+      cleanupFeatureRefineStarted();
+      cleanupFeatureRefined();
+      cleanupFeatureRefineFailed();
+      cleanupTaskRefinePhase();
       cleanupRateLimit();
       cleanupSDKRateLimit();
       cleanupAuthFailure();
+      cleanupTraceUpdate();
     };
-  }, [appendLog, setError]);
+  }, [appendLog, setError, appendTraceEntry, clearTrace]);
 }
 
 /**

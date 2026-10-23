@@ -14,7 +14,8 @@ context/
 ├── InfoItem.tsx                # Reusable info display component
 ├── MemoryCard.tsx              # Memory episode card component
 ├── ServiceCard.tsx             # Service card component with all service details
-├── ProjectIndexTab.tsx         # Project index tab content
+├── ProjectIndexTab.tsx         # Index tab: project summary, code branch tree, detected stack
+├── index/                      # Index tab parts (ProjectSummaryCard, CodeBranchTree, DetectedStack, branch-utils)
 ├── MemoriesTab.tsx             # Memories tab content
 ├── service-sections/           # Collapsible service detail sections
 │   ├── EnvironmentSection.tsx
@@ -38,7 +39,7 @@ context/
 - Clean, readable entry point (~70 lines)
 
 ### Tab Components
-- **ProjectIndexTab**: Displays project structure, services, infrastructure, and conventions
+- **ProjectIndexTab**: Project summary (`.malvy/docs/project_summary.json`), code branches with doc status and per-branch optimize, and the detected stack (services, infrastructure, conventions) collapsed at the bottom
 - **MemoriesTab**: Shows memory status, search interface, and recent memories
 
 ### Service Sections

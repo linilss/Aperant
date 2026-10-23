@@ -11,6 +11,7 @@ import { readSettingsFileAsync } from '../settings-utils';
 import { debugLog, } from '../../shared/utils/debug-logger';
 import { migrateSession } from '../claude-profile/session-utils';
 import { createProfileDirectory } from '../claude-profile/profile-utils';
+import { resolveProfileForProject } from '../claude-profile/project-profile';
 import { isValidConfigDir } from '../utils/config-path-validator';
 import { sessionPersistence } from '../terminal/session-persistence';
 
@@ -273,8 +274,11 @@ export function registerTerminalHandlers(
             dangerouslySkipPermissions?: boolean;
           }> = [];
 
-          // Process each terminal
+          // Process each terminal (project terminals pinned to an account keep running on it)
           for (const terminal of terminals) {
+            if (resolveProfileForProject({ projectPath: terminal.projectPath || terminal.cwd }).pinned) {
+              continue;
+            }
             debugLog('[terminal-handlers:CLAUDE_PROFILE_SET_ACTIVE] Processing terminal:', {
               id: terminal.id,
               isCLIMode: terminal.isCLIMode,
@@ -551,10 +555,10 @@ export function registerTerminalHandlers(
   // Request current usage snapshot
   ipcMain.handle(
     IPC_CHANNELS.USAGE_REQUEST,
-    async (): Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>> => {
+    async (_event: IpcMainInvokeEvent, forceRefresh = false): Promise<IPCResult<import('../../shared/types').ClaudeUsageSnapshot | null>> => {
       try {
         const monitor = getUsageMonitor();
-        const usage = monitor.getCurrentUsage();
+        const usage = forceRefresh ? await monitor.refreshNow() : monitor.getCurrentUsage();
         return { success: true, data: usage };
       } catch (error) {
         return {

@@ -8,13 +8,13 @@ import type {
   ChangelogGenerationProgress,
   TaskSpecContent
 } from '../../shared/types';
-import { buildChangelogPrompt, buildGitPrompt, createGenerationScript } from './formatter';
+import { buildChangelogPrompt, buildGitPrompt } from './formatter';
 import { extractChangelog } from './parser';
 import { getCommits, getBranchDiffCommits } from './git-integration';
 import { detectRateLimit, createSDKRateLimitInfo, getBestAvailableProfileEnv } from '../rate-limit-detector';
 
 import { getAugmentedEnv } from '../env-utils';
-import { isWindows } from '../platform';
+import { isWindows, requiresShell } from '../platform';
 
 /**
  * Core changelog generation logic
@@ -26,7 +26,6 @@ export class ChangelogGenerator extends EventEmitter {
   private debugEnabled: boolean;
 
   constructor(
-    private pythonPath: string,
     private claudePath: string,
     private autoBuildSourcePath: string,
     private autoBuildEnv: Record<string, string>,
@@ -127,10 +126,6 @@ export class ChangelogGenerator extends EventEmitter {
       promptPreview: prompt.substring(0, 500) + '...'
     });
 
-    // Create Python script
-    const script = createGenerationScript(prompt, this.claudePath);
-    this.debug('Python script created', { scriptLength: script.length });
-
     this.emitProgress(projectId, {
       stage: 'generating',
       progress: 30,
@@ -138,17 +133,25 @@ export class ChangelogGenerator extends EventEmitter {
     });
 
     const startTime = Date.now();
-    this.debug('Spawning Python process...');
+    this.debug('Spawning Claude CLI process...');
 
     // Build environment with explicit critical variables
     const spawnEnv = this.buildSpawnEnvironment();
 
-    // Use python3/python as fallback command (Python subprocess path removed in Vercel AI SDK migration)
-    const pythonCommand = this.pythonPath || 'python3';
-    const childProcess = spawn(pythonCommand, ['-c', script], {
-      cwd: this.autoBuildSourcePath,
-      env: spawnEnv
-    });
+    // Run the Claude CLI directly; the prompt goes in via stdin to avoid argument escaping/length limits.
+    // Windows .cmd/.bat shims need a shell to execute.
+    const needsShell = requiresShell(this.claudePath);
+    const childProcess = spawn(
+      needsShell ? `"${this.claudePath}"` : this.claudePath,
+      ['-p', '--output-format', 'text', '--model', 'haiku'],
+      {
+        cwd: this.autoBuildSourcePath,
+        env: spawnEnv,
+        shell: needsShell
+      }
+    );
+    childProcess.stdin?.write(prompt, 'utf-8');
+    childProcess.stdin?.end();
 
     this.generationProcesses.set(projectId, childProcess);
     this.debug('Process spawned with PID:', childProcess.pid);
@@ -311,10 +314,7 @@ export class ChangelogGenerator extends EventEmitter {
       // Ensure critical env vars are set for claude CLI
       // Use USERPROFILE on Windows, HOME on Unix
       ...(isWindows() ? { USERPROFILE: homeDir } : { HOME: homeDir }),
-      USER: process.env.USER || process.env.USERNAME || 'user',
-      PYTHONUNBUFFERED: '1',
-      PYTHONIOENCODING: 'utf-8',
-      PYTHONUTF8: '1'
+      USER: process.env.USER || process.env.USERNAME || 'user'
     };
 
     this.debug('Spawn environment', {

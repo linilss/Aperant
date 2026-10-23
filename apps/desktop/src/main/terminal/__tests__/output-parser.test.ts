@@ -7,6 +7,7 @@ import {
   detectClaudeBusyState,
   extractClaudeSessionId,
   extractRateLimitReset,
+  extractRateLimitInfo,
   extractOAuthToken,
   extractEmail,
   hasRateLimitMessage,
@@ -202,11 +203,43 @@ describe('output-parser', () => {
     it('returns null when no rate limit message', () => {
       expect(extractRateLimitReset('Normal output')).toBe(null);
     });
+
+    it('extracts the reset time from the current CLI format', () => {
+      expect(extractRateLimitReset("You've hit your session limit · resets 3pm (Europe/Stockholm)")).toBe('3pm (Europe/Stockholm)');
+      expect(extractRateLimitReset("You've hit your weekly limit · resets Oct 12, 3pm (Europe/Stockholm)\r\n> ")).toBe('Oct 12, 3pm (Europe/Stockholm)');
+    });
+
+    it('extracts the reset time through ANSI colour codes', () => {
+      expect(extractRateLimitReset("\x1b[31mYou've hit your Opus limit\x1b[39m · resets 9:30am (Europe/Stockholm)\x1b[0m")).toBe('9:30am (Europe/Stockholm)');
+    });
+  });
+
+  describe('extractRateLimitInfo', () => {
+    it('returns kind and window for the current CLI format', () => {
+      expect(extractRateLimitInfo("You've hit your Sonnet limit · resets Oct 12, 3pm (Europe/Stockholm) · progress saved")).toMatchObject({
+        kind: 'sonnet',
+        label: 'Sonnet limit',
+        resetTime: 'Oct 12, 3pm (Europe/Stockholm)',
+        window: 'weekly',
+        format: 'hit-your',
+      });
+    });
+
+    it('returns the old format with an unknown kind', () => {
+      expect(extractRateLimitInfo('Limit reached · resets Dec 17 at 6am (Europe/Oslo)')).toMatchObject({
+        kind: 'unknown',
+        resetTime: 'Dec 17 at 6am (Europe/Oslo)',
+        window: undefined,
+        format: 'limit-reached',
+      });
+    });
   });
 
   describe('hasRateLimitMessage', () => {
     it('returns true when rate limit message present', () => {
       expect(hasRateLimitMessage('Limit reached · resets tomorrow')).toBe(true);
+      expect(hasRateLimitMessage("You've hit your session limit · resets 3pm (Europe/Stockholm)")).toBe(true);
+      expect(hasRateLimitMessage("You've hit your limit")).toBe(true);
     });
 
     it('returns false when no rate limit message', () => {

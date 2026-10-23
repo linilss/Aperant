@@ -16,7 +16,8 @@ import type {
   SupportedTerminal,
   WorktreeCreatePROptions,
   WorktreeCreatePRResult,
-  ImageAttachment
+  ImageAttachment,
+  RefineRunStatus
 } from '../../shared/types';
 
 export interface TaskAPI {
@@ -35,6 +36,20 @@ export interface TaskAPI {
   ) => Promise<IPCResult<Task>>;
   startTask: (taskId: string, options?: TaskStartOptions) => void;
   stopTask: (taskId: string) => void;
+  /** AI groups Planning tasks that belong together (read-only preview) */
+  consolidateTasksPreview: (
+    projectId: string,
+    tasks: Array<{ specId: string; title: string }>
+  ) => Promise<IPCResult<import('../../main/ipc-handlers/task/consolidate-handlers').ConsolidatePreview>>;
+  /** Point roadmap features linked to merged tasks at the consolidated task */
+  relinkConsolidatedSpecs: (projectId: string, mapping: Record<string, string>) => Promise<IPCResult>;
+  /** Stop after the current subtask */
+  stopTaskSafe: (taskId: string) => void;
+  /** Promote queued tasks now (the main-process queue also runs on its own) */
+  processTaskQueue: (projectId?: string) => Promise<void>;
+  getTaskQueueOrder: (projectId: string) => Promise<string[]>;
+  setTaskQueueOrder: (projectId: string, taskIds: string[]) => Promise<void>;
+  getTaskQaReport: (taskId: string) => Promise<IPCResult<string | null>>;
   submitReview: (
     taskId: string,
     approved: boolean,
@@ -67,6 +82,7 @@ export interface TaskAPI {
   mergeWorktreePreview: (taskId: string) => Promise<IPCResult<import('../../shared/types').WorktreeMergeResult>>;
   postMergePush: (taskId: string, targetBranch: string) => Promise<IPCResult<{ pushed: boolean }>>;
   postMergeCleanup: (taskId: string) => Promise<IPCResult<{ cleaned: boolean }>>;
+  syncWorktree: (taskId: string, targetBranch?: string) => Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>>;
   resetTask: (taskId: string) => Promise<IPCResult<{ reset: boolean }>>;
   discardWorktree: (taskId: string, skipStatusChange?: boolean) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
   discardOrphanedWorktree: (projectId: string, specName: string) => Promise<IPCResult<import('../../shared/types').WorktreeDiscardResult>>;
@@ -90,6 +106,11 @@ export interface TaskAPI {
   onTaskExecutionProgress: (
     callback: (taskId: string, progress: import('../../shared/types').ExecutionProgress, projectId?: string) => void
   ) => () => void;
+  onTaskTraceUpdate: (callback: (taskId: string, entry: import('../../shared/types/trace-types').TraceEntry, projectId?: string) => void) => () => void;
+  onTaskRateLimitPause: (
+    callback: (taskId: string, info: import('../../shared/types').RateLimitPauseInfo, projectId?: string) => void
+  ) => () => void;
+  onTaskRateLimitResume: (callback: (taskId: string, projectId?: string) => void) => () => void;
 
   // Task Phase Logs
   getTaskLogs: (projectId: string, specId: string) => Promise<IPCResult<TaskLogs | null>>;
@@ -101,15 +122,17 @@ export interface TaskAPI {
   // Merge Progress Events
   onMergeProgress: (callback: (taskId: string, progress: MergeProgress) => void) => () => void;
 
-  // Task Refine (grill-me AI session)
-  taskRefineStart: (taskId: string, autoMode?: boolean) => void;
-  taskRefineSend: (taskId: string, message: string) => void;
-  taskRefineStop: (taskId: string) => void;
-  onTaskRefineChunk: (callback: (taskId: string, chunk: string) => void) => () => void;
-  onTaskRefineToolUse: (callback: (taskId: string, toolName: string) => void) => () => void;
-  onTaskRefineComplete: (callback: (taskId: string, refinedDescription?: string) => void) => () => void;
-  onTaskRefineError: (callback: (taskId: string, error: string) => void) => () => void;
+  // Task Refine: refined description written to the task
   onTaskRefineApplied: (callback: (taskId: string, projectId: string) => void) => () => void;
+
+  // Task Refine Terminal (mega-groom pipeline)
+  taskRefineTerminalStart: (taskId: string, autoMode?: boolean) => void;
+  taskRefineSkipPhase: (taskId: string) => void;
+  taskRefineGetSession: (taskId: string) => Promise<IPCResult<{ session: unknown } | null>>;
+  /** The task's refine run in main (null when it has none) */
+  taskRefineGetStatus: (taskId: string) => Promise<IPCResult<RefineRunStatus | null>>;
+  taskRefineResetSession: (taskId: string) => Promise<IPCResult>;
+  onTaskRefinePhaseChange: (callback: (taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>) => void) => () => void;
 }
 
 export const createTaskAPI = (): TaskAPI => ({
@@ -139,6 +162,19 @@ export const createTaskAPI = (): TaskAPI => ({
 
   stopTask: (taskId: string): void =>
     ipcRenderer.send(IPC_CHANNELS.TASK_STOP, taskId),
+
+  consolidateTasksPreview: (projectId, tasks) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CONSOLIDATE_PREVIEW, projectId, tasks),
+  relinkConsolidatedSpecs: (projectId, mapping) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CONSOLIDATE_RELINK, projectId, mapping),
+
+  stopTaskSafe: (taskId: string): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_STOP_SAFE, taskId),
+
+  processTaskQueue: (projectId?: string): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_PROCESS, projectId),
+  getTaskQueueOrder: (projectId: string): Promise<string[]> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_GET_ORDER, projectId),
+  setTaskQueueOrder: (projectId: string, taskIds: string[]): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.TASK_QUEUE_SET_ORDER, projectId, taskIds),
+
+  getTaskQaReport: (taskId: string): Promise<IPCResult<string | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_QA_REPORT, taskId),
 
   submitReview: (
     taskId: string,
@@ -197,6 +233,9 @@ export const createTaskAPI = (): TaskAPI => ({
   postMergeCleanup: (taskId: string): Promise<IPCResult<{ cleaned: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_POST_MERGE_CLEANUP, taskId),
 
+  syncWorktree: (taskId: string, targetBranch?: string): Promise<IPCResult<import('../../shared/types').WorktreeSyncResult>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_WORKTREE_SYNC, taskId, targetBranch),
+
   resetTask: (taskId: string): Promise<IPCResult<{ reset: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_RESET, taskId),
 
@@ -251,6 +290,39 @@ export const createTaskAPI = (): TaskAPI => ({
     ipcRenderer.on(IPC_CHANNELS.TASK_PROGRESS, handler);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.TASK_PROGRESS, handler);
+    };
+  },
+
+  onTaskRateLimitPause: (
+    callback: (taskId: string, info: import('../../shared/types').RateLimitPauseInfo, projectId?: string) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      taskId: string,
+      info: import('../../shared/types').RateLimitPauseInfo,
+      projectId?: string
+    ): void => {
+      callback(taskId, info, projectId);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASK_RATE_LIMIT_PAUSE, handler);
+    };
+  },
+
+  onTaskRateLimitResume: (
+    callback: (taskId: string, projectId?: string) => void
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      taskId: string,
+      projectId?: string
+    ): void => {
+      callback(taskId, projectId);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_RATE_LIMIT_RESUME, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.TASK_RATE_LIMIT_RESUME, handler);
     };
   },
 
@@ -324,6 +396,12 @@ export const createTaskAPI = (): TaskAPI => ({
     };
   },
 
+  onTaskTraceUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, entry: import('../../shared/types/trace-types').TraceEntry, projectId?: string) => callback(taskId, entry, projectId);
+    ipcRenderer.on(IPC_CHANNELS.TASK_TRACE_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.TASK_TRACE_UPDATE, handler);
+  },
+
   // Task Phase Logs
   getTaskLogs: (projectId: string, specId: string): Promise<IPCResult<TaskLogs | null>> =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_LOGS_GET, projectId, specId),
@@ -383,59 +461,36 @@ export const createTaskAPI = (): TaskAPI => ({
     };
   },
 
-  // Task Refine (grill-me AI session)
-  taskRefineStart: (taskId: string, autoMode?: boolean): void =>
-    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_START, taskId, autoMode),
-
-  taskRefineSend: (taskId: string, message: string): void =>
-    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_SEND, taskId, message),
-
-  taskRefineStop: (taskId: string): void =>
-    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_STOP, taskId),
-
-  onTaskRefineChunk: (
-    callback: (taskId: string, chunk: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, chunk: string): void => {
-      callback(taskId, chunk);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_CHUNK, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_CHUNK, handler); };
-  },
-
-  onTaskRefineToolUse: (
-    callback: (taskId: string, toolName: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, toolName: string): void => {
-      callback(taskId, toolName);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_TOOL_USE, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_TOOL_USE, handler); };
-  },
-
-  onTaskRefineComplete: (
-    callback: (taskId: string, refinedDescription?: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, refinedDescription?: string): void => {
-      callback(taskId, refinedDescription);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_COMPLETE, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_COMPLETE, handler); };
-  },
-
-  onTaskRefineError: (
-    callback: (taskId: string, error: string) => void
-  ): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, taskId: string, error: string): void => {
-      callback(taskId, error);
-    };
-    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_ERROR, handler);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_ERROR, handler); };
-  },
-
+  // Task Refine: refined description written to the task
   onTaskRefineApplied: (callback) => {
     const handler = (_: unknown, taskId: string, projectId: string) => callback(taskId, projectId);
     ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_APPLIED, handler);
+  },
+
+  // Task Refine Terminal (mega-groom pipeline)
+  taskRefineTerminalStart: (taskId: string, autoMode?: boolean): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_TERMINAL_START, taskId, autoMode),
+
+  taskRefineSkipPhase: (taskId: string): void =>
+    ipcRenderer.send(IPC_CHANNELS.TASK_REFINE_SKIP_PHASE, taskId),
+
+  taskRefineGetSession: (taskId: string): Promise<IPCResult<{ session: unknown } | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_GET_SESSION, taskId),
+
+  taskRefineGetStatus: (taskId: string): Promise<IPCResult<RefineRunStatus | null>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_GET_STATUS, taskId),
+
+  taskRefineResetSession: (taskId: string): Promise<IPCResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_REFINE_RESET_SESSION, taskId),
+
+  onTaskRefinePhaseChange: (
+    callback: (taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>) => void
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, taskId: string, phase: string, phaseIndex: number, phases: Array<{ name: string; label: string; status: string }>): void => {
+      callback(taskId, phase, phaseIndex, phases);
+    };
+    ipcRenderer.on(IPC_CHANNELS.TASK_REFINE_PHASE_CHANGE, handler);
+    return () => { ipcRenderer.removeListener(IPC_CHANNELS.TASK_REFINE_PHASE_CHANGE, handler); };
   },
 });

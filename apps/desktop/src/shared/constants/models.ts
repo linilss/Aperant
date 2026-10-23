@@ -11,10 +11,15 @@ import type { BuiltinProvider } from '../types/provider-account';
 // ============================================
 
 export const AVAILABLE_MODELS = [
-  { value: 'opus', label: 'Claude Opus 4.7' },
-  { value: 'opus-1m', label: 'Claude Opus 4.6 (1M)' },
+  { value: 'fable', label: 'Claude Fable 5.1' },
+  { value: 'opus', label: 'Claude Opus 5.5' },
+  { value: 'opus-5', label: 'Claude Opus 5' },
+  { value: 'opus-4.8', label: 'Claude Opus 4.8' },
+  { value: 'opus-4.7', label: 'Claude Opus 4.7' },
+  { value: 'opus-1m', label: 'Claude Opus 5.5 (1M)' },
   { value: 'opus-4.5', label: 'Claude Opus 4.5' },
-  { value: 'sonnet', label: 'Claude Sonnet 4.6' },
+  { value: 'sonnet', label: 'Claude Sonnet 5.5' },
+  { value: 'sonnet-4.6', label: 'Claude Sonnet 4.6' },
   { value: 'haiku', label: 'Claude Haiku 4.5' }
 ] as const;
 
@@ -38,9 +43,14 @@ export interface ModelOption {
 
 export const ALL_AVAILABLE_MODELS: ModelOption[] = [
   // Anthropic
-  { value: 'opus', label: 'Claude Opus 4.7', provider: 'anthropic', description: 'Latest & most capable', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
-  { value: 'opus-1m', label: 'Claude Opus 4.6 (1M)', provider: 'anthropic', description: '1M context', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
-  { value: 'sonnet', label: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
+  { value: 'fable', label: 'Claude Fable 5.1', provider: 'anthropic', description: 'Most capable — premium pricing', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'opus', label: 'Claude Opus 5.5', provider: 'anthropic', description: 'Latest Opus', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'opus-5', label: 'Claude Opus 5', provider: 'anthropic', description: 'Previous Opus', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'opus-4.8', label: 'Claude Opus 4.8', provider: 'anthropic', description: 'Legacy', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'opus-4.7', label: 'Claude Opus 4.7', provider: 'anthropic', description: 'Legacy', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'opus-1m', label: 'Claude Opus 5.5 (1M)', provider: 'anthropic', description: '1M context', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'sonnet', label: 'Claude Sonnet 5.5', provider: 'anthropic', description: 'Balanced', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 1000000 } },
+  { value: 'sonnet-4.6', label: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Previous Sonnet', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'opus-4.5', label: 'Claude Opus 4.5', provider: 'anthropic', description: 'Legacy', capabilities: { thinking: true, tools: true, vision: true, contextWindow: 200000 } },
   { value: 'haiku', label: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fast', capabilities: { thinking: false, tools: true, vision: true, contextWindow: 200000 } },
   // Z.AI (Zhipu)
@@ -53,11 +63,17 @@ export const ALL_AVAILABLE_MODELS: ModelOption[] = [
 // Maps model shorthand to actual Claude model IDs
 // Values must match apps/desktop/src/main/ai/config/types.ts MODEL_ID_MAP
 export const MODEL_ID_MAP: Record<string, string> = {
-  opus: 'claude-opus-4-7',
+  fable: 'claude-fable-5-1',
+  opus: 'claude-opus-5-5',
+  'opus-5.5': 'claude-opus-5-5',
+  'opus-5': 'claude-opus-5',
+  'opus-4.8': 'claude-opus-4-8',
   'opus-4.7': 'claude-opus-4-7',
-  'opus-1m': 'claude-opus-4-6',
+  'opus-1m': 'claude-opus-5-5', // legacy alias: Opus 5.5 has a 1M context window by default
   'opus-4.5': 'claude-opus-4-5-20251101',
-  sonnet: 'claude-sonnet-4-6',
+  sonnet: 'claude-sonnet-5-5',
+  'sonnet-5': 'claude-sonnet-5',
+  'sonnet-4.6': 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5-20251001'
 } as const;
 
@@ -88,19 +104,19 @@ export const THINKING_LEVELS = [
 // Phase configurations for each preset profile
 // Each profile has its own default phase models and thinking levels
 
-// Auto (Optimized) - Opus with optimized thinking per phase
+// Auto (Optimized) - Opus for spec/planning/QA, Sonnet for coding
 export const AUTO_PHASE_MODELS: PhaseModelConfig = {
   spec: 'opus',
   planning: 'opus',
-  coding: 'opus',
+  coding: 'sonnet',
   qa: 'opus'
 };
 
 export const AUTO_PHASE_THINKING: import('../types/settings').PhaseThinkingConfig = {
-  spec: 'high',   // Deep thinking for comprehensive spec creation
-  planning: 'high',     // High thinking for planning complex features
-  coding: 'low',        // Faster coding iterations
-  qa: 'low'             // Efficient QA review
+  spec: 'high',       // Deep thinking for comprehensive spec creation
+  planning: 'medium', // Moderate thinking for planning
+  coding: 'medium',   // Balanced coding iterations
+  qa: 'medium'        // Balanced QA review
 };
 
 // Complex Tasks - Opus with high thinking across all phases
@@ -195,7 +211,7 @@ export const DEFAULT_AGENT_PROFILES: AgentProfile[] = [
   {
     id: 'auto',
     name: 'Auto (Optimized)',
-    description: 'Uses Opus across all phases with optimized thinking levels',
+    description: 'Opus for spec, planning & QA — Sonnet for coding',
     model: 'opus',
     thinkingLevel: 'high',
     icon: 'Sparkles',
@@ -256,7 +272,7 @@ export interface ProviderPresetConfig {
  */
 export const PROVIDER_PRESET_DEFINITIONS: Partial<Record<BuiltinProvider, Record<string, ProviderPresetConfig>>> = {
   anthropic: {
-    auto:     { primaryModel: 'opus',   primaryThinking: 'high',   phaseModels: { spec: 'opus', planning: 'opus', coding: 'opus', qa: 'opus' },         phaseThinking: { spec: 'high', planning: 'high', coding: 'low', qa: 'low' } },
+    auto:     { primaryModel: 'opus',   primaryThinking: 'high',   phaseModels: { spec: 'opus', planning: 'opus', coding: 'sonnet', qa: 'opus' },   phaseThinking: { spec: 'high', planning: 'medium', coding: 'medium', qa: 'medium' } },
     complex:  { primaryModel: 'opus',   primaryThinking: 'high',   phaseModels: { spec: 'opus', planning: 'opus', coding: 'opus', qa: 'opus' },         phaseThinking: { spec: 'high', planning: 'high', coding: 'high', qa: 'high' } },
     balanced: { primaryModel: 'sonnet', primaryThinking: 'medium', phaseModels: { spec: 'sonnet', planning: 'sonnet', coding: 'sonnet', qa: 'sonnet' }, phaseThinking: { spec: 'medium', planning: 'medium', coding: 'medium', qa: 'medium' } },
     quick:    { primaryModel: 'haiku',  primaryThinking: 'low',    phaseModels: { spec: 'haiku', planning: 'haiku', coding: 'haiku', qa: 'haiku' },     phaseThinking: { spec: 'low', planning: 'low', coding: 'low', qa: 'low' } },
@@ -304,11 +320,15 @@ export function getProviderPresetOrFallback(provider: BuiltinProvider, presetId:
   return PROVIDER_PRESET_DEFINITIONS['anthropic']!['auto'];
 }
 
-// Models that support Fast Mode (same model, faster API routing, higher cost)
-export const FAST_MODE_MODELS: readonly string[] = ['opus', 'opus-4.7', 'opus-1m'] as const;
+// Models that support Fast Mode (same model, faster output, premium pricing).
+// Fast mode was removed on Opus 4.7 — requesting it there is an error.
+export const FAST_MODE_MODELS: readonly string[] = ['opus', 'opus-5', 'opus-4.8'] as const;
 
-// Models that use adaptive thinking (Opus dynamically decides how much to think within the budget cap)
-export const ADAPTIVE_THINKING_MODELS: readonly string[] = ['opus', 'opus-4.7', 'opus-1m'] as const;
+// Models that use adaptive thinking (Claude decides how much to think; depth is
+// steered by effort level rather than a fixed token budget)
+export const ADAPTIVE_THINKING_MODELS: readonly string[] = [
+  'fable', 'opus', 'opus-5.5', 'opus-5', 'opus-4.8', 'opus-4.7', 'opus-1m', 'sonnet', 'sonnet-5', 'sonnet-4.6'
+] as const;
 
 // Valid thinking levels for validation
 export const VALID_THINKING_LEVELS = ['low', 'medium', 'high', 'xhigh'] as const;
@@ -324,15 +344,6 @@ export function sanitizeThinkingLevel(val: string): string {
 
 // Phase keys for iterating over phase model/thinking configuration
 export const PHASE_KEYS: readonly (keyof PhaseModelConfig)[] = ['spec', 'planning', 'coding', 'qa'] as const;
-
-// ============================================
-// Memory Backends
-// ============================================
-
-export const MEMORY_BACKENDS = [
-  { value: 'file', label: 'File-based (default)' },
-  { value: 'memory', label: 'Memory (LadybugDB)' }
-] as const;
 
 // ============================================
 // Reasoning Configuration Types
@@ -357,27 +368,49 @@ export interface ProviderModelSpec {
 
 export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinProvider, ProviderModelSpec>>> = {
   // ── Anthropic shorthands ──────────────────────────────────────────────────
-  'opus': {
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+  'fable': {
+    anthropic: { modelId: 'claude-fable-5-1', reasoning: { type: 'adaptive_effort', level: 'high' } },
     zai: { modelId: 'glm-5', reasoning: { type: 'none' } },
+  },
+  'opus': {
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    zai: { modelId: 'glm-5', reasoning: { type: 'none' } },
+  },
+  'opus-5.5': {
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
+  },
+  'opus-5': {
+    anthropic: { modelId: 'claude-opus-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
+  },
+  'opus-4.8': {
+    anthropic: { modelId: 'claude-opus-4-8', reasoning: { type: 'adaptive_effort', level: 'high' } },
+  },
+  'opus-4.7': {
+    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'glm-5': {
     zai: { modelId: 'glm-5', reasoning: { type: 'none' } },
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'glm-4.7': {
     zai: { modelId: 'glm-4.7', reasoning: { type: 'none' } },
-    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
+    anthropic: { modelId: 'claude-sonnet-5-5', reasoning: { type: 'adaptive_effort', level: 'medium' } },
   },
   'opus-1m': {
-    anthropic: { modelId: 'claude-opus-4-6', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'opus-4.5': {
     anthropic: { modelId: 'claude-opus-4-5-20251101', reasoning: { type: 'thinking_tokens', level: 'high' } },
   },
   'sonnet': {
-    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
+    anthropic: { modelId: 'claude-sonnet-5-5', reasoning: { type: 'adaptive_effort', level: 'medium' } },
     zai: { modelId: 'glm-4.7', reasoning: { type: 'none' } },
+  },
+  'sonnet-5': {
+    anthropic: { modelId: 'claude-sonnet-5', reasoning: { type: 'adaptive_effort', level: 'medium' } },
+  },
+  'sonnet-4.6': {
+    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'adaptive_effort', level: 'medium' } },
   },
   'haiku': {
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
@@ -385,13 +418,13 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
   },
   // ── OpenAI models ─────────────────────────────────────────────────────────
   'gpt-5.3-codex': {
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'gpt-5.2': {
-    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'high' } },
+    anthropic: { modelId: 'claude-sonnet-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'gpt-5.2-codex': {
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'gpt-5.1-codex-mini': {
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
@@ -400,24 +433,24 @@ export const DEFAULT_MODEL_EQUIVALENCES: Record<string, Partial<Record<BuiltinPr
     anthropic: { modelId: 'claude-haiku-4-5-20251001', reasoning: { type: 'none' } },
   },
   'o3': {
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'o4-mini': {
-    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
+    anthropic: { modelId: 'claude-sonnet-5-5', reasoning: { type: 'adaptive_effort', level: 'medium' } },
   },
   // ── Google models ─────────────────────────────────────────────────────────
   'gemini-2.5-pro': {
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'gemini-2.5-flash': {
-    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
+    anthropic: { modelId: 'claude-sonnet-5-5', reasoning: { type: 'adaptive_effort', level: 'medium' } },
   },
   // ── xAI models ────────────────────────────────────────────────────────────
   'grok-4-0709': {
-    anthropic: { modelId: 'claude-opus-4-7', reasoning: { type: 'adaptive_effort', level: 'high' } },
+    anthropic: { modelId: 'claude-opus-5-5', reasoning: { type: 'adaptive_effort', level: 'high' } },
   },
   'grok-3-mini': {
-    anthropic: { modelId: 'claude-sonnet-4-6', reasoning: { type: 'thinking_tokens', level: 'medium' } },
+    anthropic: { modelId: 'claude-sonnet-5-5', reasoning: { type: 'adaptive_effort', level: 'medium' } },
   },
 };
 

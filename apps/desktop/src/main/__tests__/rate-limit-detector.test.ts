@@ -54,6 +54,35 @@ describe('Rate Limit Detector', () => {
       expect(result.limitType).toBe('session');
     });
 
+    it.each([
+      ["You've hit your session limit · resets 3pm (Europe/Stockholm)", '3pm (Europe/Stockholm)', 'session'],
+      // A session limit is classified by label, even though the CLI prints a date for >24h resets
+      ["You've hit your weekly limit · resets 3pm (Europe/Stockholm)", '3pm (Europe/Stockholm)', 'weekly'],
+      ["You've hit your Opus limit · resets Oct 12, 3pm (Europe/Stockholm)", 'Oct 12, 3pm (Europe/Stockholm)', 'weekly'],
+      ["You've hit your Sonnet limit · resets Oct 12, 3pm (Europe/Stockholm) · progress saved", 'Oct 12, 3pm (Europe/Stockholm)', 'weekly'],
+      ["You've hit your Fable limit · resets Oct 12, 3pm (Europe/Stockholm)", 'Oct 12, 3pm (Europe/Stockholm)', 'weekly'],
+    ])('should detect current CLI limit message %s', async (output, resetTime, limitType) => {
+      const { detectRateLimit } = await import('../rate-limit-detector');
+      const { getClaudeProfileManager } = await import('../claude-profile-manager');
+
+      const result = detectRateLimit(output);
+
+      expect(result.isRateLimited).toBe(true);
+      expect(result.resetTime).toBe(resetTime);
+      expect(result.limitType).toBe(limitType);
+      const manager = vi.mocked(getClaudeProfileManager).mock.results.at(-1)?.value;
+      expect(manager.recordRateLimitEvent).toHaveBeenCalledWith('test-profile-id', resetTime, limitType);
+    });
+
+    it('should detect "You\'ve hit your limit" without a reset time via indicators', async () => {
+      const { detectRateLimit } = await import('../rate-limit-detector');
+
+      const result = detectRateLimit("You've hit your session limit");
+
+      expect(result.isRateLimited).toBe(true);
+      expect(result.resetTime).toBeUndefined();
+    });
+
     it('should detect secondary rate limit indicators', async () => {
       const { detectRateLimit } = await import('../rate-limit-detector');
 
@@ -112,6 +141,12 @@ describe('Rate Limit Detector', () => {
       const resetTime = extractResetTime(output);
 
       expect(resetTime).toBe('Dec 17 at 6am (Europe/Oslo)');
+    });
+
+    it('should extract reset time from the current CLI message', async () => {
+      const { extractResetTime } = await import('../rate-limit-detector');
+
+      expect(extractResetTime("You've hit your session limit · resets 3pm (Europe/Stockholm)")).toBe('3pm (Europe/Stockholm)');
     });
 
     it('should return null for non-rate-limit output', async () => {

@@ -30,6 +30,13 @@ export interface Competitor {
   strengths: string[];
   marketPosition: string;
   source?: CompetitorSource;
+  // Profile fields written by the Competitors page pipeline (absent in older files)
+  positioning?: string;
+  targetAudience?: string;
+  keyFeatures?: string[];
+  pricingModel?: string;
+  weaknesses?: string[];
+  differentiator?: string;
 }
 
 export interface ManualCompetitorInput {
@@ -77,7 +84,7 @@ export interface CompetitorAnalysis {
 // ============================================
 
 export type RoadmapFeaturePriority = 'must' | 'should' | 'could' | 'wont';
-export type RoadmapFeatureStatus = 'under_review' | 'planned' | 'in_progress' | 'done';
+export type RoadmapFeatureStatus = 'under_review' | 'planned' | 'in_progress' | 'done' | 'dismissed';
 export type TaskOutcome = 'completed' | 'deleted' | 'archived';
 export type RoadmapPhaseStatus = 'planned' | 'in_progress' | 'completed';
 export type RoadmapStatus = 'draft' | 'active' | 'archived';
@@ -135,11 +142,38 @@ export interface RoadmapFeature {
   taskOutcome?: TaskOutcome;
   previousStatus?: RoadmapFeatureStatus;
   competitorInsightIds?: string[];
+  /**
+   * Strategic direction ids (strategy.json) this feature advances.
+   * undefined = generated before direction tagging existed; [] = tagged, serves none.
+   */
+  directionIds?: string[];
   // External integration fields
   source?: FeatureSource;
   externalId?: string;    // ID from external system (e.g., Canny post ID)
   externalUrl?: string;   // Link back to external system
   votes?: number;         // Vote count from external system
+  /** Ideation idea this feature was created from ("Add to roadmap") */
+  sourceIdeaId?: string;
+  /** When AI refinement last rewrote this feature (ISO timestamp) */
+  refinedAt?: string;
+  /** Existing feature id this one likely duplicates (set by AI refinement) */
+  duplicateOf?: string;
+  /** Why the planning proofread held this feature back (or what it fixed) */
+  proofreadNote?: string;
+  /** When the planning proofread last changed this feature (ISO timestamp) */
+  intakeAt?: string;
+  /** Files a coding agent should start from (set by the planning proofread) */
+  relevantFiles?: string[];
+  /** Feature this one was split from by the planning proofread */
+  splitFrom?: string;
+}
+
+/** Options for AI refinement of a single roadmap feature */
+export interface RoadmapFeatureRefineOptions {
+  /** Let the AI move priority/phase (only while they are still the values from when refinement started) */
+  suggestPriority: boolean;
+  /** User explicitly asked for a refine: title/description and other content fields may be overwritten */
+  explicit?: boolean;
 }
 
 export interface Roadmap {
