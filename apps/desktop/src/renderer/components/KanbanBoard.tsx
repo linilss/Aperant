@@ -81,6 +81,13 @@ function isValidDropColumn(id: string): id is typeof TASK_STATUS_COLUMNS[number]
  * error tasks are displayed in the 'human_review' column (errors need human attention).
  * This is used to compare visual positions during drag-and-drop operations.
  */
+/** The status group a task sorts in (before queue / ai_review are folded into their column) */
+function getStatusGroup(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number] {
+  if (status === 'pr_created') return 'pending_merge';
+  if (status === 'error') return 'human_review';
+  return status;
+}
+
 function getVisualColumn(status: TaskStatus): typeof TASK_STATUS_COLUMNS[number] {
   if (status === 'pr_created') return 'pending_merge';
   // Queued tasks wait at the bottom of In Progress
@@ -1066,8 +1073,10 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
     };
 
     filteredTasks.forEach((task) => {
-      // Map pr_created tasks to the done column, error tasks to human_review
-      const targetColumn = getVisualColumn(task.status);
+      // Group by status (pr_created → pending_merge, error → human_review); queue and
+      // ai_review keep their own groups here and are appended to their visual column below,
+      // after the running work
+      const targetColumn = getStatusGroup(task.status);
       if (grouped[targetColumn]) {
         grouped[targetColumn].push(task);
       }
