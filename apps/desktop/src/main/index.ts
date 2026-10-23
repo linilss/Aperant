@@ -392,8 +392,9 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  // Open DevTools in development
-  if (is.dev) {
+  // Open DevTools with the dev server (npm run dev), or on request (MALVY_DEVTOOLS=1);
+  // not for the built app started with npm start
+  if (is.dev && (process.env['ELECTRON_RENDERER_URL'] || process.env['MALVY_DEVTOOLS'] === '1')) {
     mainWindow.webContents.openDevTools({ mode: 'right' });
   }
 
