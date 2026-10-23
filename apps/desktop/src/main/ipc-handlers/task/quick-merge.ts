@@ -61,7 +61,8 @@ export type VerifyRunner = (command: string, cwd: string, abortSignal?: AbortSig
 
 export type QuickMergeStage = 'prepare-target' | 'sync-worktree' | 'checkout-target' | 'final-merge' | 'commit';
 
-export type QuickMergeGitResult = { ok: true } | { ok: false; stage: QuickMergeStage; message: string };
+/** `note`: something the user should know about a successful merge (e.g. work set aside) */
+export type QuickMergeGitResult = { ok: true; note?: string } | { ok: false; stage: QuickMergeStage; message: string };
 
 export interface QuickMergeGitInput {
   projectPath: string;
@@ -412,6 +413,7 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
   // Step 2: bring the feature branch up to date with the local target, in a worktree
   emitProgress('updating', 30, `Bringing ${featureBranch} up to date with ${targetBranch}`);
   let syncDir = input.worktreePath && existsSync(input.worktreePath) ? input.worktreePath : null;
+  let setAsideNote = '';
   let tempDir: string | null = null;
   try {
     if (!syncDir) {
@@ -427,6 +429,20 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
         };
       }
       syncDir = dir;
+    }
+    // Uncommitted edits left in the task worktree (an agent that never committed them)
+    // would block the merge; only committed work is merged, so set them aside
+    if (!tempDir) {
+      const dirty = makeGit(syncDir)(['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).malvy']).trim();
+      if (dirty) {
+        const label = `malvy: uncommitted changes set aside before merging ${specId}`;
+        try {
+          makeGit(syncDir)(['stash', 'push', '-m', label, '--', '.', ':(exclude).malvy']);
+          setAsideNote = ` (${dirty.split('\n').length} uncommitted change(s) in the task worktree were not part of the merge; they are in git stash "${label}")`;
+        } catch (err) {
+          return { ok: false, stage: 'sync-worktree', message: `The task worktree has uncommitted changes that could not be set aside: ${errMsg(err)}` };
+        }
+      }
     }
     const syncError = await syncWithTarget({ cwd: syncDir, input, logTag });
     if (syncError) {
@@ -482,7 +498,7 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
     abortMerge(projectPath);
     return { ok: false, stage: 'commit', message: `${conflictFailureMessage(err)} The merge into ${targetBranch} was aborted.` };
   }
-  if (!mergeInProgress(projectPath)) return { ok: true }; // already up to date
+  if (!mergeInProgress(projectPath)) return { ok: true, note: setAsideNote || undefined }; // already up to date
   try {
     git(['commit', '--no-edit', '-m', commitMessage]);
   } catch (err) {
@@ -492,7 +508,7 @@ export async function runQuickMergeGit(input: QuickMergeGitInput): Promise<Quick
       return { ok: false, stage: 'commit', message: `Commit failed: ${msg}` };
     }
   }
-  return { ok: true };
+  return { ok: true, note: setAsideNote || undefined };
 }
 
 /** Push `target` to origin after a quick merge; returns a note for the toast ('' when pushed) */

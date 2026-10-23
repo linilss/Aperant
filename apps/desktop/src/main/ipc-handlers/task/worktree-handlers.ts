@@ -2263,7 +2263,7 @@ export function registerWorktreeHandlers(
               success: true,
               data: {
                 success: true,
-                message: `Merged ${featureBranch} into ${effectiveBaseBranch}${pushNote}`,
+                message: `Merged ${featureBranch} into ${effectiveBaseBranch}${pushNote}${gitResult.note ?? ''}`,
                 merged: true,
                 targetBranch: effectiveBaseBranch
               }

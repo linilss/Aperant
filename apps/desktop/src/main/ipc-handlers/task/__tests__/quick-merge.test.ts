@@ -101,6 +101,21 @@ describe('runQuickMergeGit', () => {
     expect(gitIn(project, 'status', '--porcelain')).toBe('');
   });
 
+  it('sets aside uncommitted edits in the task worktree and merges the committed work', async () => {
+    commitFile(worktree, 'feature.txt', 'new\n', 'feature work');
+    commitFile(project, 'app.txt', 'line 1 from main\n', 'earlier local merge');
+    // A stray edit the task never committed, to a file main changed (would block `git merge main`)
+    writeFileSync(path.join(worktree, 'app.txt'), 'stray edit\n');
+
+    const result = await runQuickMergeGit(input());
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.note).toMatch(/git stash/);
+    expect(readFileSync(path.join(project, 'app.txt'), 'utf-8')).toBe('line 1 from main\n');
+    expect(readFileSync(path.join(project, 'feature.txt'), 'utf-8')).toBe('new\n');
+    expect(gitIn(project, 'stash', 'list')).toContain('uncommitted changes set aside before merging 001-task');
+  });
+
   it('aborts cleanly when the AI cannot resolve, leaving the project checkout untouched', async () => {
     commitFile(project, 'app.txt', 'line 1 from main\n', 'earlier local merge');
     commitFile(worktree, 'app.txt', 'line 1 from task\n', 'feature work');
