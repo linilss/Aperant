@@ -1128,6 +1128,10 @@ export function KanbanBoard({ tasks, projectId: boardProjectId, leadingColumns =
       }
     });
 
+    // Done: latest merge first (tasks merged before merge times were recorded go last, newest first)
+    const mergedTime = (t: Task) => (t.metadata?.mergedAt ? new Date(t.metadata.mergedAt).getTime() : 0);
+    grouped.done.sort((a, b) => mergedTime(b) - mergedTime(a) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
     // In Progress shows the running tasks, then the queue in start order
     grouped.in_progress = [...grouped.in_progress, ...grouped.queue];
     // Review shows the AI reviews still running, then what waits for the user
