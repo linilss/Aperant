@@ -298,6 +298,33 @@ describe('ProjectStore', () => {
       expect(tasks).toEqual([]);
     });
 
+    it('moves a done task back to pending_merge only when its branch is not merged', async () => {
+      const { execFileSync } = await import('child_process');
+      const gitIn = (...args: string[]) => execFileSync('git', args, { cwd: TEST_PROJECT_PATH, stdio: 'pipe' });
+      mkdirSync(TEST_PROJECT_PATH, { recursive: true });
+      gitIn('init', '-q', '-b', 'main');
+      gitIn('config', 'user.email', 't@t');
+      gitIn('config', 'user.name', 't');
+      gitIn('commit', '-q', '--allow-empty', '-m', 'base');
+      gitIn('branch', 'malvy/001-merged');
+      gitIn('checkout', '-q', '-b', 'malvy/002-open');
+      gitIn('commit', '-q', '--allow-empty', '-m', 'task work');
+      gitIn('checkout', '-q', 'main');
+      for (const id of ['001-merged', '002-open']) {
+        const dir = path.join(TEST_PROJECT_PATH, '.malvy', 'specs', id);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, 'implementation_plan.json'), JSON.stringify({ feature: id, status: 'done', phases: [] }));
+      }
+
+      const { ProjectStore } = await import('../project-store');
+      const store = new ProjectStore();
+      const project = store.addProject(TEST_PROJECT_PATH);
+      const byId = Object.fromEntries(store.getTasks(project.id).map((t) => [t.specId, t.status]));
+
+      expect(byId['001-merged']).toBe('done');
+      expect(byId['002-open']).toBe('pending_merge');
+    });
+
     it('should read tasks from filesystem correctly', async () => {
       // Create spec directory structure in .malvy (the data directory)
       const specsDir = path.join(TEST_PROJECT_PATH, '.malvy', 'specs', '001-test-feature');

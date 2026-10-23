@@ -305,29 +305,49 @@ export class ProjectStore {
    * This is used to retroactively move 'done' tasks back to 'pending_merge' when the
    * worktree merge silently failed (e.g. broken git link after .auto-claude → .malvy rename).
    */
-  private isBranchUnmerged(projectPath: string, branch: string): boolean {
+  /** merge-base answers by "<branch sha>:<HEAD sha>" (a sha pair never changes its answer) */
+  private mergedCache = new Map<string, boolean>();
+
+  /** Branch name → sha for every local branch, plus HEAD: two git calls per task load */
+  private readBranchShas(projectPath: string): { branches: Map<string, string>; head: string } | null {
     try {
       const git = getToolPath('git');
-      // Verify the branch exists
-      execFileSync(git, ['rev-parse', '--verify', branch], {
+      const out = execFileSync(git, ['for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/heads'], {
         cwd: projectPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe']
       });
-      // Check whether it is already an ancestor of HEAD (i.e. merged)
-      try {
-        execFileSync(git, ['merge-base', '--is-ancestor', branch, 'HEAD'], {
-          cwd: projectPath,
-          encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
-        return false; // Branch is an ancestor → already merged
-      } catch {
-        return true; // Branch exists but is NOT an ancestor → unmerged
+      const branches = new Map<string, string>();
+      for (const line of out.split('\n')) {
+        const [name, sha] = line.trim().split(' ');
+        if (name && sha) branches.set(name, sha);
       }
+      const head = execFileSync(git, ['rev-parse', 'HEAD'], { cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+      return { branches, head };
     } catch {
-      return false; // Branch doesn't exist → nothing to merge
+      return null;
     }
+  }
+
+  private isBranchUnmerged(projectPath: string, branch: string, refs: { branches: Map<string, string>; head: string } | null): boolean {
+    const sha = refs?.branches.get(branch);
+    if (!refs || !sha) return false; // Branch doesn't exist → nothing to merge
+    const key = `${sha}:${refs.head}`;
+    const cached = this.mergedCache.get(key);
+    if (cached !== undefined) return !cached;
+    let merged: boolean;
+    try {
+      execFileSync(getToolPath('git'), ['merge-base', '--is-ancestor', sha, refs.head], {
+        cwd: projectPath,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      merged = true; // Branch is an ancestor → already merged
+    } catch {
+      merged = false; // Branch exists but is NOT an ancestor → unmerged
+    }
+    this.mergedCache.set(key, merged);
+    return !merged;
   }
 
   /**
@@ -432,6 +452,8 @@ export class ProjectStore {
     //   - 'human_review' with reviewReason 'completed' (or none) — AI completed but not yet merged
     //     (these predate the pending_merge column; XState maps them to pending_merge at runtime
     //      but disk never got updated)
+    // Branch shas read once (not two git spawns per task: that blocked the main process)
+    let refs: { branches: Map<string, string>; head: string } | null | undefined;
     for (const task of tasks) {
       const isCompletedHumanReview =
         task.status === 'human_review' &&
@@ -443,7 +465,8 @@ export class ProjectStore {
       ) {
         const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
         for (const branch of candidateBranches) {
-          if (this.isBranchUnmerged(project.path, branch)) {
+          if (refs === undefined) refs = this.readBranchShas(project.path);
+          if (this.isBranchUnmerged(project.path, branch, refs)) {
             task.status = 'pending_merge';
             // Persist the fix to disk so future loads skip the git check
             try {
