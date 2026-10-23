@@ -1,3 +1,4 @@
+import { markTaskMerged } from '../../task-deployments';
 import { ipcMain, BrowserWindow, shell, app } from 'electron';
 import { IPC_CHANNELS, AUTO_BUILD_PATHS, DEFAULT_APP_SETTINGS, DEFAULT_FEATURE_MODELS, DEFAULT_FEATURE_THINKING, MODEL_ID_MAP, THINKING_BUDGET_MAP, getSpecsDir } from '../../../shared/constants';
 import type { IPCResult, WorktreeStatus, WorktreeDiff, WorktreeDiffFile, WorktreeMergeResult, WorktreeDiscardResult, WorktreeListResult, WorktreeListItem, WorktreeCreatePROptions, WorktreeCreatePRResult, SupportedIDE, SupportedTerminal, SupportedCLI, AppSettings } from '../../../shared/types';
@@ -9,7 +10,9 @@ import { homedir } from 'os';
 import { projectStore } from '../../project-store';
 
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
-import { createMergeResolverFn, resolveMergeConflict } from '../../ai/runners/merge-resolver';
+import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
+import { pickMergeTarget, pushMergedTarget, refExists, runQuickMergeGit } from './quick-merge';
+import { describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
 import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
 import { detectAzureDevOpsFromRemote } from '../azure-devops/utils';
@@ -17,6 +20,7 @@ import type { ModelShorthand } from '../../ai/config/types';
 import { findTaskAndProject } from './shared';
 import { updateRoadmapFeatureOutcome } from '../../utils/roadmap-utils';
 import { getToolPath } from '../../cli-tool-manager';
+import { appLog } from '../../app-logger';
 import { promisify } from 'util';
 import {
   getTaskWorktreeDir,
@@ -25,6 +29,12 @@ import {
 import { persistPlanStatus, updateTaskMetadataPrUrl, resetAllSubtasks, clearTaskMetadataForReset } from './plan-file-utils';
 import { getIsolatedGitEnv, refreshGitIndex } from '../../utils/git-isolation';
 import { cleanupWorktree } from '../../utils/worktree-cleanup';
+import { findExistingTaskBranch, resolveTaskBranch } from '../../utils/task-branch-resolver';
+import {
+  getTaskBranchCandidates,
+  isTaskBranch,
+  type TaskBranchSettings
+} from '../../../shared/utils/task-branch';
 import { killProcessGracefully } from '../../platform';
 import { stripAnsiCodes } from '../../../shared/utils/ansi-sanitizer';
 import { taskStateManager } from '../../task-state-manager';
@@ -35,9 +45,10 @@ export const GIT_BRANCH_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*[a-zA-Z0-9]$|^[a-zA
 /**
  * Validates a detected branch name and returns the safe branch to delete.
  *
- * Why `malvy/` prefix is considered safe:
- * - All task worktrees use branches named `malvy/{specId}`
- * - This pattern is controlled by Auto-Claude, not user input
+ * Why the task branch prefix is considered safe:
+ * - All task worktrees use branches named `{branchPrefix}{specId}` (default `malvy/`)
+ * - Legacy prefixes (`malvy/`, `auto-claude/`) are also recognised
+ * - This pattern is controlled by the app, not free-form user input
  * - If detected branch matches this pattern, it's a valid task branch
  * - If it doesn't match (e.g., `main`, `develop`, `feature/xxx`), it's likely
  *   the main project's branch being incorrectly detected from a corrupted worktree
@@ -48,7 +59,8 @@ export const GIT_BRANCH_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*[a-zA-Z0-9]$|^[a-zA
  */
 export function validateWorktreeBranch(
   detectedBranch: string | null,
-  expectedBranch: string
+  expectedBranch: string,
+  branchSettings?: TaskBranchSettings | null
 ): { branchToDelete: string; usedFallback: boolean; reason: string } {
   // If detection failed, use expected pattern
   if (detectedBranch === null) {
@@ -68,9 +80,8 @@ export function validateWorktreeBranch(
     };
   }
 
-  // Matches malvy pattern with valid specId (not just "malvy/")
-  // The specId must be non-empty for this to be a valid task branch
-  if (detectedBranch.startsWith('malvy/') && detectedBranch.length > 'malvy/'.length) {
+  // Matches a task branch prefix (configured or legacy) with a non-empty specId
+  if (isTaskBranch(detectedBranch, branchSettings)) {
     return {
       branchToDelete: detectedBranch,
       usedFallback: false,
@@ -1512,93 +1523,133 @@ function getEffectiveBaseBranch(projectPath: string, specId: string, projectMain
 }
 
 /**
- * Auto-detect the merge target branch for the Merge button.
- * Priority:
- * 1. Task metadata baseBranch (explicit override)
- * 2. origin/dev if it exists on the remote
- * 3. Project settings mainBranch
- * 4. Fallback to 'main'
+ * Put back changes set aside with `git stash push` before a merge. Conflicts with the merged
+ * code are resolved with AI and the result left unstaged, as it was. Returns an error note
+ * when the work could not be restored (it then stays in the stash list), else null.
  */
-/**
- * AI-powered git conflict resolution.
- *
- * When `git merge` leaves conflict markers, this function:
- * 1. Finds all conflicted files (U in --diff-filter=U)
- * 2. Sends each file's content to the AI for resolution
- * 3. Writes the resolved content back and stages the file
- *
- * After this returns, call `git merge --continue --no-edit` to finish.
- *
- * @param cwd - Directory containing the git repo (worktree or main project)
- * @param onProgress - Optional progress callback
- */
-async function resolveGitConflictsWithAI(
-  cwd: string,
+async function restoreStashedWork(
+  projectPath: string,
+  label: string,
   onProgress?: (msg: string) => void
-): Promise<void> {
-  // Find conflicted files
-  const conflictedFiles = execFileSync(
-    getToolPath('git'),
-    ['diff', '--name-only', '--diff-filter=U'],
-    { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }
-  ).trim().split('\n').filter(Boolean);
-
-  if (conflictedFiles.length === 0) return;
-
-  for (const relPath of conflictedFiles) {
-    const absPath = path.join(cwd, relPath);
-    onProgress?.(`Resolving conflict in ${relPath}`);
-
-    let conflictedContent: string;
-    try {
-      conflictedContent = readFileSync(absPath, 'utf-8');
-    } catch {
-      continue; // Skip unreadable files
-    }
-
-    const result = await resolveMergeConflict({
-      systemPrompt: `You are a code merge expert resolving a Git merge conflict.
-Return ONLY the complete resolved file content — no explanation, no markdown fences, no conflict markers.
-Prefer keeping all changes from both sides unless they directly contradict.`,
-      userPrompt: `Resolve the following merge conflict. Return only the complete resolved file.\n\nFile: ${relPath}\n\n${conflictedContent}`,
-      modelShorthand: 'sonnet',
-      thinkingLevel: 'low',
+): Promise<string | null> {
+  const git = (args: string[]) => execFileSync(getToolPath('git'), args, {
+    cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+  });
+  const keptNote = `Uncommitted changes could not be put back automatically; they are kept in git stash ("${label}").`;
+  // Find our entry by label — another stash (e.g. .malvy/) may sit on top if its pop failed
+  const ref = git(['stash', 'list', '--format=%gd%x09%gs'])
+    .split('\n')
+    .find((line) => line.endsWith(label))
+    ?.split('\t')[0];
+  if (!ref) return keptNote;
+  try {
+    git(['stash', 'pop', ref]);
+    return null;
+  } catch {
+    // Conflicts: markers are in the files and the stash entry is kept
+  }
+  try {
+    onProgress?.('Putting uncommitted changes back — resolving conflicts with AI');
+    const unresolved = await resolveGitConflictsWithAI(projectPath, projectPath, {
+      targetSide: 'ours', onProgress, logTag: `[STASH_RESTORE] ${label}`
     });
+    const stillUnmerged = listUnmergedFiles(projectPath);
+    if (stillUnmerged.length > 0) {
+      undoStashApply();
+      return `${keptNote} ${describeUnresolved(stillUnmerged, unresolved)}.`;
+    }
+    git(['reset', '-q']);
+    git(['stash', 'drop', ref]);
+    return null;
+  } catch {
+    undoStashApply();
+    return keptNote;
+  }
 
-    if (result.success && result.text) {
-      const { writeFileSync } = await import('fs');
-      writeFileSync(absPath, result.text, 'utf-8');
-      execFileSync(
-        getToolPath('git'),
-        ['add', relPath],
-        { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }
-      );
+  // The work is still in the stash: put the stashed files back to HEAD so the checkout is left
+  // clean (no conflict markers) rather than half-applied.
+  function undoStashApply(): void {
+    try {
+      const files = git(['stash', 'show', '--name-only', ref as string]).split('\n').filter(Boolean);
+      git(['reset', '-q']);
+      for (const file of files) {
+        try { git(['checkout', 'HEAD', '--', file]); } catch { /* not in HEAD */ }
+      }
+    } catch (err) {
+      appLog.warn(`[STASH_RESTORE] ${label} could not reset the checkout: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
+/**
+ * Sync a worktree with its base branch by merging origin/{baseBranch}.
+ * Uses AI conflict resolution if merge conflicts arise.
+ * Returns success/failure with details.
+ */
+async function syncWorktreeWithBase(
+  worktreePath: string,
+  baseBranch: string,
+  projectPath: string,
+): Promise<{ success: boolean; message: string; hadConflicts: boolean }> {
+  // Check for dirty working tree
+  try {
+    const status = execFileSync(getToolPath('git'), ['status', '--porcelain'], {
+      cwd: worktreePath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 10000
+    }).trim();
+    if (status) {
+      return { success: false, message: 'Worktree has uncommitted changes', hadConflicts: false };
+    }
+  } catch {
+    return { success: false, message: 'Could not check worktree status', hadConflicts: false };
+  }
+
+  // Fetch latest from origin
+  try {
+    execFileSync(getToolPath('git'), ['fetch', 'origin', baseBranch], {
+      cwd: projectPath, encoding: 'utf-8', env: getIsolatedGitEnv(), timeout: 30000
+    });
+  } catch {
+    // Non-fatal — may already be up to date
+  }
+
+  // Merge origin/{baseBranch} into the feature branch
+  try {
+    execFileSync(getToolPath('git'), ['merge', `origin/${baseBranch}`, '--no-edit'], {
+      cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv(), timeout: 30000
+    });
+    return { success: true, message: 'Up to date', hadConflicts: false };
+  } catch {
+    // Merge produced conflicts — resolve with AI
+    try {
+      // Throws naming the files (and why) if any are still unmerged after AI resolution
+      await resolveAllConflictsOrThrow(worktreePath, projectPath, { targetSide: 'theirs', logTag: '[WORKTREE_SYNC]' });
+
+      execFileSync(getToolPath('git'), ['merge', '--continue'], {
+        cwd: worktreePath, encoding: 'utf-8', env: { ...getIsolatedGitEnv(), GIT_EDITOR: 'true' }, timeout: 30000
+      });
+      return { success: true, message: 'Synced with AI conflict resolution', hadConflicts: true };
+    } catch (resolveErr) {
+      // AI couldn't resolve — abort the merge
+      try {
+        execFileSync(getToolPath('git'), ['merge', '--abort'], {
+          cwd: worktreePath, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), timeout: 10000
+        });
+      } catch { /* ignore */ }
+      const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      return { success: false, message: `Could not resolve conflicts: ${msg}`, hadConflicts: true };
     }
   }
 }
 
 function autoDetectMergeTarget(projectPath: string, specDir: string, projectMainBranch?: string): string {
-  // 1. Task metadata override
-  const taskBaseBranch = getTaskBaseBranch(specDir);
-  if (taskBaseBranch) return taskBaseBranch;
-
-  // 2. Prefer origin/dev if it exists
-  try {
-    const remoteRefs = execFileSync(
-      getToolPath('git'),
-      ['ls-remote', '--heads', 'origin', 'dev'],
-      { cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }
-    ).trim();
-    if (remoteRefs.length > 0) return 'dev';
-  } catch {
-    // ls-remote failed — network issue or no remote; continue
-  }
-
-  // 3. Project settings
-  if (projectMainBranch && GIT_BRANCH_REGEX.test(projectMainBranch)) return projectMainBranch;
-
-  // 4. Fallback
-  return 'main';
+  return pickMergeTarget({
+    taskBaseBranch: getTaskBaseBranch(specDir),
+    projectMainBranch,
+    isValidBranch: (name) => GIT_BRANCH_REGEX.test(name),
+    hasLocalBranch: (name) => refExists(projectPath, `refs/heads/${name}`),
+    // origin/dev without a local dev: only the remote-tracking ref counts (no network call)
+    hasRemoteBranch: (name) => refExists(projectPath, `refs/remotes/origin/${name}`)
+  });
 }
 
 // ============================================
@@ -2089,7 +2140,7 @@ export function registerWorktreeHandlers(
         }
 
         // Determine base branch.
-        // For quickMerge (Merge button on pending_merge tasks): prefer origin/dev, then project setting.
+        // For quickMerge (Merge / Deploy buttons): see pickMergeTarget (task base, project setting, local main/master/dev).
         // For the human-review orchestrator path: use getTaskBaseBranch → project setting → 'main'.
         const projectMainBranch = project.settings?.mainBranch;
         const effectiveBaseBranch = options?.quickMerge
@@ -2117,26 +2168,40 @@ export function registerWorktreeHandlers(
         };
 
         // ── Quick Merge path (Merge button on pending_merge tasks) ──────────────
-        // Skips the AI orchestrator. Does a real git merge directly:
+        // Skips the AI orchestrator. Does a real git merge directly (see quick-merge.ts):
         //   1. Find the feature branch
-        //   2. Fetch origin
-        //   3. Bring feature branch up to date with origin/<target>
-        //   4. Merge feature branch into <target> with --no-ff
+        //   2. Bring it up to date with the local <target> in its worktree (conflicts resolved there)
+        //   3. Merge feature branch into <target> with --no-ff
         // Cleanup (branch delete, worktree remove) is handled separately by
         // TASK_POST_MERGE_CLEANUP, so the user is prompted before deletion.
         if (options?.quickMerge) {
-          const candidateBranches = [`malvy/${task.specId}`, `auto-claude/${task.specId}`];
-          let featureBranch: string | null = null;
-          for (const b of candidateBranches) {
-            try {
-              execFileSync(getToolPath('git'), ['rev-parse', '--verify', b], {
-                cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-              });
-              featureBranch = b;
-              break;
-            } catch { /* not found, try next */ }
+          const git = (args: string[]) => execFileSync(getToolPath('git'), args, {
+            cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+          });
+
+          // Someone may be working directly in the project checkout. Set their uncommitted
+          // tracked changes aside for the merge and put them back right after.
+          const logFailure = (stage: string, message: string) =>
+            appLog.warn(`[QUICK_MERGE] ${task.specId} stage=${stage} error=${message}`);
+          const workStashLabel = `malvy: uncommitted work set aside while merging ${task.specId}`;
+          let workStashed = false;
+          try {
+            if (git(['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).malvy']).trim()) {
+              emitProgress('updating', 5, 'Setting uncommitted changes aside');
+              git(['stash', 'push', '-m', workStashLabel, '--', '.', ':(exclude).malvy']);
+              workStashed = true;
+            }
+          } catch (stashErr) {
+            const msg = stashErr instanceof Error ? stashErr.message : String(stashErr);
+            logFailure('stash-work', msg);
+            return { success: true, data: { success: false, message: `Could not set uncommitted changes aside: ${msg}` } };
           }
+
+          const quickResult = await (async (): Promise<IPCResult<WorktreeMergeResult>> => {
+          const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
+          const featureBranch = findExistingTaskBranch(project.path, task.specId, project.settings);
           if (!featureBranch) {
+            logFailure('find-branch', `not found (tried: ${candidateBranches.join(', ')})`);
             return { success: true, data: { success: false, message: `Feature branch not found (tried: ${candidateBranches.join(', ')})` } };
           }
 
@@ -2150,124 +2215,19 @@ export function registerWorktreeHandlers(
           } catch { /* non-fatal */ }
 
           try {
-            // Step 1: Fetch origin
-            emitProgress('updating', 10, `Fetching latest from origin`);
-            try {
-              execFileSync(getToolPath('git'), ['fetch', 'origin'], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch (fetchErr) {
-              debug('fetch failed (non-fatal):', fetchErr instanceof Error ? fetchErr.message : String(fetchErr));
-            }
-
-            // Step 2: Bring the feature branch up to date with origin/<target>
-            emitProgress('updating', 30, `Bringing ${featureBranch} up to date with ${effectiveBaseBranch}`);
             const hasWorktreeDir = !!(worktreePath && existsSync(worktreePath) && isGitWorkTree(worktreePath));
-            if (hasWorktreeDir && worktreePath) {
-              // Use the existing worktree — no checkout needed
-              try {
-                execFileSync(getToolPath('git'), ['merge', `origin/${effectiveBaseBranch}`, '--no-edit'], {
-                  cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-              } catch {
-                // Merge produced conflicts — resolve with AI then continue
-                emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
-                try {
-                  await resolveGitConflictsWithAI(worktreePath, (msg) => emitProgress('resolving', 45, msg));
-                  execFileSync(getToolPath('git'), ['merge', '--continue', '--no-edit'], {
-                    cwd: worktreePath, encoding: 'utf-8', env: getIsolatedGitEnv()
-                  });
-                } catch (resolveErr) {
-                  try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: worktreePath, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                  const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
-                  return { success: true, data: { success: false, message: `Could not resolve all conflicts automatically: ${msg}. Resolve conflicts in the worktree manually.` } };
-                }
-              }
-            } else {
-              // No worktree dir — temporarily checkout the feature branch, update it, check back out
-              let savedBranch: string | null = null;
-              try {
-                savedBranch = execFileSync(getToolPath('git'), ['symbolic-ref', '--short', 'HEAD'], {
-                  cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-                }).trim();
-              } catch { /* detached HEAD — savedBranch stays null */ }
-
-              try {
-                execFileSync(getToolPath('git'), ['checkout', featureBranch], {
-                  cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-                try {
-                  execFileSync(getToolPath('git'), ['merge', `origin/${effectiveBaseBranch}`, '--no-edit'], {
-                    cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                  });
-                } catch {
-                  // Conflicts — resolve with AI then continue
-                  emitProgress('resolving', 40, 'Conflicts detected — resolving with AI');
-                  try {
-                    await resolveGitConflictsWithAI(project.path, (msg) => emitProgress('resolving', 45, msg));
-                    execFileSync(getToolPath('git'), ['merge', '--continue', '--no-edit'], {
-                      cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                    });
-                  } catch (resolveErr) {
-                    try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                    if (savedBranch) { try { execFileSync(getToolPath('git'), ['checkout', savedBranch], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ } }
-                    const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
-                    return { success: true, data: { success: false, message: `Could not resolve all conflicts automatically: ${msg}. Resolve conflicts manually.` } };
-                  }
-                }
-              } catch (checkoutErr) {
-                const msg = checkoutErr instanceof Error ? checkoutErr.message : String(checkoutErr);
-                return { success: true, data: { success: false, message: `Could not checkout feature branch: ${msg}` } };
-              }
-
-              // Restore to the target branch for the final merge
-              try {
-                execFileSync(getToolPath('git'), ['checkout', effectiveBaseBranch], {
-                  cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-              } catch {
-                // If target doesn't exist locally yet, track it from origin
-                execFileSync(getToolPath('git'), ['checkout', '-b', effectiveBaseBranch, `origin/${effectiveBaseBranch}`], {
-                  cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-                });
-              }
-            }
-
-            // Step 3: Merge feature branch into target
-            emitProgress('resolving', 70, `Merging ${featureBranch} into ${effectiveBaseBranch}`);
-            const mergeMsg = task.title || `merge ${featureBranch}`;
-            try {
-              execFileSync(getToolPath('git'), ['checkout', effectiveBaseBranch], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch { /* already on target branch */ }
-            try {
-              execFileSync(getToolPath('git'), ['merge', '--no-ff', '--no-commit', featureBranch], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch {
-              // Conflicts on final merge — resolve with AI
-              emitProgress('resolving', 80, 'Resolving final merge conflicts with AI');
-              try {
-                await resolveGitConflictsWithAI(project.path, (msg) => emitProgress('resolving', 85, msg));
-              } catch (resolveErr) {
-                try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                const msg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
-                return { success: true, data: { success: false, message: `Could not resolve final merge conflicts automatically: ${msg}` } };
-              }
-            }
-            // Commit the merge (whether it was clean or AI-resolved)
-            try {
-              execFileSync(getToolPath('git'), ['commit', '--no-edit', '-m', mergeMsg], {
-                cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv()
-              });
-            } catch (commitErr) {
-              // If nothing to commit (clean fast-forward staged), that's fine
-              const msg = commitErr instanceof Error ? commitErr.message : String(commitErr);
-              if (!msg.includes('nothing to commit') && !msg.includes('nothing added')) {
-                try { execFileSync(getToolPath('git'), ['merge', '--abort'], { cwd: project.path, stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv() }); } catch { /* ignore */ }
-                return { success: true, data: { success: false, message: `Commit failed: ${msg}` } };
-              }
+            const gitResult = await runQuickMergeGit({
+              projectPath: project.path,
+              worktreePath: hasWorktreeDir ? worktreePath : null,
+              featureBranch,
+              targetBranch: effectiveBaseBranch,
+              commitMessage: task.title || `merge ${featureBranch}`,
+              specId: task.specId,
+              emitProgress: (stage, percent, message) => emitProgress(stage, percent, message)
+            });
+            if (!gitResult.ok) {
+              logFailure(gitResult.stage, gitResult.message);
+              return { success: true, data: { success: false, message: gitResult.message } };
             }
 
             // Step 4: Mark task done via XState
@@ -2284,17 +2244,23 @@ export function registerWorktreeHandlers(
             for (const { path: planPath } of quickMergePlanPaths) {
               try { await persistPlanStatus(planPath, planStatus as any, project.id); } catch { /* non-fatal */ }
             }
+            // Not live until a verified deploy after this point
+            try { markTaskMerged(quickMergePlanPaths.map(({ path: planPath }) => path.dirname(planPath))); } catch { /* non-fatal */ }
 
             const taskForTransition = (task.status === 'backlog' || task.status === 'in_progress' || task.status === 'queue')
               ? { ...task, status: 'pending_merge' as const }
               : task;
             taskStateManager.handleManualStatusChange(taskId, newStatus as any, taskForTransition, project);
 
+            // Every merge is pushed so origin never drifts behind; a failed push
+            // keeps the merge and says so
+            const pushNote = pushMergedTarget(project.path, effectiveBaseBranch, (stage, msg) => logFailure(stage, msg));
+
             return {
               success: true,
               data: {
                 success: true,
-                message: `Merged ${featureBranch} into ${effectiveBaseBranch}`,
+                message: `Merged ${featureBranch} into ${effectiveBaseBranch}${pushNote}`,
                 merged: true,
                 targetBranch: effectiveBaseBranch
               }
@@ -2305,9 +2271,26 @@ export function registerWorktreeHandlers(
                 execFileSync(getToolPath('git'), ['stash', 'pop'], {
                   cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
                 });
-              } catch { /* non-fatal */ }
+              } catch (popErr) {
+                // Non-fatal: the .malvy/ changes stay in the stash list
+                logFailure('restore-malvy', popErr instanceof Error ? popErr.message : String(popErr));
+              }
             }
           }
+          })().catch((err): IPCResult<WorktreeMergeResult> => {
+            const msg = err instanceof Error ? err.message : String(err);
+            logFailure('unexpected', msg);
+            return { success: true, data: { success: false, message: `Merge failed: ${msg}` } };
+          });
+
+          if (workStashed) {
+            const restoreError = await restoreStashedWork(project.path, workStashLabel, (msg) => emitProgress('resolving', 95, msg));
+            if (restoreError) logFailure('restore-work', restoreError);
+            if (restoreError && quickResult.data) {
+              quickResult.data = { ...quickResult.data, message: `${quickResult.data.message} ${restoreError}` };
+            }
+          }
+          return quickResult;
         }
         // ── End quick merge path ─────────────────────────────────────────────────
 
@@ -2315,7 +2298,7 @@ export function registerWorktreeHandlers(
 
         // Build the AI resolver function using the merge-resolver runner
         const modelShorthand = (utilitySettings.model as ModelShorthand) || 'haiku';
-        const aiResolverFn = createMergeResolverFn(modelShorthand, 'low');
+        const aiResolverFn = createMergeResolverFn(modelShorthand, 'low', project.path);
 
         // Create the merge orchestrator
         const storageDir = path.join(project.path, project.autoBuildPath || '.malvy');
@@ -2345,10 +2328,7 @@ export function registerWorktreeHandlers(
           emitProgress('analyzing', 10, `${reason} — trying direct branch merge`);
 
           // Try both the current and legacy branch naming conventions
-          const candidateBranches = [
-            `malvy/${task.specId}`,
-            `auto-claude/${task.specId}`,
-          ];
+          const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
 
           for (const branch of candidateBranches) {
             try {
@@ -2477,7 +2457,9 @@ export function registerWorktreeHandlers(
                       env: getIsolatedGitEnv()
                     });
                     if (stagedStat.trim()) {
-                      const commitMsg = task.title ? task.title : `merge malvy/${task.specId}`;
+                      const commitMsg = task.title
+                        ? task.title
+                        : `merge ${resolveTaskBranch(project.path, task.specId, project.settings, worktreePath)}`;
                       execFileSync(getToolPath('git'), ['commit', '-m', commitMsg], {
                         cwd: project.path,
                         encoding: 'utf-8',
@@ -2540,7 +2522,7 @@ export function registerWorktreeHandlers(
 
                     if (!hasActualStagedChanges) {
                       // Check if worktree branch was already merged (merge commit exists)
-                      const specBranch = `malvy/${task.specId}`;
+                      const specBranch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
                       try {
                         // Check if current branch contains all commits from spec branch
                         // git merge-base --is-ancestor returns exit code 0 if true, 1 if false
@@ -2615,6 +2597,7 @@ export function registerWorktreeHandlers(
                     projectPath: project.path,
                     specId: task.specId,
                     logPrefix: '[TASK_WORKTREE_MERGE]',
+                    branchSettings: project.settings,
                     deleteBranch: true
                   });
 
@@ -2818,7 +2801,8 @@ export function registerWorktreeHandlers(
 
         const specDir = path.join(project.path, project.autoBuildPath || '.malvy', 'specs', task.specId);
         const targetBranch = autoDetectMergeTarget(project.path, specDir, project.settings?.mainBranch);
-        const sourceBranch = `malvy/${task.specId}`;
+        const worktreePath = findTaskWorktree(project.path, task.specId);
+        const sourceBranch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
 
         // Count commits ahead of target
         let commitsAhead = 0;
@@ -2831,7 +2815,6 @@ export function registerWorktreeHandlers(
           commitsAhead = Number.parseInt(out, 10) || 0;
         } catch { /* branch may not exist locally — commitsAhead stays 0 */ }
 
-        const worktreePath = findTaskWorktree(project.path, task.specId);
         const hasWorktree = !!(worktreePath && existsSync(worktreePath));
 
         return { success: true, data: { sourceBranch, targetBranch, commitsAhead, hasWorktree } };
@@ -2871,8 +2854,8 @@ export function registerWorktreeHandlers(
         const { task, project } = findTaskAndProject(taskId);
         if (!task || !project) return { success: false, error: 'Task not found' };
 
-        const branch = `malvy/${task.specId}`;
         const worktreePath = findTaskWorktree(project.path, task.specId);
+        const branch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
 
         if (worktreePath && existsSync(worktreePath)) {
           // Remove worktree (also deletes branch via cleanupWorktree)
@@ -2881,6 +2864,7 @@ export function registerWorktreeHandlers(
             projectPath: project.path,
             specId: task.specId,
             logPrefix: '[POST_MERGE_CLEANUP]',
+            branchSettings: project.settings,
             deleteBranch: true
           });
         } else {
@@ -2904,6 +2888,36 @@ export function registerWorktreeHandlers(
     }
   );
 
+  // =============================================================================
+  // Worktree Sync (update with base branch)
+  // =============================================================================
+
+  /**
+   * Sync a single worktree with its base branch.
+   * Fetches origin, merges origin/{baseBranch} into the feature branch,
+   * and resolves any conflicts with the AI conflict resolver.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.TASK_WORKTREE_SYNC,
+    async (_, taskId: string, targetBranch?: string): Promise<IPCResult<import('../../../shared/types/task').WorktreeSyncResult>> => {
+      try {
+        const { task, project } = findTaskAndProject(taskId);
+        if (!task || !project) return { success: false, error: 'Task not found' };
+
+        const worktreePath = findTaskWorktree(project.path, task.specId);
+        if (!worktreePath || !existsSync(worktreePath) || !isGitWorkTree(worktreePath)) {
+          return { success: true, data: { specId: task.specId, success: false, message: 'No worktree found', hadConflicts: false } };
+        }
+
+        const baseBranch = targetBranch || getEffectiveBaseBranch(project.path, task.specId, project.settings?.mainBranch);
+        const result = await syncWorktreeWithBase(worktreePath, baseBranch, project.path);
+        return { success: true, data: { specId: task.specId, ...result } };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Sync failed' };
+      }
+    }
+  );
+
   /**
    * Reset a task: delete its worktree/branch and move it back to backlog.
    * Lets the user start the task from scratch without losing the spec.
@@ -2915,8 +2929,8 @@ export function registerWorktreeHandlers(
         const { task, project } = findTaskAndProject(taskId);
         if (!task || !project) return { success: false, error: 'Task not found' };
 
-        const branch = `malvy/${task.specId}`;
         const worktreePath = findTaskWorktree(project.path, task.specId);
+        const branch = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
 
         // 1. Clean up worktree and branch
         if (worktreePath && existsSync(worktreePath)) {
@@ -2925,21 +2939,26 @@ export function registerWorktreeHandlers(
             projectPath: project.path,
             specId: task.specId,
             logPrefix: '[TASK_RESET]',
+            branchSettings: project.settings,
             deleteBranch: true
           });
         } else {
-          // No worktree dir — just delete the branch if it exists
+          // No worktree dir — just delete the local branch if it exists
           try {
             execFileSync(getToolPath('git'), ['branch', '-D', branch], {
-              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(),
+              timeout: 10000
             });
           } catch { /* branch may not exist */ }
-          try {
-            execFileSync(getToolPath('git'), ['push', 'origin', '--delete', branch], {
-              cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
-            });
-          } catch { /* remote branch may not exist */ }
         }
+
+        // Delete remote branch in the background (don't block the reset on network)
+        try {
+          execFile(getToolPath('git'), ['push', 'origin', '--delete', branch], {
+            cwd: project.path, encoding: 'utf-8', env: getIsolatedGitEnv(),
+            timeout: 15000
+          }, () => { /* ignore errors — remote branch may not exist */ });
+        } catch { /* ignore */ }
 
         // 2. Reset all subtask progress and clear stale metadata fields
         const specDir = path.join(project.path, project.autoBuildPath || '.malvy', 'specs', task.specId);
@@ -3099,7 +3118,7 @@ export function registerWorktreeHandlers(
    *
    * Note: Uses the shared cleanupWorktree utility which handles Windows-specific issues
    * where `git worktree remove --force` fails when the directory contains untracked files.
-   * See: https://github.com/AndyMik90/Auto-Claude/issues/1539
+   * See upstream issue #1539.
    */
   ipcMain.handle(
     IPC_CHANNELS.TASK_WORKTREE_DISCARD,
@@ -3129,6 +3148,7 @@ export function registerWorktreeHandlers(
           projectPath: project.path,
           specId: task.specId,
           logPrefix: '[TASK_WORKTREE_DISCARD]',
+          branchSettings: project.settings,
           deleteBranch: true
         });
 
@@ -3221,6 +3241,7 @@ export function registerWorktreeHandlers(
           projectPath: project.path,
           specId: specName,
           logPrefix: '[ORPHAN_CLEANUP]',
+          branchSettings: project.settings,
           deleteBranch: true
         });
 
@@ -3614,8 +3635,8 @@ export function registerWorktreeHandlers(
         // Determine base branch and branch name
         const taskBaseBranch = getTaskBaseBranch(specDir);
         const baseBranch = options?.targetBranch || taskBaseBranch || 'main';
-        const branchName = `malvy/${task.specId}`;
-        const prTitle = options?.title || `malvy: ${task.specId}`;
+        const branchName = resolveTaskBranch(project.path, task.specId, project.settings, worktreePath);
+        const prTitle = options?.title || task.title || task.specId;
 
         if (taskBaseBranch) {
           debug('Using stored base branch:', taskBaseBranch);

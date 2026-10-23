@@ -18,7 +18,8 @@ import {
   changelogMock,
   insightsMock,
   infrastructureMock,
-  settingsMock
+  settingsMock,
+  competitorMock
 } from './mocks';
 
 // Check if we're in a browser (not Electron)
@@ -80,6 +81,13 @@ const browserMockAPI = {
 
   updateFeatureStatus: async () => ({ success: true }),
 
+  updateFeaturePriority: async () => ({ success: true }),
+  refineRoadmapFeature: async () => ({ success: false, error: 'Not available in browser mode' }),
+  planRoadmapFeatures: async () => ({ success: false, error: 'Not available in browser mode' }),
+  onRoadmapFeatureRefineStarted: () => () => {},
+  onRoadmapFeatureRefined: () => () => {},
+  onRoadmapFeatureRefineFailed: () => () => {},
+
   convertFeatureToSpec: async (projectId: string, _featureId: string) => ({
     success: true,
     data: {
@@ -122,6 +130,9 @@ const browserMockAPI = {
 
   // Infrastructure & Docker Operations
   ...infrastructureMock,
+
+  // Competitors page
+  ...competitorMock,
 
   // API Profile Management (custom Anthropic-compatible endpoints)
   getAPIProfiles: async () => ({
@@ -322,11 +333,7 @@ const browserMockAPI = {
     startStatusPolling: async () => true,
     stopStatusPolling: async () => true,
     getPollingMetadata: async () => null,
-    onPRStatusUpdate: () => () => {},
-    // Release operations (changelog-based)
-    getReleaseableVersions: async () => ({ success: true, data: [] }),
-    runReleasePreflightCheck: async () => ({ success: true, data: { canRelease: true, checks: [], blockers: [] } }),
-    createRelease: async () => ({ success: true, data: { url: '' } })
+    onPRStatusUpdate: () => () => {}
   },
 
   // Queue Routing API (rate limit recovery)

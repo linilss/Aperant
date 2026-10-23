@@ -19,7 +19,6 @@ import type {
 } from './types';
 import type { EmbeddingService } from './embedding-service';
 import { buildMemoryContextualText } from './embedding-service';
-import { searchBM25 } from './retrieval/bm25-search';
 import type { RetrievalPipeline } from './retrieval/pipeline';
 
 // ============================================================
@@ -279,30 +278,6 @@ export class MemoryServiceImpl implements MemoryService {
   }
 
   /**
-   * Quick BM25-only pattern search.
-   * Returns the single best match or null.
-   * Used for fast lookups (e.g., StepInjectionDecider).
-   */
-  async searchByPattern(pattern: string): Promise<Memory | null> {
-    try {
-      const results = await searchBM25(this.db, pattern, '', 1);
-      if (results.length === 0) return null;
-
-      const memoryId = results[0].memoryId;
-      const row = await this.db.execute({
-        sql: 'SELECT * FROM memories WHERE id = ? AND deprecated = 0',
-        args: [memoryId],
-      });
-
-      if (row.rows.length === 0) return null;
-      return rowToMemory(row.rows[0] as Record<string, unknown>);
-    } catch (error) {
-      console.error('[MemoryService] searchByPattern failed:', error);
-      return null;
-    }
-  }
-
-  /**
    * Convenience method for /remember command and Teach panel.
    * Stores a user-taught preference with full confidence.
    */
@@ -316,31 +291,6 @@ export class MemoryServiceImpl implements MemoryService {
       confidence: 1.0,
       scope: 'global',
     });
-  }
-
-  /**
-   * Search for workflow_recipe memories matching a task description.
-   * Uses the retrieval pipeline with a type filter applied post-search.
-   */
-  async searchWorkflowRecipe(
-    taskDescription: string,
-    opts?: { limit?: number },
-  ): Promise<Memory[]> {
-    try {
-      const limit = opts?.limit ?? 5;
-      const result = await this.retrievalPipeline.search(taskDescription, {
-        phase: 'implement',
-        projectId: '',
-        maxResults: limit * 3, // Fetch extra to allow for type filtering
-      });
-
-      // Filter to workflow_recipe type
-      const recipes = result.memories.filter((m) => m.type === 'workflow_recipe');
-      return recipes.slice(0, limit);
-    } catch (error) {
-      console.error('[MemoryService] searchWorkflowRecipe failed:', error);
-      return [];
-    }
   }
 
   /**
@@ -394,6 +344,72 @@ export class MemoryServiceImpl implements MemoryService {
       sql: `UPDATE memories SET pinned = ? WHERE id = ?`,
       args: [pinned ? 1 : 0, memoryId],
     });
+  }
+
+  /**
+   * Fetch a single memory by ID (including deprecated ones), or null.
+   */
+  async getMemory(memoryId: string): Promise<Memory | null> {
+    const result = await this.db.execute({
+      sql: 'SELECT * FROM memories WHERE id = ?',
+      args: [memoryId],
+    });
+    if (result.rows.length === 0) return null;
+    return rowToMemory(result.rows[0] as Record<string, unknown>);
+  }
+
+  /**
+   * Update editable fields of a memory and keep the FTS index in sync.
+   * When the content changes the embedding is recomputed; if embedding fails
+   * the old vector is kept so the text update still lands.
+   */
+  async updateMemory(
+    memoryId: string,
+    patch: { content?: string; tags?: string[]; relatedFiles?: string[]; citationText?: string | null },
+  ): Promise<void> {
+    const current = await this.getMemory(memoryId);
+    if (!current) throw new Error(`Memory not found: ${memoryId}`);
+
+    const next: Memory = {
+      ...current,
+      content: patch.content ?? current.content,
+      tags: patch.tags ?? current.tags,
+      relatedFiles: patch.relatedFiles ?? current.relatedFiles,
+      citationText: patch.citationText === undefined ? current.citationText : patch.citationText ?? undefined,
+    };
+
+    const statements: { sql: string; args: (string | number | null | Buffer)[] }[] = [
+      {
+        sql: `UPDATE memories
+              SET content = ?, tags = ?, related_files = ?, citation_text = ?
+              WHERE id = ?`,
+        args: [
+          next.content,
+          JSON.stringify(next.tags),
+          JSON.stringify(next.relatedFiles),
+          next.citationText ?? null,
+          memoryId,
+        ],
+      },
+      {
+        sql: 'UPDATE memories_fts SET content = ?, tags = ?, related_files = ? WHERE memory_id = ?',
+        args: [next.content, next.tags.join(' '), next.relatedFiles.join(' '), memoryId],
+      },
+    ];
+
+    if (patch.content !== undefined && patch.content !== current.content) {
+      try {
+        const embedding = await this.embeddingService.embed(buildMemoryContextualText(next), 1024);
+        statements.push({
+          sql: 'UPDATE memory_embeddings SET embedding = ? WHERE memory_id = ?',
+          args: [Buffer.from(new Float32Array(embedding).buffer), memoryId],
+        });
+      } catch (error) {
+        console.error('[MemoryService] updateMemory re-embedding failed:', error);
+      }
+    }
+
+    await this.db.batch(statements);
   }
 
   /**

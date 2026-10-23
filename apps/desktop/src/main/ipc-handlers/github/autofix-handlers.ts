@@ -28,6 +28,12 @@ import type { ModelShorthand, ThinkingLevel } from '../../ai/config/types';
 const { debug: debugLog } = createContextLogger('GitHub AutoFix');
 
 /**
+ * Default auto-fix model. Stored as a shorthand so it tracks the current Sonnet via
+ * resolveModelId() (ai/config/phase-config) instead of pinning a dated model ID.
+ */
+const DEFAULT_AUTOFIX_MODEL: ModelShorthand = 'sonnet';
+
+/**
  * Auto-fix configuration stored in .malvy/github/config.json
  */
 export interface AutoFixConfig {
@@ -116,7 +122,7 @@ function getAutoFixConfig(project: Project): AutoFixConfig {
       labels: data.auto_fix_labels ?? ['auto-fix'],
       requireHumanApproval: data.require_human_approval ?? true,
       botToken: data.bot_token,
-      model: data.model ?? 'claude-sonnet-4-6',
+      model: data.model ?? DEFAULT_AUTOFIX_MODEL,
       thinkingLevel: data.thinking_level ?? 'medium',
     };
   } catch {
@@ -127,7 +133,7 @@ function getAutoFixConfig(project: Project): AutoFixConfig {
     enabled: false,
     labels: ['auto-fix'],
     requireHumanApproval: true,
-    model: 'claude-sonnet-4-6',
+    model: DEFAULT_AUTOFIX_MODEL,
     thinkingLevel: 'medium',
   };
 }
@@ -598,6 +604,7 @@ export function registerAutoFixHandlers(
           const batchProcessor = new BatchProcessor({
             model: 'sonnet' as ModelShorthand,
             thinkingLevel: 'low' as ThinkingLevel,
+            projectDir: project.path,
           });
           const suggestions = await batchProcessor.groupIssues(issuesToBatch);
           const engineBatches = batchProcessor.buildBatches(issuesToBatch, suggestions);
@@ -762,6 +769,7 @@ export function registerAutoFixHandlers(
           const batchProcessor = new BatchProcessor({
             model: 'sonnet' as ModelShorthand,
             thinkingLevel: 'low' as ThinkingLevel,
+            projectDir: project.path,
           });
           const suggestions = newIssues.length > 0 ? await batchProcessor.groupIssues(newIssues) : [];
 

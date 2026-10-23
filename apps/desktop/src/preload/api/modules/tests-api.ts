@@ -1,7 +1,6 @@
 import { IPC_CHANNELS } from '../../../shared/constants';
 import type {
   TestSolution,
-  TestConfig,
   TestResult,
   TestRunStatus,
 } from '../../../shared/types/tests';
@@ -21,17 +20,9 @@ export interface TestsAPI {
   // Run operations
   runTests: (projectId: string) => Promise<IPCResult>;
   runTestsByCategory: (projectId: string, category: string) => Promise<IPCResult>;
-  runSingleTest: (
-    projectId: string,
-    testId: string,
-    testProjectId: string,
-  ) => Promise<IPCResult>;
 
   // Stop
   stopTests: (projectId: string, testProjectId: string) => Promise<IPCResult>;
-
-  // Config
-  getTestConfig: (projectId: string) => Promise<IPCResult<TestConfig>>;
 
   // Event listeners
   onTestRunStatus: (
@@ -67,18 +58,8 @@ export const createTestsAPI = (): TestsAPI => ({
   runTestsByCategory: (projectId: string, category: string): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.TESTS_RUN_CATEGORY, projectId, category),
 
-  runSingleTest: (
-    projectId: string,
-    testId: string,
-    testProjectId: string,
-  ): Promise<IPCResult> =>
-    invokeIpc(IPC_CHANNELS.TESTS_RUN_SINGLE, projectId, testId, testProjectId),
-
   stopTests: (projectId: string, testProjectId: string): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.TESTS_STOP, projectId, testProjectId),
-
-  getTestConfig: (projectId: string): Promise<IPCResult<TestConfig>> =>
-    invokeIpc(IPC_CHANNELS.TESTS_GET_CONFIG, projectId),
 
   onTestRunStatus: (
     callback: (projectId: string, status: TestRunStatus) => void,

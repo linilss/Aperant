@@ -23,9 +23,13 @@ import { randomBytes } from 'crypto';
 const TRANSIENT_ERROR_CODES = ['EBUSY', 'EACCES', 'EAGAIN', 'EPERM', 'EMFILE', 'ENFILE'] as const;
 
 export class AtomicFileError extends Error {
-  constructor(message: string) {
+  /** Underlying Node error code (e.g. 'ENOENT'), so callers can branch on it */
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
     super(message);
     this.name = 'AtomicFileError';
+    this.code = code;
   }
 }
 
@@ -161,7 +165,8 @@ export async function writeFileWithRetry(
       if (!isTransient || attempt === maxRetries) {
         // Not transient or out of retries - throw
         throw new AtomicFileError(
-          `Failed to write file ${filepath} after ${attempt + 1} attempts: ${nodeError.message}`
+          `Failed to write file ${filepath} after ${attempt + 1} attempts: ${nodeError.message}`,
+          nodeError.code
         );
       }
 
@@ -217,7 +222,8 @@ export async function readFileWithRetry(
       if (!isTransient || attempt === maxRetries) {
         // Not transient or out of retries - throw
         throw new AtomicFileError(
-          `Failed to read file ${filepath} after ${attempt + 1} attempts: ${nodeError.message}`
+          `Failed to read file ${filepath} after ${attempt + 1} attempts: ${nodeError.message}`,
+          nodeError.code
         );
       }
 

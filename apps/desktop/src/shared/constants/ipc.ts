@@ -12,6 +12,22 @@ export const IPC_CHANNELS = {
   PROJECT_INITIALIZE: 'project:initialize',
   PROJECT_CHECK_VERSION: 'project:checkVersion',
   PROJECT_CLEAR_DATA: 'project:clearData',
+  PROJECT_LIST_DEPLOY_SCRIPTS: 'project:listDeployScripts',
+  PROJECT_DEPLOY_CLEAN_CHECKOUT: 'project:deployCleanCheckout',  // Detached worktree at HEAD so a deploy skips uncommitted changes
+  PROJECT_DETECT_VERIFY: 'project:detectVerify',  // Verify command detected from the project's files
+  PROJECT_DEPLOY_VERIFY: 'project:deployVerify',  // Verify command after a batch merge; AI fixes collisions
+  PROJECT_DEPLOY_RUNBOOK_GET: 'project:deployRunbookGet',    // .malvy/deploy.md (or a generated first version)
+  PROJECT_DEPLOY_RUNBOOK_SAVE: 'project:deployRunbookSave',
+  PROJECT_DEPLOY_START: 'project:deployStart',              // Runbook deploy (plan → steps → fix → verify)
+  PROJECT_DEPLOY_STATUS: 'project:deployStatus',
+  PROJECT_DEPLOY_LOG: 'project:deployLog',
+  PROJECT_DEPLOY_CANCEL: 'project:deployCancel',
+  PROJECT_DEPLOY_PREFLIGHT: 'project:deployPreflight',      // Branch + uncommitted-changes check before a deploy
+  PROJECT_RESOLVE_TASK_DEPLOYMENTS: 'project:resolveTaskDeployments',  // Read finished deploy logs into task_metadata.json
+  PROJECT_RECORD_TASK_DEPLOYMENT: 'project:recordTaskDeployment',  // Append a user-confirmed deploy to task_metadata.json
+  PROJECT_FUNNEL_PROGRESS: 'project:funnelProgress',      // Plan-funnel step completion for a set of projects
+  PROJECT_ACTIVITY: 'project:activity',                    // Running / needs-you counts for a set of projects
+  PROJECT_FUNNEL_CHANGED: 'project:funnelChanged',        // main → renderer: a funnel step's files changed (projectId)
 
   // Tab state operations (persisted in main process)
   TAB_STATE_GET: 'tabState:get',
@@ -27,6 +43,12 @@ export const IPC_CHANNELS = {
   TASK_DELETE: 'task:delete',
   TASK_UPDATE: 'task:update',
   TASK_START: 'task:start',
+  TASK_CONSOLIDATE_PREVIEW: 'task:consolidatePreview',  // AI groups Planning tasks that belong together
+  TASK_CONSOLIDATE_RELINK: 'task:consolidateRelink',    // Point roadmap features at the consolidated task
+  TASK_QUEUE_PROCESS: 'task:queueProcess',  // Promote queued tasks (main-process queue)
+  TASK_QUEUE_GET_ORDER: 'task:queueGetOrder',  // The user's queue order (task ids)
+  TASK_QUEUE_SET_ORDER: 'task:queueSetOrder',
+  TASK_STOP_SAFE: 'task:stopSafe',  // Stop after the current subtask
   TASK_STOP: 'task:stop',
   TASK_REVIEW: 'task:review',
   TASK_UPDATE_STATUS: 'task:updateStatus',
@@ -45,17 +67,18 @@ export const IPC_CHANNELS = {
   TASK_GET_MERGE_INFO: 'task:getMergeInfo',               // Get branch info before confirming merge
   TASK_POST_MERGE_PUSH: 'task:postMergePush',             // Push target branch to origin after merge
   TASK_POST_MERGE_CLEANUP: 'task:postMergeCleanup',       // Delete feature branch (local + remote) after merge
+  TASK_WORKTREE_SYNC: 'task:worktreeSync',               // Sync a single worktree with its base branch
   TASK_RESET: 'task:reset',                              // Delete branch/worktree and reset status to backlog
 
-  // Task refine (grill-me style AI session for a task)
-  TASK_REFINE_START: 'task:refine:start',
-  TASK_REFINE_SEND: 'task:refine:send',
-  TASK_REFINE_STOP: 'task:refine:stop',
-  TASK_REFINE_CHUNK: 'task:refine:chunk',
-  TASK_REFINE_TOOL_USE: 'task:refine:toolUse',
-  TASK_REFINE_COMPLETE: 'task:refine:complete',
+  // Task refine (mega-groom pipeline in an embedded terminal)
   TASK_REFINE_ERROR: 'task:refine:error',
   TASK_REFINE_APPLIED: 'task:refine:applied',
+  TASK_REFINE_TERMINAL_START: 'task:refine:terminalStart',  // Start embedded terminal for refine pipeline
+  TASK_REFINE_PHASE_CHANGE: 'task:refine:phaseChange',      // Phase transition event (main → renderer)
+  TASK_REFINE_SKIP_PHASE: 'task:refine:skipPhase',          // Skip current refine phase
+  TASK_REFINE_GET_SESSION: 'task:refine:getSession',        // Get refine session state
+  TASK_REFINE_GET_STATUS: 'task:refine:getStatus',          // Status of the task's running refine pipeline
+  TASK_REFINE_RESET_SESSION: 'task:refine:resetSession',    // Delete refine session and start fresh
 
   TASK_WORKTREE_DISCARD: 'task:worktreeDiscard',
   TASK_WORKTREE_DISCARD_ORPHAN: 'task:worktreeDiscardOrphan',  // Delete orphaned worktree by spec name (no task association)
@@ -76,6 +99,8 @@ export const IPC_CHANNELS = {
   TASK_LOG: 'task:log',
   TASK_STATUS_CHANGE: 'task:statusChange',
   TASK_EXECUTION_PROGRESS: 'task:executionProgress',
+  TASK_RATE_LIMIT_PAUSE: 'task:rateLimitPause',      // Event: task paused on a provider rate limit
+  TASK_RATE_LIMIT_RESUME: 'task:rateLimitResume',    // Event: rate-limit pause cleared
 
   // Task phase logs (persistent, collapsible logs by phase)
   TASK_LOGS_GET: 'task:logsGet',           // Load logs from spec dir
@@ -124,9 +149,6 @@ export const IPC_CHANNELS = {
   TERMINAL_PENDING_RESUME: 'terminal:pendingResume',  // Terminal has pending Claude resume (for deferred activation)
   TERMINAL_RATE_LIMIT: 'terminal:rateLimit',  // Claude Code rate limit detected
   TERMINAL_OAUTH_TOKEN: 'terminal:oauthToken',  // OAuth token captured from setup-token output
-  TERMINAL_AUTH_CREATED: 'terminal:authCreated',  // Auth terminal created for OAuth flow
-  TERMINAL_OAUTH_CODE_NEEDED: 'terminal:oauthCodeNeeded',  // Request user to paste OAuth code from browser
-  TERMINAL_OAUTH_CODE_SUBMIT: 'terminal:oauthCodeSubmit',  // User submitted OAuth code to send to terminal
   TERMINAL_CLAUDE_BUSY: 'terminal:claudeBusy',  // Claude Code busy state (for visual indicator)
   TERMINAL_CLAUDE_EXIT: 'terminal:claudeExit',  // Claude Code exited (returned to shell)
   TERMINAL_PROFILE_CHANGED: 'terminal:profileChanged',  // Profile changed, terminals need refresh (main -> renderer)
@@ -138,7 +160,6 @@ export const IPC_CHANNELS = {
   CLAUDE_PROFILE_RENAME: 'claude:profileRename',
   CLAUDE_PROFILE_SET_ACTIVE: 'claude:profileSetActive',
   CLAUDE_PROFILE_SWITCH: 'claude:profileSwitch',
-  CLAUDE_PROFILE_INITIALIZE: 'claude:profileInitialize',
   CLAUDE_PROFILE_SET_TOKEN: 'claude:profileSetToken',  // Set OAuth token for a profile
   CLAUDE_PROFILE_AUTHENTICATE: 'claude:profileAuthenticate',  // Open visible terminal for OAuth login
   CLAUDE_PROFILE_VERIFY_AUTH: 'claude:profileVerifyAuth',  // Check if profile has been authenticated
@@ -216,8 +237,24 @@ export const IPC_CHANNELS = {
   ROADMAP_REFRESH: 'roadmap:refresh',
   ROADMAP_STOP: 'roadmap:stop',
   ROADMAP_UPDATE_FEATURE: 'roadmap:updateFeature',
+  ROADMAP_UPDATE_FEATURE_PRIORITY: 'roadmap:updateFeaturePriority',
   ROADMAP_CONVERT_TO_SPEC: 'roadmap:convertToSpec',
+  ROADMAP_ADD_FEATURE_FROM_IDEA: 'roadmap:addFeatureFromIdea',
   COMPETITOR_ANALYSIS_SAVE: 'roadmap:competitorAnalysisSave',
+
+  // Competitors page (Plan → Competitors)
+  COMPETITORS_GET: 'competitors:get',
+  COMPETITORS_ANALYZE: 'competitors:analyze',
+  COMPETITORS_STOP: 'competitors:stop',
+  COMPETITORS_REFRESH_ONE: 'competitors:refreshOne', // profile one: pool deep-dive or refresh a card
+  COMPETITORS_RESYNTHESIZE: 'competitors:resynthesize',
+  COMPETITORS_SAVE_RANKING: 'competitors:saveRanking',
+  COMPETITORS_MOVE_TO_POOL: 'competitors:moveToPool',
+  COMPETITORS_ADD_MANUAL: 'competitors:addManual',
+  // Competitors events (main -> renderer)
+  COMPETITORS_PROGRESS: 'competitors:progress',
+  COMPETITORS_COMPLETE: 'competitors:complete',
+  COMPETITORS_ERROR: 'competitors:error',
 
   // Roadmap events (main -> renderer)
   ROADMAP_PROGRESS: 'roadmap:progress',
@@ -240,6 +277,14 @@ export const IPC_CHANNELS = {
   ROADMAP_REFINE_COMPLETE: 'roadmap:refine:complete',
   ROADMAP_REFINE_ERROR: 'roadmap:refine:error',
 
+  // One-shot AI refinement of a single feature (quick add → proper feature)
+  ROADMAP_REFINE_FEATURE: 'roadmap:refineFeature',
+  ROADMAP_PLAN_INTAKE: 'roadmap:planIntake',  // Proofread planned features and create their tasks
+  // One-shot refinement events (main -> renderer)
+  ROADMAP_FEATURE_REFINE_STARTED: 'roadmap:featureRefineStarted',
+  ROADMAP_FEATURE_REFINED: 'roadmap:featureRefined',
+  ROADMAP_FEATURE_REFINE_FAILED: 'roadmap:featureRefineFailed',
+
   // Context operations
   CONTEXT_GET: 'context:get',
   CONTEXT_REFRESH_INDEX: 'context:refreshIndex',
@@ -250,16 +295,41 @@ export const IPC_CHANNELS = {
   CONTEXT_MEMORY_PIN: 'context:memory:pin',
   CONTEXT_MEMORY_DEPRECATE: 'context:memory:deprecate',
   CONTEXT_MEMORY_DELETE: 'context:memory:delete',
+  CONTEXT_MEMORY_CREATE: 'context:memory:create',
+  CONTEXT_MEMORY_UPDATE: 'context:memory:update',
 
-  // Project Documentation (AI deep research)
-  CONTEXT_GET_DOCUMENTATION: 'context:getDocumentation',
-  CONTEXT_GENERATE_DOCUMENTATION: 'context:generateDocumentation',
-  CONTEXT_DOCUMENTATION_STOP: 'context:documentationStop',
-  // Documentation events (main → renderer)
-  CONTEXT_DOCUMENTATION_CHUNK: 'context:documentationChunk',
-  CONTEXT_DOCUMENTATION_TOOL_USE: 'context:documentationToolUse',
-  CONTEXT_DOCUMENTATION_COMPLETE: 'context:documentationComplete',
-  CONTEXT_DOCUMENTATION_ERROR: 'context:documentationError',
+  // Developer pointers (user_taught memories mirrored to .malvy/pointers.md)
+  CONTEXT_POINTERS_LIST: 'context:pointers:list',
+  CONTEXT_POINTERS_DELETE: 'context:pointers:delete',
+
+  // CLAUDE.md docs tree (team + .malvy/docs layers)
+  CONTEXT_DOCS_LIST: 'context:docs:list',
+  CONTEXT_DOCS_READ: 'context:docs:read',
+  CONTEXT_DOCS_OPTIMIZE: 'context:docs:optimize',
+  CONTEXT_DOCS_STOP: 'context:docs:stop',
+  CONTEXT_DOCS_APPLY: 'context:docs:apply',
+  CONTEXT_DOCS_BRANCHES: 'context:docs:branches',
+  CONTEXT_DOCS_SUMMARY: 'context:docs:summary',
+  CONTEXT_DOCS_PENDING: 'context:docs:pending',
+  CONTEXT_DOCS_DISCARD: 'context:docs:discard',
+  // Core values (.malvy/core-values.md)
+  CONTEXT_CORE_VALUES_GET: 'context:coreValues:get',
+  CONTEXT_CORE_VALUES_SAVE: 'context:coreValues:save',
+  CONTEXT_CORE_VALUES_DRAFT: 'context:coreValues:draft',
+  // Docs optimizer events (main → renderer)
+  CONTEXT_DOCS_CHUNK: 'context:docs:chunk',
+  CONTEXT_DOCS_BRANCH_PROGRESS: 'context:docs:branchProgress',
+  CONTEXT_DOCS_COMPLETE: 'context:docs:complete',
+  CONTEXT_DOCS_ERROR: 'context:docs:error',
+  // Design system (Design view)
+  CONTEXT_DESIGN_GET: 'context:design:get',
+  CONTEXT_DESIGN_SAVE_OVERRIDES: 'context:design:saveOverrides',
+  CONTEXT_DESIGN_READ_FILE: 'context:design:readFile',
+  CONTEXT_DESIGN_PUBLISH_PLAN: 'context:design:publishPlan',
+  CONTEXT_DESIGN_SYNC: 'context:design:sync',
+  CONTEXT_DESIGN_PUBLISH: 'context:design:publish',
+  CONTEXT_DESIGN_GENERATE: 'context:design:generate', // Agent writes a design system from the UI code into .malvy/design-system
+  CONTEXT_DESIGN_PROGRESS: 'context:design:progress', // main → renderer
 
   // Environment configuration
   ENV_GET: 'env:get',
@@ -270,6 +340,7 @@ export const IPC_CHANNELS = {
   IDEATION_GENERATE: 'ideation:generate',
   IDEATION_REFRESH: 'ideation:refresh',
   IDEATION_STOP: 'ideation:stop',
+  IDEATION_GET_STATUS: 'ideation:getStatus',
   IDEATION_UPDATE_IDEA: 'ideation:updateIdea',
   IDEATION_CONVERT_TO_TASK: 'ideation:convertToTask',
   IDEATION_DISMISS: 'ideation:dismiss',
@@ -362,7 +433,6 @@ export const IPC_CHANNELS = {
   GITLAB_INVESTIGATION_ERROR: 'gitlab:investigationError',
 
   // GitLab MR Review operations
-  GITLAB_MR_GET_DIFF: 'gitlab:mr:getDiff',
   GITLAB_MR_REVIEW: 'gitlab:mr:review',
   GITLAB_MR_REVIEW_CANCEL: 'gitlab:mr:reviewCancel',
   GITLAB_MR_GET_REVIEW: 'gitlab:mr:getReview',
@@ -376,61 +446,15 @@ export const IPC_CHANNELS = {
   GITLAB_MR_LIST_MORE: 'gitlab:mr:listMore',              // Load more MRs (pagination)
   GITLAB_MR_DELETE_REVIEW: 'gitlab:mr:deleteReview',    // Delete a posted review
   GITLAB_MR_CHECK_MERGE_READINESS: 'gitlab:mr:checkMergeReadiness',  // Check if MR can be merged
-  GITLAB_MR_GET_REVIEWS_BATCH: 'gitlab:mr:getReviewsBatch',  // Batch load reviews for multiple MRs
-  GITLAB_MR_FIX: 'gitlab:mr:fix',                        // Auto-fix issues in MR
   GITLAB_MR_GET_LOGS: 'gitlab:mr:getLogs',               // Get AI review logs
-  GITLAB_MR_STATUS_POLL_START: 'gitlab:mr:statusPollStart',  // Start polling MR status
-  GITLAB_MR_STATUS_POLL_STOP: 'gitlab:mr:statusPollStop',    // Stop polling MR status
-  GITLAB_MR_MEMORY_GET: 'gitlab:mr:memory:get',          // Get MR review memories
-  GITLAB_MR_MEMORY_SEARCH: 'gitlab:mr:memory:search',    // Search MR review memories
 
   // GitLab MR Review events (main -> renderer)
   GITLAB_MR_REVIEW_PROGRESS: 'gitlab:mr:reviewProgress',
   GITLAB_MR_REVIEW_COMPLETE: 'gitlab:mr:reviewComplete',
   GITLAB_MR_REVIEW_ERROR: 'gitlab:mr:reviewError',
-  GITLAB_MR_STATUS_UPDATE: 'gitlab:mr:statusUpdate',
-
-  // GitLab Auto-Fix operations
-  GITLAB_AUTOFIX_START: 'gitlab:autofix:start',
-  GITLAB_AUTOFIX_STOP: 'gitlab:autofix:stop',
-  GITLAB_AUTOFIX_GET_QUEUE: 'gitlab:autofix:getQueue',
-  GITLAB_AUTOFIX_CHECK_LABELS: 'gitlab:autofix:checkLabels',
-  GITLAB_AUTOFIX_CHECK_NEW: 'gitlab:autofix:checkNew',
-  GITLAB_AUTOFIX_GET_CONFIG: 'gitlab:autofix:getConfig',
-  GITLAB_AUTOFIX_SAVE_CONFIG: 'gitlab:autofix:saveConfig',
-  GITLAB_AUTOFIX_BATCH: 'gitlab:autofix:batch',
-  GITLAB_AUTOFIX_GET_BATCHES: 'gitlab:autofix:getBatches',
-
-  // GitLab Auto-Fix events (main -> renderer)
-  GITLAB_AUTOFIX_PROGRESS: 'gitlab:autofix:progress',
-  GITLAB_AUTOFIX_COMPLETE: 'gitlab:autofix:complete',
-  GITLAB_AUTOFIX_ERROR: 'gitlab:autofix:error',
-  GITLAB_AUTOFIX_BATCH_PROGRESS: 'gitlab:autofix:batchProgress',
-  GITLAB_AUTOFIX_BATCH_COMPLETE: 'gitlab:autofix:batchComplete',
-  GITLAB_AUTOFIX_BATCH_ERROR: 'gitlab:autofix:batchError',
-
-  // GitLab Issue Analysis Preview (proactive batch workflow)
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW: 'gitlab:autofix:analyzePreview',
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW_PROGRESS: 'gitlab:autofix:analyzePreviewProgress',
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW_COMPLETE: 'gitlab:autofix:analyzePreviewComplete',
-  GITLAB_AUTOFIX_ANALYZE_PREVIEW_ERROR: 'gitlab:autofix:analyzePreviewError',
-  GITLAB_AUTOFIX_APPROVE_BATCHES: 'gitlab:autofix:approveBatches',
-
-  // GitLab Issue Triage operations
-  GITLAB_TRIAGE_RUN: 'gitlab:triage:run',
-  GITLAB_TRIAGE_GET_RESULTS: 'gitlab:triage:getResults',
-  GITLAB_TRIAGE_APPLY_LABELS: 'gitlab:triage:applyLabels',
-  GITLAB_TRIAGE_GET_CONFIG: 'gitlab:triage:getConfig',
-  GITLAB_TRIAGE_SAVE_CONFIG: 'gitlab:triage:saveConfig',
-
-  // GitLab Issue Triage events (main -> renderer)
-  GITLAB_TRIAGE_PROGRESS: 'gitlab:triage:progress',
-  GITLAB_TRIAGE_COMPLETE: 'gitlab:triage:complete',
-  GITLAB_TRIAGE_ERROR: 'gitlab:triage:error',
 
   // GitHub Auto-Fix operations
   GITHUB_AUTOFIX_START: 'github:autofix:start',
-  GITHUB_AUTOFIX_STOP: 'github:autofix:stop',
   GITHUB_AUTOFIX_GET_QUEUE: 'github:autofix:getQueue',
   GITHUB_AUTOFIX_CHECK_LABELS: 'github:autofix:checkLabels',
   GITHUB_AUTOFIX_CHECK_NEW: 'github:autofix:checkNew',
@@ -458,7 +482,6 @@ export const IPC_CHANNELS = {
   GITHUB_PR_LIST: 'github:pr:list',
   GITHUB_PR_LIST_MORE: 'github:pr:listMore',  // Load more PRs (pagination)
   GITHUB_PR_GET: 'github:pr:get',
-  GITHUB_PR_GET_DIFF: 'github:pr:getDiff',
   GITHUB_PR_REVIEW: 'github:pr:review',
   GITHUB_PR_REVIEW_CANCEL: 'github:pr:reviewCancel',
   GITHUB_PR_GET_REVIEW: 'github:pr:getReview',
@@ -468,7 +491,6 @@ export const IPC_CHANNELS = {
   GITHUB_PR_MERGE: 'github:pr:merge',
   GITHUB_PR_ASSIGN: 'github:pr:assign',
   GITHUB_PR_POST_COMMENT: 'github:pr:postComment',
-  GITHUB_PR_FIX: 'github:pr:fix',
   GITHUB_PR_FOLLOWUP_REVIEW: 'github:pr:followupReview',
   GITHUB_PR_CHECK_NEW_COMMITS: 'github:pr:checkNewCommits',
   GITHUB_PR_CHECK_MERGE_READINESS: 'github:pr:checkMergeReadiness',
@@ -491,25 +513,9 @@ export const IPC_CHANNELS = {
   GITHUB_PR_STATUS_POLL_STOP: 'github:pr:statusPollStop',     // Stop polling PR status
   GITHUB_PR_STATUS_UPDATE: 'github:pr:statusUpdate',          // Event: PR status updated (main -> renderer)
 
-  // GitHub PR Memory operations (saves review insights to memory layer)
-  GITHUB_PR_MEMORY_GET: 'github:pr:memory:get',        // Get PR review memories
-  GITHUB_PR_MEMORY_SEARCH: 'github:pr:memory:search',  // Search PR review memories
-
   // GitHub Workflow Approval (for fork PRs)
   GITHUB_WORKFLOWS_AWAITING_APPROVAL: 'github:workflows:awaitingApproval',
   GITHUB_WORKFLOW_APPROVE: 'github:workflow:approve',
-
-  // GitHub Issue Triage operations
-  GITHUB_TRIAGE_RUN: 'github:triage:run',
-  GITHUB_TRIAGE_GET_RESULTS: 'github:triage:getResults',
-  GITHUB_TRIAGE_APPLY_LABELS: 'github:triage:applyLabels',
-  GITHUB_TRIAGE_GET_CONFIG: 'github:triage:getConfig',
-  GITHUB_TRIAGE_SAVE_CONFIG: 'github:triage:saveConfig',
-
-  // GitHub Issue Triage events (main -> renderer)
-  GITHUB_TRIAGE_PROGRESS: 'github:triage:progress',
-  GITHUB_TRIAGE_COMPLETE: 'github:triage:complete',
-  GITHUB_TRIAGE_ERROR: 'github:triage:error',
 
   // Ollama model detection and management
   OLLAMA_CHECK_STATUS: 'ollama:checkStatus',
@@ -520,7 +526,7 @@ export const IPC_CHANNELS = {
   OLLAMA_PULL_MODEL: 'ollama:pullModel',
   OLLAMA_PULL_PROGRESS: 'ollama:pullProgress',
 
-  // Memory Infrastructure operations (LadybugDB - libSQL)
+  // Memory Infrastructure operations (built-in memory, libSQL)
   INFRASTRUCTURE_GET_STATUS: 'infrastructure:getStatus',
   INFRASTRUCTURE_LIST_DATABASES: 'infrastructure:listDatabases',
   INFRASTRUCTURE_TEST_CONNECTION: 'infrastructure:testConnection',
@@ -529,6 +535,8 @@ export const IPC_CHANNELS = {
   CHANGELOG_GET_DONE_TASKS: 'changelog:getDoneTasks',
   CHANGELOG_LOAD_TASK_SPECS: 'changelog:loadTaskSpecs',
   CHANGELOG_GENERATE: 'changelog:generate',
+  CHANGELOG_GET_STATUS: 'changelog:getStatus',
+  CHANGELOG_CLEAR_STATUS: 'changelog:clearStatus',
   CHANGELOG_SAVE: 'changelog:save',
   CHANGELOG_READ_EXISTING: 'changelog:readExisting',
   CHANGELOG_SUGGEST_VERSION: 'changelog:suggestVersion',
@@ -561,6 +569,7 @@ export const IPC_CHANNELS = {
   INSIGHTS_UNARCHIVE_SESSION: 'insights:unarchiveSession',
   INSIGHTS_RENAME_SESSION: 'insights:renameSession',
   INSIGHTS_UPDATE_MODEL_CONFIG: 'insights:updateModelConfig',
+  INSIGHTS_GET_STREAM_STATUS: 'insights:getStreamStatus',  // Reply still streaming for a project
 
   // Insights events (main -> renderer)
   INSIGHTS_STREAM_CHUNK: 'insights:streamChunk',
@@ -602,12 +611,6 @@ export const IPC_CHANNELS = {
 
   // Release operations
   RELEASE_SUGGEST_VERSION: 'release:suggestVersion',
-  RELEASE_CREATE: 'release:create',
-  RELEASE_PREFLIGHT: 'release:preflight',
-  RELEASE_GET_VERSIONS: 'release:getVersions',
-
-  // Release events (main -> renderer)
-  RELEASE_PROGRESS: 'release:progress',
 
   // Debug operations
   DEBUG_GET_INFO: 'debug:getInfo',
@@ -615,7 +618,6 @@ export const IPC_CHANNELS = {
   DEBUG_COPY_DEBUG_INFO: 'debug:copyDebugInfo',
   DEBUG_GET_RECENT_ERRORS: 'debug:getRecentErrors',
   DEBUG_LIST_LOG_FILES: 'debug:listLogFiles',
-  DEBUG_SIMULATE_RATE_LIMIT: 'debug:simulateRateLimit',  // Simulate rate limit for testing auto-swap
 
   // Claude Code CLI operations
   CLAUDE_CODE_CHECK_VERSION: 'claudeCode:checkVersion',
@@ -656,7 +658,6 @@ export const IPC_CHANNELS = {
 
   // Azure DevOps integration
   AZURE_DEVOPS_CHECK_CONNECTION: 'azureDevOps:checkConnection',
-  AZURE_DEVOPS_GET_PROJECTS: 'azureDevOps:getProjects',
   AZURE_DEVOPS_DETECT_REPO: 'azureDevOps:detectRepo',
   AZURE_DEVOPS_GET_BRANCHES: 'azureDevOps:getBranches',
 
@@ -700,12 +701,16 @@ export const IPC_CHANNELS = {
   TESTS_DISCOVER: 'tests:discover',
   TESTS_RUN: 'tests:run',
   TESTS_RUN_CATEGORY: 'tests:runCategory',
-  TESTS_RUN_SINGLE: 'tests:runSingle',
   TESTS_STOP: 'tests:stop',
-  TESTS_GET_CONFIG: 'tests:getConfig',
   TESTS_RUN_STATUS: 'tests:runStatus',
   TESTS_RESULT: 'tests:result',
   TESTS_COMPLETE: 'tests:complete',
   TESTS_ERROR: 'tests:error',
   TESTS_STOPPED: 'tests:stopped',
+
+  // Remote access (LAN web UI) — desktop only, denylisted for remote clients
+  REMOTE_ACCESS_GET_STATUS: 'remote-access:getStatus',
+  REMOTE_ACCESS_SET_CONFIG: 'remote-access:setConfig',
+  REMOTE_ACCESS_ROTATE_TOKEN: 'remote-access:rotateToken',
+  REMOTE_ACCESS_STATUS_CHANGED: 'remote-access:statusChanged',  // Event: server state / client count changed
 } as const;

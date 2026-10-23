@@ -37,7 +37,7 @@ export function IssueDetail({
   };
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 max-md:flex-none">
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="space-y-2">
@@ -57,7 +57,7 @@ export function IssueDetail({
               </a>
             </Button>
           </div>
-          <h2 className="text-lg font-semibold text-foreground">
+          <h2 className="text-lg font-semibold text-foreground break-words">
             {issue.title}
           </h2>
         </div>

@@ -21,7 +21,8 @@
     "viewPR": "View PR",
     "moveTo": "Move to",
     "taskActions": "Task actions",
-    "selectTask": "Select task: {{title}}"
+    "selectTask": "Select task: {{title}}",
+    "resumeNow": "Resume now"
   },
   "labels": {
     "running": "Running",
@@ -32,7 +33,12 @@
     "incomplete": "Incomplete",
     "recovering": "Recovering...",
     "needsRecovery": "Needs Recovery",
-    "needsResume": "Needs Resume"
+    "needsResume": "Needs Resume",
+    "rateLimited": "Rate limited",
+    "rateLimitedUntil": "Rate limited · {{time}}",
+    "rateLimitedHint": "Skip the wait and continue now — use after switching to an account with capacity",
+    "resumeFailed": "Could not resume task",
+    "rateLimitedPinned": "Paused: {{account}} hit its limit — this project is pinned to it"
   },
   "reviewReason": {
     "completed": "Completed",
@@ -56,18 +62,20 @@
     "description": "Create your first task to get started"
   },
   "columns": {
-    "backlog": "Planning",
+    "backlog": "To do",
     "queue": "Queue",
     "in_progress": "In Progress",
     "ai_review": "AI Review",
-    "human_review": "Human Review",
+    "human_review": "Review",
     "pending_merge": "Pending Merge",
     "done": "Done",
     "pr_created": "PR Created",
     "error": "Error"
   },
   "kanban": {
-    "emptyBacklog": "No tasks planned",
+    "columnTabsLabel": "Board columns",
+    "emptyBacklog": "Nothing to do",
+    "yourReview": "Your review · {{count}}",
     "emptyBacklogHint": "Add a task to get started",
     "emptyQueue": "Queue is empty",
     "emptyQueueHint": "Tasks will wait here when parallel task limit is reached",
@@ -127,6 +135,7 @@
     "autoPromoted": "Task auto-promoted from queue to In Progress.",
     "capacityAvailable": "{{count}} slot(s) available in In Progress.",
     "queueAll": "Add All to Queue",
+    "upNext": "Queue · {{count}}",
     "queueAllSuccess": "Moved {{count}} tasks to queue.",
     "settings": {
       "title": "Queue Settings",
@@ -138,6 +147,19 @@
       "saved": "Queue settings saved",
       "saveFailed": "Failed to save queue settings",
       "retry": "Please try again"
+    },
+    "capacity": "{{active}} of {{max}} parallel slots in use",
+    "capacityWithPaused": "{{active}} of {{max}} parallel slots in use · {{paused}} paused on a rate limit (no slot held)",
+    "heldByRateLimit": "Holding — a task is paused on a rate limit, so starting more would hit the same limit. Resumes automatically.",
+    "autoSwap": {
+      "title": "Profile Swapped",
+      "description": "Switched from {{from}} to {{to}} ({{reason}})",
+      "batchTitle": "{{count}} Profile Swaps",
+      "batchDescription": "Tasks redistributed to: {{profiles}}"
+    },
+    "blocked": {
+      "title": "Queue Blocked",
+      "description": "All profiles are at capacity. Tasks will resume when a profile becomes available."
     }
   },
   "execution": {
@@ -177,12 +199,25 @@
     "selectFile": "Select a file to view its contents",
     "openInIDE": "Open in IDE"
   },
+  "stop": {
+    "safe": "Safe stop",
+    "safeHint": "Finish the current step, then stop",
+    "now": "Stop now",
+    "nowHint": "Stop immediately; the current step may be half done",
+    "stopping": "Stopping…"
+  },
+  "refineTerminal": {
+    "runsInBackground": "Runs in the background — you can close this window and come back later."
+  },
   "metadata": {
     "fastMode": "Fast",
+    "refined": "Refined",
+    "refining": "Refining · {{phase}}",
     "severity": "severity",
     "pullRequest": "Pull Request",
     "showMore": "Show more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "fastModeDescription": "Same Opus model with faster output. Higher cost per token."
   },
   "images": {
     "removeImageAriaLabel": "Remove image {{filename}}",
@@ -237,7 +272,11 @@
     "maxImagesError": "Maximum of {{count}} images allowed",
     "invalidTypeError": "Invalid image type. Allowed: {{types}}",
     "removeImage": "Remove image",
-    "processingError": "Failed to process image"
+    "processingError": "Failed to process image",
+    "requestChanges": "Request Changes",
+    "description": "Found issues? Describe what needs to be fixed and the AI will continue working on it.",
+    "placeholder": "Describe the issues or changes needed...",
+    "submitting": "Submitting..."
   },
   "review": {
     "mergeTooltip": "Merges changes from the task's worktree branch back to your base branch. AI will resolve any conflicts. You can then choose whether to keep or remove the worktree."
@@ -261,7 +300,7 @@
     "requireReviewLabel": "Require human review before coding",
     "requireReviewDescription": "When enabled, you'll be prompted to review the spec and implementation plan before the coding phase begins. This allows you to approve, request changes, or provide feedback.",
     "fastModeLabel": "Fast Mode",
-    "fastModeDescription": "Same Opus 4.6 model with faster output. Higher cost per token.",
+    "fastModeDescription": "Same Opus model with faster output. Higher cost per token.",
     "fastModeNotice": "Requires \"extra usage\" enabled on your Claude subscription.",
     "errors": {
       "descriptionRequired": "Please provide a description",
@@ -369,5 +408,16 @@
     "cacheReadTokens": "Cache read",
     "totalCost": "Total cost",
     "steps": "steps"
+  },
+  "untitled": "Untitled",
+  "consolidate": {
+    "button": "Consolidate",
+    "title": "Consolidate",
+    "description": "An agent groups To do tasks that belong together. Review the groups, then each group becomes one task (the originals are archived). The tasks stay in To do.",
+    "analyzing": "Grouping {{count}} tasks…",
+    "result": "{{tasks}} tasks → {{groups}} tasks ({{merged}} merged)",
+    "liftOut": "Keep this task on its own",
+    "cancel": "Cancel",
+    "apply": "Create {{count}} tasks"
   }
 }

@@ -49,6 +49,9 @@ import { createThumbnail, generateImageId } from './ImageUpload';
 import { loadTasks } from '../stores/task-store';
 import { ChatHistorySidebar } from './ChatHistorySidebar';
 import { InsightsModelSelector } from './InsightsModelSelector';
+import { MobileBackBar } from './MobileNav';
+import { useIsCompact } from '../hooks/useIsMobile';
+import { PageHeader } from './ui/page-header';
 import type { InsightsChatMessage, InsightsModelConfig, TaskMetadata, ImageAttachment } from '../../shared/types';
 import {
   TASK_CATEGORY_LABELS,
@@ -117,6 +120,11 @@ export function Insights({ projectId }: InsightsProps) {
   const [creatingTask, setCreatingTask] = useState<Set<string>>(new Set());
   const [taskCreated, setTaskCreated] = useState<Set<string>>(new Set());
   const [showSidebar, setShowSidebar] = useState(true);
+  // Below lg the chat history is a full-size list over the chat, closed by default
+  const isCompact = useIsCompact();
+  const [showCompactSidebar, setShowCompactSidebar] = useState(false);
+  const isSidebarVisible = isCompact ? showCompactSidebar : showSidebar;
+  const toggleSidebar = () => (isCompact ? setShowCompactSidebar((v) => !v) : setShowSidebar(!showSidebar));
   const showArchived = useInsightsStore((state) => state.showArchived);
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
@@ -128,7 +136,10 @@ export function Insights({ projectId }: InsightsProps) {
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const isLoading = status.phase === 'thinking' || status.phase === 'streaming';
+  const busySessionId = useInsightsStore((state) => state.busySessionId);
+  const isReplying = status.phase === 'thinking' || status.phase === 'streaming';
+  // A reply streaming in another chat of this project would be cancelled by a new message
+  const isLoading = isReplying || busySessionId !== null;
 
   // Image upload hook
   const {
@@ -269,11 +280,13 @@ export function Insights({ projectId }: InsightsProps) {
 
   const handleNewSession = async () => {
     await newSession(projectId);
+    setShowCompactSidebar(false);
     setTaskCreated(new Set());
     textareaRef.current?.focus();
   };
 
   const handleSelectSession = async (sessionId: string) => {
+    setShowCompactSidebar(false);
     if (sessionId !== session?.id) {
       await switchSession(projectId, sessionId);
     }
@@ -383,75 +396,73 @@ export function Insights({ projectId }: InsightsProps) {
 
   const messages = session?.messages || [];
 
+  const historySidebar = (
+    <ChatHistorySidebar
+      sessions={sessions}
+      currentSessionId={session?.id || null}
+      isLoading={isLoadingSessions}
+      onNewSession={handleNewSession}
+      onSelectSession={handleSelectSession}
+      onDeleteSession={handleDeleteSession}
+      onRenameSession={handleRenameSession}
+      onArchiveSession={handleArchiveSession}
+      onUnarchiveSession={handleUnarchiveSession}
+      onDeleteSessions={handleDeleteSessions}
+      onArchiveSessions={handleArchiveSessions}
+      showArchived={showArchived}
+      onToggleShowArchived={handleToggleShowArchived}
+      className={isCompact ? 'w-full border-r-0' : undefined}
+    />
+  );
+
   return (
-    <div className="flex h-full">
-      {/* Chat History Sidebar */}
-      {showSidebar && (
-        <ChatHistorySidebar
-          sessions={sessions}
-          currentSessionId={session?.id || null}
-          isLoading={isLoadingSessions}
-          onNewSession={handleNewSession}
-          onSelectSession={handleSelectSession}
-          onDeleteSession={handleDeleteSession}
-          onRenameSession={handleRenameSession}
-          onArchiveSession={handleArchiveSession}
-          onUnarchiveSession={handleUnarchiveSession}
-          onDeleteSessions={handleDeleteSessions}
-          onArchiveSessions={handleArchiveSessions}
-          showArchived={showArchived}
-          onToggleShowArchived={handleToggleShowArchived}
-        />
+    <div className="relative flex h-full min-w-0">
+      {/* Chat history: side column at >= lg; below lg a full-size list over the chat (list -> detail) */}
+      {isSidebarVisible && !isCompact && historySidebar}
+      {isSidebarVisible && isCompact && (
+        <div className="absolute inset-0 z-20 flex flex-col bg-background">
+          <MobileBackBar onBack={() => setShowCompactSidebar(false)} />
+          <div className="min-h-0 flex-1">{historySidebar}</div>
+        </div>
       )}
 
       {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setShowSidebar(!showSidebar)}
-              title={showSidebar ? 'Hide sidebar' : 'Show sidebar'}
-            >
-              {showSidebar ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeft className="h-4 w-4" />
-              )}
-            </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground">Insights</h2>
-              <p className="text-sm text-muted-foreground">
-                Ask questions about your codebase
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <InsightsModelSelector
-              currentConfig={session?.modelConfig}
-              onConfigChange={handleModelConfigChange}
-              disabled={isLoading}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNewSession}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Chat
-            </Button>
-          </div>
-        </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <PageHeader
+          icon={Sparkles}
+          title={t('insights.title')}
+          subtitle={t('insights.subtitle')}
+          extra={
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 max-md:h-10 max-md:w-10"
+                onClick={toggleSidebar}
+                aria-label={isSidebarVisible ? t('insights.hideHistory') : t('insights.showHistory')}
+                title={isSidebarVisible ? t('insights.hideHistory') : t('insights.showHistory')}
+              >
+                {isSidebarVisible ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeft className="h-4 w-4" />
+                )}
+              </Button>
+              <InsightsModelSelector
+                currentConfig={session?.modelConfig}
+                onConfigChange={handleModelConfigChange}
+                disabled={isLoading}
+              />
+            </>
+          }
+          actions={[
+            { id: 'new-chat', label: t('insights.newChat'), icon: Plus, onClick: handleNewSession, primary: true, variant: 'outline' }
+          ]}
+        />
 
       {/* Messages */}
       <ScrollArea
-        className="flex-1 px-6 py-4"
+        className="flex-1 px-6 py-4 max-md:px-3"
         onViewportRef={setViewportEl}
       >
         {messages.length === 0 && !streamingContent ? (
@@ -460,24 +471,20 @@ export function Insights({ projectId }: InsightsProps) {
               <MessageSquare className="h-8 w-8 text-muted-foreground" />
             </div>
             <h3 className="mb-2 text-lg font-medium text-foreground">
-              Start a Conversation
+              {t('insights.emptyTitle')}
             </h3>
             <p className="max-w-md text-sm text-muted-foreground">
-              Ask questions about your codebase, get suggestions for improvements,
-              or discuss features you'd like to implement.
+              {t('insights.emptyDescription')}
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {[
-                'What is the architecture of this project?',
-                'Suggest improvements for code quality',
-                'What features could I add next?',
-                'Are there any security concerns?'
-              ].map((suggestion) => (
+              {(['architecture', 'quality', 'features', 'security'] as const)
+                .map((key) => t(`insights.suggestions.${key}`))
+                .map((suggestion) => (
                 <Button
                   key={suggestion}
                   variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="h-auto min-h-8 whitespace-normal text-xs max-md:min-h-10"
                   onClick={() => {
                     setInputValue(suggestion);
                     textareaRef.current?.focus();
@@ -507,12 +514,12 @@ export function Insights({ projectId }: InsightsProps) {
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <div className="mb-1 text-sm font-medium text-foreground">
-                    Assistant
+                    {t('insights.assistant')}
                   </div>
                   {streamingContent && (
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="prose prose-sm dark:prose-invert max-w-none min-w-0 [&_pre_code]:text-xs">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                         {streamingContent}
                       </ReactMarkdown>
@@ -534,7 +541,7 @@ export function Insights({ projectId }: InsightsProps) {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Thinking...
+                  {t('insights.thinking')}
                 </div>
               </div>
             )}
@@ -543,7 +550,7 @@ export function Insights({ projectId }: InsightsProps) {
             {status.phase === 'error' && status.error && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                {status.error}
+                <span className="min-w-0 [overflow-wrap:anywhere]">{status.error}</span>
               </div>
             )}
 
@@ -552,7 +559,7 @@ export function Insights({ projectId }: InsightsProps) {
       </ScrollArea>
 
       {/* Input */}
-      <div className="flex-shrink-0 border-t border-border p-4">
+      <div className="flex-shrink-0 border-t border-border p-4 max-md:p-3">
         <div className="relative flex gap-2">
           <div className="relative flex-1">
             <Textarea
@@ -564,7 +571,7 @@ export function Insights({ projectId }: InsightsProps) {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              placeholder="Ask about your codebase..."
+              placeholder={t('insights.inputPlaceholder')}
               className={cn(
                 'min-h-[80px] resize-none',
                 isDragOver && 'border-primary ring-2 ring-primary/20'
@@ -584,7 +591,7 @@ export function Insights({ projectId }: InsightsProps) {
             <Button
               variant="outline"
               size="icon"
-              className="h-9 w-9"
+              className="h-9 w-9 max-md:h-10 max-md:w-10"
               onClick={() => setScreenshotOpen(true)}
               disabled={isLoading || !canAddMore}
               title={t('insights.images.screenshotButton')}
@@ -594,7 +601,8 @@ export function Insights({ projectId }: InsightsProps) {
             <Button
               onClick={handleSend}
               disabled={(!inputValue.trim() && pendingImages.length === 0) || isLoading}
-              className="h-9 w-9"
+              className="h-9 w-9 max-md:h-10 max-md:w-10"
+              aria-label={t('insights.send')}
               size="icon"
             >
               {isLoading ? (
@@ -605,6 +613,10 @@ export function Insights({ projectId }: InsightsProps) {
             </Button>
           </div>
         </div>
+
+        {busySessionId && !isReplying && (
+          <p className="mt-1 text-xs text-muted-foreground">{t('insights.busyOtherChat')}</p>
+        )}
 
         {/* Image analysis warning */}
         {pendingImages.length > 0 && (
@@ -635,7 +647,7 @@ export function Insights({ projectId }: InsightsProps) {
                 <button
                   type="button"
                   onClick={() => removeImage(image.id)}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100"
                   title={t('insights.images.removeImage')}
                 >
                   <X className="h-3 w-3" />
@@ -648,8 +660,9 @@ export function Insights({ projectId }: InsightsProps) {
           </div>
         )}
 
-        <p className="mt-2 text-xs text-muted-foreground">
-          {t('insights.images.pasteHint')} · Press Enter to send, Shift+Enter for new line
+        {/* Keyboard hint: meaningless on touch devices, so hidden there */}
+        <p className="mt-2 text-xs text-muted-foreground max-md:hidden pointer-coarse:hidden">
+          {t('insights.images.pasteHint')} · {t('insights.sendHint')}
         </p>
       </div>
 
@@ -696,12 +709,12 @@ function MessageBubble({
           <Bot className="h-4 w-4 text-primary" />
         )}
       </div>
-      <div className="flex-1 space-y-2">
+      <div className="min-w-0 flex-1 space-y-2">
         <div className="text-sm font-medium text-foreground">
-          {isUser ? 'You' : 'Assistant'}
+          {isUser ? t('insights.you') : t('insights.assistant')}
         </div>
         {message.content && (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
+          <div className="prose prose-sm dark:prose-invert max-w-none min-w-0 [&_pre_code]:text-xs">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {message.content}
             </ReactMarkdown>
@@ -719,7 +732,7 @@ function MessageBubble({
                     key={image.id}
                     src={image.thumbnail || `data:${image.mimeType};base64,${image.data}`}
                     alt={image.filename}
-                    className="max-w-[200px] max-h-[200px] rounded-md border border-border object-contain"
+                    className="max-h-[200px] max-w-[min(200px,100%)] rounded-md border border-border object-contain"
                   />
                 ))}
             </div>
@@ -749,10 +762,10 @@ function MessageBubble({
                         {t('insights.suggestedTask')}
                       </span>
                     </div>
-                    <h4 className="mb-2 font-medium text-foreground">
+                    <h4 className="mb-2 font-medium text-foreground [overflow-wrap:anywhere]">
                       {task.title}
                     </h4>
-                    <p className="mb-3 text-sm text-muted-foreground">
+                    <p className="mb-3 text-sm text-muted-foreground [overflow-wrap:anywhere]">
                       {task.description}
                     </p>
                     {task.metadata && (
@@ -826,6 +839,7 @@ interface ToolUsageHistoryProps {
 }
 
 function ToolUsageHistory({ tools }: ToolUsageHistoryProps) {
+  const { t } = useTranslation('common');
   const [expanded, setExpanded] = useState(false);
 
   if (tools.length === 0) return null;
@@ -867,7 +881,7 @@ function ToolUsageHistory({ tools }: ToolUsageHistoryProps) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground max-md:min-h-10"
       >
         <span className="flex items-center gap-1">
           {Object.entries(toolCounts).map(([name, count]) => {
@@ -880,7 +894,7 @@ function ToolUsageHistory({ tools }: ToolUsageHistoryProps) {
             );
           })}
         </span>
-        <span>{tools.length} tool{tools.length !== 1 ? 's' : ''} used</span>
+        <span>{t('insights.toolsUsed', { count: tools.length })}</span>
         <span className="text-[10px]">{expanded ? '▲' : '▼'}</span>
       </button>
 
@@ -891,12 +905,12 @@ function ToolUsageHistory({ tools }: ToolUsageHistoryProps) {
             return (
               <div
                 key={`${tool.name}-${index}`}
-                className="flex items-center gap-2 text-xs"
+                className="flex min-w-0 items-center gap-2 text-xs"
               >
                 <Icon className={cn('h-3 w-3 shrink-0', getToolColor(tool.name))} />
                 <span className="font-medium">{tool.name}</span>
                 {tool.input && (
-                  <span className="text-muted-foreground truncate max-w-[250px]">
+                  <span className="min-w-0 truncate text-muted-foreground">
                     {tool.input}
                   </span>
                 )}
@@ -916,25 +930,26 @@ interface ToolIndicatorProps {
 }
 
 function ToolIndicator({ name, input }: ToolIndicatorProps) {
+  const { t } = useTranslation('common');
   // Get friendly name and icon for each tool
   const getToolInfo = (toolName: string) => {
     switch (toolName) {
       case 'Read':
         return {
           icon: FileText,
-          label: 'Reading file',
+          label: t('insights.tools.reading'),
           color: 'text-blue-500 bg-blue-500/10'
         };
       case 'Glob':
         return {
           icon: FolderSearch,
-          label: 'Searching files',
+          label: t('insights.tools.searchingFiles'),
           color: 'text-amber-500 bg-amber-500/10'
         };
       case 'Grep':
         return {
           icon: Search,
-          label: 'Searching code',
+          label: t('insights.tools.searchingCode'),
           color: 'text-green-500 bg-green-500/10'
         };
       default:
@@ -950,13 +965,13 @@ function ToolIndicator({ name, input }: ToolIndicatorProps) {
 
   return (
     <div className={cn(
-      'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
+      'mt-2 inline-flex max-w-full items-center gap-2 rounded-lg px-3 py-2 text-sm',
       color
     )}>
-      <Icon className="h-4 w-4 animate-pulse" />
+      <Icon className="h-4 w-4 shrink-0 animate-pulse" />
       <span className="font-medium">{label}</span>
       {input && (
-        <span className="text-muted-foreground truncate max-w-[300px]">
+        <span className="min-w-0 max-w-[300px] truncate text-muted-foreground">
           {input}
         </span>
       )}

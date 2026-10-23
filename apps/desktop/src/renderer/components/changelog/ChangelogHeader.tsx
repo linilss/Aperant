@@ -10,7 +10,7 @@ interface ChangelogHeaderProps {
 
 export function ChangelogHeader({ step, onRefresh }: ChangelogHeaderProps) {
   return (
-    <div className="flex items-center justify-between border-b border-border px-6 py-4">
+    <div className="flex items-center justify-between border-b border-border px-6 py-4 max-md:flex-col max-md:items-start max-md:gap-3 max-md:px-4 max-md:py-3">
       <div className="flex items-center gap-4">
         <div>
           <h1 className="text-xl font-semibold">Changelog Generator</h1>
@@ -23,18 +23,18 @@ export function ChangelogHeader({ step, onRefresh }: ChangelogHeaderProps) {
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 max-md:w-full max-md:justify-between">
         {/* Step indicators */}
-        <div className="flex items-center gap-2 mr-4">
+        <div className="flex items-center gap-2 mr-4 max-md:mr-0">
           <StepIndicator step={1} currentStep={step} label="Select" />
-          <div className="w-6 h-px bg-border" />
+          <div className="w-6 h-px bg-border max-md:w-3" />
           <StepIndicator step={2} currentStep={step} label="Generate" />
-          <div className="w-6 h-px bg-border" />
+          <div className="w-6 h-px bg-border max-md:w-3" />
           <StepIndicator step={3} currentStep={step} label="Release" />
         </div>
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
+        <Button variant="outline" size="sm" onClick={onRefresh} className="max-md:h-10">
+          <RefreshCw className="mr-2 h-4 w-4 max-md:mr-0" />
+          <span className="max-md:sr-only">Refresh</span>
         </Button>
       </div>
     </div>
@@ -68,6 +68,7 @@ function StepIndicator({ step, currentStep, label }: StepIndicatorProps) {
       <span
         className={cn(
           'text-sm',
+          !isActive && 'max-md:hidden',
           isActive ? 'text-foreground font-medium' : 'text-muted-foreground'
         )}
       >

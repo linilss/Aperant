@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Github, RefreshCw, KeyRound, Info, CheckCircle2 } from 'lucide-react';
+import { Github, KeyRound, Info, CheckCircle2 } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { StatusBadge } from './StatusBadge';
 import { PasswordInput } from './PasswordInput';
@@ -8,7 +8,6 @@ import { GitHubOAuthFlow } from './GitHubOAuthFlow';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
-import { Separator } from '../ui/separator';
 import { Button } from '../ui/button';
 import type { ProjectEnvConfig, GitHubSyncStatus } from '../../../shared/types';
 
@@ -195,25 +194,6 @@ export function GitHubIntegrationSection({
               </div>
             </div>
           )}
-
-          <Separator />
-
-          {/* Auto-sync Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-info" />
-                <Label className="font-normal text-foreground">Auto-Sync on Load</Label>
-              </div>
-              <p className="text-xs text-muted-foreground pl-6">
-                Automatically fetch issues when the project loads
-              </p>
-            </div>
-            <Switch
-              checked={envConfig.githubAutoSync || false}
-              onCheckedChange={(checked) => onUpdateConfig({ githubAutoSync: checked })}
-            />
-          </div>
         </>
       )}
     </CollapsibleSection>

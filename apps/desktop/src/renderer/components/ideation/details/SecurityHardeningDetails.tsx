@@ -13,12 +13,14 @@ import {
   SECURITY_CATEGORY_LABELS
 } from '../../../../shared/constants';
 import type { SecurityHardeningIdea } from '../../../../shared/types';
+import { categoryLabel } from '../constants';
 
 interface SecurityHardeningDetailsProps {
   idea: SecurityHardeningIdea;
 }
 
 export function SecurityHardeningDetails({ idea }: SecurityHardeningDetailsProps) {
+  const category = categoryLabel(SECURITY_CATEGORY_LABELS, idea.category);
   return (
     <>
       {/* Metrics */}
@@ -38,15 +40,17 @@ export function SecurityHardeningDetails({ idea }: SecurityHardeningDetailsProps
       </div>
 
       {/* Category */}
-      <div>
-        <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-          <Shield className="h-4 w-4" />
-          Category
-        </h3>
-        <Badge variant="outline">
-          {SECURITY_CATEGORY_LABELS[idea.category]}
-        </Badge>
-      </div>
+      {category && (
+        <div>
+          <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Category
+          </h3>
+          <Badge variant="outline">
+            {category}
+          </Badge>
+        </div>
+      )}
 
       {/* Vulnerability */}
       {idea.vulnerability && (

@@ -6,6 +6,8 @@ import type {
   IdeationGenerationStatus,
   IdeationType,
   IdeationConfig,
+  IdeationRunStatus,
+  IdeationRunTypeState,
   IdeationSummary
 } from '../../shared/types';
 import { DEFAULT_IDEATION_CONFIG } from '../../shared/constants';
@@ -45,6 +47,8 @@ interface IdeationState {
   setConfig: (config: Partial<IdeationConfig>) => void;
   updateIdeaStatus: (ideaId: string, status: IdeationStatus) => void;
   setIdeaTaskId: (ideaId: string, taskId: string) => void;
+  /** Idea was added to the roadmap: mark it converted and keep the feature link */
+  setIdeaRoadmapFeatureId: (ideaId: string, featureId: string) => void;
   dismissIdea: (ideaId: string) => void;
   dismissAllIdeas: () => void;
   archiveIdea: (ideaId: string) => void;
@@ -80,6 +84,7 @@ const initialConfig: IdeationConfig = {
 // Initialize all type states to 'pending' initially (will be set when generation starts)
 // Note: high_value_features removed, low_hanging_fruit renamed to code_improvements
 const initialTypeStates: Record<IdeationType, IdeationTypeState> = {
+  features: 'pending',
   code_improvements: 'pending',
   ui_ux_improvements: 'pending',
   documentation_gaps: 'pending',
@@ -107,6 +112,8 @@ export const useIdeationStore = create<IdeationState>((set) => ({
         return {
           currentProjectId: projectId,
           session: null,
+          // Config (types, focus) is per project; loadIdeation restores the saved one
+          config: initialConfig,
           generationStatus: initialGenerationStatus,
           logs: [],
           typeStates: { ...initialTypeStates },
@@ -152,6 +159,25 @@ export const useIdeationStore = create<IdeationState>((set) => ({
       const updatedIdeas = state.session.ideas.map((idea) =>
         idea.id === ideaId
           ? { ...idea, taskId, status: 'archived' as IdeationStatus }
+          : idea
+      );
+
+      return {
+        session: {
+          ...state.session,
+          ideas: updatedIdeas,
+          updatedAt: new Date()
+        }
+      };
+    }),
+
+  setIdeaRoadmapFeatureId: (ideaId, featureId) =>
+    set((state) => {
+      if (!state.session) return state;
+
+      const updatedIdeas = state.session.ideas.map((idea) =>
+        idea.id === ideaId
+          ? { ...idea, roadmapFeatureId: featureId, status: 'converted' as IdeationStatus }
           : idea
       );
 
@@ -370,35 +396,116 @@ export const useIdeationStore = create<IdeationState>((set) => ({
     })
 }));
 
-export async function loadIdeation(projectId: string): Promise<void> {
+/** Store config from a loaded session's saved config (model settings stay as they are) */
+export function configFromSession(saved: IdeationConfig): Partial<IdeationConfig> {
+  return {
+    enabledTypes: [...saved.enabledTypes],
+    includeRoadmapContext: saved.includeRoadmapContext,
+    includeKanbanContext: saved.includeKanbanContext,
+    maxIdeasPerType: saved.maxIdeasPerType,
+    focus: saved.focus ?? ''
+  };
+}
+
+const RUN_TYPE_STATE_TO_UI: Record<IdeationRunTypeState, IdeationTypeState> = {
+  queued: 'generating',
+  running: 'generating',
+  done: 'completed',
+  failed: 'failed'
+};
+
+/**
+ * Put a generation that is still running in main back on screen, as if the
+ * events had been received live: progress, per-type states and the ideas of
+ * the types that already finished.
+ */
+export function restoreGenerationFromStatus(run: IdeationRunStatus): void {
   const store = useIdeationStore.getState();
 
-  // Set the current project ID (this clears state if switching projects)
-  store.setCurrentProjectId(projectId);
-
-  if (store.isGenerating) {
-    return;
+  if (!run.append) {
+    // A full run starts from an empty session (see generateIdeation)
+    store.setSession(null);
+    store.setConfig({ enabledTypes: [...run.enabledTypes] });
   }
+
+  const typeStates = { ...initialTypeStates };
+  for (const type of run.enabledTypes) {
+    const runState = run.typeStates[type];
+    typeStates[type] = runState ? RUN_TYPE_STATE_TO_UI[runState] : 'generating';
+  }
+
+  for (const [type, ideas] of Object.entries(run.ideasByType)) {
+    if (ideas) store.addIdeasForType(type, ideas);
+  }
+
+  useIdeationStore.setState({
+    isGenerating: true,
+    typeStates,
+    generationStatus: { ...run.status }
+  });
+}
+
+function applyLoadedSession(session: IdeationSession | null | undefined): void {
+  const state = useIdeationStore.getState();
+  if (session) {
+    state.setSession(session);
+    // Restore the project's last-used types, context toggles and focus
+    state.setConfig(configFromSession(session.config));
+  } else {
+    state.setSession(null);
+  }
+}
+
+export async function loadIdeation(projectId: string): Promise<void> {
+  // Set the current project ID (this clears state if switching projects)
+  useIdeationStore.getState().setCurrentProjectId(projectId);
 
   const result = await window.electronAPI.getIdeation(projectId);
 
   // Check again after async operation to handle race condition
-  const currentState = useIdeationStore.getState();
-  if (currentState.isGenerating || currentState.currentProjectId !== projectId) {
+  if (useIdeationStore.getState().currentProjectId !== projectId) {
     // Project changed during async operation, ignore result
     return;
   }
+  // While generating, the session on screen is the run's streamed ideas — keep it
+  if (!useIdeationStore.getState().isGenerating) {
+    applyLoadedSession(result.success ? result.data : null);
+  }
 
-  if (result.success && result.data) {
-    currentState.setSession(result.data);
-  } else {
-    currentState.setSession(null);
+  // A generation may still be running in main (started before a project switch or
+  // while this view was closed). Asked last so the snapshot covers every event
+  // that arrived before it.
+  const wasGenerating = useIdeationStore.getState().isGenerating;
+  const statusResult = await window.electronAPI.getIdeationStatus(projectId);
+  const latest = useIdeationStore.getState();
+  if (latest.currentProjectId !== projectId || !statusResult.success) {
+    return;
+  }
+
+  const run = statusResult.data;
+  if (run?.isRunning) {
+    restoreGenerationFromStatus(run);
+    return;
+  }
+
+  if (wasGenerating && latest.isGenerating) {
+    // The run ended while nothing was listening (view closed): leave the progress screen
+    clearGenerationTimeout(projectId);
+    latest.setIsGenerating(false);
+    latest.resetGeneratingTypes('completed');
+    latest.setGenerationStatus(initialGenerationStatus);
+    const reloaded = await window.electronAPI.getIdeation(projectId);
+    const afterReload = useIdeationStore.getState();
+    if (afterReload.currentProjectId === projectId && !afterReload.isGenerating) {
+      applyLoadedSession(reloaded.success ? reloaded.data : null);
+    }
   }
 }
 
-export function generateIdeation(projectId: string): void {
+/** `overrides` apply to this run only (e.g. fewer ideas per type with a roadmap regenerate) */
+export function generateIdeation(projectId: string, overrides?: Partial<IdeationConfig>): void {
   const store = useIdeationStore.getState();
-  const config = store.config;
+  const config = { ...store.config, ...overrides };
 
   if (window.DEBUG) {
     console.log('[Ideation] Starting generation:', {
@@ -425,6 +532,11 @@ export function generateIdeation(projectId: string): void {
 
   const timeoutId = setTimeout(() => {
     const currentState = useIdeationStore.getState();
+    // Another project may be on screen by now; its state is not this run's to fail
+    if (currentState.currentProjectId !== projectId) {
+      clearGenerationTimeout(projectId);
+      return;
+    }
     if (currentState.generationStatus.phase === 'generating') {
       if (window.DEBUG) {
         console.warn('[Ideation] Generation timed out after', GENERATION_TIMEOUT_MS, 'ms');
@@ -755,8 +867,8 @@ export function setupIdeationListeners(): () => void {
     if (window.DEBUG) {
       console.log('[Ideation] Generation complete:', {
         projectId,
-        totalIdeas: session.ideas.length,
-        ideaTypes: session.ideas.reduce((acc, idea) => {
+        totalIdeas: session?.ideas.length ?? 0,
+        ideaTypes: (session?.ideas ?? []).reduce((acc, idea) => {
           acc[idea.type] = (acc[idea.type] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
@@ -766,7 +878,11 @@ export function setupIdeationListeners(): () => void {
     clearGenerationTimeout(projectId);
 
     store().setIsGenerating(false);
-    store().setSession(session);
+    // A null session means the run consolidated nothing — keep the ideas that
+    // streamed in during the run rather than clearing the view to empty.
+    if (session) {
+      store().setSession(session);
+    }
     store().resetGeneratingTypes('completed');
     store().setGenerationStatus({
       phase: 'complete',

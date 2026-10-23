@@ -397,3 +397,15 @@ describe('roadmapFeatureMachine', () => {
     });
   });
 });
+
+describe('dismissed', () => {
+  it('dismisses from under_review and planned, and can be brought back', () => {
+    expect(runEvents([{ type: 'DISMISS' }]).value).toBe('dismissed');
+    expect(runEvents([{ type: 'PLAN' }, { type: 'DISMISS' }]).value).toBe('dismissed');
+    expect(runEvents([{ type: 'DISMISS' }, { type: 'MOVE_TO_REVIEW' }]).value).toBe('under_review');
+  });
+
+  it('ignores DISMISS for features already being built', () => {
+    expect(runEvents([{ type: 'START_PROGRESS' }, { type: 'DISMISS' }]).value).toBe('in_progress');
+  });
+});

@@ -56,6 +56,8 @@ export class TerminalNameGenerator extends EventEmitter {
         systemPrompt: SYSTEM_PROMPT,
         modelShorthand: namingSettings.model,
         thinkingLevel: namingSettings.thinkingLevel as 'low' | 'medium' | 'high' | 'xhigh',
+        // Terminal cwd inside a project → that project's pinned account; else active profile
+        projectPath: cwd,
       });
 
       const result = await generateText({

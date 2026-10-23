@@ -11,14 +11,6 @@ import type {
   GitLabMRReviewResult,
   GitLabMRReviewProgress,
   GitLabNewCommitsCheck,
-  GitLabAutoFixConfig,
-  GitLabAutoFixQueueItem,
-  GitLabAutoFixProgress,
-  GitLabIssueBatch,
-  GitLabAnalyzePreviewResult,
-  GitLabTriageConfig,
-  GitLabTriageResult,
-  GitLabMRStatusUpdate,
   GitLabGroup,
   IPCResult
 } from '../../../shared/types';
@@ -68,7 +60,6 @@ export interface GitLabAPI {
   ) => Promise<IPCResult<GitLabMergeRequest>>;
 
   // MR Review operations (AI-powered)
-  getGitLabMRDiff: (projectId: string, mrIid: number) => Promise<string | null>;
   getGitLabMRReview: (projectId: string, mrIid: number) => Promise<GitLabMRReviewResult | null>;
   runGitLabMRReview: (projectId: string, mrIid: number) => void;
   runGitLabMRFollowupReview: (projectId: string, mrIid: number) => void;
@@ -86,14 +77,8 @@ export interface GitLabAPI {
     state?: 'opened' | 'closed' | 'merged' | 'all',
     page?: number
   ) => Promise<IPCResult<{ mrs: GitLabMergeRequest[]; hasMore: boolean }>>;
-  getGitLabMRReviewsBatch: (projectId: string, mrIids: number[]) => Promise<IPCResult<Record<number, GitLabMRReviewResult | null>>>;
   deleteGitLabMRReview: (projectId: string, mrIid: number, noteId: number) => Promise<IPCResult<{ deleted: boolean }>>;
-  fixGitLabMR: (projectId: string, mrIid: number, findings: string[]) => Promise<IPCResult<{ fixed: number }>>;
-  startGitLabMRStatusPoll: (projectId: string, mrIid: number, intervalMs?: number) => Promise<IPCResult<{ polling: boolean }>>;
-  stopGitLabMRStatusPoll: (projectId: string, mrIid: number) => Promise<IPCResult<{ stopped: boolean }>>;
   getGitLabMRLogs: (projectId: string, mrIid: number) => Promise<IPCResult<string[]>>;
-  getGitLabMRMemory: (projectId: string, mrIid: number) => Promise<IPCResult<unknown[]>>;
-  searchGitLabMRMemory: (projectId: string, query: string) => Promise<IPCResult<unknown[]>>;
   checkGitLabMRMergeReadiness: (
     projectId: string,
     mrIid: number
@@ -113,58 +98,6 @@ export interface GitLabAPI {
   ) => IpcListenerCleanup;
   onGitLabMRReviewError: (
     callback: (projectId: string, data: { mrIid: number; error: string }) => void
-  ) => IpcListenerCleanup;
-  onGitLabMRStatusUpdate: (
-    callback: (update: GitLabMRStatusUpdate) => void
-  ) => IpcListenerCleanup;
-
-  // GitLab Auto-Fix operations
-  getGitLabAutoFixConfig: (projectId: string) => Promise<GitLabAutoFixConfig | null>;
-  saveGitLabAutoFixConfig: (projectId: string, config: GitLabAutoFixConfig) => Promise<boolean>;
-  getGitLabAutoFixQueue: (projectId: string) => Promise<GitLabAutoFixQueueItem[]>;
-  checkGitLabAutoFixLabels: (projectId: string) => Promise<number[]>;
-  checkNewGitLabAutoFixIssues: (projectId: string) => Promise<Array<{ iid: number }>>;
-  startGitLabAutoFix: (projectId: string, issueIid: number) => void;
-  getGitLabAutoFixBatches: (projectId: string) => Promise<GitLabIssueBatch[]>;
-  analyzeGitLabAutoFixPreview: (projectId: string, issueIids?: number[], maxIssues?: number) => void;
-  approveGitLabAutoFixBatches: (projectId: string, batches: GitLabIssueBatch[]) => Promise<{ success: boolean; batches?: GitLabIssueBatch[]; error?: string }>;
-
-  // GitLab Auto-Fix Event Listeners
-  onGitLabAutoFixProgress: (
-    callback: (projectId: string, progress: GitLabAutoFixProgress) => void
-  ) => IpcListenerCleanup;
-  onGitLabAutoFixComplete: (
-    callback: (projectId: string, result: GitLabAutoFixQueueItem) => void
-  ) => IpcListenerCleanup;
-  onGitLabAutoFixError: (
-    callback: (projectId: string, issueIid: number, error: string) => void
-  ) => IpcListenerCleanup;
-  onGitLabAutoFixAnalyzePreviewProgress: (
-    callback: (projectId: string, progress: { phase: string; progress: number; message: string }) => void
-  ) => IpcListenerCleanup;
-  onGitLabAutoFixAnalyzePreviewComplete: (
-    callback: (projectId: string, result: GitLabAnalyzePreviewResult) => void
-  ) => IpcListenerCleanup;
-  onGitLabAutoFixAnalyzePreviewError: (
-    callback: (projectId: string, error: string) => void
-  ) => IpcListenerCleanup;
-
-  // GitLab Triage operations
-  getGitLabTriageConfig: (projectId: string) => Promise<GitLabTriageConfig | null>;
-  saveGitLabTriageConfig: (projectId: string, config: GitLabTriageConfig) => Promise<boolean>;
-  getGitLabTriageResults: (projectId: string) => Promise<GitLabTriageResult[]>;
-  runGitLabTriage: (projectId: string, issueIids?: number[]) => void;
-  applyGitLabTriageLabels: (projectId: string, issueIid: number, labelsToAdd: string[], labelsToRemove: string[]) => Promise<boolean>;
-
-  // GitLab Triage Event Listeners
-  onGitLabTriageProgress: (
-    callback: (projectId: string, progress: { phase: string; progress: number; message: string; issueIid?: number }) => void
-  ) => IpcListenerCleanup;
-  onGitLabTriageComplete: (
-    callback: (projectId: string, results: GitLabTriageResult[]) => void
-  ) => IpcListenerCleanup;
-  onGitLabTriageError: (
-    callback: (projectId: string, error: string) => void
   ) => IpcListenerCleanup;
 
   // Release operations
@@ -273,9 +206,6 @@ export const createGitLabAPI = (): GitLabAPI => ({
     invokeIpc(IPC_CHANNELS.GITLAB_UPDATE_MERGE_REQUEST, projectId, mrIid, updates),
 
   // MR Review operations (AI-powered)
-  getGitLabMRDiff: (projectId: string, mrIid: number): Promise<string | null> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_GET_DIFF, projectId, mrIid),
-
   getGitLabMRReview: (projectId: string, mrIid: number): Promise<GitLabMRReviewResult | null> =>
     invokeIpc(IPC_CHANNELS.GITLAB_MR_GET_REVIEW, projectId, mrIid),
 
@@ -314,36 +244,11 @@ export const createGitLabAPI = (): GitLabAPI => ({
   ): Promise<IPCResult<{ mrs: GitLabMergeRequest[]; hasMore: boolean }>> =>
     invokeIpc(IPC_CHANNELS.GITLAB_MR_LIST_MORE, projectId, state, page),
 
-  getGitLabMRReviewsBatch: (
-    projectId: string,
-    mrIids: number[]
-  ): Promise<IPCResult<Record<number, GitLabMRReviewResult | null>>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_GET_REVIEWS_BATCH, projectId, mrIids),
-
   deleteGitLabMRReview: (projectId: string, mrIid: number, noteId: number): Promise<IPCResult<{ deleted: boolean }>> =>
     invokeIpc(IPC_CHANNELS.GITLAB_MR_DELETE_REVIEW, projectId, mrIid, noteId),
 
-  fixGitLabMR: (projectId: string, mrIid: number, findings: string[]): Promise<IPCResult<{ fixed: number }>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_FIX, projectId, mrIid, findings),
-
-  startGitLabMRStatusPoll: (
-    projectId: string,
-    mrIid: number,
-    intervalMs?: number
-  ): Promise<IPCResult<{ polling: boolean }>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_STATUS_POLL_START, projectId, mrIid, intervalMs),
-
-  stopGitLabMRStatusPoll: (projectId: string, mrIid: number): Promise<IPCResult<{ stopped: boolean }>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_STATUS_POLL_STOP, projectId, mrIid),
-
   getGitLabMRLogs: (projectId: string, mrIid: number): Promise<IPCResult<string[]>> =>
     invokeIpc(IPC_CHANNELS.GITLAB_MR_GET_LOGS, projectId, mrIid),
-
-  getGitLabMRMemory: (projectId: string, mrIid: number): Promise<IPCResult<unknown[]>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_MEMORY_GET, projectId, mrIid),
-
-  searchGitLabMRMemory: (projectId: string, query: string): Promise<IPCResult<unknown[]>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_MR_MEMORY_SEARCH, projectId, query),
 
   checkGitLabMRMergeReadiness: (
     projectId: string,
@@ -371,102 +276,6 @@ export const createGitLabAPI = (): GitLabAPI => ({
     callback: (projectId: string, data: { mrIid: number; error: string }) => void
   ): IpcListenerCleanup =>
     createIpcListener(IPC_CHANNELS.GITLAB_MR_REVIEW_ERROR, callback),
-
-  onGitLabMRStatusUpdate: (
-    callback: (update: GitLabMRStatusUpdate) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_MR_STATUS_UPDATE, callback),
-
-  // GitLab Auto-Fix operations
-  getGitLabAutoFixConfig: (projectId: string): Promise<GitLabAutoFixConfig | null> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_GET_CONFIG, projectId),
-
-  saveGitLabAutoFixConfig: (projectId: string, config: GitLabAutoFixConfig): Promise<boolean> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_SAVE_CONFIG, projectId, config),
-
-  getGitLabAutoFixQueue: (projectId: string): Promise<GitLabAutoFixQueueItem[]> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_GET_QUEUE, projectId),
-
-  checkGitLabAutoFixLabels: (projectId: string): Promise<number[]> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_CHECK_LABELS, projectId),
-
-  checkNewGitLabAutoFixIssues: (projectId: string): Promise<Array<{ iid: number }>> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_CHECK_NEW, projectId),
-
-  startGitLabAutoFix: (projectId: string, issueIid: number): void =>
-    sendIpc(IPC_CHANNELS.GITLAB_AUTOFIX_START, projectId, issueIid),
-
-  getGitLabAutoFixBatches: (projectId: string): Promise<GitLabIssueBatch[]> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_GET_BATCHES, projectId),
-
-  analyzeGitLabAutoFixPreview: (projectId: string, issueIids?: number[], maxIssues?: number): void =>
-    sendIpc(IPC_CHANNELS.GITLAB_AUTOFIX_ANALYZE_PREVIEW, projectId, issueIids, maxIssues),
-
-  approveGitLabAutoFixBatches: (projectId: string, batches: GitLabIssueBatch[]): Promise<{ success: boolean; batches?: GitLabIssueBatch[]; error?: string }> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_AUTOFIX_APPROVE_BATCHES, projectId, batches),
-
-  // GitLab Auto-Fix Event Listeners
-  onGitLabAutoFixProgress: (
-    callback: (projectId: string, progress: GitLabAutoFixProgress) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_AUTOFIX_PROGRESS, callback),
-
-  onGitLabAutoFixComplete: (
-    callback: (projectId: string, result: GitLabAutoFixQueueItem) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_AUTOFIX_COMPLETE, callback),
-
-  onGitLabAutoFixError: (
-    callback: (projectId: string, issueIid: number, error: string) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_AUTOFIX_ERROR, callback),
-
-  onGitLabAutoFixAnalyzePreviewProgress: (
-    callback: (projectId: string, progress: { phase: string; progress: number; message: string }) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_AUTOFIX_ANALYZE_PREVIEW_PROGRESS, callback),
-
-  onGitLabAutoFixAnalyzePreviewComplete: (
-    callback: (projectId: string, result: GitLabAnalyzePreviewResult) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_AUTOFIX_ANALYZE_PREVIEW_COMPLETE, callback),
-
-  onGitLabAutoFixAnalyzePreviewError: (
-    callback: (projectId: string, error: string) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_AUTOFIX_ANALYZE_PREVIEW_ERROR, callback),
-
-  // GitLab Triage operations
-  getGitLabTriageConfig: (projectId: string): Promise<GitLabTriageConfig | null> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_TRIAGE_GET_CONFIG, projectId),
-
-  saveGitLabTriageConfig: (projectId: string, config: GitLabTriageConfig): Promise<boolean> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_TRIAGE_SAVE_CONFIG, projectId, config),
-
-  getGitLabTriageResults: (projectId: string): Promise<GitLabTriageResult[]> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_TRIAGE_GET_RESULTS, projectId),
-
-  runGitLabTriage: (projectId: string, issueIids?: number[]): void =>
-    sendIpc(IPC_CHANNELS.GITLAB_TRIAGE_RUN, projectId, issueIids),
-
-  applyGitLabTriageLabels: (projectId: string, issueIid: number, labelsToAdd: string[], labelsToRemove: string[]): Promise<boolean> =>
-    invokeIpc(IPC_CHANNELS.GITLAB_TRIAGE_APPLY_LABELS, projectId, issueIid, labelsToAdd, labelsToRemove),
-
-  // GitLab Triage Event Listeners
-  onGitLabTriageProgress: (
-    callback: (projectId: string, progress: { phase: string; progress: number; message: string; issueIid?: number }) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_TRIAGE_PROGRESS, callback),
-
-  onGitLabTriageComplete: (
-    callback: (projectId: string, results: GitLabTriageResult[]) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_TRIAGE_COMPLETE, callback),
-
-  onGitLabTriageError: (
-    callback: (projectId: string, error: string) => void
-  ): IpcListenerCleanup =>
-    createIpcListener(IPC_CHANNELS.GITLAB_TRIAGE_ERROR, callback),
 
   // Release operations
   createGitLabRelease: (

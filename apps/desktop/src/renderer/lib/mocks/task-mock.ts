@@ -49,6 +49,12 @@ export const taskMock = {
     console.warn('[Browser Mock] startTask called');
   },
 
+  stopTaskSafe: () => {},
+  processTaskQueue: async () => {},
+  getTaskQueueOrder: async () => [],
+  setTaskQueueOrder: async () => {},
+  consolidateTasksPreview: async () => ({ success: false, error: 'Not available in browser mode' }),
+  relinkConsolidatedSpecs: async () => ({ success: true }),
   stopTask: () => {
     console.warn('[Browser Mock] stopTask called');
   },
@@ -97,6 +103,8 @@ export const taskMock = {
   watchTaskLogs: async () => ({ success: true }),
 
   unwatchTaskLogs: async () => ({ success: true }),
+
+  taskRefineGetStatus: async () => ({ success: true, data: null }),
 
   // Event Listeners (no-op in browser)
   onTaskProgress: () => () => {},

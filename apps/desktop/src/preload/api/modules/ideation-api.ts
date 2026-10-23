@@ -4,6 +4,7 @@ import type {
   IdeationConfig,
   IdeationStatus,
   IdeationGenerationStatus,
+  IdeationRunStatus,
   Idea,
   Task,
   IPCResult
@@ -19,8 +20,11 @@ export interface IdeationAPI {
   generateIdeation: (projectId: string, config: IdeationConfig) => void;
   refreshIdeation: (projectId: string, config: IdeationConfig) => void;
   stopIdeation: (projectId: string) => Promise<IPCResult>;
+  /** Progress of a generation still running in main (null when none) */
+  getIdeationStatus: (projectId: string) => Promise<IPCResult<IdeationRunStatus | null>>;
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus) => Promise<IPCResult>;
   convertIdeaToTask: (projectId: string, ideaId: string) => Promise<IPCResult<Task>>;
+  addIdeaToRoadmap: (projectId: string, ideaId: string) => Promise<IPCResult<{ featureId: string }>>;
   dismissIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
   dismissAllIdeas: (projectId: string) => Promise<IPCResult>;
   archiveIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
@@ -35,7 +39,8 @@ export interface IdeationAPI {
     callback: (projectId: string, log: string) => void
   ) => IpcListenerCleanup;
   onIdeationComplete: (
-    callback: (projectId: string, session: IdeationSession) => void
+    // null when a run consolidated no ideas — listeners must not clear on it
+    callback: (projectId: string, session: IdeationSession | null) => void
   ) => IpcListenerCleanup;
   onIdeationError: (
     callback: (projectId: string, error: string) => void
@@ -68,11 +73,17 @@ export const createIdeationAPI = (): IdeationAPI => ({
   stopIdeation: (projectId: string): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.IDEATION_STOP, projectId),
 
+  getIdeationStatus: (projectId: string): Promise<IPCResult<IdeationRunStatus | null>> =>
+    invokeIpc(IPC_CHANNELS.IDEATION_GET_STATUS, projectId),
+
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.IDEATION_UPDATE_IDEA, projectId, ideaId, status),
 
   convertIdeaToTask: (projectId: string, ideaId: string): Promise<IPCResult<Task>> =>
     invokeIpc(IPC_CHANNELS.IDEATION_CONVERT_TO_TASK, projectId, ideaId),
+
+  addIdeaToRoadmap: (projectId: string, ideaId: string): Promise<IPCResult<{ featureId: string }>> =>
+    invokeIpc(IPC_CHANNELS.ROADMAP_ADD_FEATURE_FROM_IDEA, projectId, ideaId),
 
   dismissIdea: (projectId: string, ideaId: string): Promise<IPCResult> =>
     invokeIpc(IPC_CHANNELS.IDEATION_DISMISS, projectId, ideaId),
@@ -101,7 +112,8 @@ export const createIdeationAPI = (): IdeationAPI => ({
     createIpcListener(IPC_CHANNELS.IDEATION_LOG, callback),
 
   onIdeationComplete: (
-    callback: (projectId: string, session: IdeationSession) => void
+    // null when a run consolidated no ideas — listeners must not clear on it
+    callback: (projectId: string, session: IdeationSession | null) => void
   ): IpcListenerCleanup =>
     createIpcListener(IPC_CHANNELS.IDEATION_COMPLETE, callback),
 

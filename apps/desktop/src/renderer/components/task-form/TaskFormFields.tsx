@@ -381,19 +381,21 @@ export function TaskFormFields({
               {t('tasks:referenceImages.description')}
             </p>
 
-            {/* Capture Button */}
+            {/* Capture Button (desktop screen capture: not available remotely) */}
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setScreenshotModalOpen(true)}
-                disabled={disabled}
-                className="gap-2"
-              >
-                <Camera className="h-4 w-4" />
-                {t('tasks:screenshot.capture')}
-              </Button>
+              {!window.isRemote && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScreenshotModalOpen(true)}
+                  disabled={disabled}
+                  className="gap-2"
+                >
+                  <Camera className="h-4 w-4" />
+                  {t('tasks:screenshot.capture')}
+                </Button>
+              )}
               <span className="text-xs text-muted-foreground">
                 {t('images.pasteHint', { shortcut: navigator.platform.includes('Mac') ? '⌘V' : 'Ctrl+V' })}
               </span>
@@ -425,7 +427,7 @@ export function TaskFormFields({
                     {!disabled && (
                       <button
                         type="button"
-                        className="absolute top-0.5 right-0.5 h-5 w-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-0.5 right-0.5 h-5 w-5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeImage(image.id);

@@ -1,4 +1,4 @@
-import { Zap, Import, Radio } from 'lucide-react';
+import { Zap, Import } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { StatusBadge } from './StatusBadge';
 import { PasswordInput } from './PasswordInput';
@@ -113,34 +113,6 @@ export function LinearIntegrationSection({
                   </Button>
                 </div>
               </div>
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Real-time Sync Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <Radio className="h-4 w-4 text-info" />
-                <Label className="font-normal text-foreground">Real-time Sync</Label>
-              </div>
-              <p className="text-xs text-muted-foreground pl-6">
-                Automatically import new tasks created in Linear
-              </p>
-            </div>
-            <Switch
-              checked={envConfig.linearRealtimeSync || false}
-              onCheckedChange={(checked) => onUpdateConfig({ linearRealtimeSync: checked })}
-            />
-          </div>
-
-          {envConfig.linearRealtimeSync && (
-            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 ml-6">
-              <p className="text-xs text-warning">
-                When enabled, new Linear issues will be automatically imported into AutoBuild.
-                Make sure to configure your team/project filters below to control which issues are imported.
-              </p>
             </div>
           )}
 

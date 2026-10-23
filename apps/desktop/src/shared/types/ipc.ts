@@ -83,33 +83,32 @@ import type {
   ChangelogSaveRequest,
   ChangelogSaveResult,
   ChangelogGenerationProgress,
+  ChangelogRunStatus,
   ExistingChangelog,
   GitBranchInfo,
   GitTagInfo,
   GitCommit,
   GitHistoryOptions,
-  BranchDiffOptions,
-  ReleaseableVersion,
-  ReleasePreflightStatus,
-  CreateReleaseRequest,
-  CreateReleaseResult,
-  ReleaseProgress
+  BranchDiffOptions
 } from './changelog';
 import type {
   IdeationSession,
   IdeationConfig,
   IdeationStatus,
   IdeationGenerationStatus,
+  IdeationRunStatus,
   Idea,
   InsightsSession,
   InsightsSessionSummary,
   InsightsChatStatus,
   InsightsStreamChunk,
+  InsightsStreamStatus,
   InsightsModelConfig
 } from './insights';
 import type {
   CompetitorAnalysis,
   Roadmap,
+  RoadmapFeaturePriority,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress
@@ -307,12 +306,6 @@ export interface ElectronAPILegacy {
     message?: string;
     detectedAt: string;
   }) => void) => () => void;
-  /** Listen for auth terminal creation - allows UI to display the OAuth terminal */
-  onTerminalAuthCreated: (callback: (info: {
-    terminalId: string;
-    profileId: string;
-    profileName: string
-  }) => void) => () => void;
   /** Listen for Claude busy state changes (for visual indicator: red=busy, green=idle) */
   onTerminalClaudeBusy: (callback: (id: string, isBusy: boolean) => void) => () => void;
   /** Listen for Claude exit (user closed Claude within terminal, returned to shell) */
@@ -321,14 +314,6 @@ export interface ElectronAPILegacy {
   onTerminalPendingResume: (callback: (id: string, sessionId?: string) => void) => () => void;
   /** Listen for profile change events - terminals need to be recreated with new profile env vars */
   onTerminalProfileChanged: (callback: (event: TerminalProfileChangedEvent) => void) => () => void;
-  /** Listen for OAuth code input requests (manual OAuth flow) */
-  onTerminalOAuthCodeNeeded: (callback: (info: {
-    terminalId: string;
-    profileId: string;
-    profileName: string
-  }) => void) => () => void;
-  /** Submit OAuth code from user (for manual OAuth flow) */
-  submitOAuthCode: (terminalId: string, code: string) => Promise<IPCResult>;
 
   // Claude profile management (multi-account support)
   getClaudeProfiles: () => Promise<IPCResult<ClaudeProfileSettings>>;
@@ -338,8 +323,6 @@ export interface ElectronAPILegacy {
   setActiveClaudeProfile: (profileId: string) => Promise<IPCResult>;
   /** Switch terminal to use a different Claude profile (restarts Claude with new config) */
   switchClaudeProfile: (terminalId: string, profileId: string) => Promise<IPCResult>;
-  /** Initialize authentication for a Claude profile (legacy - uses hidden terminal) */
-  initializeClaudeProfile: (profileId: string) => Promise<IPCResult>;
   /** Set OAuth token for a profile (used when capturing from terminal) */
   setClaudeProfileToken: (profileId: string, token: string, email?: string) => Promise<IPCResult>;
   /** Prepare authentication for a Claude profile - returns terminal config for embedded terminal */
@@ -401,7 +384,6 @@ export interface ElectronAPILegacy {
   getSentryConfig: () => Promise<{ dsn: string; tracesSampleRate: number; profilesSampleRate: number }>;
 
   getCliToolsInfo: () => Promise<IPCResult<{
-    python: import('./cli').ToolDetectionResult;
     git: import('./cli').ToolDetectionResult;
     gh: import('./cli').ToolDetectionResult;
     glab: import('./cli').ToolDetectionResult;
@@ -457,6 +439,11 @@ export interface ElectronAPILegacy {
     featureId: string,
     status: RoadmapFeatureStatus
   ) => Promise<IPCResult>;
+  updateFeaturePriority: (
+    projectId: string,
+    featureId: string,
+    priority: RoadmapFeaturePriority
+  ) => Promise<IPCResult>;
   convertFeatureToSpec: (
     projectId: string,
     featureId: string
@@ -498,7 +485,7 @@ export interface ElectronAPILegacy {
   getProjectEnv: (projectId: string) => Promise<IPCResult<ProjectEnvConfig>>;
   updateProjectEnv: (projectId: string, config: Partial<ProjectEnvConfig>) => Promise<IPCResult>;
 
-  // Memory Infrastructure operations (LadybugDB - no Docker required)
+  // Memory Infrastructure operations (built-in memory, libSQL)
   getMemoryInfrastructureStatus: (dbPath?: string) => Promise<IPCResult<InfrastructureStatus>>;
   listMemoryDatabases: (dbPath?: string) => Promise<IPCResult<string[]>>;
   testMemoryConnection: (dbPath?: string, database?: string) => Promise<IPCResult<MemoryValidationResult>>;
@@ -669,29 +656,15 @@ export interface ElectronAPILegacy {
     callback: (projectId: string, error: string) => void
   ) => () => void;
 
-  // Release operations
-  getReleaseableVersions: (projectId: string) => Promise<IPCResult<ReleaseableVersion[]>>;
-  runReleasePreflightCheck: (projectId: string, version: string) => Promise<IPCResult<ReleasePreflightStatus>>;
-  createRelease: (request: CreateReleaseRequest) => void;
-
-  // Release event listeners
-  onReleaseProgress: (
-    callback: (projectId: string, progress: ReleaseProgress) => void
-  ) => () => void;
-  onReleaseComplete: (
-    callback: (projectId: string, result: CreateReleaseResult) => void
-  ) => () => void;
-  onReleaseError: (
-    callback: (projectId: string, error: string) => void
-  ) => () => void;
-
   // Ideation operations
   getIdeation: (projectId: string) => Promise<IPCResult<IdeationSession | null>>;
   generateIdeation: (projectId: string, config: IdeationConfig) => void;
   refreshIdeation: (projectId: string, config: IdeationConfig) => void;
   stopIdeation: (projectId: string) => Promise<IPCResult>;
+  getIdeationStatus: (projectId: string) => Promise<IPCResult<IdeationRunStatus | null>>;
   updateIdeaStatus: (projectId: string, ideaId: string, status: IdeationStatus) => Promise<IPCResult>;
   convertIdeaToTask: (projectId: string, ideaId: string) => Promise<IPCResult<Task>>;
+  addIdeaToRoadmap: (projectId: string, ideaId: string) => Promise<IPCResult<{ featureId: string }>>;
   dismissIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
   dismissAllIdeas: (projectId: string) => Promise<IPCResult>;
   archiveIdea: (projectId: string, ideaId: string) => Promise<IPCResult>;
@@ -756,6 +729,8 @@ export interface ElectronAPILegacy {
   getChangelogDoneTasks: (projectId: string, tasks?: Task[]) => Promise<IPCResult<ChangelogTask[]>>;
   loadTaskSpecs: (projectId: string, taskIds: string[]) => Promise<IPCResult<TaskSpecContent[]>>;
   generateChangelog: (request: ChangelogGenerationRequest) => Promise<IPCResult<void>>; // Async with progress events
+  getChangelogStatus: (projectId: string) => Promise<IPCResult<ChangelogRunStatus | null>>;
+  clearChangelogStatus: (projectId: string) => Promise<IPCResult>;
   saveChangelog: (request: ChangelogSaveRequest) => Promise<IPCResult<ChangelogSaveResult>>;
   readExistingChangelog: (projectId: string) => Promise<IPCResult<ExistingChangelog>>;
   suggestChangelogVersion: (
@@ -816,16 +791,17 @@ export interface ElectronAPILegacy {
   unarchiveInsightsSession: (projectId: string, sessionId: string) => Promise<IPCResult>;
   renameInsightsSession: (projectId: string, sessionId: string, newTitle: string) => Promise<IPCResult>;
   updateInsightsModelConfig: (projectId: string, sessionId: string, modelConfig: InsightsModelConfig) => Promise<IPCResult>;
+  getInsightsStreamStatus: (projectId: string) => Promise<IPCResult<InsightsStreamStatus | null>>;
 
   // Insights event listeners
   onInsightsStreamChunk: (
-    callback: (projectId: string, chunk: InsightsStreamChunk) => void
+    callback: (projectId: string, chunk: InsightsStreamChunk, sessionId?: string) => void
   ) => () => void;
   onInsightsStatus: (
-    callback: (projectId: string, status: InsightsChatStatus) => void
+    callback: (projectId: string, status: InsightsChatStatus, sessionId?: string) => void
   ) => () => void;
   onInsightsError: (
-    callback: (projectId: string, error: string) => void
+    callback: (projectId: string, error: string, sessionId?: string) => void
   ) => () => void;
   onInsightsSessionUpdated: (
     callback: (projectId: string, session: InsightsSession) => void
@@ -966,5 +942,7 @@ declare global {
     electronAPI: ElectronAPI;
     DEBUG: boolean;
     platform?: PlatformInfo;
+    /** True when running as the LAN web UI (browser over WebSocket), not inside Electron. */
+    isRemote?: boolean;
   }
 }

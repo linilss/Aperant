@@ -56,19 +56,22 @@ export const ROADMAP_STATUS_COLUMNS: RoadmapStatusColumn[] = [
   { id: 'under_review', label: 'Under Review', color: 'border-t-muted-foreground/50', icon: 'Eye' },
   { id: 'planned', label: 'Planned', color: 'border-t-info', icon: 'Calendar' },
   { id: 'in_progress', label: 'In Progress', color: 'border-t-primary', icon: 'Play' },
-  { id: 'done', label: 'Done', color: 'border-t-success', icon: 'Check' }
+  { id: 'done', label: 'Done', color: 'border-t-success', icon: 'Check' },
+  { id: 'dismissed', label: 'Dismissed', color: 'border-t-destructive/50', icon: 'Ban' }
 ];
 
 export const ROADMAP_STATUS_LABELS: Record<string, string> = {
   under_review: 'Under Review',
   planned: 'Planned',
   in_progress: 'In Progress',
-  done: 'Done'
+  done: 'Done',
+  dismissed: 'Dismissed'
 };
 
 export const ROADMAP_STATUS_COLORS: Record<string, string> = {
   under_review: 'bg-muted text-muted-foreground',
   planned: 'bg-info/10 text-info',
   in_progress: 'bg-primary/10 text-primary',
-  done: 'bg-success/10 text-success'
+  done: 'bg-success/10 text-success',
+  dismissed: 'bg-destructive/10 text-destructive'
 };

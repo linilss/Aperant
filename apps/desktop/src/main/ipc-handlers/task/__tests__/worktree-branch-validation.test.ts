@@ -158,4 +158,28 @@ describe('validateWorktreeBranch', () => {
       expect(result.reason).toBe('invalid_pattern');
     });
   });
+
+  describe('configured branch prefix', () => {
+    const settings = { branchPrefix: 'feature/' };
+
+    it('accepts a branch with the configured prefix', () => {
+      const result = validateWorktreeBranch('feature/other-task', 'feature/my-task', settings);
+      expect(result.branchToDelete).toBe('feature/other-task');
+      expect(result.usedFallback).toBe(false);
+      expect(result.reason).toBe('pattern_match');
+    });
+
+    it('still accepts legacy malvy/ branches', () => {
+      const result = validateWorktreeBranch('malvy/old-task', 'feature/old-task', settings);
+      expect(result.branchToDelete).toBe('malvy/old-task');
+      expect(result.reason).toBe('pattern_match');
+    });
+
+    it('rejects the configured prefix when it is not configured', () => {
+      const result = validateWorktreeBranch('feature/other-task', 'malvy/my-task');
+      expect(result.branchToDelete).toBe('malvy/my-task');
+      expect(result.usedFallback).toBe(true);
+      expect(result.reason).toBe('invalid_pattern');
+    });
+  });
 });

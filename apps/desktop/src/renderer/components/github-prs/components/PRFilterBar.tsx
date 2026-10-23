@@ -34,6 +34,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { PRFilterState, PRStatusFilter, PRSortOption } from '../hooks/usePRFiltering';
 import { cn } from '../../../lib/utils';
+import { ChipRow } from '../../ui/page-header';
 
 interface PRFilterBarProps {
   filters: PRFilterState;
@@ -173,7 +174,7 @@ function FilterDropdown<T extends string>({
           variant="outline"
           size="sm"
           className={cn(
-            "h-8 w-full justify-start border-dashed bg-transparent",
+            "h-8 w-full min-w-0 justify-start border-dashed bg-transparent max-md:h-10",
             selected.length > 0 && "border-solid bg-accent/50"
           )}
         >
@@ -364,7 +365,7 @@ function SortDropdown({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 justify-start border-dashed bg-transparent"
+          className="h-8 justify-start border-dashed bg-transparent max-md:h-10"
         >
           <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
           <span className="truncate">{title}</span>
@@ -439,21 +440,22 @@ export function PRFilterBar({
     STATUS_OPTIONS.find((opt) => opt.value === value);
 
   return (
-    <div className="px-4 py-2 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex items-center gap-2 h-9">
+    <div className="px-4 py-2 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 max-md:px-3">
+      {/* Wraps onto more rows when narrow so no control is clipped */}
+      <div className="flex flex-wrap items-center gap-2">
         {/* Search Input - Flexible width */}
-        <div className="relative flex-1 max-w-md">
+        <div className="relative min-w-0 flex-[1_1_12rem] max-w-md max-md:max-w-none max-md:basis-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('prReview.searchPlaceholder')}
             value={filters.searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="h-8 pl-9 bg-background/50 focus:bg-background transition-colors"
+            className="h-8 pl-9 bg-background/50 focus:bg-background transition-colors max-md:h-10"
           />
           {filters.searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground"
               aria-label={t('prReview.clearSearch')}
             >
               <X className="h-3 w-3" />
@@ -461,10 +463,12 @@ export function PRFilterBar({
           )}
         </div>
 
-        <Separator orientation="vertical" className="h-5 mx-1" />
+        <Separator orientation="vertical" className="h-5 mx-1 max-md:hidden" />
 
+        {/* Dropdowns: part of the wrapping row on desktop, one sideways-scrolling row on phones */}
+        <ChipRow className="md:contents max-md:basis-full">
         {/* Contributors Filter */}
-        <div className="flex-1 max-w-[240px]">
+        <div className="min-w-0 flex-[1_1_8rem] max-w-[240px] max-md:max-w-none">
           <FilterDropdown
             title={t('prReview.contributors')}
             icon={Users}
@@ -490,7 +494,7 @@ export function PRFilterBar({
         </div>
 
         {/* Status Filter */}
-        <div className="flex-1 max-w-[240px]">
+        <div className="min-w-0 flex-[1_1_8rem] max-w-[240px] max-md:max-w-none">
           <FilterDropdown
             title={t('prReview.allStatuses')}
             icon={Filter}
@@ -547,13 +551,16 @@ export function PRFilterBar({
           />
         </div>
 
+        </ChipRow>
+
         {/* Reset All */}
         {hasActiveFilters && (
           <Button
             variant="ghost"
             size="sm"
             onClick={onClearFilters}
-            className="h-8 px-2 lg:px-3 text-muted-foreground hover:text-foreground ml-auto"
+            className="h-8 px-2 lg:px-3 text-muted-foreground hover:text-foreground ml-auto max-md:h-10"
+            aria-label={t('prReview.reset')}
           >
             <span className="hidden lg:inline mr-2">{t('prReview.reset')}</span>
             <X className="h-4 w-4" />

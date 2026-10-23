@@ -16,7 +16,13 @@ import { ipcMain } from "electron";
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type { AgentManager } from "../agent";
-import type { IdeationGenerationStatus, IdeationSession, Idea } from "../../shared/types";
+import type {
+  IdeationGenerationStatus,
+  IdeationRunStatus,
+  IdeationSession,
+  Idea,
+  IPCResult,
+} from "../../shared/types";
 import {
   getIdeationSession,
   updateIdeaStatus,
@@ -29,8 +35,10 @@ import {
   refreshIdeationSession,
   stopIdeationGeneration,
   convertIdeaToTask,
+  addIdeaToRoadmapHandler,
 } from "./ideation";
 import { safeSendToRenderer } from "./utils";
+import { notifyFunnelChanged } from "./funnel-handlers";
 
 /**
  * Register all ideation-related IPC handlers
@@ -68,8 +76,24 @@ export function registerIdeationHandlers(
     stopIdeationGeneration(event, projectId, agentManager, getMainWindow())
   );
 
+  // Running generation's progress, so the view can restore it after a project switch
+  ipcMain.handle(
+    IPC_CHANNELS.IDEATION_GET_STATUS,
+    (_event, projectId: string): IPCResult<IdeationRunStatus | null> => ({
+      success: true,
+      data: agentManager.getIdeationRunStatus(projectId),
+    })
+  );
+
   // Task conversion
   ipcMain.handle(IPC_CHANNELS.IDEATION_CONVERT_TO_TASK, convertIdeaToTask);
+
+  // Funnel: idea → roadmap feature (roadmap.json)
+  ipcMain.handle(IPC_CHANNELS.ROADMAP_ADD_FEATURE_FROM_IDEA, async (event, projectId: string, ideaId: string) => {
+    const result = await addIdeaToRoadmapHandler(event, projectId, ideaId);
+    if (result.success) notifyFunnelChanged(projectId);
+    return result;
+  });
 
   // ============================================
   // Ideation Agent Events → Renderer
@@ -103,6 +127,7 @@ export function registerIdeationHandlers(
 
   const handleIdeationComplete = (projectId: string, session: IdeationSession): void => {
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.IDEATION_COMPLETE, projectId, session);
+    notifyFunnelChanged(projectId);
   };
 
   const handleIdeationError = (projectId: string, error: string): void => {

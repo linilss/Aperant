@@ -336,8 +336,8 @@ export function WorkspaceStatus({
           </div>
         )}
 
-        {/* Open in IDE/Terminal buttons */}
-        {worktreeStatus.worktreePath && (
+        {/* Open in IDE/Terminal buttons (desktop apps: not available remotely) */}
+        {worktreeStatus.worktreePath && !window.isRemote && (
           <div className="flex gap-2 mt-3">
             <Button
               variant="outline"

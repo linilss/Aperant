@@ -2,6 +2,7 @@ import { GitCommit } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { cn } from '../../lib/utils';
+import { DeploymentBadge } from '../TaskCard';
 import type { ChangelogTask, GitCommit as GitCommitType } from '../../../shared/types';
 
 interface TaskCardProps {
@@ -36,6 +37,7 @@ export function TaskCard({ task, isSelected, onToggle }: TaskCardProps) {
             </p>
           )}
           <div className="flex items-center gap-2 mt-3">
+            {task.lastDeployment && <DeploymentBadge deployment={task.lastDeployment} />}
             {task.hasSpecs && (
               <Badge variant="secondary" className="text-xs">
                 Has Specs

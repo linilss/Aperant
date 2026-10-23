@@ -12,9 +12,19 @@
  *   (commit messages, PR templates, analysis tasks).
  */
 
+import { isMainThread } from 'node:worker_threads';
+
 import type { Tool as AITool } from 'ai';
 
-import { resolveAuth, resolveAuthFromQueue, buildDefaultQueueConfig } from '../auth/resolver';
+import {
+  applyProfilePinToQueue,
+  buildDefaultQueueConfig,
+  queueHasProfileAccount,
+  resolveAuth,
+  resolveAuthFromQueue,
+  resolveProfileOAuthAuth,
+} from '../auth/resolver';
+import { createClaudeCliModel } from '../cli/claude-cli-model';
 import {
   getDefaultThinkingLevel,
   getRequiredMcpServers,
@@ -26,8 +36,10 @@ import { resolveReasoningParams } from '../config/types';
 import { createMcpClientsForAgent, closeAllMcpClients, mergeMcpTools } from '../mcp/client';
 import type { McpClientResult } from '../mcp/types';
 import { createProvider, detectProviderFromModel } from '../providers/factory';
+import { isOAuthToken } from '../providers/oauth-token';
+import type { SupportedProvider } from '../providers/types';
 import { buildToolRegistry } from '../tools/build-registry';
-import type { QueueResolvedAuth } from '../auth/types';
+import type { QueueResolvedAuth, ResolvedAuth } from '../auth/types';
 import type {
   AgentClientConfig,
   AgentClientResult,
@@ -193,6 +205,58 @@ export async function createAgentClient(
 }
 
 // =============================================================================
+// Claude subscription routing
+// =============================================================================
+
+/**
+ * True when a call would hit api.anthropic.com with a Claude subscription (OAuth)
+ * credential. Those calls share the subscription quota with Claude Code and get
+ * HTTP 429, so they are routed through the `claude` CLI instead.
+ */
+export function shouldRouteViaClaudeCli(
+  provider: SupportedProvider | string,
+  auth: Pick<ResolvedAuth, 'apiKey' | 'source'> | null | undefined,
+): boolean {
+  if (provider !== 'anthropic' || !auth) return false;
+  return auth.source === 'profile-oauth' || isOAuthToken(auth.apiKey);
+}
+
+// =============================================================================
+// Per-project Claude account
+// =============================================================================
+
+type ProjectPin = {
+  profileId: string;
+  strict: boolean;
+  configDir?: string;
+};
+
+/**
+ * Pinned Claude profile for the project at `projectPath`, or null when the project
+ * uses the app's active account (or the model isn't a Claude model). The profile
+ * module is main-process only, so it is loaded lazily and failures mean "no pin".
+ */
+async function resolveProjectPin(projectPath: string | undefined, modelId: string): Promise<ProjectPin | null> {
+  // Worker threads have no profile manager / project store (they get explicit config)
+  if (!projectPath || !isMainThread) return null;
+  if ((detectProviderFromModel(modelId) ?? 'anthropic') !== 'anthropic') return null;
+  try {
+    const { getProjectProfileBinding } = await import('../../claude-profile/project-profile');
+    return getProjectProfileBinding({ projectPath });
+  } catch {
+    return null;
+  }
+}
+
+function isPinnedQueueAccount(
+  queue: { id: string; claudeProfileId?: string }[] | undefined,
+  accountId: string,
+  profileId: string,
+): boolean {
+  return !!queue?.some((a) => a.id === accountId && a.claudeProfileId === profileId);
+}
+
+// =============================================================================
 // createSimpleClient
 // =============================================================================
 
@@ -219,16 +283,27 @@ export async function createSimpleClient(
     maxSteps = DEFAULT_SIMPLE_MAX_STEPS,
     tools = {},
     queueConfig: explicitQueueConfig,
+    cwd,
   } = config;
 
   // Auto-build queue config from settings if none was explicitly provided.
-  const queueConfig = explicitQueueConfig ?? buildDefaultQueueConfig(resolveModelId(modelShorthand));
+  let queueConfig = explicitQueueConfig ?? buildDefaultQueueConfig(resolveModelId(modelShorthand));
+
+  // A project pinned to a Claude profile runs its Claude calls on that account
+  const pin = await resolveProjectPin(config.projectPath ?? cwd, resolveModelId(modelShorthand));
+  if (pin && queueConfig) {
+    queueConfig = queueHasProfileAccount(queueConfig.queue, pin.profileId)
+      ? { ...queueConfig, queue: applyProfilePinToQueue(queueConfig.queue, pin.profileId, pin.strict) }
+      : undefined; // no queue account for the profile: use its own credentials below
+  }
 
   // Resolve model + auth
   let model;
   let resolvedModelId: string;
   let resolvedThinkingLevel: ThinkingLevel = thinkingLevel;
   let queueAuth: QueueResolvedAuth | null = null;
+  let resolvedProvider: SupportedProvider;
+  let resolvedAuth: ResolvedAuth | null;
 
   if (queueConfig) {
     // Queue-based resolution: use global priority queue
@@ -240,6 +315,7 @@ export async function createSimpleClient(
       {
         excludeAccountIds,
         userModelOverrides: userModelOverrides as any,
+        profileConfigDirs: pin?.configDir ? { [pin.profileId]: pin.configDir } : undefined,
       }
     );
 
@@ -248,6 +324,8 @@ export async function createSimpleClient(
     }
 
     resolvedModelId = queueAuth.resolvedModelId;
+    resolvedProvider = queueAuth.resolvedProvider;
+    resolvedAuth = queueAuth;
     // Use createProvider() with the queue-resolved provider to avoid re-detecting
     // from model ID prefix. This is critical for providers like Ollama whose models
     // (e.g., 'llama3.1:8b') don't follow predictable prefix conventions.
@@ -268,10 +346,14 @@ export async function createSimpleClient(
     // Legacy per-provider resolution
     resolvedModelId = resolveModelId(modelShorthand);
     const detectedProvider = detectProviderFromModel(resolvedModelId) ?? 'anthropic';
-    const auth = await resolveAuth({
-      provider: detectedProvider,
-      profileId,
-    });
+    const auth = pin?.configDir && detectedProvider === 'anthropic'
+      ? await resolveProfileOAuthAuth(pin.configDir)
+      : await resolveAuth({
+        provider: detectedProvider,
+        profileId,
+      });
+    resolvedProvider = detectedProvider;
+    resolvedAuth = auth;
 
     model = createProvider({
       config: {
@@ -282,6 +364,22 @@ export async function createSimpleClient(
         oauthTokenFilePath: auth?.oauthTokenFilePath,
       },
       modelId: resolvedModelId,
+    });
+  }
+
+  // Claude subscription → run through the claude CLI. The direct model stays as the
+  // fallback for calls whose tools have no CLI equivalent (and for a missing CLI).
+  if (shouldRouteViaClaudeCli(resolvedProvider, resolvedAuth)) {
+    model = createClaudeCliModel({
+      modelId: resolvedModelId,
+      cwd,
+      maxTurns: maxSteps > 1 ? maxSteps : undefined,
+      fallbackModel: model,
+      // The CLI runs on the project's pinned profile when the pinned account served
+      // the call (a non-strict pin may have fallen back to another queue account)
+      projectPath: pin && (!queueAuth || isPinnedQueueAccount(queueConfig?.queue, queueAuth.accountId, pin.profileId))
+        ? (config.projectPath ?? cwd)
+        : undefined,
     });
   }
 

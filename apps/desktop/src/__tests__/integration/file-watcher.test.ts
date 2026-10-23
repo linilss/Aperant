@@ -94,7 +94,7 @@ describe('File Watcher Integration', () => {
       );
     });
 
-    it('should start watching existing plan file', async () => {
+    it('should start watching the plan file and the rate limit pause sentinel', async () => {
       // Create plan file first
       const planPath = path.join(TEST_SPEC_DIR, 'implementation_plan.json');
       writeFileSync(planPath, JSON.stringify(createTestPlan()));
@@ -105,8 +105,9 @@ describe('File Watcher Integration', () => {
 
       await watcher.watch('task-1', TEST_SPEC_DIR);
 
+      // The pause sentinel doesn't exist yet — chokidar watches for it to appear
       expect(chokidar.default.watch).toHaveBeenCalledWith(
-        planPath,
+        [planPath, path.join(TEST_SPEC_DIR, 'RATE_LIMIT_PAUSE')],
         expect.objectContaining({
           persistent: true,
           ignoreInitial: true,

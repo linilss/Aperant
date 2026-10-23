@@ -16,6 +16,7 @@
  *   ROADMAP_REFINE_ERROR    → renderer — error string
  */
 
+import { saveTranscript } from '../refine-transcript';
 import { ipcMain } from 'electron';
 import type { BrowserWindow } from 'electron';
 
@@ -39,6 +40,8 @@ import type { RoadmapFeature } from '../../shared/types';
 interface RefineSession {
   history: FeatureRefineMessage[];
   abortController: AbortController | null;
+  /** Existing feature being refined: its conversation is saved per feature */
+  feature?: { id: string; title: string };
 }
 
 const sessions = new Map<string, RefineSession>();
@@ -114,6 +117,13 @@ async function sendMessage(
             session.history.push({ role: 'user', content: message });
             session.history.push({ role: 'assistant', content: event.text });
             session.abortController = null;
+            if (session.feature) {
+              try {
+                saveTranscript(projectDir, session.feature.id, session.feature.title, session.history);
+              } catch {
+                /* the refined fields are what matter; the transcript is a bonus */
+              }
+            }
 
             safeSendToRenderer(
               getMainWindow,
@@ -183,7 +193,11 @@ export function registerFeatureRefineHandlers(
       // Reset session
       const existing = sessions.get(projectId);
       existing?.abortController?.abort();
-      sessions.set(projectId, { history: [], abortController: null });
+      sessions.set(projectId, {
+        history: [],
+        abortController: null,
+        ...(featureContext ? { feature: { id: featureContext.id, title: featureContext.title } } : {}),
+      });
 
       // Build the initial message — richer context when refining an existing feature
       let greeting: string;

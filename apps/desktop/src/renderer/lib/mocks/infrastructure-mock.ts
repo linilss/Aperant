@@ -122,9 +122,16 @@ export const infrastructureMock = {
 
   stopIdeation: async () => ({ success: true }),
 
+  getIdeationStatus: async () => ({ success: true, data: null }),
+
   updateIdeaStatus: async () => ({ success: true }),
 
   convertIdeaToTask: async () => ({
+    success: false,
+    error: 'Not available in browser mock'
+  }),
+
+  addIdeaToRoadmap: async () => ({
     success: false,
     error: 'Not available in browser mock'
   }),

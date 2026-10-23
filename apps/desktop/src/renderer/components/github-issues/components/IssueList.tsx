@@ -6,6 +6,7 @@ import { EmptyState } from './EmptyStates';
 import { GitHubErrorDisplay } from './GitHubErrorDisplay';
 import type { IssueListProps } from '../types';
 import { useTranslation } from 'react-i18next';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 export function IssueList({
   issues,
@@ -23,6 +24,8 @@ export function IssueList({
   const { t } = useTranslation('common');
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const [viewportElement, setViewportElement] = useState<HTMLDivElement | null>(null);
+  // Phones scroll the whole page (the list grows to its content), so observe against the window
+  const isMobile = useIsMobile();
 
   // Intersection Observer for infinite scroll
   const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -34,10 +37,10 @@ export function IssueList({
 
   useEffect(() => {
     const trigger = loadMoreTriggerRef.current;
-    if (!trigger || !onLoadMore || !viewportElement) return;
+    if (!trigger || !onLoadMore || (!viewportElement && !isMobile)) return;
 
     const observer = new IntersectionObserver(handleIntersection, {
-      root: viewportElement,
+      root: isMobile ? null : viewportElement,
       rootMargin: '100px',
       threshold: 0
     });
@@ -47,7 +50,7 @@ export function IssueList({
     return () => {
       observer.disconnect();
     };
-  }, [handleIntersection, onLoadMore, viewportElement]);
+  }, [handleIntersection, onLoadMore, viewportElement, isMobile]);
 
   // Only show blocking error view when no issues are loaded
   // Load-more errors are shown inline near the load-more trigger
@@ -71,11 +74,11 @@ export function IssueList({
   }
 
   if (issues.length === 0) {
-    return <EmptyState message="No issues found" />;
+    return <EmptyState message={t('issues.noIssues')} />;
   }
 
   return (
-    <ScrollArea className="flex-1" onViewportRef={setViewportElement}>
+    <ScrollArea className="flex-1 max-md:flex-none" onViewportRef={setViewportElement}>
       <div className="p-2 space-y-1">
         {issues.map((issue) => (
           <IssueListItem

@@ -1,3 +1,26 @@
+## Unreleased - Malvy fork
+
+### ✨ New Features
+
+- **Funnel sidebar, MoSCoW matrix and Deploy view** — Sidebar grouped as Understand / Plan / Build / Review / Ship / Configure; drag-and-drop MoSCoW priority matrix above the Roadmap; Deploy view that finds `deploy*.sh` scripts and runs them in an agent terminal
+- **Invisible mode** — Malvy files are ignored via `.git/info/exclude`, the task branch prefix is configurable, and no Malvy signatures are added to commits or posted reviews
+- **Context hub** — Per-branch CLAUDE.md docs written only to `.malvy/docs`, developer pointers, and a branch-by-branch docs optimizer; pointers and the docs map are injected into agent instructions via `CLAUDE.local.md`
+- **LAN remote access** — Optional HTTP + WebSocket server (token pairing) that serves the renderer to phone browsers, with a mobile layout
+- **Built-in project memory** — Agents get a PROJECT MEMORY section before spec/build/QA and store needs-review insights after successful tasks; Graphiti removed
+
+### 🐛 Bug Fixes
+
+- **Claude 5 model support** — AI SDK upgrade, current model ids, adaptive thinking for Claude 5+, updated pricing
+- **Claude Code limits and auth** — Current limit messages recognised again, new OAuth token URL, terminal resume by session id
+- **Subscription calls via the claude CLI** — Claude subscription (OAuth) calls go through the `claude` CLI instead of the API, avoiding HTTP 429s
+- **Dead settings, buttons and flows** — Wired up or removed (auto-updater points at linilss/Aperant, "Use CLAUDE.md" toggle, roadmap competitor analysis, Fast Mode, changelog generation)
+
+### 🧹 Cleanup
+
+- Removed dead code: unused memory observer/graph/injection modules, orphaned components and services, unreachable IPC handlers and preload methods (GitHub/GitLab triage and auto-fix, MR memory), unused prompts and agent configs
+- `HUMAN_INPUT.md` in a spec directory is now injected into the agent prompt
+- Docs updated for the fork (README, CONTRIBUTING, guides); Python-era notes moved to `guides/archive/`
+
 ## 2.8.0-beta.6 - Production Build Fix
 
 ### 🐛 Bug Fixes

@@ -34,7 +34,14 @@ import {
 import { safeParseJson } from '../../utils/json-repair';
 import type { SessionResult } from '../session/types';
 import { iterateSubtasks } from './subtask-iterator';
+import { QA_CRITERIA_RULES } from './qa-lenses';
+import { skipReleaseSubtasksInFile } from './release-subtasks';
 import type { SubtaskIteratorConfig, SubtaskResult } from './subtask-iterator';
+import {
+  formatVerifyCommandContext,
+  formatVerifyFailure,
+  runVerifyCommand,
+} from './verify-command';
 
 // =============================================================================
 // Constants
@@ -51,6 +58,9 @@ const MAX_SUBTASK_RETRIES = 3;
 
 /** Delay before retrying after an error (ms) */
 const ERROR_RETRY_DELAY_MS = 5_000;
+
+/** QA review rounds (review → fix → re-review) before the task goes to Human Review */
+const MAX_QA_CYCLES = 3;
 
 // =============================================================================
 // Types
@@ -99,6 +109,23 @@ export interface BuildOrchestratorConfig {
   syncSpecToSource?: (specDir: string, sourceSpecDir: string) => Promise<boolean>;
   /** Optional callback to get a resolved LanguageModel for lightweight repair calls */
   getModel?: (agentType: AgentType) => Promise<import('ai').LanguageModel | undefined>;
+  /**
+   * Project verify command (ProjectSettings.verifyCommand). When set it runs in
+   * projectDir after each completed subtask and before every QA review; failures
+   * are fed back to the coder / QA fixer. Unset = no gate.
+   */
+  verifyCommand?: string;
+  /** Override for the verify runner (tests) */
+  runVerify?: typeof runVerifyCommand;
+  /**
+   * Independent read-only reviews (risk, fast scan) run before each QA review;
+   * returns a prompt section for the main reviewer. Unset = main reviewer only.
+   */
+  runReviewLenses?: () => Promise<string>;
+  /** Restore the worktree to a commit (reverting a QA fix that broke the tests). Unset = never revert. */
+  revertTo?: (commit: string) => Promise<boolean>;
+  /** Current HEAD commit of the worktree, after committing pending work. Unset = no revert safety. */
+  checkpoint?: () => Promise<string | null>;
 }
 
 /** Context passed to prompt generation */
@@ -272,6 +299,15 @@ export class BuildOrchestrator extends EventEmitter {
           `Implementation plan is invalid and cannot be executed: ${errorDetail}`);
       }
 
+      // Agents never release: close deploy/TestFlight/push subtasks before coding
+      const skippedReleaseSubtasks = await skipReleaseSubtasksInFile(preCodingPlanPath);
+      if (skippedReleaseSubtasks.length > 0) {
+        this.emitTyped('log', `Skipped release subtasks (the user deploys from Malvy): ${skippedReleaseSubtasks.join(', ')}`);
+        if (this.config.sourceSpecDir && this.config.syncSpecToSource) {
+          await this.config.syncSpecToSource(this.config.specDir, this.config.sourceSpecDir);
+        }
+      }
+
       // Check if build is already complete
       if (await this.isBuildComplete()) {
         this.transitionPhase('complete', 'Build already complete');
@@ -315,11 +351,11 @@ export class BuildOrchestrator extends EventEmitter {
       this.iteration++;
       this.emitTyped('iteration-start', this.iteration, 'planning');
 
-      const prompt = await this.config.generatePrompt('planner', 'planning', {
+      const prompt = this.withVerifyContext(await this.config.generatePrompt('planner', 'planning', {
         iteration: this.iteration,
         planningRetryContext,
         attemptCount: attempt,
-      });
+      }));
 
       const result = await this.config.runSession({
         agentType: 'planner',
@@ -425,6 +461,9 @@ export class BuildOrchestrator extends EventEmitter {
   private async runCodingPhase(): Promise<{ success: boolean; error?: string }> {
     this.transitionPhase('coding', 'Starting implementation');
 
+    // Verify-gate failure output per subtask, fed into that subtask's next attempt
+    const verifyFailures = new Map<string, string>();
+
     const iteratorConfig: SubtaskIteratorConfig = {
       specDir: this.config.specDir,
       projectDir: this.config.projectDir,
@@ -438,11 +477,13 @@ export class BuildOrchestrator extends EventEmitter {
         this.emitTyped('log', `Working on ${subtask.id}: ${subtask.description} (attempt ${attempt})`);
       },
       runSubtaskSession: async (subtask, attempt) => {
-        const prompt = await this.config.generatePrompt('coder', 'coding', {
+        const verifyFailure = verifyFailures.get(subtask.id);
+        const prompt = this.withVerifyContext(await this.config.generatePrompt('coder', 'coding', {
           iteration: this.iteration,
           subtask,
           attemptCount: attempt,
-        });
+          recoveryHints: verifyFailure,
+        }), verifyFailure);
 
         return this.config.runSession({
           agentType: 'coder',
@@ -463,6 +504,17 @@ export class BuildOrchestrator extends EventEmitter {
       onSubtaskStuck: (subtask, reason) => {
         this.emitTyped('log', `Subtask ${subtask.id} stuck: ${reason}`);
       },
+      verifySubtask: this.config.verifyCommand
+        ? async (subtask) => {
+            const failure = await this.runVerifyGate(`after ${subtask.id}`);
+            if (failure) {
+              verifyFailures.set(subtask.id, failure);
+              return false;
+            }
+            verifyFailures.delete(subtask.id);
+            return true;
+          }
+        : undefined,
     };
 
     const iteratorResult = await iterateSubtasks(iteratorConfig);
@@ -494,40 +546,73 @@ export class BuildOrchestrator extends EventEmitter {
     // QA review
     this.transitionPhase('qa_review', 'Running QA review');
 
-    const maxQACycles = 3;
+    const maxQACycles = MAX_QA_CYCLES;
+    // Set when the post-fix check already proved the current code green (saves a second test run)
+    let knownGreen = false;
     for (let cycle = 0; cycle < maxQACycles; cycle++) {
       if (this.aborted) {
         return { success: false, error: 'Build cancelled' };
       }
 
-      this.iteration++;
-      this.emitTyped('iteration-start', this.iteration, 'qa_review');
-
-      const reviewPrompt = await this.config.generatePrompt('qa_reviewer', 'qa_review', {
-        iteration: this.iteration,
-        attemptCount: cycle,
-      });
-
-      const reviewResult = await this.config.runSession({
-        agentType: 'qa_reviewer',
-        phase: 'qa',
-        systemPrompt: reviewPrompt,
-        specDir: this.config.specDir,
-        projectDir: this.config.projectDir,
-        sessionNumber: this.iteration,
-        abortSignal: this.config.abortSignal,
-        cliModel: this.config.cliModel,
-        cliThinking: this.config.cliThinking,
-      });
-
-      this.emitTyped('session-complete', reviewResult, 'qa_review');
-
-      if (reviewResult.outcome === 'cancelled') {
+      // Deterministic gate before every review: a failing verify command can't pass QA
+      const verifyFailure = knownGreen ? undefined : await this.runVerifyGate('before QA review');
+      knownGreen = false;
+      if (this.aborted) {
         return { success: false, error: 'Build cancelled' };
       }
 
-      // Check QA result
-      const qaStatus = await this.readQAStatus();
+      let qaStatus: Awaited<ReturnType<BuildOrchestrator['readQAStatus']>>;
+      if (verifyFailure) {
+        // Red tests fail QA on their own: straight to the fixer, no review needed
+        this.emitTyped('log', 'Verify command fails — skipping the review, sending the failure to the QA fixer');
+        qaStatus = 'failed';
+      } else {
+        this.iteration++;
+        this.emitTyped('iteration-start', this.iteration, 'qa_review');
+
+        // Independent reviews first (/proofread style), then the main reviewer consolidates
+        let lensSection = '';
+        if (this.config.runReviewLenses) {
+          this.emitTyped('log', 'Running independent reviews (risk, fast scan)');
+          try {
+            lensSection = await this.config.runReviewLenses();
+          } catch (error) {
+            this.emitTyped('log', `Independent reviews failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+        if (this.aborted) {
+          return { success: false, error: 'Build cancelled' };
+        }
+
+        const basePrompt = await this.config.generatePrompt('qa_reviewer', 'qa_review', {
+          iteration: this.iteration,
+          attemptCount: cycle,
+        });
+        const reviewPrompt = this.withVerifyContext(
+          [basePrompt, QA_CRITERIA_RULES, lensSection].filter(Boolean).join('\n\n'),
+          undefined,
+        );
+
+        const reviewResult = await this.config.runSession({
+          agentType: 'qa_reviewer',
+          phase: 'qa',
+          systemPrompt: reviewPrompt,
+          specDir: this.config.specDir,
+          projectDir: this.config.projectDir,
+          sessionNumber: this.iteration,
+          abortSignal: this.config.abortSignal,
+          cliModel: this.config.cliModel,
+          cliThinking: this.config.cliThinking,
+        });
+
+        this.emitTyped('session-complete', reviewResult, 'qa_review');
+
+        if (reviewResult.outcome === 'cancelled') {
+          return { success: false, error: 'Build cancelled' };
+        }
+
+        qaStatus = await this.readQAStatus();
+      }
 
       if (qaStatus === 'passed') {
         this.markPhaseCompleted('qa_review');
@@ -543,11 +628,13 @@ export class BuildOrchestrator extends EventEmitter {
 
         this.iteration++;
         this.emitTyped('iteration-start', this.iteration, 'qa_fixing');
+        // Remember where the code was, so a fix that turns green tests red can be undone
+        const beforeFix = !verifyFailure && this.config.verifyCommand ? await this.config.checkpoint?.() : null;
 
-        const fixPrompt = await this.config.generatePrompt('qa_fixer', 'qa_fixing', {
+        const fixPrompt = this.withVerifyContext(await this.config.generatePrompt('qa_fixer', 'qa_fixing', {
           iteration: this.iteration,
           attemptCount: cycle,
-        });
+        }), verifyFailure);
 
         const fixResult = await this.config.runSession({
           agentType: 'qa_fixer',
@@ -564,6 +651,18 @@ export class BuildOrchestrator extends EventEmitter {
         this.emitTyped('session-complete', fixResult, 'qa_fixing');
         this.markPhaseCompleted('qa_fixing');
 
+        // Never make it worse: tests that passed before the fix must still pass after it
+        if (beforeFix && this.config.revertTo) {
+          const broke = await this.runVerifyGate('after QA fix');
+          knownGreen = !broke;
+          if (broke && !this.aborted) {
+            const reverted = await this.config.revertTo(beforeFix);
+            this.emitTyped('log', reverted
+              ? 'The QA fix broke tests that passed before — reverted it'
+              : 'The QA fix broke tests that passed before, and reverting failed');
+          }
+        }
+
         // Delete qa_report.md before re-review so the reviewer writes a clean verdict.
         // The fixer often edits qa_report.md (changing status to "FIXES_APPLIED" etc.)
         // which corrupts the verdict detection. Deleting ensures a fresh report each cycle.
@@ -574,12 +673,47 @@ export class BuildOrchestrator extends EventEmitter {
         continue;
       }
 
-      // QA failed and no more cycles
-      this.transitionPhase('failed', 'QA review failed after maximum fix cycles');
-      return { success: false, error: 'QA review failed after maximum fix cycles' };
+      // QA failed and no more cycles — the task lands in Human Review (reviewReason: errors)
+      const message = `QA did not converge after ${maxQACycles} rounds — human review needed`;
+      this.transitionPhase('failed', message);
+      return { success: false, error: message };
     }
 
     return { success: false, error: 'QA exhausted all cycles' };
+  }
+
+  // ===========================================================================
+  // Verify Gate
+  // ===========================================================================
+
+  /**
+   * Run the project verify command in the worktree.
+   * Returns a prompt section describing the failure, or undefined when it passes
+   * (or no verify command is configured).
+   */
+  private async runVerifyGate(label: string): Promise<string | undefined> {
+    const command = this.config.verifyCommand?.trim();
+    if (!command) return undefined;
+
+    this.emitTyped('log', `Running verify command (${label}): ${command}`);
+    const run = this.config.runVerify ?? runVerifyCommand;
+    const result = await run(command, this.config.projectDir, { abortSignal: this.config.abortSignal });
+    if (result.passed) {
+      this.emitTyped('log', `Verify command passed (${Math.round(result.durationMs / 1000)}s)`);
+      return undefined;
+    }
+    const status = result.timedOut ? 'timed out' : `exit code ${result.exitCode ?? 'unknown'}`;
+    this.emitTyped('log', `Verify command failed (${label}, ${status})`);
+    return formatVerifyFailure(command, result);
+  }
+
+  /** Append the verify-command context (and an optional failure section) to a prompt. */
+  private withVerifyContext(prompt: string, failure?: string): string {
+    const command = this.config.verifyCommand?.trim();
+    if (!command) return prompt;
+    let result = `${prompt}\n\n${formatVerifyCommandContext(command)}`;
+    if (failure) result += `\n\n${failure}`;
+    return result;
   }
 
   // ===========================================================================

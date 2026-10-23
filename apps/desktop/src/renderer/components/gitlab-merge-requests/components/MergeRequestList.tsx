@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, RefreshCw, GitPullRequest } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -25,6 +26,7 @@ export function MergeRequestList({
   stateFilter,
   onStateFilterChange
 }: MergeRequestListProps) {
+  const { t } = useTranslation(['gitlab', 'common']);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredMrs = mergeRequests.filter((mr) => {
@@ -38,56 +40,57 @@ export function MergeRequestList({
   });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full max-md:h-auto">
       {/* Header */}
-      <div className="p-4 border-b border-border space-y-3">
+      <div className="p-4 border-b border-border space-y-3 max-md:p-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
             <GitPullRequest className="h-4 w-4" />
-            Merge Requests
+            {t('mergeRequests.listTitle')}
           </h3>
           <Button
             variant="ghost"
             size="sm"
             onClick={onRefresh}
             disabled={isLoading}
-            className="h-7 px-2"
+            className="h-7 px-2 max-md:h-10 max-md:w-10"
+            aria-label={t('common:buttons.refresh')}
           >
             <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
 
         <Input
-          placeholder="Search merge requests..."
+          placeholder={t('mergeRequests.searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-8 text-sm"
+          className="h-8 text-sm max-md:h-10"
         />
 
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {(['opened', 'merged', 'closed', 'all'] as const).map((state) => (
             <Button
               key={state}
               variant={stateFilter === state ? 'default' : 'ghost'}
               size="sm"
               onClick={() => onStateFilterChange(state)}
-              className="h-7 text-xs capitalize"
+              className="h-7 text-xs max-md:h-9"
             >
-              {state}
+              {t(`mergeRequests.filters.${state}`)}
             </Button>
           ))}
         </div>
       </div>
 
       {/* List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 max-md:flex-none">
         {isLoading && mergeRequests.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : filteredMrs.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            {searchQuery ? 'No matching merge requests' : 'No merge requests found'}
+            {searchQuery ? t('mergeRequests.noMatching') : t('mergeRequests.noneFound')}
           </div>
         ) : (
           <div className="p-2 space-y-1">

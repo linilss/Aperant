@@ -12,6 +12,7 @@ import type {
   InsightsSession,
   InsightsSessionSummary,
   InsightsModelConfig,
+  InsightsStreamStatus,
   ImageAttachment,
   Task,
   TaskMetadata,
@@ -53,6 +54,15 @@ export function registerInsightsHandlers(getMainWindow: () => BrowserWindow | nu
       const session = insightsService.loadSession(projectId, project.path);
       return { success: true, data: session };
     }
+  );
+
+  // Reply still streaming for the project, so the chat can restore it after a project switch
+  ipcMain.handle(
+    IPC_CHANNELS.INSIGHTS_GET_STREAM_STATUS,
+    (_, projectId: string): IPCResult<InsightsStreamStatus | null> => ({
+      success: true,
+      data: insightsService.getStreamStatus(projectId),
+    })
   );
 
   ipcMain.on(
@@ -407,18 +417,19 @@ export function registerInsightsHandlers(getMainWindow: () => BrowserWindow | nu
   // ============================================
 
   // Forward streaming chunks to renderer
-  insightsService.on("stream-chunk", (projectId: string, chunk: unknown) => {
-    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_STREAM_CHUNK, projectId, chunk);
+  // Every event carries projectId and the reply's sessionId, so the renderer only applies its own
+  insightsService.on("stream-chunk", (projectId: string, chunk: unknown, sessionId?: string) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_STREAM_CHUNK, projectId, chunk, sessionId);
   });
 
   // Forward status updates to renderer
-  insightsService.on("status", (projectId: string, status: unknown) => {
-    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_STATUS, projectId, status);
+  insightsService.on("status", (projectId: string, status: unknown, sessionId?: string) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_STATUS, projectId, status, sessionId);
   });
 
   // Forward errors to renderer
-  insightsService.on("error", (projectId: string, error: string) => {
-    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_ERROR, projectId, error);
+  insightsService.on("error", (projectId: string, error: string, sessionId?: string) => {
+    safeSendToRenderer(getMainWindow, IPC_CHANNELS.INSIGHTS_ERROR, projectId, error, sessionId);
   });
 
   // Forward SDK rate limit events to renderer

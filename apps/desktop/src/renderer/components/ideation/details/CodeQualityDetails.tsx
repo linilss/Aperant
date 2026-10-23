@@ -15,12 +15,14 @@ import {
   IDEATION_EFFORT_COLORS
 } from '../../../../shared/constants';
 import type { CodeQualityIdea } from '../../../../shared/types';
+import { categoryLabel } from '../constants';
 
 interface CodeQualityDetailsProps {
   idea: CodeQualityIdea;
 }
 
 export function CodeQualityDetails({ idea }: CodeQualityDetailsProps) {
+  const category = categoryLabel(CODE_QUALITY_CATEGORY_LABELS, idea.category);
   return (
     <>
       {/* Metrics */}
@@ -40,15 +42,17 @@ export function CodeQualityDetails({ idea }: CodeQualityDetailsProps) {
       </div>
 
       {/* Category */}
-      <div>
-        <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-          <Code2 className="h-4 w-4" />
-          Category
-        </h3>
-        <Badge variant="outline">
-          {CODE_QUALITY_CATEGORY_LABELS[idea.category]}
-        </Badge>
-      </div>
+      {category && (
+        <div>
+          <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <Code2 className="h-4 w-4" />
+            Category
+          </h3>
+          <Badge variant="outline">
+            {category}
+          </Badge>
+        </div>
+      )}
 
       {/* Breaking Change Warning */}
       {idea.breakingChange && (

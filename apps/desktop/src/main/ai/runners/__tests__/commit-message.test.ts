@@ -89,6 +89,12 @@ describe('generateCommitMessage', () => {
     expect(result).toBe('feat(app): add authentication flow\n\nImplemented OAuth2.');
   });
 
+  it("runs on the project's Claude account (passes projectPath)", async () => {
+    mockGenerateText.mockResolvedValue({ text: 'feat: something' });
+    await generateCommitMessage(baseConfig({ projectDir: '/my/project' }));
+    expect(mockCreateSimpleClient).toHaveBeenCalledWith(expect.objectContaining({ projectPath: '/my/project' }));
+  });
+
   it('passes model and systemPrompt from client to generateText', async () => {
     mockGenerateText.mockResolvedValue({ text: 'feat: something' });
 

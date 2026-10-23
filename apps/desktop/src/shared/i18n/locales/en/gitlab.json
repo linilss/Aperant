@@ -99,8 +99,6 @@
     "noMatchingBranches": "No matching branches",
     "noBranchesFound": "No branches found",
     "branchFromNote": "All new tasks will branch from",
-    "autoSyncOnLoad": "Auto-Sync on Load",
-    "autoSyncDescription": "Automatically fetch issues when the project loads",
     "cli": {
       "required": "GitLab CLI Required",
       "notInstalled": "The GitLab CLI (glab) is required for OAuth authentication. Install it to use the 'Use OAuth' option.",
@@ -116,6 +114,10 @@
     "title": "GitLab Merge Requests",
     "newMR": "New Merge Request",
     "selectMR": "Select a merge request to view details",
+    "listTitle": "Merge Requests",
+    "searchPlaceholder": "Search merge requests...",
+    "noMatching": "No matching merge requests",
+    "noneFound": "No merge requests found",
     "states": {
       "opened": "Open",
       "closed": "Closed",

@@ -1,4 +1,14 @@
 @import "tailwindcss";
+
+/* Pages scroll as a whole (header scrolls away) on phones and on touch screens such as iPads */
+@custom-variant pagescroll {
+  @media (max-width: 767.98px) {
+    @slot;
+  }
+  @media (pointer: coarse) {
+    @slot;
+  }
+}
 @plugin "@tailwindcss/typography";
 
 /* Auto-Build UI Design System - Oscura Midnight Theme */
@@ -1727,3 +1737,44 @@ body {
 [data-ui-scale="190"] { font-size: 30.4px; }
 [data-ui-scale="195"] { font-size: 31.2px; }
 [data-ui-scale="200"] { font-size: 32px; }
+
+/* Phone layout (LAN web UI). Never matches in the desktop window (minWidth 800px). */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+  /* iOS Safari zooms the page when focusing an input under 16px */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Markdown (typography plugin): long words/paths wrap instead of widening the column,
+ * code blocks scroll inside their own <pre>, and inline code renders as a chip
+ * rather than with the plugin's literal backticks. */
+.prose {
+  overflow-wrap: anywhere;
+}
+
+.prose :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: normal;
+}
+
+.prose :where(code):not(:where(pre code))::before,
+.prose :where(code):not(:where(pre code))::after {
+  content: none;
+}
+
+.prose :where(code):not(:where(pre code)) {
+  border-radius: 0.25rem;
+  background-color: var(--muted);
+  padding: 0.1em 0.35em;
+  font-weight: 500;
+}

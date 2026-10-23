@@ -41,7 +41,7 @@ vi.mock('../../schema', () => ({
   })),
 }));
 
-import { QALoop } from '../qa-loop';
+import { MAX_QA_ITERATIONS, QALoop } from '../qa-loop';
 import type { QALoopConfig, QASessionRunConfig } from '../qa-loop';
 import type { SessionResult } from '../../session/types';
 
@@ -258,6 +258,37 @@ describe('QALoop', () => {
 
     expect(outcome.approved).toBe(false);
     expect(outcome.reason).toBe('max_iterations');
+  });
+
+  it('caps QA at MAX_QA_ITERATIONS (5) rounds by default and says QA did not converge', async () => {
+    let planReadCount = 0;
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.endsWith('implementation_plan.json')) {
+        planReadCount++;
+        if (planReadCount === 1) return Promise.resolve(completedPlan());
+        return Promise.resolve(JSON.stringify({
+          phases: [{ subtasks: [{ status: 'completed' }] }],
+          qa_signoff: {
+            status: 'rejected',
+            issues_found: [{ title: `Unique issue ${planReadCount}`, type: 'warning' }],
+          },
+        }));
+      }
+      return Promise.reject(new Error('ENOENT'));
+    });
+
+    const runSession = vi.fn().mockResolvedValue(makeSessionResult('completed'));
+    const config = makeConfig({ runSession, maxIterations: undefined });
+    const outcome = await new QALoop(config).run();
+
+    expect(MAX_QA_ITERATIONS).toBe(5);
+    expect(outcome.reason).toBe('max_iterations');
+    expect(outcome.totalIterations).toBe(5);
+    expect(outcome.error).toContain('did not converge after 5 rounds');
+    const reviewerCalls = runSession.mock.calls.filter(
+      (call) => (call[0] as QASessionRunConfig).agentType === 'qa_reviewer',
+    );
+    expect(reviewerCalls).toHaveLength(5);
   });
 
   // -------------------------------------------------------------------------

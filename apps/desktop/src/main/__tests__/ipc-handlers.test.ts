@@ -560,9 +560,9 @@ describe("IPC Handlers", { timeout: 30000 }, () => {
         () => mockMainWindow as never
       );
 
-      await ipcMain.invokeHandler("settings:save", {}, { pythonPath: "/usr/bin/python3" });
+      await ipcMain.invokeHandler("settings:save", {}, { autoBuildPath: "/tmp/auto-build" });
 
-      expect(mockAgentManager.configure).toHaveBeenCalledWith("/usr/bin/python3", undefined);
+      expect(mockAgentManager.configure).toHaveBeenCalledWith(undefined, "/tmp/auto-build");
     });
   });
 
@@ -644,7 +644,8 @@ describe("IPC Handlers", { timeout: 30000 }, () => {
         "task-1",
         "human_review",
         expect.any(String), // projectId for multi-project filtering
-        "errors"
+        "errors",
+        undefined // errorMessage: the worker exited without reporting one
       );
     });
   });

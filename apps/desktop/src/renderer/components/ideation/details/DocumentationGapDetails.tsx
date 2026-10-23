@@ -12,6 +12,7 @@ import {
   IDEATION_IMPACT_COLORS
 } from '../../../../shared/constants';
 import type { DocumentationGapIdea } from '../../../../shared/types';
+import { categoryLabel } from '../constants';
 
 interface DocumentationGapDetailsProps {
   idea: DocumentationGapIdea;
@@ -24,7 +25,7 @@ export function DocumentationGapDetails({ idea }: DocumentationGapDetailsProps) 
       <div className="grid grid-cols-2 gap-2">
         <Card className="p-3 text-center">
           <div className="text-lg font-semibold">
-            {DOCUMENTATION_CATEGORY_LABELS[idea.category]}
+            {categoryLabel(DOCUMENTATION_CATEGORY_LABELS, idea.category) ?? '-'}
           </div>
           <div className="text-xs text-muted-foreground">Category</div>
         </Card>
@@ -37,15 +38,17 @@ export function DocumentationGapDetails({ idea }: DocumentationGapDetailsProps) 
       </div>
 
       {/* Target Audience */}
-      <div>
-        <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          Target Audience
-        </h3>
-        <Badge variant="outline" className="capitalize">
-          {idea.targetAudience}
-        </Badge>
-      </div>
+      {idea.targetAudience && (
+        <div>
+          <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Target Audience
+          </h3>
+          <Badge variant="outline" className="capitalize">
+            {idea.targetAudience}
+          </Badge>
+        </div>
+      )}
 
       {/* Current Documentation */}
       {idea.currentDocumentation && (
@@ -85,12 +88,14 @@ export function DocumentationGapDetails({ idea }: DocumentationGapDetailsProps) 
       )}
 
       {/* Priority */}
-      <div>
-        <h3 className="text-sm font-medium mb-2">Priority</h3>
-        <Badge variant="outline" className={IDEATION_IMPACT_COLORS[idea.priority]}>
-          {idea.priority}
-        </Badge>
-      </div>
+      {idea.priority && (
+        <div>
+          <h3 className="text-sm font-medium mb-2">Priority</h3>
+          <Badge variant="outline" className={IDEATION_IMPACT_COLORS[idea.priority]}>
+            {idea.priority}
+          </Badge>
+        </div>
+      )}
     </>
   );
 }

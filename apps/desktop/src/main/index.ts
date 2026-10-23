@@ -1,3 +1,6 @@
+// Record ipcMain handlers for LAN remote access before anything registers one.
+import './remote/install-ipc-registry';
+
 // Polyfill CommonJS require for ESM compatibility
 // This MUST be at the very top, before any imports that might trigger Sentry's
 // require-in-the-middle hooks. Sentry's hooks expect require.cache to exist,
@@ -48,7 +51,8 @@ for (const envPath of possibleEnvPaths) {
   }
 }
 
-import { app, BrowserWindow, shell, nativeImage, session, screen, Menu, MenuItem } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeImage, session, screen, Menu, MenuItem } from 'electron';
+import { projectStore } from './project-store';
 import { join } from 'path';
 import { accessSync, readFileSync, writeFileSync, rmSync, cpSync } from 'fs';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -58,7 +62,9 @@ import { TerminalManager } from './terminal-manager';
 import { getUsageMonitor } from './claude-profile/usage-monitor';
 import { initializeUsageMonitorForwarding } from './ipc-handlers/terminal-handlers';
 import { initializeAppUpdater, stopPeriodicUpdates } from './app-updater';
-import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS } from '../shared/constants';
+import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS, getSpecsDir } from '../shared/constants';
+import { clearRestartPending, collectResumeCandidates } from './safe-restart';
+import { processTaskQueues, readQueueOrder, startTaskQueue, writeQueueOrder } from './task-queue';
 import { getAppLanguage, initAppLanguage } from './app-language';
 import { readSettingsFile } from './settings-utils';
 import { registerSettingsAccessor } from './ai/auth/resolver';
@@ -66,9 +72,11 @@ import { appLog, setupErrorLogging } from './app-logger';
 import { initSentryMain } from './sentry';
 import { preWarmToolCache } from './cli-tool-manager';
 import { initializeClaudeProfileManager, getClaudeProfileManager } from './claude-profile-manager';
+import { syncActiveProfileToQueue } from './claude-profile/sync-active-profile';
 import { isProfileAuthenticated } from './claude-profile/profile-utils';
 import { isMacOS, isWindows } from './platform';
 import { ptyDaemonClient } from './terminal/pty-daemon-client';
+import { attachRemoteEventFanout, initRemoteAccess, shutdownRemoteAccess } from './remote/remote-access';
 import type { AppSettings, AuthFailureInfo } from '../shared/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -255,6 +263,9 @@ function createWindow(): void {
     }
   });
 
+  // Mirror renderer events to paired LAN web clients (no-op while remote access is off)
+  attachRemoteEventFanout(mainWindow);
+
   // Show window when ready to avoid visual flash
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
@@ -384,16 +395,6 @@ function createWindow(): void {
     // Kill all agents when window closes (prevents orphaned processes)
     agentManager?.killAll?.()?.catch((err: unknown) => {
       console.warn('[main] Error killing agents on window close:', err);
-    });
-    // Clear GitLab MR polling intervals for all projects
-    import('./ipc-handlers/gitlab/mr-review-handlers').then(({ clearPollingForProject }) => {
-      const { projectStore } = require('./project-store');
-      const projects = projectStore.getProjects();
-      for (const project of projects) {
-        clearPollingForProject(project.id);
-      }
-    }).catch((err: unknown) => {
-      console.warn('[main] Error clearing GitLab polling on window close:', err);
     });
     mainWindow = null;
   });
@@ -525,12 +526,11 @@ app.whenReady().then(() => {
       }
     }
 
-    if (settings.pythonPath || validAutoBuildPath) {
+    if (validAutoBuildPath) {
       console.warn('[main] Configuring AgentManager with settings:', {
-        pythonPath: settings.pythonPath,
         autoBuildPath: validAutoBuildPath
       });
-      agentManager.configure(settings.pythonPath, validAutoBuildPath);
+      agentManager.configure(undefined, validAutoBuildPath);
     }
   } catch (error: unknown) {
     // ENOENT means no settings file yet - that's fine, use defaults
@@ -547,14 +547,40 @@ app.whenReady().then(() => {
   // Setup IPC handlers
   setupIpcHandlers(agentManager, terminalManager, () => mainWindow);
 
+  // Task queue for every project, not just the one on screen
+  startTaskQueue((listener) => agentManager?.on('exit', listener));
+  ipcMain.handle(IPC_CHANNELS.TASK_QUEUE_PROCESS, (_, projectId?: string) => processTaskQueues(projectId));
+  ipcMain.handle(IPC_CHANNELS.TASK_QUEUE_GET_ORDER, (_, projectId: string) => readQueueOrder(projectId));
+  ipcMain.handle(IPC_CHANNELS.TASK_QUEUE_SET_ORDER, (_, projectId: string, taskIds: string[]) => writeQueueOrder(projectId, taskIds));
+
+  // LAN web access: settings IPC + start server if enabled
+  initRemoteAccess(() => mainWindow);
+
   // Create window
   createWindow();
+
+  clearRestartPending();
+  // Safe restart: start again the tasks a safe stop paused just before this restart
+  setTimeout(() => {
+    try {
+      const candidates = collectResumeCandidates(
+        projectStore.getProjects().map((p) => ({ id: p.id, path: p.path, specsDir: getSpecsDir(p.autoBuildPath) }))
+      );
+      for (const c of candidates) {
+        console.warn(`[main] Resuming task after restart: ${c.specId}`);
+        // Same path as the Start button (TASK_START is an ipcMain.on handler)
+        ipcMain.emit(IPC_CHANNELS.TASK_START, { sender: mainWindow?.webContents }, c.specId, {});
+      }
+    } catch (error) {
+      console.warn('[main] Resuming tasks after restart failed:', error);
+    }
+  }, 8000);
 
   // Pre-warm CLI tool cache in background (non-blocking)
   // This ensures CLI detection is done before user needs it
   // Include all commonly used tools to prevent sync blocking on first use
   setImmediate(() => {
-    preWarmToolCache(['claude', 'git', 'gh', 'python']).catch((error) => {
+    preWarmToolCache(['claude', 'git', 'gh']).catch((error) => {
       console.warn('[main] Failed to pre-warm CLI cache:', error);
     });
   });
@@ -569,6 +595,15 @@ app.whenReady().then(() => {
       if (mainWindow) {
         // Setup event forwarding from usage monitor to renderer
         initializeUsageMonitorForwarding(mainWindow);
+
+        // Align the CLI login with the account queue before anything runs.
+        // Queue changes sync on reorder, but a queue saved before that sync
+        // existed (or edited elsewhere) would otherwise stay out of step.
+        try {
+          syncActiveProfileToQueue();
+        } catch (error) {
+          console.warn('[main] Failed to sync active Claude profile to account queue:', error);
+        }
 
         // Start the usage monitor (uses unified OperationRegistry for proactive restart)
         const usageMonitor = getUsageMonitor();
@@ -699,6 +734,9 @@ app.on('before-quit', (event) => {
   // Perform async cleanup, then allow quit to proceed
   (async () => {
     try {
+      // Stop the LAN web access server so the port is released
+      await shutdownRemoteAccess();
+
       // Kill all running agent processes
       if (agentManager) {
         await agentManager.killAll();

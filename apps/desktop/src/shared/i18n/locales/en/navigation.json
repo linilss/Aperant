@@ -1,18 +1,33 @@
 {
+  "mobile": {
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "projects": "Projects",
+    "noProject": "No project",
+    "switchProject": "Switch project"
+  },
   "sections": {
-    "project": "Project",
-    "tools": "Tools"
+    "understand": "Understand",
+    "plan": "Plan",
+    "build": "Build",
+    "review": "Review",
+    "ship": "Ship",
+    "configure": "Configure"
   },
   "items": {
-    "kanban": "Kanban Board",
+    "kanban": "Board",
     "terminals": "Agent Terminals",
     "agents": "Agents",
     "skills": "Skills",
     "insights": "Insights",
+    "competitors": "Competitors",
+    "moscow": "MoSCoW",
     "roadmap": "Roadmap",
     "ideation": "Ideation",
     "changelog": "Changelog",
+    "coreValues": "Core values",
     "context": "Context",
+    "design": "Design",
     "githubIssues": "GitHub Issues",
     "githubPRs": "GitHub PRs",
     "gitlabIssues": "GitLab Issues",
@@ -21,15 +36,14 @@
     "azureDevOpsPRs": "Azure PRs",
     "worktrees": "Worktrees",
     "agentTools": "MCP Overview",
-    "tests": "Tests"
+    "tests": "Tests",
+    "deploy": "Deploy",
+    "backlog": "Backlog"
   },
   "actions": {
     "settings": "Settings",
     "help": "Help & Feedback",
-    "newTask": "New Task",
-    "collapseSidebar": "Collapse Sidebar",
-    "expandSidebar": "Expand Sidebar",
-    "sponsor": "Sponsor Us"
+    "newTask": "New Task"
   },
   "tooltips": {
     "settings": "Application Settings",
@@ -88,5 +102,8 @@
     "pathChangeWarningDescription": "Switching CLI installations will use a different Claude Code binary. Any running sessions will continue using the previous installation until restarted.",
     "switchInstallationConfirm": "Switch",
     "versionUnknown": "version unknown"
+  },
+  "funnel": {
+    "stepDone": "{{step}} done for this project"
   }
 }

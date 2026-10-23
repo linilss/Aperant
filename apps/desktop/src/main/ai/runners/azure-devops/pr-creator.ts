@@ -92,7 +92,7 @@ function pushBranch(worktreePath: string, gitPath: string, branchName: string, s
         encoding: 'utf-8',
         stdio: 'pipe',
       });
-      execFileSync(gitPath, ['commit', '-m', `auto-claude: save uncommitted work for ${specId}`], {
+      execFileSync(gitPath, ['commit', '-m', 'Save uncommitted work'], {
         cwd: worktreePath,
         encoding: 'utf-8',
         stdio: 'pipe',

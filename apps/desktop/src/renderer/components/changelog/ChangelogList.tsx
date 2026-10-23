@@ -59,13 +59,13 @@ export function ChangelogList({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden max-md:flex-none max-md:overflow-visible">
       {/* Tasks Mode - Task Selection */}
       {sourceMode === 'tasks' && (
         <>
           {/* Task selection header */}
-          <div className="flex items-center justify-between border-b border-border px-6 py-3 bg-muted/30">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between border-b border-border px-6 py-3 bg-muted/30 max-md:px-4">
+            <div className="flex flex-wrap items-center gap-4 max-md:gap-2">
               <span className="text-sm font-medium">
                 {selectedTaskIds.length} of {doneTasks.length} tasks selected
               </span>
@@ -74,7 +74,7 @@ export function ChangelogList({
                   variant="ghost"
                   size="sm"
                   onClick={onSelectAll}
-                  className="h-7 px-2 text-xs"
+                  className="h-7 px-2 text-xs max-md:h-10"
                 >
                   Select All
                 </Button>
@@ -82,7 +82,7 @@ export function ChangelogList({
                   variant="ghost"
                   size="sm"
                   onClick={onDeselectAll}
-                  className="h-7 px-2 text-xs"
+                  className="h-7 px-2 text-xs max-md:h-10"
                 >
                   Clear
                 </Button>
@@ -91,7 +91,7 @@ export function ChangelogList({
           </div>
 
           {/* Task grid */}
-          <ScrollArea className="flex-1 p-6">
+          <ScrollArea className="flex-1 p-6 max-md:flex-none max-md:p-4">
             {doneTasks.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center py-12">
@@ -122,7 +122,7 @@ export function ChangelogList({
       {(sourceMode === 'git-history' || sourceMode === 'branch-diff') && (
         <>
           {/* Commit preview header */}
-          <div className="flex items-center justify-between border-b border-border px-6 py-3 bg-muted/30">
+          <div className="flex items-center justify-between border-b border-border px-6 py-3 bg-muted/30 max-md:px-4">
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium">
                 {previewCommits.length} commit{previewCommits.length !== 1 ? 's' : ''} found
@@ -134,7 +134,7 @@ export function ChangelogList({
           </div>
 
           {/* Commit list */}
-          <ScrollArea className="flex-1 p-6">
+          <ScrollArea className="flex-1 p-6 max-md:flex-none max-md:p-4">
             {isLoadingCommits ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center py-12">
@@ -166,7 +166,7 @@ export function ChangelogList({
       )}
 
       {/* Footer with Continue button */}
-      <div className="flex items-center justify-end border-t border-border px-6 py-4 bg-background">
+      <div className="flex items-center justify-end border-t border-border px-6 py-4 bg-background max-md:sticky max-md:bottom-0 max-md:px-4 max-md:py-3">
         <Button onClick={onContinue} disabled={!canContinue} size="lg">
           Continue
           <ArrowRight className="ml-2 h-4 w-4" />

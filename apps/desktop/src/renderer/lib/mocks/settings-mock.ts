@@ -26,7 +26,6 @@ export const settingsMock = {
   getCliToolsInfo: async () => ({
     success: true,
     data: {
-      python: { found: false, source: 'fallback' as const, message: 'Not available in browser mode' },
       git: { found: false, source: 'fallback' as const, message: 'Not available in browser mode' },
       gh: { found: false, source: 'fallback' as const, message: 'Not available in browser mode' },
       glab: { found: false, source: 'fallback' as const, message: 'Not available in browser mode' },

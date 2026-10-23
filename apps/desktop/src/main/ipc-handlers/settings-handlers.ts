@@ -376,8 +376,7 @@ export function registerSettingsHandlers(
       // Migration: Clear CLI tool paths that are from a different platform
       // Fixes issue where Windows paths persisted on macOS (and vice versa)
       // when settings were synced/transferred between platforms
-      // See: https://github.com/AndyMik90/Auto-Claude/issues/XXX
-      const pathFields = ['pythonPath', 'gitPath', 'githubCLIPath', 'gitlabCLIPath', 'claudePath', 'autoBuildPath'] as const;
+      const pathFields = ['gitPath', 'githubCLIPath', 'gitlabCLIPath', 'claudePath', 'autoBuildPath'] as const;
       for (const field of pathFields) {
         const pathValue = settings[field];
         if (pathValue && isPathFromWrongPlatform(pathValue)) {
@@ -409,7 +408,6 @@ export function registerSettingsHandlers(
 
       // Configure CLI tools with current settings
       configureTools({
-        pythonPath: settings.pythonPath,
         gitPath: settings.gitPath,
         githubCLIPath: settings.githubCLIPath,
         gitlabCLIPath: settings.gitlabCLIPath,
@@ -436,7 +434,8 @@ export function registerSettingsHandlers(
         // Strip providerAccounts and globalPriorityOrder — these are managed
         // exclusively by their dedicated IPC handlers (PROVIDER_ACCOUNTS_*)
         // to prevent the general settings save from clobbering them.
-        const { providerAccounts: _pa, globalPriorityOrder: _gpo, ...safeSettings } = settings;
+        // remoteAccess is likewise owned by REMOTE_ACCESS_* (a stale copy would revert a rotated token).
+        const { providerAccounts: _pa, globalPriorityOrder: _gpo, remoteAccess: _ra, ...safeSettings } = settings;
         const newSettings = { ...currentSettings, ...safeSettings };
 
         // Sync defaultModel when agent profile changes (#414)
@@ -449,21 +448,19 @@ export function registerSettingsHandlers(
 
         writeFileSync(settingsPath, JSON.stringify(newSettings, null, 2), 'utf-8');
 
-        // Apply Python path if changed
-        if (settings.pythonPath || settings.autoBuildPath) {
-          agentManager.configure(settings.pythonPath, settings.autoBuildPath);
+        // Apply auto-build source path if changed
+        if (settings.autoBuildPath) {
+          agentManager.configure(undefined, settings.autoBuildPath);
         }
 
         // Configure CLI tools if any paths changed
         if (
-          settings.pythonPath !== undefined ||
           settings.gitPath !== undefined ||
           settings.githubCLIPath !== undefined ||
           settings.gitlabCLIPath !== undefined ||
           settings.claudePath !== undefined
         ) {
           configureTools({
-            pythonPath: newSettings.pythonPath,
             gitPath: newSettings.gitPath,
             githubCLIPath: newSettings.githubCLIPath,
             gitlabCLIPath: newSettings.gitlabCLIPath,
@@ -517,7 +514,6 @@ export function registerSettingsHandlers(
   ipcMain.handle(
     IPC_CHANNELS.SETTINGS_GET_CLI_TOOLS_INFO,
     async (): Promise<IPCResult<{
-      python: ReturnType<typeof getToolInfo>;
       git: ReturnType<typeof getToolInfo>;
       gh: ReturnType<typeof getToolInfo>;
       glab: ReturnType<typeof getToolInfo>;
@@ -527,7 +523,6 @@ export function registerSettingsHandlers(
         return {
           success: true,
           data: {
-            python: getToolInfo('python'),
             git: getToolInfo('git'),
             gh: getToolInfo('gh'),
             glab: getToolInfo('glab'),
@@ -1049,6 +1044,11 @@ export function registerSettingsHandlers(
           const { getClaudeProfileManager } = await import('../claude-profile-manager');
           const manager = getClaudeProfileManager();
           manager.setAccountPriorityOrder(order);
+
+          // CLI runners (roadmap, ideation, agents) log in via the active profile,
+          // not the queue — make the new #1 account the one they use
+          const { syncActiveProfileToQueue } = await import('../claude-profile/sync-active-profile');
+          syncActiveProfileToQueue(order);
         } catch {
           // Non-fatal: usage-monitor may use stale order until next app restart
         }

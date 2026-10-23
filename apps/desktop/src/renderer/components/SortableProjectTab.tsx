@@ -1,10 +1,22 @@
+import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useTranslation } from 'react-i18next';
 import { Settings2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import type { Project } from '../../shared/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu';
+import { FunnelBar, FunnelStepList } from './FunnelProgress';
+import { ProjectActivityBadge } from './ProjectActivityBadge';
+import { useProjectActivity } from '../stores/funnel-store';
+import { useClaudeProfileStore } from '../stores/claude-profile-store';
+import type { FunnelProgress, Project } from '../../shared/types';
 
 interface SortableProjectTabProps {
   project: Project;
@@ -13,8 +25,11 @@ interface SortableProjectTabProps {
   tabIndex: number;
   onSelect: () => void;
   onClose: (e: React.MouseEvent) => void;
+  onRemove: () => void;
   // Optional control props for active tab
   onSettingsClick?: () => void;
+  /** Plan-funnel progress, drawn as the tab's bottom border */
+  funnel?: FunnelProgress;
 }
 
 // Detect if running on macOS for keyboard shortcut display
@@ -28,9 +43,17 @@ export function SortableProjectTab({
   tabIndex,
   onSelect,
   onClose,
-  onSettingsClick
+  onRemove,
+  onSettingsClick,
+  funnel
 }: SortableProjectTabProps) {
   const { t } = useTranslation('common');
+  const activity = useProjectActivity(project.id);
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const pinnedProfileId = project.settings?.claudeProfileId;
+  const pinnedProfileName = useClaudeProfileStore((state) =>
+    pinnedProfileId ? state.profiles.find((p) => p.id === pinnedProfileId)?.name : undefined
+  );
   // Build tooltip with keyboard shortcut hint (only for tabs 1-9)
   const shortcutHint = tabIndex < 9 ? `${modKey}${tabIndex + 1}` : '';
   const closeShortcut = `${modKey}W`;
@@ -54,18 +77,43 @@ export function SortableProjectTab({
     <div
       ref={setNodeRef}
       style={style}
+      data-project-id={project.id}
       className={cn(
-        'group relative flex items-center min-w-0',
+        // shrink-0: the tab row scrolls instead of squeezing names away
+        'group relative flex shrink-0 items-stretch',
         // Responsive max-widths: smaller on mobile, larger on desktop
         isActive
           ? 'max-w-[180px] sm:max-w-[220px] md:max-w-[280px]'
           : 'max-w-[120px] sm:max-w-[160px] md:max-w-[200px]',
         'border-r border-border last:border-r-0',
-        'touch-none transition-all duration-200',
+        'touch-none pointer-coarse:touch-pan-x transition-all duration-200',
         isDragging && 'opacity-60 scale-[0.98] shadow-lg'
       )}
       {...attributes}
     >
+      {/* Right-click menu — anchored to an invisible element inside the tab */}
+      <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <span className="absolute bottom-0 left-3 h-0 w-0" tabIndex={-1} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {canClose && (
+            <>
+              <DropdownMenuItem onClick={onClose}>
+                {t('projectTab.closeTab')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={onRemove}
+          >
+            {t('projectTab.removeProject')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <Tooltip delayDuration={200}>
         <TooltipTrigger asChild>
           <div
@@ -75,9 +123,9 @@ export function SortableProjectTab({
               'px-2 sm:px-3 md:px-4 py-2 sm:py-2.5',
               'text-xs sm:text-sm',
               'min-w-0 truncate hover:bg-muted/50 transition-colors',
-              'border-b-2 border-transparent cursor-pointer',
+              'cursor-pointer',
               isActive && [
-                'bg-background border-b-primary text-foreground',
+                'bg-background text-foreground',
                 'hover:bg-background'
               ],
               !isActive && [
@@ -86,6 +134,10 @@ export function SortableProjectTab({
               ]
             )}
             onClick={onSelect}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenuOpen(true);
+            }}
           >
             {/* Drag handle - visible on hover, hidden on mobile */}
             <div
@@ -100,14 +152,27 @@ export function SortableProjectTab({
             <span className="truncate font-medium">
               {project.name}
             </span>
+            <ProjectActivityBadge activity={activity} />
           </div>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="flex items-center gap-2">
-          <span>{project.name}</span>
-          {shortcutHint && (
-            <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border border-border font-mono">
-              {shortcutHint}
-            </kbd>
+        <TooltipContent side="bottom" className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span>{project.name}</span>
+            {shortcutHint && (
+              <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border border-border font-mono">
+                {shortcutHint}
+              </kbd>
+            )}
+          </div>
+          {pinnedProfileName && (
+            <div className="text-xs text-muted-foreground">
+              {t('usage.projectAccountTooltip', { name: pinnedProfileName })}
+            </div>
+          )}
+          {funnel && (
+            <div className="border-t border-border pt-2">
+              <FunnelStepList progress={funnel} />
+            </div>
           )}
         </TooltipContent>
       </Tooltip>
@@ -151,7 +216,7 @@ export function SortableProjectTab({
             <button
               type="button"
               className={cn(
-                'h-5 w-5 sm:h-6 sm:w-6 p-0 mr-0.5 sm:mr-1',
+                'h-5 w-5 sm:h-6 sm:w-6 p-0 mr-0.5 sm:mr-1 self-center',
                 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
                 'transition-opacity duration-200 rounded flex-shrink-0',
                 'hover:bg-destructive hover:text-destructive-foreground',
@@ -175,6 +240,15 @@ export function SortableProjectTab({
           </TooltipContent>
         </Tooltip>
       )}
+
+      {/* Bottom border = plan-funnel progress (grey track, accent fill, green when complete) */}
+      <FunnelBar
+        progress={funnel}
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 h-0.5 group-hover:h-[3px]',
+          !funnel && 'bg-transparent'
+        )}
+      />
     </div>
   );
 }

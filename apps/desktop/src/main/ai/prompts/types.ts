@@ -3,7 +3,6 @@
  * ===================
  *
  * Type definitions for the prompt loading and generation system.
- * Mirrors the Python prompts_pkg interfaces.
  */
 
 // =============================================================================
@@ -16,14 +15,16 @@ export interface PromptContext {
   specDir: string;
   /** Absolute path to the project root */
   projectDir: string;
+  /** Core values (`.malvy/core-values.md`), injected first as the highest-priority section */
+  coreValues?: string | null;
   /** Project instructions from AGENTS.md (preferred) or CLAUDE.md (fallback) */
   projectInstructions?: string | null;
+  /** Relevant project memories (built in the main process), injected after project instructions */
+  memoryContext?: string | null;
   /** Base branch name for git comparisons (e.g., "main", "develop") */
   baseBranch?: string;
-  /** Human input from HUMAN_INPUT.md (for coder prompts) */
+  /** Contents of `<specDir>/HUMAN_INPUT.md`, written by the user to steer the agent */
   humanInput?: string | null;
-  /** Recovery context from attempt_history.json (for coder prompts) */
-  recoveryContext?: string | null;
   /** Subtask info for targeted coder prompts */
   subtask?: SubtaskPromptInfo;
   /** Retry attempt count (0 = first try) */
@@ -172,18 +173,4 @@ export interface QAPromptConfig {
   capabilities?: ProjectCapabilities;
   /** Project index for service details */
   projectIndex?: Record<string, unknown>;
-}
-
-// =============================================================================
-// Prompt Loader Result
-// =============================================================================
-
-/** Result of loading and validating prompt files */
-export interface PromptValidationResult {
-  /** Whether all expected prompt files exist */
-  valid: boolean;
-  /** List of missing prompt file names */
-  missingFiles: string[];
-  /** The resolved prompts directory path */
-  promptsDir: string;
 }

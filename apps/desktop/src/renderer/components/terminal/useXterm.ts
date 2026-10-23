@@ -12,6 +12,7 @@ import { DEFAULT_TERMINAL_THEME } from '../../lib/terminal-theme';
 import { debugLog, debugError } from '../../../shared/utils/debug-logger';
 import { useSettingsStore } from '../../stores/settings-store';
 import type { WebGLContextManagerType } from '../../lib/webgl-context-manager';
+import { applyStickyCtrl } from './MobileKeyBar';
 
 interface UseXtermOptions {
   terminalId: string;
@@ -109,6 +110,11 @@ export function useXterm({ terminalId, onCommandEnter, onResize, onDimensionsRea
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      // In the LAN web UI, open links on the viewing device, not on the host machine
+      if (window.isRemote) {
+        window.open(uri, '_blank', 'noopener,noreferrer');
+        return;
+      }
       window.electronAPI?.openExternal?.(uri).catch((error) => {
         console.warn('[useXterm] Failed to open URL:', uri, error);
       });
@@ -330,7 +336,9 @@ export function useXterm({ terminalId, onCommandEnter, onResize, onDimensionsRea
     }
 
     // Handle terminal input
-    xterm.onData((data) => {
+    xterm.onData((rawData) => {
+      // Sticky Ctrl from the mobile key bar (no-op unless armed there)
+      const data = applyStickyCtrl(rawData);
       window.electronAPI.sendTerminalInput(terminalId, data);
 
       // Track commands for auto-naming
@@ -459,10 +467,16 @@ export function useXterm({ terminalId, onCommandEnter, onResize, onDimensionsRea
     if (container) {
       const resizeObserver = new ResizeObserver(handleResize.fn);
       resizeObserver.observe(container);
+      // Window + visual viewport resizes (mobile soft keyboard, rotation)
+      const viewport = typeof window !== 'undefined' ? window.visualViewport : undefined;
+      window.addEventListener('resize', handleResize.fn);
+      viewport?.addEventListener('resize', handleResize.fn);
       return () => {
         // Cancel any pending debounced call before disconnecting
         handleResize.cancel();
         resizeObserver.disconnect();
+        window.removeEventListener('resize', handleResize.fn);
+        viewport?.removeEventListener('resize', handleResize.fn);
       };
     }
   }, [onDimensionsReady]);

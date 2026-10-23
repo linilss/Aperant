@@ -136,6 +136,16 @@ describe('resolveMergeConflict', () => {
     expect(result.error).toBe('Empty response from AI');
   });
 
+  it('returns failure when the answer was cut off at the output limit', async () => {
+    mockGenerateText.mockResolvedValue({ text: 'half a file', finishReason: 'length' });
+
+    const result = await resolveMergeConflict(baseConfig());
+
+    expect(result.success).toBe(false);
+    expect(result.text).toBe('');
+    expect(result.error).toMatch(/cut off/);
+  });
+
   // ---------------------------------------------------------------------------
   // Error handling
   // ---------------------------------------------------------------------------

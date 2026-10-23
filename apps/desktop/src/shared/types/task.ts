@@ -19,6 +19,18 @@ export type ReviewReason = 'completed' | 'errors' | 'qa_rejected' | 'plan_review
 
 export type SubtaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
+// Live rate-limit pause state for a running task.
+// Mirrors the RATE_LIMIT_PAUSE sentinel file written by the orchestrator when a
+// session hits a provider rate limit. Not persisted on the Task itself — it is
+// tracked in the renderer for as long as the pause file exists on disk, because
+// a paused task only exists while its worker is alive and waiting.
+export interface RateLimitPauseInfo {
+  pausedAt: string;  // ISO date when the pause started
+  resetAt: string | null;  // ISO date when the limit resets, if the provider reported one
+  error: string;  // Provider error message that triggered the pause
+  pinnedProfileName?: string;  // Set when the task's project is pinned (strict) to this Claude account
+}
+
 // Re-exported from constants - single source of truth
 export type ExecutionPhase = ExecutionPhaseType;
 
@@ -178,7 +190,44 @@ export type TaskCategory =
   | 'infrastructure'
   | 'testing';
 
+/** One step of a runbook deploy */
+export interface DeployRunStep {
+  name: string;
+  command: string;
+  run: boolean;
+  reason?: string;
+  exitCode?: number;
+}
+
+/** A runbook deploy run (`.malvy/deploys/history.json`) */
+export interface DeployRunRecord {
+  id: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: 'running' | 'succeeded' | 'failed';
+  phase?: 'planning' | 'running' | 'fixing' | 'verifying';
+  currentStep?: string;
+  /** HEAD when it started; HEAD after (incl. fix/release commits) once succeeded */
+  commit: string;
+  taskIds: string[];
+  steps?: DeployRunStep[];
+  /** Log path relative to the project root */
+  log: string;
+  cleanCheckout?: boolean;
+  /** An agent fixed a failing step */
+  fixed?: boolean;
+  version?: string;
+  build?: string;
+  webVersion?: string;
+  summary?: string;
+  reason?: string;
+}
+
 export interface TaskMetadata {
+  /** When Malvy merged the task into the main branch (Not live until a verified deploy after it) */
+  mergedAt?: string;
+  /** Planning tasks this task was consolidated from (they are archived) */
+  consolidatedFrom?: string[];
   // Origin tracking
   sourceType?: 'ideation' | 'manual' | 'imported' | 'insights' | 'roadmap' | 'linear' | 'github' | 'gitlab';
   ideationType?: string;  // e.g., 'code_improvements', 'security_hardening'
@@ -237,7 +286,7 @@ export interface TaskMetadata {
   phaseModels?: PhaseModelConfig;  // Per-phase model configuration
   phaseThinking?: PhaseThinkingConfig;  // Per-phase thinking configuration
   phaseProviders?: Record<string, string>;  // Per-phase provider preference (cross-provider mode)
-  fastMode?: boolean;  // Fast Mode — faster Opus 4.6 output, higher cost per token
+  fastMode?: boolean;  // Fast Mode — faster Opus output, higher cost per token
 
   // Git/Worktree configuration
   baseBranch?: string;  // Override base branch for this task's worktree
@@ -246,9 +295,47 @@ export interface TaskMetadata {
   useLocalBranch?: boolean;  // If true, use the local branch directly instead of preferring origin/branch (preserves gitignored files)
   pushNewBranches?: boolean;  // If false, keep the task branch local-only instead of auto-pushing to origin
 
+  // Refine pipeline
+  refined?: boolean;  // True when the mega-groom refine pipeline has completed
+  refinedAt?: string;  // ISO date when refine completed
+
   // Archive status
   archivedAt?: string;  // ISO date when task was archived
   archivedInVersion?: string;  // Version in which task was archived (from changelog)
+
+  // Deploys the user started from the task's Deploy button (newest last)
+  deployments?: TaskDeployment[];
+}
+
+/** One user-confirmed deploy of a merged task (task_metadata.json `deployments`) */
+export interface TaskDeployment {
+  /** Script path relative to the project root, e.g. `deploy.sh` */
+  script: string;
+  args?: string;
+  /** ISO timestamp */
+  at: string;
+  /** Log of the run, relative to the project root (`.malvy/deploys/<id>.log`) */
+  log?: string;
+  /** From the log; absent on deploys recorded before logging existed */
+  status?: 'running' | 'succeeded' | 'failed';
+  /** What went out, read from the script's output (App Store version or web version) */
+  version?: string;
+  /** App Store / TestFlight build number */
+  build?: string;
+  /** The script's own result line */
+  summary?: string;
+  /** HEAD that was deployed */
+  commit?: string;
+  /** Steps of the deploy chain this run included */
+  steps?: string[];
+  /** Steps that finished successfully (from the log) */
+  stepsOk?: string[];
+  /** Web version from a 'Live: <v>' line, when the chain also deployed a backend */
+  webVersion?: string;
+  /** Deploy run (see .malvy/deploys/history.json) this entry belongs to */
+  deployId?: string;
+  /** Why it failed, in one line */
+  reason?: string;
 }
 
 export interface Task {
@@ -527,6 +614,14 @@ export interface WorktreeListResult {
   worktrees: WorktreeListItem[];
 }
 
+// Worktree sync (update with base branch)
+export interface WorktreeSyncResult {
+  specId: string;
+  success: boolean;
+  message: string;
+  hadConflicts: boolean;
+}
+
 // Stuck task recovery types
 export interface StuckTaskInfo {
   taskId: string;
@@ -561,4 +656,30 @@ export interface TaskStartOptions {
   workers?: number;
   model?: string;
   baseBranch?: string; // Override base branch for worktree creation
+}
+
+/** One phase of the task refine (mega-groom) pipeline, as sent to the renderer */
+export interface RefinePhaseInfo {
+  name: string;
+  label: string;
+  status: string;
+}
+
+/**
+ * Snapshot of a task's refine run in main, so a reopened task dialog can
+ * re-attach to it instead of starting a new one.
+ */
+export interface RefineRunStatus {
+  taskId: string;
+  isRunning: boolean;
+  autoMode: boolean;
+  /** Terminal the pipeline writes to (`refine-${taskId}`) */
+  terminalId: string;
+  /** ISO timestamp */
+  startedAt: string;
+  currentPhase: string | null;
+  currentPhaseIndex: number;
+  phases: RefinePhaseInfo[];
+  /** Latest terminal output (bounded), to replay into a terminal that has none, e.g. on the phone */
+  outputTail: string;
 }

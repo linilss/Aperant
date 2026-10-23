@@ -327,6 +327,26 @@ describe('runInsightsQuery', () => {
   // Client configuration
   // ---------------------------------------------------------------------------
 
+  it('opens the system prompt with the core values when set', async () => {
+    mockStreamText.mockReturnValue(makeStream([]));
+    mockExistsSync.mockImplementation((p: string) => String(p).endsWith('core-values.md'));
+    mockReadFileSync.mockImplementation((p: string) => (String(p).endsWith('core-values.md') ? 'Calm over flashy.' : ''));
+
+    await runInsightsQuery(baseConfig());
+
+    const { systemPrompt } = mockCreateSimpleClient.mock.calls[0][0];
+    expect(systemPrompt.startsWith('## CORE VALUES (highest priority')).toBe(true);
+    expect(systemPrompt).toContain('Calm over flashy.');
+  });
+
+  it('has no core values section when none are set', async () => {
+    mockStreamText.mockReturnValue(makeStream([]));
+
+    await runInsightsQuery(baseConfig());
+
+    expect(mockCreateSimpleClient.mock.calls[0][0].systemPrompt).not.toContain('CORE VALUES');
+  });
+
   it('uses sonnet model and medium thinking level by default', async () => {
     mockStreamText.mockReturnValue(makeStream([]));
 

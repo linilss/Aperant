@@ -40,18 +40,47 @@ export interface Project {
 
 export interface ProjectSettings {
   model: string;
-  memoryBackend: 'memory' | 'file';
-  linearSync: boolean;
   linearTeamId?: string;
   notifications: NotificationSettings;
   /** Main branch name for worktree creation (default: auto-detected or 'main') */
   mainBranch?: string;
   /** Whether newly created branches should be pushed to origin and track their remote branch (default: true) */
   pushNewBranches?: boolean;
+  /** Prefix for task branch names, e.g. 'feature/' (default: 'malvy/') */
+  branchPrefix?: string;
   /** Include CLAUDE.md instructions in agent system prompt (default: true) */
   useClaudeMd?: boolean;
   /** Maximum parallel tasks allowed (default: 3) */
   maxParallelTasks?: number;
+  /**
+   * Claude profile (account) all Claude work for this project runs on — agents,
+   * runners and Agent Terminals. Absent = the app's active/default profile.
+   */
+  claudeProfileId?: string;
+  /**
+   * With claudeProfileId: stay on the pinned account when it hits its rate limit
+   * (pause and wait) instead of switching to another account. Default true.
+   */
+  claudeProfileStrict?: boolean;
+  /** Deploy script (relative path of a deploy*.sh) the Kanban Deploy button runs without asking */
+  deployScript?: string;
+  /** Arguments passed to deployScript */
+  deployArgs?: string;
+  /**
+   * What the Kanban Deploy button does: 'deploy' (default) merges and runs the deploy
+   * runbook; 'merge' only merges the task into the main branch (no deploy, no Not live).
+   */
+  kanbanDeployAction?: 'deploy' | 'merge';
+  /**
+   * Overview project (e.g. a folder holding many apps): planning and analysis only.
+   * No tasks, planning, deploys or build views; ideation generates Features only.
+   */
+  overviewOnly?: boolean;
+  /**
+   * Shell command that proves the build is healthy (e.g. "npm run typecheck && npm test").
+   * Run in the task worktree after each subtask and before QA. Malvy-only, never written to the repo.
+   */
+  verifyCommand?: string;
 }
 
 export interface NotificationSettings {
@@ -212,44 +241,6 @@ export interface MemoryConnectionTestResult {
 // Note: LLM provider removed - Claude SDK handles RAG queries
 export type MemoryEmbeddingProvider = 'openai' | 'voyage' | 'azure_openai' | 'ollama' | 'google' | 'openrouter';
 
-export interface MemoryProviderConfig {
-  // Embedding Provider (LLM provider removed - Claude SDK handles RAG)
-  embeddingProvider: MemoryEmbeddingProvider;
-  embeddingModel?: string;  // Embedding model, uses provider default if not specified
-
-  // OpenAI Embeddings
-  openaiApiKey?: string;
-  openaiEmbeddingModel?: string;
-
-  // Azure OpenAI Embeddings
-  azureOpenaiApiKey?: string;
-  azureOpenaiBaseUrl?: string;
-  azureOpenaiEmbeddingDeployment?: string;
-
-  // Voyage AI Embeddings
-  voyageApiKey?: string;
-  voyageEmbeddingModel?: string;
-
-  // Google AI Embeddings
-  googleApiKey?: string;
-  googleEmbeddingModel?: string;
-
-  // OpenRouter (multi-provider aggregator)
-  openrouterApiKey?: string;
-  openrouterBaseUrl?: string;  // Default: https://openrouter.ai/api/v1
-  openrouterLlmModel?: string;  // LLM model selection (e.g., 'anthropic/claude-sonnet-4')
-  openrouterEmbeddingModel?: string;
-
-  // Ollama Embeddings (local, no API key required)
-  ollamaBaseUrl?: string;  // Default: http://localhost:11434
-  ollamaEmbeddingModel?: string;
-  ollamaEmbeddingDim?: number;
-
-  // LadybugDB settings (embedded database - no Docker required)
-  database?: string;  // Database name (default: auto_claude_memory)
-  dbPath?: string;    // Database storage path (default: ~/.malvy/memories)
-}
-
 export interface MemoryProviderInfo {
   id: string;
   name: string;
@@ -338,13 +329,11 @@ export interface ProjectEnvConfig {
   linearApiKey?: string;
   linearTeamId?: string;
   linearProjectId?: string;
-  linearRealtimeSync?: boolean; // Enable real-time sync of new Linear tasks
 
   // GitHub Integration
   githubEnabled: boolean;
   githubToken?: string;
   githubRepo?: string; // Format: owner/repo
-  githubAutoSync?: boolean; // Auto-sync issues on project load
   githubAuthMethod?: 'oauth' | 'pat'; // How the token was obtained
 
   // GitLab Integration
@@ -352,7 +341,6 @@ export interface ProjectEnvConfig {
   gitlabInstanceUrl?: string; // Default: https://gitlab.com, or self-hosted URL
   gitlabToken?: string;
   gitlabProject?: string; // Format: group/project or numeric ID
-  gitlabAutoSync?: boolean; // Auto-sync issues on project load
 
   // Azure DevOps Integration
   azureDevOpsEnabled: boolean;
@@ -363,26 +351,13 @@ export interface ProjectEnvConfig {
   // Git/Worktree Settings
   defaultBranch?: string; // Base branch for worktree creation (e.g., 'main', 'develop')
 
-  // Memory Integration (V2 - Multi-provider support)
-  // Uses LadybugDB embedded database (no Docker required)
+  // Built-in agent memory (libSQL). Project override of the app-wide memoryEnabled setting.
   memoryEnabled: boolean;
-  memoryProviderConfig?: MemoryProviderConfig;  // Provider configuration
-  // Legacy fields (still supported for backward compatibility)
-  openaiApiKey?: string;
-  // Indicates if the OpenAI key is from global settings (not project-specific)
-  openaiKeyIsGlobal?: boolean;
-  memoryDatabase?: string;
-  memoryDbPath?: string;
-
-  // UI Settings
-  enableFancyUi: boolean;
 
   // MCP Server Configuration (per-project overrides)
   mcpServers?: {
     /** Context7 documentation lookup - default: true */
     context7Enabled?: boolean;
-    /** Memory knowledge graph - default: true (if memoryProviderConfig set) */
-    memoryEnabled?: boolean;
     /** Linear MCP integration - default: follows linearEnabled */
     linearMcpEnabled?: boolean;
     /** Electron desktop automation (QA only) - default: false */
@@ -479,6 +454,38 @@ export interface McpTestConnectionResult {
   tools?: string[];
   /** Response time in milliseconds */
   responseTime?: number;
+}
+
+/** A `deploy*.sh` script discovered in a project, described by its leading comment block */
+export interface DeployScript {
+  /** Path relative to the project root, e.g. `deploy.sh` or `apple/deploy-ios.sh` */
+  relativePath: string;
+  name: string;
+  /** Leading `#` comment lines (excluding the shebang and any `Usage:` line) */
+  description: string;
+  /** Text after a `# Usage:` comment line, if present */
+  usage?: string;
+}
+
+/** Result of the verify-and-fix step before a batch deploy */
+export interface DeployVerifyResult {
+  ok: boolean;
+  /** No verify command configured */
+  skipped?: boolean;
+  /** An agent fixed a failure and the fix was committed */
+  fixed?: boolean;
+  /** Tail of the failing command's output */
+  output?: string;
+  /** uncommitted = not fixed because the checkout has the user's uncommitted work */
+  reason?: 'uncommitted' | 'still-failing';
+}
+
+/** Project working-tree state checked before deploying (non-blocking warnings). */
+export interface DeployPreflight {
+  currentBranch: string | null;
+  /** Project's main branch (settings.mainBranch, else main/master if present) */
+  mainBranch: string | null;
+  hasUncommittedChanges: boolean;
 }
 
 // Auto Claude Initialization Types

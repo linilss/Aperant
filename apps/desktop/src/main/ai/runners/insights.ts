@@ -21,6 +21,7 @@ import type { ToolContext } from '../tools/types';
 import type { ModelShorthand, ThinkingLevel } from '../config/types';
 import type { SecurityProfile } from '../security/bash-validator';
 import { safeParseJson } from '../../utils/json-repair';
+import { loadCoreValuesSection } from '../../core-values';
 import { parseLLMJson } from '../schema/structured-output';
 import { TaskSuggestionSchema } from '../schema/insight-extractor';
 
@@ -158,8 +159,10 @@ function loadProjectContext(projectDir: string): string {
  */
 function buildSystemPrompt(projectDir: string): string {
   const context = loadProjectContext(projectDir);
+  // Core values first: suggestions and task proposals must respect them
+  const values = loadCoreValuesSection(projectDir);
 
-  return `You are an AI assistant helping developers understand and work with their codebase.
+  return `${values}You are an AI assistant helping developers understand and work with their codebase.
 You have access to the following project context:
 
 ${context}
@@ -262,6 +265,7 @@ export async function runInsightsQuery(
     thinkingLevel,
     maxSteps: 30, // Allow sufficient turns for codebase exploration
     tools,
+    cwd: projectDir,
   });
 
   const toolCalls: ToolCallInfo[] = [];

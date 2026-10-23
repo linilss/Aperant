@@ -46,6 +46,7 @@ export interface AgentManagerEvents {
 export interface RoadmapConfig {
   model?: string;          // Model shorthand (opus, sonnet, haiku)
   thinkingLevel?: string;  // Thinking level (low, medium, high)
+  guidance?: string;       // Free-text direction for a regenerate
 }
 
 export interface TaskExecutionOptions {

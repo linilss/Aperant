@@ -1,3 +1,4 @@
+import { resolveDeployment } from './deploy-log';
 import { app } from 'electron';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, Dirent } from 'fs';
 import { execFileSync } from 'child_process';
@@ -8,6 +9,7 @@ import type { Project, ProjectSettings, Task, TaskStatus, TaskMetadata, Implemen
 import { DEFAULT_PROJECT_SETTINGS, AUTO_BUILD_PATHS, getSpecsDir, JSON_ERROR_PREFIX, JSON_ERROR_TITLE_SUFFIX, TASK_STATUS_PRIORITY } from '../shared/constants';
 import { getAutoBuildPath, isInitialized } from './project-initializer';
 import { getTaskWorktreeDir } from './worktree-paths';
+import { getTaskBranchCandidates } from '../shared/utils/task-branch';
 import { findAllSpecPaths } from './utils/spec-path-helpers';
 import { ensureAbsolutePath } from './utils/path-helpers';
 import { writeFileAtomicSync } from './utils/atomic-file';
@@ -439,7 +441,7 @@ export class ProjectStore {
         task.metadata?.useWorktree !== false &&
         !task.stagedInMainProject
       ) {
-        const candidateBranches = [`malvy/${task.specId}`, `auto-claude/${task.specId}`];
+        const candidateBranches = getTaskBranchCandidates(task.specId, project.settings);
         for (const branch of candidateBranches) {
           if (this.isBranchUnmerged(project.path, branch)) {
             task.status = 'pending_merge';
@@ -584,6 +586,26 @@ export class ProjectStore {
             metadata = JSON.parse(content);
           } catch {
             // Ignore parse errors
+          }
+        }
+
+        // Deploys still marked running: read their logs (logs live under the project root)
+        if (location === 'main' && Array.isArray(metadata?.deployments) && metadata.deployments.some((d) => d.status === 'running')) {
+          metadata.deployments = metadata.deployments.map((d) => resolveDeployment(_basePath, d));
+        }
+
+        // Detect refined status from refine_session.json if not already set in metadata
+        if (!metadata?.refined) {
+          const refineSessionPath = path.join(specPath, 'refine_session.json');
+          if (existsSync(refineSessionPath)) {
+            try {
+              const session = JSON.parse(readFileSync(refineSessionPath, 'utf-8'));
+              if (session?.completedPhases?.length >= 4) {
+                if (!metadata) metadata = {};
+                metadata.refined = true;
+                metadata.refinedAt = session.updatedAt;
+              }
+            } catch { /* ignore */ }
           }
         }
 

@@ -1,4 +1,34 @@
 {
+  "toolbar": {
+    "count": "{{count}} / {{max}} terminals",
+    "countShort": "{{count}}/{{max}}",
+    "history": "History",
+    "restoreFrom": "Restore sessions from...",
+    "sessionCount_one": "{{count}} session",
+    "sessionCount_other": "{{count}} sessions",
+    "invokeClaudeAll": "Invoke Claude All",
+    "newTerminal": "New Terminal",
+    "files": "Files",
+    "moreActions": "More terminal actions"
+  },
+  "mobile": {
+    "switcherLabel": "Terminals",
+    "keyBarLabel": "Terminal keys",
+    "keys": {
+      "esc": "Esc",
+      "tab": "Tab",
+      "ctrl": "Ctrl",
+      "enter": "Enter",
+      "up": "Arrow up",
+      "down": "Arrow down",
+      "left": "Arrow left",
+      "right": "Arrow right"
+    },
+    "escAria": "Send Escape",
+    "tabAria": "Send Tab",
+    "ctrlAria": "Ctrl modifier: the next key is sent as a control character",
+    "enterAria": "Send Enter"
+  },
   "expand": {
     "expand": "Expand terminal",
     "collapse": "Collapse terminal"

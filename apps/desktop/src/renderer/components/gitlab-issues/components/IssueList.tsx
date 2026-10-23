@@ -36,7 +36,7 @@ export function IssueList({
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 max-md:flex-none">
       <div className="p-2 space-y-1">
         {issues.map((issue) => (
           <IssueListItem

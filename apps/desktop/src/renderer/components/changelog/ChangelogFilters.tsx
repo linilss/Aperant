@@ -82,8 +82,8 @@ export function ChangelogFilters({
   const localBranches = branches.filter((b) => !b.isRemote);
 
   return (
-    <div className="w-80 shrink-0 border-r border-border overflow-y-auto">
-      <div className="p-6 space-y-6">
+    <div className="w-80 shrink-0 border-r border-border overflow-y-auto max-md:w-full max-md:border-r-0 max-md:border-b max-md:overflow-visible">
+      <div className="p-6 space-y-6 max-md:p-4">
         {/* Source Mode Selection */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">Changelog Source</Label>

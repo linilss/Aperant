@@ -3,9 +3,9 @@
  * =============
  *
  * Handles rate-limit and authentication pause/resume signalling via
- * filesystem sentinel files. See apps/desktop/src/main/ai/orchestration/pause-handler.ts for the TypeScript implementation.
+ * filesystem sentinel files.
  *
- * The backend (or, in this TS port, the build orchestrator) creates a pause
+ * The build orchestrator creates a pause
  * file when it hits a rate limit or auth failure. The frontend removes this
  * file (or creates a RESUME file) to signal that execution can continue.
  */
@@ -14,7 +14,7 @@ import { existsSync, unlinkSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // =============================================================================
-// Constants — see apps/desktop/src/main/ai/orchestration/pause-handler.ts
+// Constants
 // =============================================================================
 
 /** Created in specDir when the provider returns HTTP 429. */
@@ -26,11 +26,37 @@ export const AUTH_FAILURE_PAUSE_FILE = 'AUTH_PAUSE';
 /** Created by the frontend UI to signal that the user wants to resume. */
 export const RESUME_FILE = 'RESUME';
 
-/** Created by the frontend when a human needs to review before continuing. */
-export const HUMAN_INTERVENTION_FILE = 'PAUSE';
+/** Written by main for a "safe stop": the build stops before its next subtask */
+export const SAFE_STOP_FILE = 'SAFE_STOP';
+
+/** Left by the build when it stopped for a safe stop, so main treats the exit as a user stop */
+export const SAFE_STOPPED_FILE = 'SAFE_STOPPED';
+
+/**
+ * True (and the marker removed) when a safe stop was requested in either spec dir.
+ * Leaves SAFE_STOPPED in both dirs as proof for the exit handler.
+ */
+export function consumeSafeStop(specDir: string, sourceSpecDir?: string): boolean {
+  const dirs = [specDir, sourceSpecDir].filter((d): d is string => !!d);
+  let requested = false;
+  for (const dir of dirs) {
+    const file = join(dir, SAFE_STOP_FILE);
+    if (existsSync(file)) {
+      requested = true;
+      try { unlinkSync(file); } catch { /* ignore */ }
+    }
+  }
+  if (requested) {
+    for (const dir of dirs) {
+      try { writeFileSync(join(dir, SAFE_STOPPED_FILE), new Date().toISOString(), 'utf8'); } catch { /* ignore */ }
+    }
+  }
+  return requested;
+}
 
 /** Maximum time to wait for rate-limit reset (2 hours). */
-const MAX_RATE_LIMIT_WAIT_MS = 7_200_000;
+/** Longest a known reset time is waited for (a weekly limit can be days away) */
+const MAX_RATE_LIMIT_WAIT_MS = 8 * 24 * 60 * 60 * 1000;
 
 /** Interval for polling RESUME file during rate-limit wait (30 s). */
 const RATE_LIMIT_CHECK_INTERVAL_MS = 30_000;
@@ -194,6 +220,10 @@ export async function waitForRateLimitResume(
     if (checkAndClearResumeFile(resumeFile, pauseFile, fallbackResume)) {
       return true;
     }
+    // A safe stop (or safe restart) must not wait out a long limit: the loop stops right after this
+    if (existsSync(join(specDir, SAFE_STOP_FILE)) || (sourceSpecDir && existsSync(join(sourceSpecDir, SAFE_STOP_FILE)))) {
+      break;
+    }
 
     const remaining = deadline - Date.now();
     const interval = Math.min(RATE_LIMIT_CHECK_INTERVAL_MS, remaining);
@@ -253,24 +283,37 @@ export async function waitForAuthResume(
   removePauseFile(specDir, AUTH_FAILURE_PAUSE_FILE);
 }
 
-// =============================================================================
-// Human intervention check
-// =============================================================================
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 /**
- * Check whether a human intervention pause file exists.
- *
- * When PAUSE exists, the build orchestrator should not start the next session
- * until the user removes the file or signals resume.
- *
- * @returns The contents of the PAUSE file, or null if no pause is active.
+ * When a usage limit resets, read from the limit message: an epoch after "|"
+ * ("usage limit reached|1760000000"), an ISO time, or the CLI's
+ * "resets 3pm" / "resets Mon 9:30am" (next occurrence, local time). Null when unknown.
  */
-export function checkHumanIntervention(specDir: string): string | null {
-  const pauseFile = join(specDir, HUMAN_INTERVENTION_FILE);
-  if (!existsSync(pauseFile)) return null;
-  try {
-    return readFileSync(pauseFile, 'utf8').trim();
-  } catch {
-    return '';
+export function parseLimitReset(message: string, now: Date = new Date()): Date | null {
+  const epoch = message.match(/\|(\d{10,13})\b/);
+  if (epoch) {
+    const n = Number(epoch[1]);
+    const at = new Date(epoch[1].length === 13 ? n : n * 1000);
+    if (at > now) return at;
   }
+  const iso = message.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})/);
+  if (iso) {
+    const at = new Date(iso[0]);
+    if (!Number.isNaN(at.getTime()) && at > now) return at;
+  }
+  const m = message.toLowerCase().match(/resets?\s+(?:at\s+)?(?:(sun|mon|tue|wed|thu|fri|sat)\w*\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
+  if (!m) return null;
+  let hour = Number(m[2]) % 12;
+  if (m[4] === 'pm') hour += 12;
+  const at = new Date(now);
+  at.setHours(hour, Number(m[3] ?? 0), 0, 0);
+  if (m[1]) {
+    const days = (WEEKDAYS.indexOf(m[1]) - at.getDay() + 7) % 7;
+    at.setDate(at.getDate() + days);
+    if (at <= now) at.setDate(at.getDate() + 7);
+  } else if (at <= now) {
+    at.setDate(at.getDate() + 1);
+  }
+  return at;
 }

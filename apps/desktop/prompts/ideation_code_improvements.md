@@ -12,7 +12,6 @@ You are the **Code Improvements Ideation Agent** in the Auto-Build framework. Yo
 
 **Input Files**:
 - `project_index.json` - Project structure and tech stack
-- `ideation_context.json` - Existing features, roadmap items, kanban tasks
 - `memory/codebase_map.json` (if exists) - Previously discovered file purposes
 - `memory/patterns.md` (if exists) - Established code patterns
 
@@ -58,18 +57,12 @@ Unlike simple "quick wins", code improvements span all effort levels:
 # Read project structure
 cat project_index.json
 
-# Read ideation context (existing features, planned items)
-cat ideation_context.json
-
 # Check for memory files
 cat memory/codebase_map.json 2>/dev/null || echo "No codebase map yet"
 cat memory/patterns.md 2>/dev/null || echo "No patterns documented"
 
 # Look at existing roadmap if available (to avoid duplicates)
 cat ../roadmap/roadmap.json 2>/dev/null | head -100 || echo "No roadmap"
-
-# Check for graph hints (historical insights from Graphiti)
-cat graph_hints.json 2>/dev/null || echo "No graph hints available"
 ```
 
 Understand:
@@ -77,15 +70,6 @@ Understand:
 - What features already exist?
 - What patterns are established?
 - What is already planned (to avoid duplicates)?
-- What historical insights are available?
-
-### Graph Hints Integration
-
-If `graph_hints.json` exists and contains hints for `code_improvements`, use them to:
-1. **Avoid duplicates**: Don't suggest ideas that have already been tried or rejected
-2. **Build on success**: Prioritize patterns that worked well in the past
-3. **Learn from failures**: Avoid approaches that previously caused issues
-4. **Leverage context**: Use historical file/pattern knowledge
 
 ---
 
@@ -227,7 +211,7 @@ Justification: [why this effort level]
 
 For each idea, verify:
 
-1. **Not Already Planned**: Check ideation_context.json for similar items
+1. **Not Already Planned**: Check the existing roadmap (if any) for similar items
 2. **Pattern Exists**: The code pattern is already in the codebase
 3. **Infrastructure Ready**: Dependencies are already in place
 4. **Clear Implementation Path**: Can describe how to build it using existing patterns
@@ -332,7 +316,7 @@ Next phase: [UI/UX or Complete]
 1. **ONLY suggest ideas with existing patterns** - If the pattern doesn't exist, it's not a code improvement
 2. **Be specific about affected files** - List the actual files that would change
 3. **Reference real patterns** - Point to actual code in the codebase
-4. **Avoid duplicates** - Check ideation_context.json first
+4. **Avoid duplicates** - Check the existing roadmap (if any) first
 5. **No strategic/PM thinking** - Focus on what code reveals, not user needs analysis
 6. **Justify effort levels** - Each level should have clear reasoning
 7. **Provide implementation approach** - Show how existing code enables the improvement
@@ -373,4 +357,4 @@ Next phase: [UI/UX or Complete]
 
 ## BEGIN
 
-Start by reading project_index.json and ideation_context.json, then search for patterns and opportunities across all effort levels.
+Start by reading project_index.json, then search for patterns and opportunities across all effort levels.

@@ -20,8 +20,14 @@ import {
 import { GitHubSetupModal } from "./GitHubSetupModal";
 import type { GitHubIssue } from "../../shared/types";
 import type { GitHubIssuesProps } from "./github-issues/types";
+import { useTranslation } from "react-i18next";
+import { MobileBackBar } from './MobileNav';
+import { useIsCompact } from '../hooks/useIsMobile';
+import { PAGE_BODY, PAGE_ROOT, PAGE_STICKY } from './ui/page-header';
+import { cn } from '../lib/utils';
 
 export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesProps) {
+  const { t } = useTranslation("common");
   const projects = useProjectStore((state) => state.projects);
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -88,6 +94,11 @@ export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesP
   const [selectedIssueForInvestigation, setSelectedIssueForInvestigation] =
     useState<GitHubIssue | null>(null);
   const [showGitHubSetup, setShowGitHubSetup] = useState(false);
+  // Below lg (phones + narrow desktop): list and detail are shown one at a time
+  const isCompact = useIsCompact();
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
+  const showList = !isCompact || !showMobileDetail;
+  const showDetail = !isCompact || showMobileDetail;
 
   // Show GitHub setup modal when module is not installed
   useEffect(() => {
@@ -141,65 +152,79 @@ export function GitHubIssues({ onOpenSettings, onNavigateToTask }: GitHubIssuesP
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Header */}
-      <IssueListHeader
-        repoFullName={syncStatus.repoFullName ?? ""}
-        openIssuesCount={getOpenIssuesCount()}
-        isLoading={isLoading}
-        searchQuery={searchQuery}
-        filterState={filterState}
-        onSearchChange={setSearchQuery}
-        onFilterChange={handleFilterChange}
-        onRefresh={handleRefreshWithAutoFix}
-        autoFixEnabled={autoFixConfig?.enabled}
-        autoFixRunning={isBatchRunning}
-        autoFixProcessing={batchProgress?.totalIssues}
-        onAutoFixToggle={toggleAutoFix}
-        onAnalyzeAndGroup={openWizard}
-        isAnalyzing={isAnalyzing}
-      />
+    <div className={PAGE_ROOT}>
+      {/* Header + filters (hidden while a compact layout shows the detail on its own) */}
+      {showList && (
+        <IssueListHeader
+          repoFullName={syncStatus.repoFullName ?? ""}
+          openIssuesCount={getOpenIssuesCount()}
+          isLoading={isLoading}
+          searchQuery={searchQuery}
+          filterState={filterState}
+          onSearchChange={setSearchQuery}
+          onFilterChange={handleFilterChange}
+          onRefresh={handleRefreshWithAutoFix}
+          autoFixEnabled={autoFixConfig?.enabled}
+          autoFixRunning={isBatchRunning}
+          autoFixProcessing={batchProgress?.totalIssues}
+          onAutoFixToggle={toggleAutoFix}
+          onAnalyzeAndGroup={openWizard}
+          isAnalyzing={isAnalyzing}
+        />
+      )}
 
       {/* Content */}
-      <div className="flex-1 flex min-h-0">
+      <div className={cn(PAGE_BODY, "flex")}>
         {/* Issue List */}
-        <div className="w-1/2 border-r border-border flex flex-col">
-          <IssueList
-            issues={filteredIssues}
-            selectedIssueNumber={selectedIssueNumber}
-            isLoading={isLoading}
-            isLoadingMore={isLoadingMore}
-            hasMore={hasMore && !isSearchActive}
-            error={error}
-            onSelectIssue={selectIssue}
-            onInvestigate={handleInvestigate}
-            onLoadMore={!isSearchActive ? handleLoadMore : undefined}
-            onRetry={handleRefresh}
-            onOpenSettings={onOpenSettings}
-          />
-        </div>
+        {showList && (
+          <div className="flex w-1/2 min-w-0 flex-col border-r border-border max-lg:w-full max-lg:border-r-0">
+            <IssueList
+              issues={filteredIssues}
+              selectedIssueNumber={selectedIssueNumber}
+              isLoading={isLoading}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMore && !isSearchActive}
+              error={error}
+              onSelectIssue={(issueNumber) => {
+                selectIssue(issueNumber);
+                setShowMobileDetail(true);
+              }}
+              onInvestigate={handleInvestigate}
+              onLoadMore={!isSearchActive ? handleLoadMore : undefined}
+              onRetry={handleRefresh}
+              onOpenSettings={onOpenSettings}
+            />
+          </div>
+        )}
 
         {/* Issue Detail */}
-        <div className="w-1/2 flex flex-col">
-          {selectedIssue ? (
-            <IssueDetail
-              issue={selectedIssue}
-              onInvestigate={() => handleInvestigate(selectedIssue)}
-              investigationResult={
-                lastInvestigationResult?.issueNumber === selectedIssue.number
-                  ? lastInvestigationResult
-                  : null
-              }
-              linkedTaskId={issueToTaskMap.get(selectedIssue.number)}
-              onViewTask={onNavigateToTask}
-              projectId={selectedProject?.id}
-              autoFixConfig={autoFixConfig}
-              autoFixQueueItem={getAutoFixQueueItem(selectedIssue.number)}
-            />
-          ) : (
-            <EmptyState message="Select an issue to view details" />
-          )}
-        </div>
+        {showDetail && (
+          <div className="flex w-1/2 min-w-0 flex-col max-lg:w-full">
+            {isCompact && (
+              <div className={PAGE_STICKY}>
+                <MobileBackBar onBack={() => setShowMobileDetail(false)} />
+              </div>
+            )}
+            {selectedIssue ? (
+              <IssueDetail
+                issue={selectedIssue}
+                onInvestigate={() => handleInvestigate(selectedIssue)}
+                investigationResult={
+                  lastInvestigationResult?.issueNumber === selectedIssue.number
+                    ? lastInvestigationResult
+                    : null
+                }
+                linkedTaskId={issueToTaskMap.get(selectedIssue.number)}
+                onViewTask={onNavigateToTask}
+                projectId={selectedProject?.id}
+                autoFixConfig={autoFixConfig}
+                autoFixQueueItem={getAutoFixQueueItem(selectedIssue.number)}
+              />
+            ) : (
+              <EmptyState message={t("issues.selectIssue")} />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Investigation Dialog */}

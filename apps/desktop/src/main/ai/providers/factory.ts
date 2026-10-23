@@ -22,21 +22,8 @@ import type { LanguageModel } from 'ai';
 
 import { MODEL_PROVIDER_MAP } from '../config/types';
 import { createOAuthProviderFetch } from './oauth-fetch';
+import { isOAuthToken } from './oauth-token';
 import { type ProviderConfig, SupportedProvider } from './types';
-
-// =============================================================================
-// OAuth Token Detection
-// =============================================================================
-
-/**
- * Detects if a credential is an Anthropic OAuth token vs an API key.
- * OAuth access tokens start with 'sk-ant-oa' prefix.
- * API keys start with 'sk-ant-api' prefix.
- */
-function isOAuthToken(token: string | undefined): boolean {
-  if (!token) return false;
-  return token.startsWith('sk-ant-oa') || token.startsWith('sk-ant-ort');
-}
 
 // =============================================================================
 // Provider Instance Creators
@@ -183,7 +170,7 @@ function isCodexModel(modelId: string): boolean {
 export interface CreateProviderOptions {
   /** Provider configuration */
   config: ProviderConfig;
-  /** Full model ID (e.g., 'claude-sonnet-4-5-20250929') */
+  /** Full model ID (e.g., 'claude-sonnet-5-5') */
   modelId: string;
 }
 
@@ -234,7 +221,7 @@ export function createProvider(options: CreateProviderOptions): LanguageModel {
  * Detects the provider for a model ID based on its prefix.
  * Uses MODEL_PROVIDER_MAP for prefix-based matching.
  *
- * @param modelId - Full model ID (e.g., 'claude-sonnet-4-5-20250929', 'gpt-4o')
+ * @param modelId - Full model ID (e.g., 'claude-sonnet-5-5', 'gpt-4o')
  * @returns The detected provider, or undefined if no match
  */
 export function detectProviderFromModel(modelId: string): SupportedProvider | undefined {

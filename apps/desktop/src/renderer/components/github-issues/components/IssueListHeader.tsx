@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Github, RefreshCw, Search, Filter, Wand2, Loader2, Layers } from 'lucide-react';
 import { Badge } from '../../ui/badge';
-import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Switch } from '../../ui/switch';
 import { Label } from '../../ui/label';
@@ -18,6 +17,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../../ui/tooltip';
+import { PageHeader, PAGE_STICKY, type PageHeaderAction } from '../../ui/page-header';
+import { cn } from '../../../lib/utils';
 import type { IssueListHeaderProps } from '../types';
 
 export function IssueListHeader({
@@ -38,125 +39,101 @@ export function IssueListHeader({
 }: IssueListHeaderProps) {
   const { t } = useTranslation('common');
 
-  return (
-    <div className="shrink-0 p-4 border-b border-border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-muted">
-            <Github className="h-5 w-5" />
+  const actions: PageHeaderAction[] = [
+    {
+      id: 'analyze',
+      label: t('issues.analyzeAndGroup'),
+      icon: isAnalyzing ? Loader2 : Layers,
+      busy: isAnalyzing,
+      onClick: () => onAnalyzeAndGroup?.(),
+      disabled: isAnalyzing || isLoading,
+      tooltip: t('issues.analyzeTooltip'),
+      hidden: !onAnalyzeAndGroup,
+    },
+    {
+      id: 'refresh',
+      label: t('buttons.refresh'),
+      icon: RefreshCw,
+      busy: isLoading,
+      iconOnly: true,
+      onClick: onRefresh,
+      disabled: isLoading,
+    },
+  ];
+
+  const autoFixToggle = onAutoFixToggle && (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex h-8 shrink-0 items-center gap-2 rounded-md border border-border bg-muted/50 px-2 max-md:h-10">
+            {autoFixRunning ? (
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            ) : (
+              <Wand2 className="h-4 w-4 text-muted-foreground" />
+            )}
+            <Label htmlFor="auto-fix-toggle" className="cursor-pointer whitespace-nowrap text-sm">
+              {t('issues.autoFixNew')}
+            </Label>
+            <Switch
+              id="auto-fix-toggle"
+              checked={autoFixEnabled ?? false}
+              onCheckedChange={onAutoFixToggle}
+              disabled={autoFixRunning}
+            />
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              GitHub Issues
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {repoFullName}
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-xs">
+          <p>{t('issues.autoFixTooltip')}</p>
+          {autoFixRunning && autoFixProcessing !== undefined && autoFixProcessing > 0 && (
+            <p className="mt-1 text-primary">
+              {t('issues.autoFixProcessing', { count: autoFixProcessing })}
             </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            {openIssuesCount} open
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
+  return (
+    <>
+      <PageHeader
+        icon={Github}
+        title={t('issues.title')}
+        subtitle={repoFullName}
+        titleAddon={
+          <Badge variant="outline" className="shrink-0 text-xs">
+            {t('issues.openCount', { count: openIssuesCount })}
           </Badge>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onRefresh}
-            disabled={isLoading}
-            aria-label={t('buttons.refresh')}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          </Button>
-        </div>
-      </div>
+        }
+        extra={autoFixToggle}
+        actions={actions}
+      />
 
-      {/* Issue Management Actions */}
-      <div className="flex items-center gap-3 mb-4">
-        {/* Analyze & Group Button (Proactive) */}
-        {onAnalyzeAndGroup && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onAnalyzeAndGroup}
-                  disabled={isAnalyzing || isLoading}
-                  className="flex-1"
-                >
-                  {isAnalyzing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Layers className="h-4 w-4 mr-2" />
-                  )}
-                  Analyze & Group Issues
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p>Analyze up to 200 open issues, group similar ones, and review proposed batches before creating tasks.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-
-        {/* Auto-Fix Toggle (Reactive) */}
-        {onAutoFixToggle && (
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2">
-                    {autoFixRunning ? (
-                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                    ) : (
-                      <Wand2 className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <Label htmlFor="auto-fix-toggle" className="text-sm cursor-pointer whitespace-nowrap">
-                      Auto-Fix New
-                    </Label>
-                    <Switch
-                      id="auto-fix-toggle"
-                      checked={autoFixEnabled ?? false}
-                      onCheckedChange={onAutoFixToggle}
-                      disabled={autoFixRunning}
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs">
-                  <p>Automatically fix new issues as they come in.</p>
-                  {autoFixRunning && autoFixProcessing !== undefined && autoFixProcessing > 0 && (
-                    <p className="mt-1 text-primary">Processing {autoFixProcessing} issue{autoFixProcessing > 1 ? 's' : ''}...</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+      {/* Search + state filter: stays pinned while a phone scrolls the list */}
+      <div className={cn(PAGE_STICKY, 'shrink-0 border-b border-border px-6 py-2 max-md:px-3')}>
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={t('issues.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-9 max-md:h-10"
+            />
           </div>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search issues..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
-          />
+          <Select value={filterState} onValueChange={onFilterChange}>
+            <SelectTrigger className="w-32 shrink-0 max-md:h-10 max-md:w-28">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="open">{t('issues.filterOpen')}</SelectItem>
+              <SelectItem value="closed">{t('issues.filterClosed')}</SelectItem>
+              <SelectItem value="all">{t('issues.filterAll')}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={filterState} onValueChange={onFilterChange}>
-          <SelectTrigger className="w-32">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="open">Open</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-            <SelectItem value="all">All</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
-    </div>
+    </>
   );
 }

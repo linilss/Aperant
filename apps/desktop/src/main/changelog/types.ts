@@ -4,7 +4,6 @@
  */
 
 export interface ChangelogConfig {
-  pythonPath: string;
   claudePath: string;
   autoBuildSourcePath: string;
 }
@@ -22,9 +21,4 @@ export interface VersionSuggestion {
   reason: string;
   hasBreakingChanges: boolean;
   hasNewFeatures: boolean;
-}
-
-export interface GenerationScriptParams {
-  prompt: string;
-  claudePath: string;
 }

@@ -5,7 +5,18 @@
  * and option-based server filtering.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The malvy server is only offered when its bundled script exists on disk
+let serverScriptExists = true;
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    existsSync: (p: string) => (String(p).endsWith('malvy-mcp-server.js') ? serverScriptExists : actual.existsSync(p)),
+  };
+});
+
 import { getMcpServerConfig, resolveMcpServers } from '../registry';
 
 // =============================================================================
@@ -57,23 +68,8 @@ describe('getMcpServerConfig', () => {
   });
 
   describe('memory', () => {
-    it('returns null when no memory URL provided', () => {
-      const config = getMcpServerConfig('memory', {});
-      expect(config).toBeNull();
-    });
-
-    it('returns config with streamable-http transport when URL is provided', () => {
-      const config = getMcpServerConfig('memory', { memoryMcpUrl: 'http://localhost:8080/mcp' });
-      expect(config).not.toBeNull();
-      expect(config?.transport.type).toBe('streamable-http');
-      if (config?.transport.type === 'streamable-http') {
-        expect(config.transport.url).toBe('http://localhost:8080/mcp');
-      }
-    });
-
-    it('reads URL from env.GRAPHITI_MCP_URL option', () => {
-      const config = getMcpServerConfig('memory', { env: { GRAPHITI_MCP_URL: 'http://graphiti.local' } });
-      expect(config?.transport.type).toBe('streamable-http');
+    it('is not an MCP server (built-in memory is injected into prompts instead)', () => {
+      expect(getMcpServerConfig('memory', { env: { GRAPHITI_MCP_URL: 'http://graphiti.local' } })).toBeNull();
     });
   });
 
@@ -104,26 +100,44 @@ describe('getMcpServerConfig', () => {
     });
   });
 
-  describe('auto-claude', () => {
-    it('returns auto-claude config with empty specDir as default', () => {
-      const config = getMcpServerConfig('auto-claude', {});
+  describe('malvy', () => {
+    beforeEach(() => {
+      serverScriptExists = true;
+    });
+
+    it('returns the malvy config with empty specDir as default', () => {
+      const config = getMcpServerConfig('malvy', {});
       expect(config).not.toBeNull();
-      expect(config?.id).toBe('auto-claude');
+      expect(config?.id).toBe('malvy');
+      if (config?.transport.type === 'stdio') {
+        expect(config.transport.env?.SPEC_DIR).toBe('');
+      }
     });
 
     it('injects SPEC_DIR into transport env', () => {
-      const config = getMcpServerConfig('auto-claude', { specDir: '/project/.malvy/specs/001-feature' });
+      const config = getMcpServerConfig('malvy', { specDir: '/project/.malvy/specs/001-feature' });
       expect(config?.transport.type).toBe('stdio');
       if (config?.transport.type === 'stdio') {
         expect(config.transport.env?.SPEC_DIR).toBe('/project/.malvy/specs/001-feature');
       }
     });
 
-    it('uses node command', () => {
-      const config = getMcpServerConfig('auto-claude', {});
+    it('uses node command with the bundled server script', () => {
+      const config = getMcpServerConfig('malvy', {});
+      expect(config?.transport.type).toBe('stdio');
       if (config?.transport.type === 'stdio') {
         expect(config.transport.command).toBe('node');
+        expect(config.transport.args?.[0]).toMatch(/malvy-mcp-server\.js$/);
       }
+    });
+
+    it('returns null when malvy-mcp-server.js has not been built', () => {
+      serverScriptExists = false;
+      expect(getMcpServerConfig('malvy', { specDir: '/x' })).toBeNull();
+    });
+
+    it('does not recognize the legacy auto-claude id', () => {
+      expect(getMcpServerConfig('auto-claude', {})).toBeNull();
     });
   });
 
@@ -132,6 +146,12 @@ describe('getMcpServerConfig', () => {
       const config = getMcpServerConfig('nonexistent-server');
       expect(config).toBeNull();
     });
+  });
+
+  it('drops the malvy server when its script is missing', () => {
+    serverScriptExists = false;
+    const configs = resolveMcpServers(['context7', 'malvy'], { specDir: '/x' });
+    expect(configs.map((c) => c.id)).toEqual(['context7']);
   });
 });
 
@@ -168,18 +188,19 @@ describe('resolveMcpServers', () => {
     expect(configs[0].id).toBe('context7');
   });
 
-  it('includes memory server when memoryMcpUrl is provided', () => {
-    const configs = resolveMcpServers(['memory'], { memoryMcpUrl: 'http://memory.local' });
-    expect(configs).toHaveLength(1);
-    expect(configs[0].id).toBe('memory');
-  });
-
-  it('passes specDir through to auto-claude config', () => {
+  it('passes specDir through to the malvy config', () => {
+    serverScriptExists = true;
     const specDir = '/my-project/.malvy/specs/042-auth';
-    const configs = resolveMcpServers(['auto-claude'], { specDir });
+    const configs = resolveMcpServers(['malvy'], { specDir });
     expect(configs).toHaveLength(1);
     if (configs[0].transport.type === 'stdio') {
       expect(configs[0].transport.env?.SPEC_DIR).toBe(specDir);
     }
+  });
+
+  it('drops the malvy server when its script is missing', () => {
+    serverScriptExists = false;
+    const configs = resolveMcpServers(['context7', 'malvy'], { specDir: '/x' });
+    expect(configs.map((c) => c.id)).toEqual(['context7']);
   });
 });

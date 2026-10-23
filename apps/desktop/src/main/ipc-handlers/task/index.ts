@@ -15,6 +15,7 @@ import { registerTaskExecutionHandlers } from './execution-handlers';
 import { registerWorktreeHandlers } from './worktree-handlers';
 import { registerTaskLogsHandlers } from './logs-handlers';
 import { registerTaskArchiveHandlers } from './archive-handlers';
+import { registerConsolidateHandlers } from './consolidate-handlers';
 
 /**
  * Register all task-related IPC handlers
@@ -25,6 +26,7 @@ export function registerTaskHandlers(
 ): void {
   // Register CRUD handlers (create, read, update, delete)
   registerTaskCRUDHandlers(agentManager);
+  registerConsolidateHandlers();
 
   // Register execution handlers (start, stop, review, status management, recovery)
   registerTaskExecutionHandlers(agentManager, getMainWindow);

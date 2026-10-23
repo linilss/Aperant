@@ -49,6 +49,7 @@ async function generateTitleWithFallback(
   description: string,
   handler: string,
   taskId?: string,
+  projectPath?: string,
 ): Promise<string> {
   const breadcrumbData = taskId ? { handler, taskId } : { handler };
 
@@ -60,7 +61,7 @@ async function generateTitleWithFallback(
   });
 
   try {
-    const generatedTitle = await titleGenerator.generateTitle(description);
+    const generatedTitle = await titleGenerator.generateTitle(description, projectPath);
     if (generatedTitle) {
       console.warn(`[${handler}] Generated title:`, generatedTitle);
       safeBreadcrumb({
@@ -168,7 +169,7 @@ export function registerTaskCRUDHandlers(agentManager: AgentManager): void {
       let finalTitle = title;
       if (!title || !title.trim()) {
         console.warn('[TASK_CREATE] Title is empty, generating with Claude AI...');
-        finalTitle = await generateTitleWithFallback(description, 'TASK_CREATE');
+        finalTitle = await generateTitleWithFallback(description, 'TASK_CREATE', undefined, project.path);
       }
 
       // Generate a unique spec ID based on existing specs
@@ -344,7 +345,7 @@ export function registerTaskCRUDHandlers(agentManager: AgentManager): void {
    *
    * Note: Worktree cleanup uses manual deletion instead of `git worktree remove --force`
    * because the latter fails on Windows when the directory contains untracked files
-   * (node_modules, build artifacts, etc.). See: https://github.com/AndyMik90/Auto-Claude/issues/1539
+   * (node_modules, build artifacts, etc.). See upstream issue #1539.
    */
   ipcMain.handle(
     IPC_CHANNELS.TASK_DELETE,
@@ -377,6 +378,7 @@ export function registerTaskCRUDHandlers(agentManager: AgentManager): void {
           projectPath: project.path,
           specId: task.specId,
           logPrefix: '[TASK_DELETE]',
+          branchSettings: project.settings,
           deleteBranch: true
         });
 
@@ -474,7 +476,7 @@ export function registerTaskCRUDHandlers(agentManager: AgentManager): void {
         if (updates.title !== undefined && !updates.title.trim()) {
           const descriptionToUse = updates.description ?? task.description;
           console.warn('[TASK_UPDATE] Title is empty, generating with Claude AI...');
-          finalTitle = await generateTitleWithFallback(descriptionToUse, 'TASK_UPDATE', taskId);
+          finalTitle = await generateTitleWithFallback(descriptionToUse, 'TASK_UPDATE', taskId, project.path);
         }
 
         // Update implementation_plan.json

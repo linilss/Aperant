@@ -240,7 +240,7 @@ research.json created successfully.
 
 ## CRITICAL RULES
 
-1. **ALWAYS verify package names** - Don't assume "graphiti" is the package name
+1. **ALWAYS verify package names** - Don't assume the package name matches the product name
 2. **ALWAYS cite sources** - Document where information came from
 3. **ALWAYS flag uncertainties** - Mark unverified claims clearly
 4. **DON'T make up APIs** - Only document what you find in docs
@@ -268,12 +268,12 @@ research.json created successfully.
 
 ## EXAMPLE RESEARCH OUTPUT
 
-For a task involving "Graphiti memory integration":
+For a task involving "Stripe payments integration":
 
 **Step 1: Context7 Lookup**
 ```
 Tool: mcp__context7__resolve-library-id
-Input: { "libraryName": "graphiti" }
+Input: { "libraryName": "stripe" }
 → Returns library ID or "not found"
 ```
 
@@ -281,7 +281,7 @@ If found in Context7:
 ```
 Tool: mcp__context7__query-docs
 Input: {
-  "context7CompatibleLibraryID": "/zep/graphiti",
+  "context7CompatibleLibraryID": "/stripe/stripe-node",
   "topic": "getting started",
   "mode": "code"
 }
@@ -294,51 +294,49 @@ Input: {
 {
   "integrations_researched": [
     {
-      "name": "Graphiti",
+      "name": "Stripe",
       "type": "library",
       "verified_package": {
-        "name": "graphiti-core",
-        "install_command": "pip install graphiti-core",
-        "version": ">=0.5.0",
+        "name": "stripe",
+        "install_command": "npm install stripe",
+        "version": ">=14.0.0",
         "verified": true
       },
       "api_patterns": {
         "imports": [
-          "from graphiti_core import Graphiti",
-          "from graphiti_core.nodes import EpisodeType"
+          "import Stripe from 'stripe'"
         ],
-        "initialization": "graphiti = Graphiti(graph_driver=driver)",
+        "initialization": "const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)",
         "key_functions": [
-          "add_episode(name, episode_body, source, group_id)",
-          "search(query, limit, group_ids)"
+          "stripe.paymentIntents.create({ amount, currency })",
+          "stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)"
         ],
         "verified_against": "Context7 MCP + GitHub README"
       },
       "configuration": {
-        "env_vars": ["OPENAI_API_KEY"],
-        "dependencies": ["real_ladybug"]
+        "env_vars": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+        "dependencies": []
       },
       "infrastructure": {
-        "requires_docker": false,
-        "embedded_database": "LadybugDB"
+        "requires_docker": false
       },
       "gotchas": [
-        "Requires OpenAI API key for embeddings",
-        "Must call build_indices_and_constraints() before use",
-        "LadybugDB is embedded - no separate database server needed"
+        "Amounts are in the smallest currency unit (e.g. cents)",
+        "Webhook signature verification needs the raw request body, not parsed JSON",
+        "The npm package is 'stripe' (stripe-node is only the repository name)"
       ],
       "research_sources": [
-        "Context7 MCP: /zep/graphiti",
-        "https://github.com/getzep/graphiti",
-        "https://pypi.org/project/graphiti-core/"
+        "Context7 MCP: /stripe/stripe-node",
+        "https://github.com/stripe/stripe-node",
+        "https://www.npmjs.com/package/stripe"
       ]
     }
   ],
   "unverified_claims": [],
   "recommendations": [
-    "LadybugDB is embedded and requires no Docker or separate database setup"
+    "Verify webhook signatures before trusting event payloads"
   ],
-  "context7_libraries_used": ["/zep/graphiti"],
+  "context7_libraries_used": ["/stripe/stripe-node"],
   "created_at": "2024-12-10T12:00:00Z"
 }
 ```

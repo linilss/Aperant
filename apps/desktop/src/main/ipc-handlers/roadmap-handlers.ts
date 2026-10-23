@@ -8,6 +8,9 @@ import {
 import type {
   IPCResult,
   Roadmap,
+  RoadmapFeature,
+  RoadmapFeaturePriority,
+  RoadmapFeatureRefineOptions,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   PersistedRoadmapProgress,
@@ -22,9 +25,24 @@ import { projectStore } from "../project-store";
 import { AgentManager } from "../agent";
 import { debugLog, debugError } from "../../shared/utils/debug-logger";
 import { safeSendToRenderer } from "./utils";
+import { notifyFunnelChanged } from "./funnel-handlers";
+import { recordRemovedFeatures } from "../roadmap-removed";
+import { backupRoadmapFile, looksLikeForeignRoadmap } from "../roadmap-backup";
+import { buildDecisionsSection } from "../refine-transcript";
 import { writeFileWithRetry, readFileWithRetry } from "../utils/atomic-file";
 import { withFileLock } from "../utils/file-lock";
-import { getActiveProviderFeatureSettings } from "./feature-settings-helper";
+import { getActiveProviderFeatureSettings, resolveClaudeCliFeatureModel } from "./feature-settings-helper";
+import {
+  applyFeaturePriorityPatch,
+  featureFromSnakeCase,
+  featureToSnakeCase,
+  keepNewerRefinements,
+} from "./roadmap/feature-persistence";
+import { createFeatureRefineService } from "./roadmap/feature-refine-service";
+import { runRoadmapFeatureRefine } from "../ai/runners/roadmap-feature-refine";
+import { runFeatureProofread } from "../ai/runners/roadmap-feature-proofread";
+import { createPlanIntake, keepFreshSplitParts, newlyPlannedFeatureIds } from "./roadmap/plan-intake";
+import { loadKnownDirectionIds } from "../ai/runners/competitors/guidance";
 
 /**
  * Read roadmap feature settings using per-provider resolution
@@ -36,6 +54,188 @@ function getFeatureSettings(): { model?: string; thinkingLevel?: string } {
 /**
  * Register all roadmap-related IPC handlers
  */
+/** "Relevant files" from the planning proofread; '' when none */
+function relevantFilesSection(feature: Record<string, unknown>): string {
+  const files = Array.isArray(feature.relevant_files) ? feature.relevant_files.filter((f) => typeof f === "string") : [];
+  return files.length ? `\n## Relevant files\n${files.map((f) => `- ${f}`).join("\n")}\n` : "";
+}
+
+/** Features this one depends on, with their tasks, so the coder knows what to build on; '' when none */
+function coordinateSection(features: Array<Record<string, unknown>>, feature: Record<string, unknown>): string {
+  const ids = Array.isArray(feature.dependencies) ? feature.dependencies : [];
+  const lines = ids
+    .map((id) => features.find((f) => f.id === id))
+    .filter((f): f is Record<string, unknown> => !!f)
+    .map((f) => `- ${String(f.title)}${f.linked_spec_id ? ` (task ${String(f.linked_spec_id)})` : ""}`);
+  return lines.length ? `\n## Coordinate with\nBuilds on or touches the same code as:\n${lines.join("\n")}\n` : "";
+}
+
+/**
+ * Turn a roadmap feature into a backlog task (spec dir + metadata) and link it.
+ * The feature gets `featureStatus` (the manual Build button keeps "planned";
+ * the planning intake moves it on to "in_progress").
+ */
+async function convertFeatureToSpec(
+  projectId: string,
+  featureId: string,
+  featureStatus: RoadmapFeatureStatus = "planned"
+): Promise<IPCResult<Task>> {
+      const project = projectStore.getProject(projectId);
+  if (!project) {
+    return { success: false, error: "Project not found" };
+  }
+
+  const roadmapPath = path.join(
+    project.path,
+    AUTO_BUILD_PATHS.ROADMAP_DIR,
+    AUTO_BUILD_PATHS.ROADMAP_FILE
+  );
+
+  try {
+    return await withFileLock(roadmapPath, async () => {
+    let content: string;
+    try {
+      content = await readFileWithRetry(roadmapPath, { encoding: "utf-8" }) as string;
+    } catch (readErr: unknown) {
+      if ((readErr as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { success: false, error: "Roadmap not found" };
+      }
+      throw readErr;
+    }
+    const roadmap = JSON.parse(content);
+
+    // Find the feature
+    const feature = roadmap.features?.find((f: { id: string }) => f.id === featureId);
+    if (!feature) {
+      return { success: false, error: "Feature not found" };
+    }
+
+    // Build task description from feature
+    const taskDescription = `# ${feature.title}
+
+${feature.description}
+
+## Rationale
+${feature.rationale || "N/A"}
+
+## User Stories
+${(feature.user_stories || []).map((s: string) => `- ${s}`).join("\n") || "N/A"}
+
+## Acceptance Criteria
+${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n") || "N/A"}
+${relevantFilesSection(feature)}${coordinateSection(roadmap.features ?? [], feature)}${buildDecisionsSection(project.path, feature.id)}`;
+
+    // Generate proper spec directory (like task creation)
+    const specsBaseDir = getSpecsDir(project.autoBuildPath);
+    const specsDir = path.join(project.path, specsBaseDir);
+
+    // Ensure specs directory exists
+    if (!existsSync(specsDir)) {
+      mkdirSync(specsDir, { recursive: true });
+    }
+
+    // Find next available spec number
+    let specNumber = 1;
+    const existingDirs = existsSync(specsDir)
+      ? readdirSync(specsDir, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name)
+      : [];
+    const existingNumbers = existingDirs
+      .map((name) => {
+        const match = name.match(/^(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n) => n > 0);
+    if (existingNumbers.length > 0) {
+      specNumber = Math.max(...existingNumbers) + 1;
+    }
+
+    // Create spec ID with zero-padded number and slugified title
+    const slugifiedTitle = feature.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .substring(0, 50);
+    const specId = `${String(specNumber).padStart(3, "0")}-${slugifiedTitle}`;
+
+    // Create spec directory
+    const specDir = path.join(specsDir, specId);
+    mkdirSync(specDir, { recursive: true });
+
+    // Create initial implementation_plan.json
+    const now = new Date().toISOString();
+    const implementationPlan = {
+      feature: feature.title,
+      description: taskDescription,
+      created_at: now,
+      updated_at: now,
+      status: "pending",
+      phases: [],
+    };
+    await writeFileWithRetry(
+      path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN),
+      JSON.stringify(implementationPlan, null, 2),
+      { encoding: 'utf-8' }
+    );
+
+    // Create requirements.json
+    const requirements = {
+      task_description: taskDescription,
+      workflow_type: "feature",
+    };
+    await writeFileWithRetry(
+      path.join(specDir, AUTO_BUILD_PATHS.REQUIREMENTS),
+      JSON.stringify(requirements, null, 2),
+      { encoding: 'utf-8' }
+    );
+
+    // Create spec.md (required by backend spec creation process)
+    await writeFileWithRetry(path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE), taskDescription, { encoding: 'utf-8' });
+
+    // Build metadata
+    const metadata: TaskMetadata = {
+      sourceType: "roadmap",
+      featureId: feature.id,
+      category: "feature",
+    };
+    await writeFileWithRetry(path.join(specDir, "task_metadata.json"), JSON.stringify(metadata, null, 2), { encoding: 'utf-8' });
+
+    // NOTE: We do NOT auto-start spec creation here - user should explicitly start the task
+    // from the kanban board when they're ready
+
+    // Update feature with linked spec
+    feature.status = featureStatus;
+    feature.linked_spec_id = specId;
+    roadmap.metadata = roadmap.metadata || {};
+    roadmap.metadata.updated_at = new Date().toISOString();
+    await writeFileWithRetry(roadmapPath, JSON.stringify(roadmap, null, 2), { encoding: 'utf-8' });
+
+    // Create task object
+    const task: Task = {
+      id: specId,
+      specId: specId,
+      projectId,
+      title: feature.title,
+      description: taskDescription,
+      status: "backlog",
+      subtasks: [],
+      logs: [],
+      metadata,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    return { success: true, data: task };
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to convert feature to spec",
+    };
+  }
+}
+
 export function registerRoadmapHandlers(
   agentManager: AgentManager,
   getMainWindow: () => BrowserWindow | null
@@ -43,6 +243,15 @@ export function registerRoadmapHandlers(
   // ============================================
   // Roadmap Operations
   // ============================================
+
+  // Features moved to Planned: proofread by an agent, then turned into a task (In Progress)
+  const planIntake = createPlanIntake({
+    getProjectPath: (projectId) => projectStore.getProject(projectId)?.path ?? null,
+    runProofread: runFeatureProofread,
+    resolveModelId: () => resolveClaudeCliFeatureModel('roadmap'),
+    convert: convertFeatureToSpec,
+    emit: (channel, ...args) => safeSendToRenderer(getMainWindow, channel, ...args),
+  });
 
   ipcMain.handle(
     IPC_CHANNELS.ROADMAP_GET,
@@ -101,6 +310,12 @@ export function registerRoadmapHandlers(
                 strengths: (c.strengths as string[]) || [],
                 marketPosition: (c.market_position as string) || "",
                 source: c.source || undefined,
+                positioning: (c.positioning as string) || undefined,
+                targetAudience: (c.target_audience as string) || undefined,
+                keyFeatures: (c.key_features as string[]) || undefined,
+                pricingModel: (c.pricing_model as string) || undefined,
+                weaknesses: (c.weaknesses as string[]) || undefined,
+                differentiator: (c.differentiator as string) || undefined,
               })),
               marketGaps: (rawCompetitor.market_gaps || []).map((g: Record<string, unknown>) => ({
                 id: g.id,
@@ -120,8 +335,8 @@ export function registerRoadmapHandlers(
                 sourcesConsulted: rawCompetitor.research_metadata?.sources_consulted || [],
                 limitations: rawCompetitor.research_metadata?.limitations || [],
               },
-              createdAt: rawCompetitor.metadata?.created_at
-                ? new Date(rawCompetitor.metadata.created_at)
+              createdAt: rawCompetitor.metadata?.created_at || rawCompetitor.created_at
+                ? new Date(rawCompetitor.metadata?.created_at || rawCompetitor.created_at)
                 : new Date(),
             };
           } catch {
@@ -156,24 +371,7 @@ export function registerRoadmapHandlers(
               targetDate: m.target_date ? new Date(m.target_date as string) : undefined,
             })),
           })),
-          features: (rawRoadmap.features || []).map((feature: Record<string, unknown>) => ({
-            id: feature.id,
-            title: feature.title,
-            description: feature.description,
-            rationale: feature.rationale || "",
-            priority: feature.priority || "should",
-            complexity: feature.complexity || "medium",
-            impact: feature.impact || "medium",
-            phaseId: feature.phase_id,
-            dependencies: feature.dependencies || [],
-            status: feature.status || "under_review",
-            acceptanceCriteria: feature.acceptance_criteria || [],
-            userStories: feature.user_stories || [],
-            linkedSpecId: feature.linked_spec_id,
-            taskOutcome: feature.task_outcome,
-            previousStatus: feature.previous_status,
-            competitorInsightIds: (feature.competitor_insight_ids as string[]) || undefined,
-          })),
+          features: (rawRoadmap.features || []).map(featureFromSnakeCase),
           status: rawRoadmap.status || "draft",
           competitorAnalysis,
           createdAt: rawRoadmap.metadata?.created_at
@@ -272,13 +470,15 @@ export function registerRoadmapHandlers(
       _,
       projectId: string,
       enableCompetitorAnalysis?: boolean,
-      refreshCompetitorAnalysis?: boolean
+      refreshCompetitorAnalysis?: boolean,
+      guidance?: string
     ) => {
       // Get feature settings for roadmap
       const featureSettings = getFeatureSettings();
       const config: RoadmapConfig = {
         model: featureSettings.model,
         thinkingLevel: featureSettings.thinkingLevel,
+        guidance: guidance?.trim() || undefined,
       };
 
       debugLog("[Roadmap Handler] Refresh request:", {
@@ -348,6 +548,10 @@ export function registerRoadmapHandlers(
       if (!project) {
         return { success: false, error: "Project not found" };
       }
+      // The renderer keeps one roadmap in memory; never write it into another project's file
+      if (roadmapData?.projectId && roadmapData.projectId !== projectId) {
+        return { success: false, error: "Roadmap belongs to another project" };
+      }
 
       const roadmapPath = path.join(
         project.path,
@@ -369,30 +573,35 @@ export function registerRoadmapHandlers(
           const existingRoadmap = JSON.parse(content);
 
           // Transform camelCase features back to snake_case for JSON file
-          existingRoadmap.features = roadmapData.features.map((feature) => ({
-            id: feature.id,
-            title: feature.title,
-            description: feature.description,
-            rationale: feature.rationale || "",
-            priority: feature.priority,
-            complexity: feature.complexity,
-            impact: feature.impact,
-            phase_id: feature.phaseId,
-            dependencies: feature.dependencies || [],
-            status: feature.status,
-            acceptance_criteria: feature.acceptanceCriteria || [],
-            user_stories: feature.userStories || [],
-            linked_spec_id: feature.linkedSpecId,
-            task_outcome: feature.taskOutcome,
-            previous_status: feature.previousStatus,
-            competitor_insight_ids: feature.competitorInsightIds,
-          }));
+          const incomingFeatures = roadmapData.features.map(featureToSnakeCase);
+          // Don't roll back an AI refinement the renderer hasn't received yet (before the
+          // foreign check: titles renamed in main must not look like another roadmap)
+          keepNewerRefinements(existingRoadmap.features, incomingFeatures);
+          if (looksLikeForeignRoadmap(existingRoadmap.features ?? [], incomingFeatures)) {
+            debugError("[Roadmap] Refused a save that looks like another roadmap:", projectId);
+            return { success: false, error: "Refused: this save would replace the roadmap with a different one" };
+          }
+          backupRoadmapFile(roadmapPath);
+          keepFreshSplitParts(existingRoadmap.features ?? [], incomingFeatures);
+          // Features the user deleted: remember them so a regenerate doesn't bring them back
+          try {
+            recordRemovedFeatures(path.dirname(roadmapPath), existingRoadmap.features ?? [], incomingFeatures);
+          } catch (err) {
+            debugError("[Roadmap] Failed to record removed features:", err);
+          }
+          const plannedIds = newlyPlannedFeatureIds(existingRoadmap.features ?? [], incomingFeatures);
+          existingRoadmap.features = incomingFeatures;
 
           // Update metadata timestamp
           existingRoadmap.metadata = existingRoadmap.metadata || {};
           existingRoadmap.metadata.updated_at = new Date().toISOString();
 
           await writeFileWithRetry(roadmapPath, JSON.stringify(existingRoadmap, null, 2), { encoding: 'utf-8' });
+          notifyFunnelChanged(projectId);
+          // Overview projects plan nothing into tasks
+          if (!project.settings?.overviewOnly) {
+            for (const featureId of plannedIds) void planIntake.run(projectId, featureId);
+          }
 
           return { success: true };
         });
@@ -465,8 +674,13 @@ export function registerRoadmapHandlers(
   );
 
   ipcMain.handle(
-    IPC_CHANNELS.ROADMAP_CONVERT_TO_SPEC,
-    async (_, projectId: string, featureId: string): Promise<IPCResult<Task>> => {
+    IPC_CHANNELS.ROADMAP_UPDATE_FEATURE_PRIORITY,
+    async (
+      _,
+      projectId: string,
+      featureId: string,
+      priority: RoadmapFeaturePriority
+    ): Promise<IPCResult> => {
       const project = projectStore.getProject(projectId);
       if (!project) {
         return { success: false, error: "Project not found" };
@@ -480,148 +694,81 @@ export function registerRoadmapHandlers(
 
       try {
         return await withFileLock(roadmapPath, async () => {
-        let content: string;
-        try {
-          content = await readFileWithRetry(roadmapPath, { encoding: "utf-8" }) as string;
-        } catch (readErr: unknown) {
-          if ((readErr as NodeJS.ErrnoException).code === 'ENOENT') {
-            return { success: false, error: "Roadmap not found" };
+          let content: string;
+          try {
+            content = await readFileWithRetry(roadmapPath, { encoding: "utf-8" }) as string;
+          } catch (readErr: unknown) {
+            if ((readErr as NodeJS.ErrnoException).code === 'ENOENT') {
+              return { success: false, error: "Roadmap not found" };
+            }
+            throw readErr;
           }
-          throw readErr;
-        }
-        const roadmap = JSON.parse(content);
+          const roadmap = JSON.parse(content);
 
-        // Find the feature
-        const feature = roadmap.features?.find((f: { id: string }) => f.id === featureId);
-        if (!feature) {
-          return { success: false, error: "Feature not found" };
-        }
+          const result = applyFeaturePriorityPatch(roadmap, featureId, priority);
+          if (!result.success) {
+            return result;
+          }
 
-        // Build task description from feature
-        const taskDescription = `# ${feature.title}
+          await writeFileWithRetry(roadmapPath, JSON.stringify(roadmap, null, 2), { encoding: 'utf-8' });
 
-${feature.description}
-
-## Rationale
-${feature.rationale || "N/A"}
-
-## User Stories
-${(feature.user_stories || []).map((s: string) => `- ${s}`).join("\n") || "N/A"}
-
-## Acceptance Criteria
-${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n") || "N/A"}
-`;
-
-        // Generate proper spec directory (like task creation)
-        const specsBaseDir = getSpecsDir(project.autoBuildPath);
-        const specsDir = path.join(project.path, specsBaseDir);
-
-        // Ensure specs directory exists
-        if (!existsSync(specsDir)) {
-          mkdirSync(specsDir, { recursive: true });
-        }
-
-        // Find next available spec number
-        let specNumber = 1;
-        const existingDirs = existsSync(specsDir)
-          ? readdirSync(specsDir, { withFileTypes: true })
-              .filter((d) => d.isDirectory())
-              .map((d) => d.name)
-          : [];
-        const existingNumbers = existingDirs
-          .map((name) => {
-            const match = name.match(/^(\d+)/);
-            return match ? parseInt(match[1], 10) : 0;
-          })
-          .filter((n) => n > 0);
-        if (existingNumbers.length > 0) {
-          specNumber = Math.max(...existingNumbers) + 1;
-        }
-
-        // Create spec ID with zero-padded number and slugified title
-        const slugifiedTitle = feature.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .substring(0, 50);
-        const specId = `${String(specNumber).padStart(3, "0")}-${slugifiedTitle}`;
-
-        // Create spec directory
-        const specDir = path.join(specsDir, specId);
-        mkdirSync(specDir, { recursive: true });
-
-        // Create initial implementation_plan.json
-        const now = new Date().toISOString();
-        const implementationPlan = {
-          feature: feature.title,
-          description: taskDescription,
-          created_at: now,
-          updated_at: now,
-          status: "pending",
-          phases: [],
-        };
-        await writeFileWithRetry(
-          path.join(specDir, AUTO_BUILD_PATHS.IMPLEMENTATION_PLAN),
-          JSON.stringify(implementationPlan, null, 2),
-          { encoding: 'utf-8' }
-        );
-
-        // Create requirements.json
-        const requirements = {
-          task_description: taskDescription,
-          workflow_type: "feature",
-        };
-        await writeFileWithRetry(
-          path.join(specDir, AUTO_BUILD_PATHS.REQUIREMENTS),
-          JSON.stringify(requirements, null, 2),
-          { encoding: 'utf-8' }
-        );
-
-        // Create spec.md (required by backend spec creation process)
-        await writeFileWithRetry(path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE), taskDescription, { encoding: 'utf-8' });
-
-        // Build metadata
-        const metadata: TaskMetadata = {
-          sourceType: "roadmap",
-          featureId: feature.id,
-          category: "feature",
-        };
-        await writeFileWithRetry(path.join(specDir, "task_metadata.json"), JSON.stringify(metadata, null, 2), { encoding: 'utf-8' });
-
-        // NOTE: We do NOT auto-start spec creation here - user should explicitly start the task
-        // from the kanban board when they're ready
-
-        // Update feature with linked spec
-        feature.status = "planned";
-        feature.linked_spec_id = specId;
-        roadmap.metadata = roadmap.metadata || {};
-        roadmap.metadata.updated_at = new Date().toISOString();
-        await writeFileWithRetry(roadmapPath, JSON.stringify(roadmap, null, 2), { encoding: 'utf-8' });
-
-        // Create task object
-        const task: Task = {
-          id: specId,
-          specId: specId,
-          projectId,
-          title: feature.title,
-          description: taskDescription,
-          status: "backlog",
-          subtasks: [],
-          logs: [],
-          metadata,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        return { success: true, data: task };
+          return { success: true };
         });
       } catch (error) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : "Failed to convert feature to spec",
+          error: error instanceof Error ? error.message : "Failed to update feature priority",
         };
       }
     }
+  );
+
+  // One-shot AI refinement of a feature (quick add → proper feature). Resolves when
+  // done; progress/result also go out as events so every open view updates.
+  const refineService = createFeatureRefineService({
+    getProjectPath: (projectId) => projectStore.getProject(projectId)?.path ?? null,
+    runRefine: runRoadmapFeatureRefine,
+    resolveModelId: () => resolveClaudeCliFeatureModel('roadmap'),
+    loadKnownDirectionIds,
+    emit: (channel, ...args) => safeSendToRenderer(getMainWindow, channel, ...args),
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.ROADMAP_PLAN_INTAKE,
+    (_, projectId: string, featureIds: string[]): IPCResult => {
+      const intakeProject = projectStore.getProject(projectId);
+      if (!intakeProject) return { success: false, error: "Project not found" };
+      if (intakeProject.settings?.overviewOnly) return { success: false, error: "This is an overview project: plan in the app's own project." };
+      for (const featureId of Array.isArray(featureIds) ? featureIds : []) {
+        void planIntake.run(projectId, String(featureId));
+      }
+      return { success: true };
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ROADMAP_REFINE_FEATURE,
+    async (
+      _,
+      projectId: string,
+      featureId: string,
+      line: string,
+      options?: RoadmapFeatureRefineOptions
+    ): Promise<IPCResult<RoadmapFeature>> => {
+      const result = await refineService.refineFeature(projectId, featureId, String(line ?? ""), {
+        suggestPriority: options?.suggestPriority === true,
+        explicit: options?.explicit === true,
+      });
+      if (!result.success) {
+        debugError("[Roadmap Handler] Feature refinement failed:", { projectId, featureId, error: result.error });
+      }
+      return result;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ROADMAP_CONVERT_TO_SPEC,
+    (_, projectId: string, featureId: string): Promise<IPCResult<Task>> => convertFeatureToSpec(projectId, featureId)
   );
 
   // ============================================
@@ -795,14 +942,33 @@ ${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n"
         }
 
         await withFileLock(competitorAnalysisPath, async () => {
+          // Keep fields this dialog doesn't know about (Competitors page profile
+          // fields, pool, focus, analyzed_at) — merge over the existing file.
+          let existingRaw: Record<string, unknown> = {};
+          if (existsSync(competitorAnalysisPath)) {
+            try {
+              existingRaw = JSON.parse(
+                (await readFileWithRetry(competitorAnalysisPath, { encoding: "utf-8" })) as string
+              );
+            } catch {
+              existingRaw = {};
+            }
+          }
+          const existingById = new Map(
+            (Array.isArray(existingRaw.competitors) ? existingRaw.competitors : [])
+              .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+              .map((c) => [String(c.id), c])
+          );
           // Transform camelCase to snake_case for JSON file
           const serialized = {
+            ...existingRaw,
             project_context: {
               project_name: competitorAnalysis.projectContext.projectName,
               project_type: competitorAnalysis.projectContext.projectType,
               target_audience: competitorAnalysis.projectContext.targetAudience,
             },
             competitors: competitorAnalysis.competitors.map((c) => ({
+              ...(existingById.get(c.id) ?? {}),
               id: c.id,
               name: c.name,
               url: c.url,
@@ -918,6 +1084,7 @@ ${(feature.acceptance_criteria || []).map((c: string) => `- [ ] ${c}`).join("\n"
 
   agentManager.on("roadmap-complete", (projectId: string, roadmap: Roadmap) => {
     safeSendToRenderer(getMainWindow, IPC_CHANNELS.ROADMAP_COMPLETE, projectId, roadmap);
+    notifyFunnelChanged(projectId);
   });
 
   agentManager.on("roadmap-error", (projectId: string, error: string) => {

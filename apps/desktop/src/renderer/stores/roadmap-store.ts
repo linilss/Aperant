@@ -8,6 +8,7 @@ import type {
   ManualCompetitorInput,
   Roadmap,
   RoadmapFeature,
+  RoadmapFeatureRefineOptions,
   RoadmapFeatureStatus,
   RoadmapGenerationStatus,
   TaskOutcome,
@@ -175,6 +176,8 @@ interface RoadmapState {
   competitorAnalysis: CompetitorAnalysis | null;
   generationStatus: RoadmapGenerationStatus;
   currentProjectId: string | null;  // Track which project we're viewing/generating for
+  /** Feature ids with an AI refinement in progress */
+  refiningFeatureIds: Record<string, true>;
 
   // Actions
   setRoadmap: (roadmap: Roadmap | null) => void;
@@ -192,6 +195,9 @@ interface RoadmapState {
   addFeature: (feature: Omit<RoadmapFeature, 'id'>) => string;
   updateFeature: (featureId: string, updates: Partial<Omit<RoadmapFeature, 'id'>>) => void;
   addCompetitor: (input: ManualCompetitorInput) => string;
+  setFeatureRefining: (featureId: string, refining: boolean) => void;
+  /** Replace a feature with the refined version main wrote to roadmap.json */
+  applyRefinedFeature: (feature: RoadmapFeature) => void;
 }
 
 const initialGenerationStatus: RoadmapGenerationStatus = {
@@ -223,6 +229,7 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
   competitorAnalysis: null,
   generationStatus: initialGenerationStatus,
   currentProjectId: null,
+  refiningFeatureIds: {},
 
   // Actions
   setRoadmap: (roadmap) => {
@@ -377,7 +384,8 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
       planned: { type: 'PLAN' },
       in_progress: { type: 'START_PROGRESS' },
       done: { type: 'MARK_DONE' },
-      under_review: { type: 'MOVE_TO_REVIEW' }
+      under_review: { type: 'MOVE_TO_REVIEW' },
+      dismissed: { type: 'DISMISS' }
     };
 
     const actor = getOrCreateFeatureActor(featureId, feature.status, {
@@ -623,6 +631,29 @@ export const useRoadmapStore = create<RoadmapState>((set) => ({
     });
   },
 
+  setFeatureRefining: (featureId, refining) =>
+    set((state) => {
+      if (!!state.refiningFeatureIds[featureId] === refining) return state;
+      const next = { ...state.refiningFeatureIds };
+      if (refining) next[featureId] = true;
+      else delete next[featureId];
+      return { refiningFeatureIds: next };
+    }),
+
+  applyRefinedFeature: (feature) =>
+    set((state) => {
+      const { [feature.id]: _done, ...refiningFeatureIds } = state.refiningFeatureIds;
+      if (!state.roadmap?.features.some((f) => f.id === feature.id)) return { refiningFeatureIds };
+      return {
+        refiningFeatureIds,
+        roadmap: {
+          ...state.roadmap,
+          features: state.roadmap.features.map((f) => (f.id === feature.id ? feature : f)),
+          updatedAt: new Date(),
+        },
+      };
+    }),
+
   // Add a manual competitor to the competitor analysis
   addCompetitor: (input) => {
     const newId = `competitor-manual-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -697,6 +728,8 @@ async function reconcileLinkedFeatures(projectId: string, roadmap: Roadmap): Pro
   // Fetch current tasks for the project
   const tasksResult = await window.electronAPI.getTasks(projectId);
   if (!tasksResult.success || !tasksResult.data) return;
+  // The user may have switched project while tasks loaded; never touch another project's roadmap
+  if (useRoadmapStore.getState().roadmap?.projectId !== projectId) return;
 
   // Guard against empty task list (e.g., specs directory temporarily inaccessible)
   // to avoid falsely marking all linked features as 'deleted'
@@ -741,6 +774,36 @@ async function reconcileLinkedFeatures(projectId: string, roadmap: Roadmap): Pro
         console.error('[Roadmap] Failed to save reconciled roadmap:', err);
       });
     }
+  }
+}
+
+/**
+ * Ask main to refine a feature with AI in the background. The roadmap.json patch
+ * happens in main; the store is updated from the result (and the refined event).
+ * Failures are non-fatal: the feature stays as it is.
+ */
+export async function refineFeatureWithAI(
+  projectId: string,
+  featureId: string,
+  line: string,
+  options: RoadmapFeatureRefineOptions
+): Promise<{ success: boolean; error?: string }> {
+  const store = useRoadmapStore.getState();
+  if (store.refiningFeatureIds[featureId]) return { success: false };
+  store.setFeatureRefining(featureId, true);
+  try {
+    const result = await window.electronAPI.refineRoadmapFeature(projectId, featureId, line, options);
+    if (result.success && result.data) {
+      if (useRoadmapStore.getState().roadmap?.projectId === projectId) {
+        useRoadmapStore.getState().applyRefinedFeature(result.data);
+      }
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    useRoadmapStore.getState().setFeatureRefining(featureId, false);
   }
 }
 
@@ -796,6 +859,8 @@ export async function loadRoadmap(projectId: string): Promise<void> {
   }
 
   const result = await window.electronAPI.getRoadmap(projectId);
+  // A later loadRoadmap (project switch) owns the store now
+  if (useRoadmapStore.getState().currentProjectId !== projectId) return;
   if (result.success && result.data) {
     // Migrate roadmap to latest schema if needed
     const migratedRoadmap = migrateRoadmapIfNeeded(result.data);
@@ -844,7 +909,8 @@ export function generateRoadmap(
 export function refreshRoadmap(
   projectId: string,
   enableCompetitorAnalysis?: boolean,
-  refreshCompetitorAnalysis?: boolean
+  refreshCompetitorAnalysis?: boolean,
+  guidance?: string
 ): void {
   // Debug logging
   if (window.DEBUG) {
@@ -856,7 +922,7 @@ export function refreshRoadmap(
     progress: 0,
     message: 'Refreshing roadmap...'
   });
-  window.electronAPI.refreshRoadmap(projectId, enableCompetitorAnalysis, refreshCompetitorAnalysis);
+  window.electronAPI.refreshRoadmap(projectId, enableCompetitorAnalysis, refreshCompetitorAnalysis, guidance);
 }
 
 export async function stopRoadmap(projectId: string): Promise<boolean> {
@@ -896,7 +962,7 @@ export function getFeaturesByPhase(
   phaseId: string
 ): RoadmapFeature[] {
   if (!roadmap) return [];
-  return roadmap.features.filter((f) => f.phaseId === phaseId);
+  return roadmap.features.filter((f) => f.phaseId === phaseId && f.status !== 'dismissed');
 }
 
 export function getFeaturesByPriority(
@@ -945,4 +1011,32 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     resetActors();
   });
+}
+
+/**
+ * Plan a feature: move it to Planned so main proofreads it with an agent and
+ * creates its task (planning intake). Already planned without a task: rerun the intake.
+ */
+export async function planFeature(projectId: string, featureId: string): Promise<void> {
+  const store = useRoadmapStore.getState();
+  const feature = store.roadmap?.features.find((f) => f.id === featureId);
+  if (!feature || feature.linkedSpecId || store.roadmap?.projectId !== projectId) return;
+  if (feature.status === 'planned') {
+    await window.electronAPI.planRoadmapFeatures(projectId, [featureId]);
+    return;
+  }
+  store.updateFeatureStatus(featureId, 'planned');
+  const roadmap = useRoadmapStore.getState().roadmap;
+  if (roadmap) await window.electronAPI.saveRoadmap(projectId, roadmap);
+}
+
+/** Set a feature's roadmap status (e.g. dismissed, back to under_review) and save */
+export async function moveFeatureToStatus(projectId: string, featureId: string, status: RoadmapFeatureStatus): Promise<void> {
+  if (status === 'planned') return planFeature(projectId, featureId);
+  const store = useRoadmapStore.getState();
+  const feature = store.roadmap?.features.find((f) => f.id === featureId);
+  if (!feature || feature.status === status || store.roadmap?.projectId !== projectId) return;
+  store.updateFeatureStatus(featureId, status);
+  const roadmap = useRoadmapStore.getState().roadmap;
+  if (roadmap) await window.electronAPI.saveRoadmap(projectId, roadmap);
 }

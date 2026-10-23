@@ -12,7 +12,7 @@
  * 2. Prunes git's internal worktree references
  * 3. Optionally deletes the associated branch
  *
- * Related issue: https://github.com/AndyMik90/Auto-Claude/issues/1539
+ * Related: upstream issue #1539
  */
 
 import { execFileSync } from 'child_process';
@@ -21,6 +21,7 @@ import { existsSync } from 'fs';
 import { getToolPath } from '../cli-tool-manager';
 import { getIsolatedGitEnv } from './git-isolation';
 import { getTaskWorktreeDir, getTerminalWorktreeDir, isPathWithinBase } from '../worktree-paths';
+import { getTaskBranchName, type TaskBranchSettings } from '../../shared/utils/task-branch';
 
 /**
  * Options for worktree cleanup operation
@@ -38,6 +39,8 @@ export interface WorktreeCleanupOptions {
   deleteBranch?: boolean;
   /** Explicit branch name to use for deletion (overrides auto-detection fallback) */
   branchName?: string;
+  /** Project settings used to build the fallback task branch name ({branchPrefix}{specId}) */
+  branchSettings?: TaskBranchSettings | null;
   /** Timeout in milliseconds for git operations (default: 30000) */
   timeout?: number;
   /** Maximum retries for directory deletion on Windows (default: 3) */
@@ -61,7 +64,13 @@ export interface WorktreeCleanupResult {
 /**
  * Gets the worktree branch name based on spec ID
  */
-function getWorktreeBranch(worktreePath: string, specId: string, timeout: number, explicitBranchName?: string): string | null {
+function getWorktreeBranch(
+  worktreePath: string,
+  specId: string,
+  timeout: number,
+  explicitBranchName?: string,
+  branchSettings?: TaskBranchSettings | null
+): string | null {
   // First try to get branch from the worktree's HEAD
   if (existsSync(worktreePath)) {
     try {
@@ -85,8 +94,8 @@ function getWorktreeBranch(worktreePath: string, specId: string, timeout: number
     return explicitBranchName;
   }
 
-  // Fall back to the naming convention: malvy/{spec-id}
-  return `malvy/${specId}`;
+  // Fall back to the naming convention: {branchPrefix}{spec-id}
+  return getTaskBranchName(specId, branchSettings);
 }
 
 /**
@@ -182,6 +191,7 @@ export async function cleanupWorktree(options: WorktreeCleanupOptions): Promise<
     logPrefix = '[WORKTREE_CLEANUP]',
     deleteBranch = true,
     branchName,
+    branchSettings,
     timeout = 30000,
     maxRetries = 3,
     retryDelay = 500
@@ -205,7 +215,7 @@ export async function cleanupWorktree(options: WorktreeCleanupOptions): Promise<
   }
 
   // 1. Get the branch name before we delete the directory
-  const branch = getWorktreeBranch(worktreePath, specId, timeout, branchName);
+  const branch = getWorktreeBranch(worktreePath, specId, timeout, branchName, branchSettings);
   console.warn(`${logPrefix} Starting cleanup for worktree: ${worktreePath}`);
   if (branch) {
     console.warn(`${logPrefix} Associated branch: ${branch}`);

@@ -65,7 +65,12 @@ export interface BatchProcessorConfig {
   model?: ModelShorthand;
   /** Thinking level for AI analysis (default: 'low') */
   thinkingLevel?: ThinkingLevel;
+  /** Project root; a pinned project's analysis runs on its Claude account */
+  projectDir?: string;
 }
+
+type ResolvedBatchProcessorConfig = Required<Omit<BatchProcessorConfig, 'projectDir'>> &
+  Pick<BatchProcessorConfig, 'projectDir'>;
 
 /** Progress update from batch processing. */
 export interface BatchProgressUpdate {
@@ -125,7 +130,7 @@ function parseJsonResponse(text: string): unknown {
  */
 async function analyzeAndBatchIssues(
   issues: GitHubIssue[],
-  config: Required<BatchProcessorConfig>,
+  config: ResolvedBatchProcessorConfig,
 ): Promise<BatchSuggestion[]> {
   if (issues.length === 0) return [];
 
@@ -184,6 +189,7 @@ Respond with JSON only:
         'You are an expert at analyzing GitHub issues and grouping related ones. Respond ONLY with valid JSON. Do NOT use any tools.',
       modelShorthand: config.model,
       thinkingLevel: config.thinkingLevel,
+      projectPath: config.projectDir,
     });
 
     const result = await generateText({
@@ -269,7 +275,7 @@ class Semaphore {
  * 3. Reports progress via callback
  */
 export class BatchProcessor {
-  private readonly config: Required<BatchProcessorConfig>;
+  private readonly config: ResolvedBatchProcessorConfig;
 
   constructor(config: BatchProcessorConfig = {}) {
     this.config = {
@@ -277,6 +283,7 @@ export class BatchProcessor {
       concurrency: config.concurrency ?? 3,
       model: config.model ?? 'sonnet',
       thinkingLevel: config.thinkingLevel ?? 'low',
+      projectDir: config.projectDir,
     };
   }
 

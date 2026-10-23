@@ -82,6 +82,17 @@ export interface SimpleClientConfig {
     excludeAccountIds?: string[];
     userModelOverrides?: Record<string, Partial<Record<string, ProviderModelSpec>>>;
   };
+  /**
+   * Working directory for calls routed through the claude CLI (Claude subscription
+   * auth); the CLI's file tools resolve against it. Defaults to the home directory.
+   */
+  cwd?: string;
+  /**
+   * Project the call works for (defaults to `cwd`). A project pinned to a Claude
+   * profile (ProjectSettings.claudeProfileId) runs on that account — both the CLI
+   * route and the direct-API queue; otherwise the app's active account is used.
+   */
+  projectPath?: string;
 }
 
 // =============================================================================
@@ -118,7 +129,7 @@ export interface AgentClientResult {
 export interface SimpleClientResult {
   /** Resolved language model instance */
   model: LanguageModel;
-  /** Resolved model ID string (e.g. 'claude-opus-4-6', 'gpt-5.3-codex') — use for provider detection */
+  /** Resolved model ID string (e.g. 'claude-opus-5-5', 'gpt-5.3-codex') — use for provider detection */
   resolvedModelId: string;
   /** Tools (may be empty for pure text generation) */
   tools: Record<string, AITool>;

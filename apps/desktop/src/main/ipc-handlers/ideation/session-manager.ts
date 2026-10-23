@@ -7,8 +7,9 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { AUTO_BUILD_PATHS } from '../../../shared/constants';
 import type { IPCResult, IdeationSession } from '../../../shared/types';
 import { projectStore } from '../../project-store';
-import { transformIdeaFromSnakeCase } from './transformers';
+import { transformConfigFromSnakeCase, transformIdeaFromSnakeCase } from './transformers';
 import { readIdeationFile } from './file-utils';
+import { loadKnownDirectionIds, sanitizeFeatureDirectionIds } from '../../ai/runners/competitors/guidance';
 
 /**
  * Get ideation session for a project
@@ -34,18 +35,15 @@ export async function getIdeationSession(
   }
 
   try {
-    // Transform snake_case to camelCase for frontend
-    const enabledTypes = (rawIdeation.config?.enabled_types || rawIdeation.config?.enabledTypes || []) as unknown[];
+    // Drop direction ids no longer in strategy.json (in memory only; untagged stays untagged)
+    if (Array.isArray(rawIdeation.ideas)) {
+      sanitizeFeatureDirectionIds(rawIdeation.ideas, loadKnownDirectionIds(project.path), false);
+    }
 
     const session: IdeationSession = {
       id: rawIdeation.id || `ideation-${Date.now()}`,
       projectId,
-      config: {
-        enabledTypes: enabledTypes as IdeationSession['config']['enabledTypes'],
-        includeRoadmapContext: rawIdeation.config?.include_roadmap_context ?? rawIdeation.config?.includeRoadmapContext ?? true,
-        includeKanbanContext: rawIdeation.config?.include_kanban_context ?? rawIdeation.config?.includeKanbanContext ?? true,
-        maxIdeasPerType: rawIdeation.config?.max_ideas_per_type || rawIdeation.config?.maxIdeasPerType || 5
-      },
+      config: transformConfigFromSnakeCase(rawIdeation.config),
       ideas: (rawIdeation.ideas || []).map(idea => transformIdeaFromSnakeCase(idea)),
       projectContext: {
         existingFeatures: rawIdeation.project_context?.existing_features || rawIdeation.projectContext?.existingFeatures || [],

@@ -259,7 +259,10 @@ export function TaskEditDialog({ task, open, onOpenChange, onSaved }: TaskEditDi
     }
     // Always set attachedImages to persist removal when all images are deleted
     metadataUpdates.attachedImages = images.length > 0 ? images : [];
-    metadataUpdates.requireReviewBeforeCoding = requireReviewBeforeCoding;
+    // Only persist when changed: unset means "decide by assessed complexity"
+    if (requireReviewBeforeCoding !== (task.metadata?.requireReviewBeforeCoding ?? false)) {
+      metadataUpdates.requireReviewBeforeCoding = requireReviewBeforeCoding;
+    }
     metadataUpdates.fastMode = fastMode;
 
     const success = await persistUpdateTask(task.id, {

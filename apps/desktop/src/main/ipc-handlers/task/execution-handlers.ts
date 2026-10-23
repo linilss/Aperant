@@ -20,6 +20,7 @@ import {
 } from './plan-file-utils';
 import { writeFileAtomicSync } from '../../utils/atomic-file';
 import { findTaskWorktree } from '../../worktree-paths';
+import { requestSafeStop, takeSafeStop } from '../../task-safe-stop';
 import { projectStore } from '../../project-store';
 import { getIsolatedGitEnv, detectWorktreeBranch } from '../../utils/git-isolation';
 import { cancelFallbackTimer } from '../agent-events-handlers';
@@ -114,6 +115,11 @@ function getSpecDirForWatcher(projectPath: string, specsBaseDir: string, specId:
 /**
  * Register task execution handlers (start, stop, review, status management, recovery)
  */
+/** Set when the handlers register: change a task's status like the renderer does (used by the task queue) */
+export let taskStatusUpdater:
+  | ((taskId: string, status: TaskStatus) => Promise<IPCResult>)
+  | null = null;
+
 export function registerTaskExecutionHandlers(
   agentManager: AgentManager,
   getMainWindow: () => BrowserWindow | null
@@ -169,6 +175,11 @@ export function registerTaskExecutionHandlers(
       const project = (task.projectId && task.projectId !== foundProject.id)
         ? (projectStore.getProject(task.projectId) ?? foundProject)
         : foundProject;
+
+      if (project.settings?.overviewOnly) {
+        mainWindow.webContents.send(IPC_CHANNELS.TASK_ERROR, taskId, 'This is an overview project: build in the app\'s own project.');
+        return;
+      }
 
       // Check git status - Auto Claude requires git for worktree-based builds
       const gitStatus = checkGitStatus(project.path);
@@ -297,10 +308,9 @@ export function registerTaskExecutionHandlers(
       // Check if this task needs spec creation first (no spec file = not yet created)
       // OR if it has a spec but no implementation plan subtasks (spec created, needs planning/building)
       const needsSpecCreation = !hasSpec;
-      // FIX (#1562): Check actual plan file for subtasks, not just task.subtasks.length.
-      // When a task crashes during planning, it may have spec.md but an empty/missing
-      // implementation_plan.json. Previously, this path would call startTaskExecution
-      // (run.py) which expects subtasks to exist. Now we check the actual plan file.
+      // Fix for upstream issue #1562: check the actual plan file for subtasks, not just
+      // task.subtasks.length. When a task crashes during planning, it may have spec.md
+      // but an empty/missing implementation_plan.json.
       const needsImplementation = hasSpec && !planHasSubtasks;
 
       console.warn('[TASK_START] hasSpec:', hasSpec, 'planHasSubtasks:', planHasSubtasks, 'needsSpecCreation:', needsSpecCreation, 'needsImplementation:', needsImplementation);
@@ -309,20 +319,19 @@ export function registerTaskExecutionHandlers(
       const baseBranch = task.metadata?.baseBranch || project.settings?.mainBranch;
 
       if (needsSpecCreation) {
-        // No spec file - need to run spec_runner.py to create the spec
+        // No spec file - run the spec creation pipeline first
         const taskDescription = task.description || task.title;
         console.warn('[TASK_START] Starting spec creation for:', task.specId, 'in:', specDir, 'baseBranch:', baseBranch);
 
-        // Start spec creation process - pass the existing spec directory
-        // so spec_runner uses it instead of creating a new one
+        // Start spec creation - pass the existing spec directory
+        // so it is reused instead of creating a new one
         // Also pass baseBranch so worktrees are created from the correct branch
         agentManager.startSpecCreation(taskId, project.path, taskDescription, specDir, task.metadata, baseBranch, project.id);
       } else if (needsImplementation) {
         // Spec exists but no valid subtasks in implementation plan
-        // FIX (#1562): Use startTaskExecution (run.py) which will create the planner
-        // agent session to generate the implementation plan. run.py handles the case
-        // where implementation_plan.json is missing or has no subtasks - the planner
-        // agent will generate the plan before the coder starts.
+        // Upstream issue #1562: startTaskExecution runs the build orchestrator, which
+        // runs the planner first when implementation_plan.json is missing or has no
+        // subtasks, then the coder.
         console.warn('[TASK_START] Starting task execution (no valid subtasks in plan) for:', task.specId);
         agentManager.startTaskExecution(
           taskId,
@@ -364,7 +373,18 @@ export function registerTaskExecutionHandlers(
   /**
    * Stop a task
    */
+  // Safe stop: finish the current subtask, then stop (the exit is handled as a user stop)
+  ipcMain.on(IPC_CHANNELS.TASK_STOP_SAFE, (_, taskId: string) => {
+    const { task, project } = findTaskAndProject(taskId);
+    if (!task || !project) return;
+    const specsBaseDir = getSpecsDir(project.autoBuildPath);
+    const mainSpecDir = path.join(project.path, specsBaseDir, task.specId);
+    const worktree = findTaskWorktree(project.path, task.specId);
+    requestSafeStop(taskId, [mainSpecDir, ...(worktree ? [path.join(worktree, specsBaseDir, task.specId)] : [])]);
+  });
+
   ipcMain.on(IPC_CHANNELS.TASK_STOP, (_, taskId: string) => {
+    takeSafeStop(taskId);
     agentManager.killTask(taskId);
     fileWatcher.unwatch(taskId).catch((err) => {
       console.error('[TASK_STOP] Failed to unwatch:', err);
@@ -582,14 +602,11 @@ export function registerTaskExecutionHandlers(
    * Options:
    * - forceCleanup: When setting to 'done' with a worktree present, delete the worktree first
    */
-  ipcMain.handle(
-    IPC_CHANNELS.TASK_UPDATE_STATUS,
-    async (
-      _,
-      taskId: string,
-      status: TaskStatus,
-      options?: { forceCleanup?: boolean; keepWorktree?: boolean }
-    ): Promise<IPCResult & { worktreeExists?: boolean; worktreePath?: string }> => {
+  const updateTaskStatus = async (
+    taskId: string,
+    status: TaskStatus,
+    options?: { forceCleanup?: boolean; keepWorktree?: boolean }
+  ): Promise<IPCResult & { worktreeExists?: boolean; worktreePath?: string }> => {
       // Find task and project first (needed for worktree check)
       const { task, project } = findTaskAndProject(taskId);
 
@@ -620,7 +637,7 @@ export function registerTaskExecutionHandlers(
               const { branch, usingFallback: usingFallbackBranch } = detectWorktreeBranch(
                 worktreePath,
                 task.specId,
-                { timeout: 30000, logPrefix: '[TASK_UPDATE_STATUS]' }
+                { timeout: 30000, logPrefix: '[TASK_UPDATE_STATUS]', branchSettings: project.settings }
               );
 
               // Remove the worktree
@@ -825,12 +842,12 @@ export function registerTaskExecutionHandlers(
           const baseBranchForUpdate = task.metadata?.baseBranch || project.settings?.mainBranch;
 
           if (needsSpecCreation) {
-            // No spec file - need to run spec_runner.py to create the spec
+            // No spec file - run the spec creation pipeline first
             const taskDescription = task.description || task.title;
             console.warn('[TASK_UPDATE_STATUS] Starting spec creation for:', task.specId);
             agentManager.startSpecCreation(taskId, project.path, taskDescription, specDir, task.metadata, baseBranchForUpdate, project.id);
           } else if (needsImplementation) {
-            // Spec exists but no subtasks - run run.py to create implementation plan and execute
+            // Spec exists but no subtasks - the build orchestrator plans first, then executes
             console.warn('[TASK_UPDATE_STATUS] Starting task execution (no subtasks) for:', task.specId);
             agentManager.startTaskExecution(
               taskId,
@@ -885,7 +902,12 @@ export function registerTaskExecutionHandlers(
           error: error instanceof Error ? error.message : 'Failed to update task status'
         };
       }
-    }
+  };
+  // Main-process queue promotes tasks through the same path
+  taskStatusUpdater = updateTaskStatus;
+
+  ipcMain.handle(IPC_CHANNELS.TASK_UPDATE_STATUS, (_, taskId: string, status: TaskStatus, options?: { forceCleanup?: boolean; keepWorktree?: boolean }) =>
+    updateTaskStatus(taskId, status, options)
   );
 
   /**
@@ -1145,7 +1167,7 @@ export function registerTaskExecutionHandlers(
           }
 
           // Task is not complete - reset only stuck subtasks for retry
-          // Keep completed subtasks as-is so run.py can resume from where it left off
+          // Keep completed subtasks as-is so the build can resume from where it left off
           // Use shared utility to reset stuck subtasks in ALL plan file locations
           let totalResetCount = 0;
           let resetSucceeded = false;
@@ -1180,52 +1202,6 @@ export function registerTaskExecutionHandlers(
           }
 
           console.log(`[Recovery] Total ${totalResetCount} subtask(s) reset across all locations`);
-
-          // Clear attempt_history.json to break infinite recovery loops.
-          // Without this, the backend re-reads stuck markers from attempt_history
-          // and immediately re-stucks the same subtasks after recovery.
-          const specDirsToClean = new Set<string>([specDir]);
-          if (mainSpecDir !== specDir) specDirsToClean.add(mainSpecDir);
-          if (worktreeSpecDir && worktreeSpecDir !== specDir) specDirsToClean.add(worktreeSpecDir);
-
-          for (const dir of specDirsToClean) {
-            const attemptHistoryPath = path.join(dir, 'memory', 'attempt_history.json');
-            const historyContent = safeReadFileSync(attemptHistoryPath);
-            if (!historyContent) continue;
-
-            try {
-              const history = JSON.parse(historyContent);
-
-              // Collect stuck subtask IDs before clearing
-              const stuckIds = new Set<string>(
-                (history.stuck_subtasks || [])
-                  .map((s: { subtask_id?: string }) => s.subtask_id)
-                  .filter((id: string | undefined): id is string => Boolean(id))
-              );
-
-              // Clear stuck_subtasks array
-              history.stuck_subtasks = [];
-
-              // Reset attempt entries for previously-stuck subtasks
-              if (history.subtasks && stuckIds.size > 0) {
-                for (const stuckId of stuckIds) {
-                  if (history.subtasks[stuckId]) {
-                    history.subtasks[stuckId] = { attempts: [], status: 'pending' };
-                  }
-                }
-              }
-
-              history.metadata = {
-                ...history.metadata,
-                last_updated: new Date().toISOString()
-              };
-
-              writeFileAtomicSync(attemptHistoryPath, JSON.stringify(history, null, 2));
-              console.log(`[Recovery] Cleared attempt_history.json at: ${dir} (reset ${stuckIds.size} stuck entries)`);
-            } catch (historyErr) {
-              console.warn(`[Recovery] Could not parse attempt_history at ${dir}:`, historyErr);
-            }
-          }
         }
 
         // Stop file watcher if it was watching this task
@@ -1335,7 +1311,7 @@ export function registerTaskExecutionHandlers(
             const baseBranchForRecovery = task.metadata?.baseBranch || project.settings?.mainBranch;
 
             if (needsSpecCreation) {
-              // No spec file - need to run spec_runner.py to create the spec
+              // No spec file - run the spec creation pipeline first
               const taskDescription = task.description || task.title;
               console.warn(`[Recovery] Starting spec creation for: ${task.specId}`);
               agentManager.startSpecCreation(taskId, project.path, taskDescription, mainSpecDir, task.metadata, baseBranchForRecovery, project.id);

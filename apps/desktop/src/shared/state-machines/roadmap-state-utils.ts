@@ -35,7 +35,7 @@ const _genCheck: readonly StateValueFrom<typeof roadmapGenerationMachine>[] = GE
  * If you add/remove a state in the machine, update this array.
  */
 export const FEATURE_STATE_NAMES = [
-  'under_review', 'planned', 'in_progress', 'done'
+  'under_review', 'planned', 'in_progress', 'done', 'dismissed'
 ] as const;
 
 export type FeatureStateName = typeof FEATURE_STATE_NAMES[number];
@@ -114,6 +114,8 @@ export function mapFeatureStateToStatus(
       return 'in_progress';
     case 'done':
       return 'done';
+    case 'dismissed':
+      return 'dismissed';
     default:
       return 'under_review';
   }

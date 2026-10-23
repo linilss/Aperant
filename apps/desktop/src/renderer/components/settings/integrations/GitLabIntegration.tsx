@@ -435,25 +435,28 @@ export function GitLabIntegration({
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleInstallGlab}
-                            disabled={isInstallingGlab}
-                            className="gap-2"
-                          >
-                            {isInstallingGlab ? (
-                              <>
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                {t('settings.cli.installing')}
-                              </>
-                            ) : (
-                              <>
-                                <Terminal className="h-3 w-3" />
-                                {t('settings.cli.installButton')}
-                              </>
-                            )}
-                          </Button>
+                          {/* Installer opens a terminal on the desktop — not available from the LAN web UI */}
+                          {!window.isRemote && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleInstallGlab}
+                              disabled={isInstallingGlab}
+                              className="gap-2"
+                            >
+                              {isInstallingGlab ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  {t('settings.cli.installing')}
+                                </>
+                              ) : (
+                                <>
+                                  <Terminal className="h-3 w-3" />
+                                  {t('settings.cli.installButton')}
+                                </>
+                              )}
+                            </Button>
+                          )}
                           <a
                             href="https://gitlab.com/gitlab-org/cli#installation"
                             target="_blank"
@@ -547,13 +550,6 @@ export function GitLabIntegration({
               onRefresh={fetchBranches}
             />
           )}
-
-          <Separator />
-
-          <AutoSyncToggle
-            enabled={envConfig.gitlabAutoSync || false}
-            onToggle={(checked) => updateEnvConfig({ gitlabAutoSync: checked })}
-          />
         </>
       )}
     </div>
@@ -810,30 +806,6 @@ function IssuesAvailableInfo() {
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-interface AutoSyncToggleProps {
-  enabled: boolean;
-  onToggle: (checked: boolean) => void;
-}
-
-function AutoSyncToggle({ enabled, onToggle }: AutoSyncToggleProps) {
-  const { t } = useTranslation('gitlab');
-
-  return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-info" />
-          <Label className="font-normal text-foreground">{t('settings.autoSyncOnLoad')}</Label>
-        </div>
-        <p className="text-xs text-muted-foreground pl-6">
-          {t('settings.autoSyncDescription')}
-        </p>
-      </div>
-      <Switch checked={enabled} onCheckedChange={onToggle} />
     </div>
   );
 }

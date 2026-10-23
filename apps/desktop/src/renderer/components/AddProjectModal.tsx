@@ -159,27 +159,29 @@ export function AddProjectModal({ open, onOpenChange, onProjectAdded }: AddProje
       </DialogHeader>
 
       <div className="py-4 space-y-3">
-        {/* Open Existing Option */}
-        <button
-          onClick={handleOpenExisting}
-          className={cn(
-            'w-full flex items-center gap-4 p-4 rounded-xl border border-border',
-            'bg-card hover:bg-accent hover:border-accent transition-all duration-200',
-            'text-left group'
-          )}
-          aria-label={t('addProject.openExistingAriaLabel')}
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <FolderOpen className="h-6 w-6 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-foreground">{t('addProject.openExisting')}</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {t('addProject.openExistingDescription')}
-            </p>
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-        </button>
+        {/* Open Existing Option (native folder picker: desktop only) */}
+        {!window.isRemote && (
+          <button
+            onClick={handleOpenExisting}
+            className={cn(
+              'w-full flex items-center gap-4 p-4 rounded-xl border border-border',
+              'bg-card hover:bg-accent hover:border-accent transition-all duration-200',
+              'text-left group'
+            )}
+            aria-label={t('addProject.openExistingAriaLabel')}
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <FolderOpen className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-foreground">{t('addProject.openExisting')}</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {t('addProject.openExistingDescription')}
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+          </button>
+        )}
 
         {/* Create New Option */}
         <button
@@ -248,9 +250,11 @@ export function AddProjectModal({ open, onOpenChange, onProjectAdded }: AddProje
               onChange={(e) => setProjectLocation(e.target.value)}
               className="flex-1"
             />
-            <Button variant="outline" onClick={handleSelectLocation}>
-              {t('addProject.browse')}
-            </Button>
+            {!window.isRemote && (
+              <Button variant="outline" onClick={handleSelectLocation}>
+                {t('addProject.browse')}
+              </Button>
+            )}
           </div>
           {projectLocation && projectName && (
             <p className="text-xs text-muted-foreground">

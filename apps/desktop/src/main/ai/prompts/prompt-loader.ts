@@ -3,7 +3,7 @@
  * =============
  *
  * Loads .md prompt files from the bundled prompts directory and performs
- * dynamic context injection. Mirrors apps/desktop/prompts_pkg/prompts.py.
+ * dynamic context injection.
  *
  * Path resolution:
  * - Dev:        apps/desktop/prompts/ (relative to project root via __dirname traversal)
@@ -14,26 +14,15 @@ import { readFileSync, existsSync, readFile as readFileAsync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 
-import type { ProjectCapabilities, PromptContext, PromptValidationResult } from './types';
-
-// =============================================================================
-// Expected prompt files (used for startup validation)
-// =============================================================================
-
-const EXPECTED_PROMPT_FILES = [
-  'planner.md',
-  'coder.md',
-  'coder_recovery.md',
-  'followup_planner.md',
-  'qa_reviewer.md',
-  'qa_fixer.md',
-  'spec_gatherer.md',
-  'spec_researcher.md',
-  'spec_writer.md',
-  'spec_critic.md',
-  'complexity_assessor.md',
-  'validation_fixer.md',
-] as const;
+import type { ProjectCapabilities, PromptContext } from './types';
+import {
+  findClaudeDocs,
+  MALVY_DOCS_DIR,
+  MALVY_POINTERS_FILE,
+  resolveMalvyRoot,
+  stripPointersTitle,
+} from '../../claude-docs';
+import { CORE_VALUES_FILE, formatCoreValuesSection } from '../../core-values';
 
 // =============================================================================
 // Path Resolution
@@ -155,31 +144,103 @@ async function tryReadFile(filePath: string): Promise<string | null> {
   }
 }
 
-/** Result of loading project instructions, includes the source filename */
+/** Result of loading project instructions, includes the source filename(s) */
 export interface ProjectInstructionsResult {
   content: string;
-  /** Which file was loaded (e.g., "AGENTS.md", "CLAUDE.md") */
+  /** Which files were loaded, comma-separated (e.g., "CLAUDE.md, .malvy/docs/CLAUDE.md, .malvy/pointers.md") */
   source: string;
+  /**
+   * The project's core values (`.malvy/core-values.md`), kept apart from `content`
+   * so injectContext() can put them first, above PROJECT INSTRUCTIONS. Absent when not set.
+   */
+  coreValues?: string;
 }
 
 /**
- * Load project instructions from AGENTS.md (preferred) or CLAUDE.md (fallback).
+ * Load project instructions for agent prompts.
  *
- * AGENTS.md is the canonical provider-agnostic instruction file.
- * CLAUDE.md is supported for backward compatibility.
- * Only one file is loaded — AGENTS.md takes priority if it exists.
- * Both upper and lower case variants are tried.
+ * Sections, in order (each only if present):
+ * 1. Team root doc — AGENTS.md (preferred) or CLAUDE.md, upper or lower case.
+ * 2. `## DOCUMENTATION MAP` — every team doc and `.malvy/docs` file with its first line,
+ *    so the agent knows where to read before touching a directory.
+ * 3. `## MALVY DOCS` — the root `.malvy/docs/CLAUDE.md` (Malvy's complementary layer).
+ * 4. `## DEVELOPER POINTERS (override docs where they conflict)` — from `.malvy/pointers.md`.
  *
- * @param projectDir - Project root directory
- * @returns Content of the first found instruction file, or null
+ * Core values (`.malvy/core-values.md`) are returned separately as `coreValues`.
+ *
+ * File reads only (no database) so it is safe to call from the agent worker thread.
+ * When `projectDir` is a task worktree, the Malvy layer is read from the owning project.
+ *
+ * @param projectDir - Project root (or task worktree) directory
+ * @param options.includeTeamDocs - When false (ProjectSettings.useClaudeMd off), the team's
+ *   AGENTS.md/CLAUDE.md is skipped and left out of the documentation map. Malvy's own layer
+ *   is always included.
+ * @returns Assembled instructions, or null if nothing was found
  */
-export async function loadProjectInstructions(projectDir: string): Promise<ProjectInstructionsResult | null> {
-  const candidates = ['AGENTS.md', 'agents.md', 'CLAUDE.md', 'claude.md'];
+export async function loadProjectInstructions(
+  projectDir: string,
+  options: { includeTeamDocs?: boolean } = {},
+): Promise<ProjectInstructionsResult | null> {
+  const includeTeamDocs = options.includeTeamDocs !== false;
+  const sections: string[] = [];
+  const sources: string[] = [];
+
+  const candidates = includeTeamDocs ? ['AGENTS.md', 'agents.md', 'CLAUDE.md', 'claude.md'] : [];
+  let teamRoot: string | null = null;
   for (const name of candidates) {
     const content = await tryReadFile(join(projectDir, name));
-    if (content) return { content, source: name };
+    if (content) {
+      teamRoot = name;
+      sections.push(content);
+      sources.push(name);
+      break;
+    }
   }
-  return null;
+
+  const malvyRoot = resolveMalvyRoot(projectDir);
+  const sameRoot = malvyRoot === projectDir;
+  const teamDocs = includeTeamDocs ? (await findClaudeDocs(projectDir)).filter((d) => d.layer === 'team') : [];
+  const malvyDocs = (await findClaudeDocs(malvyRoot)).filter((d) => d.layer === 'malvy');
+
+  const mapLines: string[] = [];
+  let hasUnincludedDoc = false;
+  for (const doc of [...teamDocs, ...malvyDocs]) {
+    // Malvy docs live in the owning project when running inside a worktree
+    const displayPath = doc.layer === 'malvy' && !sameRoot ? join(malvyRoot, doc.relativePath) : doc.relativePath;
+    let note = '';
+    if (doc.layer === 'team' && doc.relativePath === teamRoot) note = ' (included above)';
+    else if (doc.layer === 'malvy' && doc.layerPath === 'CLAUDE.md') note = ' (included below)';
+    else hasUnincludedDoc = true;
+    const layer = doc.layer === 'malvy' ? ' [malvy]' : '';
+    mapLines.push(`- \`${displayPath}\`${layer}${note}${doc.firstLine ? ` — ${doc.firstLine}` : ''}`);
+  }
+  if (hasUnincludedDoc) {
+    sections.push(
+      `## DOCUMENTATION MAP\n\n` +
+      `Read the doc for a directory before changing files in it. ` +
+      `[malvy] docs complement the team docs for the same directory.\n\n` +
+      mapLines.join('\n')
+    );
+  }
+
+  const malvyRootDoc = await tryReadFile(join(malvyRoot, MALVY_DOCS_DIR, 'CLAUDE.md'));
+  if (malvyRootDoc) {
+    sections.push(`## MALVY DOCS\n\n${malvyRootDoc}`);
+    sources.push(`${MALVY_DOCS_DIR}/CLAUDE.md`);
+  }
+
+  const pointers = await tryReadFile(join(malvyRoot, MALVY_POINTERS_FILE));
+  const pointersBody = pointers ? stripPointersTitle(pointers) : '';
+  if (pointersBody) {
+    sections.push(`## DEVELOPER POINTERS (override docs where they conflict)\n\n${pointersBody}`);
+    sources.push(MALVY_POINTERS_FILE);
+  }
+
+  const coreValues = await tryReadFile(join(malvyRoot, CORE_VALUES_FILE));
+  if (coreValues) sources.unshift(CORE_VALUES_FILE);
+
+  if (sources.length === 0) return null;
+  return { content: sections.join('\n\n'), source: sources.join(', '), ...(coreValues ? { coreValues } : {}) };
 }
 
 /** @deprecated Use loadProjectInstructions() instead */
@@ -196,45 +257,57 @@ export async function loadAgentsMd(projectDir: string): Promise<string | null> {
 // Context Injection
 // =============================================================================
 
+export const PROJECT_MEMORY_HEADING = '## PROJECT MEMORY (from previous work — verify before relying on it)';
+
+/**
+ * Injected into every task agent prompt. Enforced separately by the release guard
+ * (security/release-guard.ts) on both the CLI and SDK paths.
+ */
+export const RELEASE_POLICY_SECTION =
+  `## RELEASE POLICY\n\n` +
+  `Never deploy, publish or release anything. Do not upload builds (TestFlight, App Store, Play Store), ` +
+  `do not run deploy*/release*/publish* scripts, \`az webapp\`, \`az acr build\`, \`kubectl apply\`, ` +
+  `\`terraform apply\`, \`fly deploy\`, \`vercel --prod\`, \`npm publish\`, \`dotnet nuget push\` or ` +
+  `\`xcrun altool\`, and never \`git push\` to any remote. The user releases from Malvy's Deploy button after merging. ` +
+  `Don't publish design-system artifacts (claude.ai Artifact/Design System): update the source files in the repo ` +
+  `and the user publishes from Malvy. ` +
+  `Planners: never add deploy/release/push subtasks; if the docs describe a release process, at most note in the ` +
+  `plan summary that the user deploys from Malvy.\n\n---\n\n`;
+
 /**
  * Inject dynamic sections into a prompt template.
  *
- * Handles:
- * - SPEC LOCATION header with file paths
- * - CLAUDE.md injection if provided
- * - Human input injection
- * - Recovery context injection
+ * Ordered for prompt caching: content that is identical across tasks and
+ * sessions of a project comes first (it forms the cacheable prefix), and
+ * task-specific content (paths, memory, human input) comes last.
+ *
+ * 1. CORE VALUES (highest priority, overrides everything below)
+ * 2. RELEASE POLICY (always): agents never deploy/publish/push
+ * 3. PROJECT INSTRUCTIONS (AGENTS.md/CLAUDE.md, doc map, malvy docs, pointers)
+ * 4. Base agent prompt
+ * 5. PROJECT MEMORY (task-relevant notes) if provided
+ * 6. SPEC LOCATION header with file paths
+ * 7. HUMAN INPUT (HUMAN_INPUT.md) if provided
  *
  * @param promptTemplate - Base prompt content from .md file
  * @param context - Dynamic context to inject
- * @returns Assembled prompt with all context prepended
+ * @returns Assembled prompt
  */
 export function injectContext(promptTemplate: string, context: PromptContext): string {
   const sections: string[] = [];
 
-  // 1. Spec location header
-  const specContext = buildSpecLocationHeader(context);
-  if (specContext) {
-    sections.push(specContext);
+  // --- Stable prefix (same for every task in the project) ---
+
+  // 1. Core values — first, they override every other instruction
+  const coreValues = formatCoreValuesSection(context.coreValues ?? '');
+  if (coreValues) {
+    sections.push(`${coreValues}---\n\n`);
   }
 
-  // 2. Recovery context (before human input)
-  if (context.recoveryContext) {
-    sections.push(context.recoveryContext);
-  }
+  // 2. Release policy — agents never deploy/publish/push; the user does via Deploy
+  sections.push(RELEASE_POLICY_SECTION);
 
-  // 3. Human input
-  if (context.humanInput) {
-    sections.push(
-      `## HUMAN INPUT (READ THIS FIRST!)\n\n` +
-      `The human has left you instructions. READ AND FOLLOW THESE CAREFULLY:\n\n` +
-      `${context.humanInput}\n\n` +
-      `After addressing this input, you may delete or clear the HUMAN_INPUT.md file.\n\n` +
-      `---\n\n`
-    );
-  }
-
-  // 4. Project instructions (AGENTS.md or CLAUDE.md fallback)
+  // 3. Project instructions (AGENTS.md or CLAUDE.md fallback)
   if (context.projectInstructions) {
     sections.push(
       `## PROJECT INSTRUCTIONS\n\n` +
@@ -243,8 +316,41 @@ export function injectContext(promptTemplate: string, context: PromptContext): s
     );
   }
 
-  // 5. Base prompt
+  // 4. Base prompt
   sections.push(promptTemplate);
+
+  // --- Task-specific suffix ---
+  const taskSections: string[] = [];
+
+  // 5. Project memory (learned from previous tasks, selected for this task)
+  if (context.memoryContext) {
+    taskSections.push(
+      `${PROJECT_MEMORY_HEADING}\n\n` +
+      `Notes learned from earlier work in this project. They may be outdated: check them against ` +
+      `the current code before relying on them. Items marked [unverified] have not been reviewed by a developer.\n\n` +
+      `${context.memoryContext}\n\n`
+    );
+  }
+
+  // 6. Spec location header
+  const specContext = buildSpecLocationHeader(context);
+  if (specContext) {
+    taskSections.push(specContext);
+  }
+
+  // 7. Human input
+  if (context.humanInput) {
+    taskSections.push(
+      `## HUMAN INPUT (READ THIS FIRST!)\n\n` +
+      `The human has left you instructions. READ AND FOLLOW THESE CAREFULLY:\n\n` +
+      `${context.humanInput}\n\n` +
+      `After addressing this input, you may delete or clear the HUMAN_INPUT.md file.\n\n`
+    );
+  }
+
+  if (taskSections.length > 0) {
+    sections.push(`\n\n---\n\n${taskSections.join('---\n\n')}`);
+  }
 
   return sections.join('');
 }
@@ -263,8 +369,7 @@ function buildSpecLocationHeader(context: PromptContext): string {
     `- Progress notes: \`${context.specDir}/build-progress.txt\`\n` +
     `- QA report output: \`${context.specDir}/qa_report.md\`\n` +
     `- Fix request output: \`${context.specDir}/QA_FIX_REQUEST.md\`\n\n` +
-    `The project root is: \`${context.projectDir}\`\n\n` +
-    `---\n\n`
+    `The project root is: \`${context.projectDir}\`\n\n`
   );
 }
 
@@ -506,31 +611,4 @@ export function detectProjectCapabilities(projectIndex: Record<string, unknown>)
   }
 
   return capabilities;
-}
-
-// =============================================================================
-// Startup Validation
-// =============================================================================
-
-/**
- * Validate that all expected prompt files exist at startup.
- *
- * @returns Validation result with missing files and resolved directory
- */
-export function validatePromptFiles(): PromptValidationResult {
-  const promptsDir = resolvePromptsDir();
-  const missingFiles: string[] = [];
-
-  for (const filename of EXPECTED_PROMPT_FILES) {
-    const fullPath = join(promptsDir, filename);
-    if (!existsSync(fullPath)) {
-      missingFiles.push(filename);
-    }
-  }
-
-  return {
-    valid: missingFiles.length === 0,
-    missingFiles,
-    promptsDir,
-  };
 }

@@ -8,13 +8,22 @@
  */
 
 import { useMemo, useState, useEffect } from 'react';
-import { AlertTriangle, Key, Lock, Shield, Server } from 'lucide-react';
+import { AlertTriangle, Check, Key, Lock, Shield, Server } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from './ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { useToast } from '../hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../stores/settings-store';
 import { useActiveProvider } from '../hooks/useActiveProvider';
@@ -52,8 +61,9 @@ const PROVIDER_I18N_KEYS: Record<string, string> = {
 };
 
 export function AuthStatusIndicator() {
-  const { providerAccounts, settings } = useSettingsStore();
+  const { providerAccounts, settings, setQueueOrder } = useSettingsStore();
   const { t } = useTranslation(['common']);
+  const { toast } = useToast();
 
   // Track usage data for warning badge
   const [usage, setUsage] = useState<ClaudeUsageSnapshot | null>(null);
@@ -133,6 +143,29 @@ export function AuthStatusIndicator() {
     return { position: pos >= 0 ? pos + 1 : 1, total: providerAccounts.length };
   }, [activeAccount, settings.globalPriorityOrder, providerAccounts.length]);
 
+  // Accounts in queue order. The active account is simply #1 in the queue, so
+  // switching is a reorder — independent of automatic account switching.
+  const orderedAccounts = useMemo(() => {
+    const order = settings.globalPriorityOrder ?? [];
+    const byId = new Map(providerAccounts.map((a) => [a.id, a]));
+    const inOrder = order.map((id) => byId.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
+    const rest = providerAccounts.filter((a) => !order.includes(a.id));
+    return [...inOrder, ...rest];
+  }, [providerAccounts, settings.globalPriorityOrder]);
+
+  const handleSwitchAccount = async (accountId: string) => {
+    if (accountId === activeAccount?.id) return;
+    const newOrder = [accountId, ...orderedAccounts.map((a) => a.id).filter((id) => id !== accountId)];
+    const result = await setQueueOrder(newOrder);
+    if (!result.success) {
+      toast({
+        variant: 'destructive',
+        title: t('common:usage.switchAccountFailed'),
+        description: result.error,
+      });
+    }
+  };
+
   return (
     <div className="flex items-center gap-2">
       {/* Usage Warning Badge (shown when usage >= 90%) */}
@@ -160,10 +193,12 @@ export function AuthStatusIndicator() {
         </TooltipProvider>
       )}
 
-      {/* Provider Badge */}
+      {/* Provider Badge — hover for details, click to switch account */}
+      <DropdownMenu>
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
             <button
               type="button"
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border transition-all hover:opacity-80 ${badgeColor}`}
@@ -174,6 +209,7 @@ export function AuthStatusIndicator() {
                 {badgeLabel}
               </span>
             </button>
+            </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs max-w-xs p-0">
             <div className="p-3 space-y-3">
@@ -262,6 +298,11 @@ export function AuthStatusIndicator() {
                       </span>
                     </div>
                   )}
+                  {orderedAccounts.length > 1 && (
+                    <div className="text-[10px] text-muted-foreground">
+                      {t('common:usage.clickToSwitchAccount')}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-[11px] text-muted-foreground">
@@ -272,6 +313,31 @@ export function AuthStatusIndicator() {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel>{t('common:usage.switchAccount')}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {orderedAccounts.map((account) => {
+          const isActive = account.id === activeAccount?.id;
+          return (
+            <DropdownMenuItem
+              key={account.id}
+              onClick={() => handleSwitchAccount(account.id)}
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm">{account.name}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t(PROVIDER_I18N_KEYS[account.provider] ?? 'common:usage.providerUnknown')}
+                  {' · '}
+                  {account.authType === 'oauth' ? t('common:usage.oauth') : t('common:usage.apiKey')}
+                </div>
+              </div>
+              {isActive && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* 5 Hour Usage Badge (shown when session usage >= 90%) */}
       {usage && !isLoadingUsage && usage.sessionPercent >= 90 && (

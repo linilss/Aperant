@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import i18n from '../../../shared/i18n';
+import { toast } from '../../hooks/use-toast';
 import { useRoadmapStore, loadRoadmap, generateRoadmap, refreshRoadmap, stopRoadmap } from '../../stores/roadmap-store';
 import { useTaskStore } from '../../stores/task-store';
+import { loadCompetitors } from '../../stores/competitor-store';
+import { generateIdeation, loadIdeation, useIdeationStore } from '../../stores/ideation-store';
 import type { RoadmapFeature } from '../../../shared/types';
 
 /**
@@ -68,6 +72,13 @@ export function useFeatureActions() {
   };
 }
 
+/** A refused or failed save: tell the user and reload, so the view never shows unsaved changes */
+async function reportSaveResult(projectId: string, result: { success: boolean; error?: string }): Promise<void> {
+  if (result.success) return;
+  toast({ variant: 'destructive', title: i18n.t('common:roadmap.saveFailed'), description: result.error });
+  await loadRoadmap(projectId);
+}
+
 /**
  * Hook to save roadmap changes to disk
  *
@@ -81,7 +92,7 @@ export function useRoadmapSave(projectId: string) {
     if (!roadmap) return;
 
     try {
-      await window.electronAPI.saveRoadmap(projectId, roadmap);
+      await reportSaveResult(projectId, await window.electronAPI.saveRoadmap(projectId, roadmap));
     } catch (error) {
       console.error('Failed to save roadmap:', error);
     }
@@ -104,101 +115,97 @@ export function useFeatureDelete(projectId: string) {
     const roadmap = useRoadmapStore.getState().roadmap;
     if (roadmap) {
       try {
-        await window.electronAPI.saveRoadmap(projectId, roadmap);
+        await reportSaveResult(projectId, await window.electronAPI.saveRoadmap(projectId, roadmap));
       } catch (error) {
         console.error('Failed to save roadmap after delete:', error);
       }
     }
   };
 
-  return { deleteFeature: handleDeleteFeature };
+  /** Delete several features and save once */
+  const handleDeleteFeatures = async (featureIds: string[]) => {
+    for (const id of featureIds) deleteFeature(id);
+    const roadmap = useRoadmapStore.getState().roadmap;
+    if (roadmap) {
+      await reportSaveResult(projectId, await window.electronAPI.saveRoadmap(projectId, roadmap));
+    }
+  };
+
+  return { deleteFeature: handleDeleteFeature, deleteFeatures: handleDeleteFeatures };
 }
 
 
 /**
- * Hook to manage roadmap generation actions
+ * Hook to manage roadmap generation as a step of the Plan funnel.
  *
- * Handles two scenarios:
- * 1. No existing competitor analysis: Show simple enable/skip dialog
- * 2. Existing competitor analysis: Show options to use existing, run new, or skip
+ * Competitor analysis lives on the Competitors page (Competitors → Roadmap → MoSCoW).
+ * Generate/Regenerate always open a dialog first: with an analysis it previews the
+ * competitors and ranked directions the roadmap will follow; without one it offers to
+ * run it now — the roadmap's competitor phase uses the Competitors pipeline, so the
+ * result is saved back to the Competitors page.
  */
-export function useRoadmapGeneration(projectId: string) {
-  const competitorAnalysis = useRoadmapStore((state) => state.competitorAnalysis);
+export function useRoadmapGeneration(projectId: string, onGoToCompetitors?: () => void) {
   const [pendingAction, setPendingAction] = useState<'generate' | 'refresh' | null>(null);
   const [showCompetitorDialog, setShowCompetitorDialog] = useState(false);
-  const [showExistingAnalysisDialog, setShowExistingAnalysisDialog] = useState(false);
+  const [showGuidanceDialog, setShowGuidanceDialog] = useState(false);
+  // Kept after a regenerate so the next one starts from the last direction given
+  const [guidance, setGuidance] = useState('');
 
-  // Check if we have existing competitor analysis
-  const hasExistingAnalysis = !!competitorAnalysis;
+  useEffect(() => {
+    void loadCompetitors(projectId);
+  }, [projectId]);
 
-  const handleGenerate = () => {
-    setPendingAction('generate');
-    if (hasExistingAnalysis) {
-      setShowExistingAnalysisDialog(true);
+  const run = (action: 'generate' | 'refresh', withCompetitors: boolean) => {
+    // refreshCompetitorAnalysis=false: reuse an existing analysis, run one only if missing
+    if (action === 'generate') {
+      generateRoadmap(projectId, withCompetitors, false);
     } else {
-      setShowCompetitorDialog(true);
+      refreshRoadmap(projectId, withCompetitors, false, guidance);
     }
+    // One backlog: fresh ideas come with the roadmap (Ideation's last settings)
+    void (async () => {
+      if (useIdeationStore.getState().currentProjectId !== projectId) await loadIdeation(projectId);
+      // One per type: with the 3–5 new features the backlog stays short enough to review
+      if (!useIdeationStore.getState().isGenerating) generateIdeation(projectId, { maxIdeasPerType: 1 });
+    })();
   };
 
+  const openPreview = (action: 'generate' | 'refresh') => {
+    setPendingAction(action);
+    // Fresh state so the preview shows the latest ranking from the Competitors page
+    void loadCompetitors(projectId, { force: true });
+    setShowCompetitorDialog(true);
+  };
+
+  const handleGenerate = () => openPreview('generate');
+
+  // Regenerate first asks for optional direction, then continues as generate
   const handleRefresh = () => {
-    setPendingAction('refresh');
-    if (hasExistingAnalysis) {
-      setShowExistingAnalysisDialog(true);
-    } else {
-      setShowCompetitorDialog(true);
-    }
+    setShowGuidanceDialog(true);
   };
 
-  // Handler for "Yes, Enable Analysis" (new competitor analysis)
+  const handleGuidanceConfirm = (text: string) => {
+    setGuidance(text);
+    setShowGuidanceDialog(false);
+    openPreview('refresh');
+  };
+
+  // "Generate roadmap" / "Analyze & generate"
   const handleCompetitorDialogAccept = () => {
-    if (pendingAction === 'generate') {
-      generateRoadmap(projectId, true); // Enable competitor analysis
-    } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, true); // Enable competitor analysis
-    }
+    if (pendingAction) run(pendingAction, true);
     setPendingAction(null);
   };
 
-  // Handler for "No, Skip Analysis"
+  // "Generate without"
   const handleCompetitorDialogDecline = () => {
-    if (pendingAction === 'generate') {
-      generateRoadmap(projectId, false); // Disable competitor analysis
-    } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, false); // Disable competitor analysis
-    }
+    if (pendingAction) run(pendingAction, false);
     setPendingAction(null);
   };
 
-  // Handler for "Use existing analysis" - reuses saved competitor data
-  const handleUseExistingAnalysis = () => {
-    // Enable competitor analysis but don't force refresh - backend will use existing if available
-    if (pendingAction === 'generate') {
-      generateRoadmap(projectId, true, false); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=false
-    } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, true, false); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=false
-    }
+  // "Edit in Competitors" / "Open Competitors"
+  const handleGoToCompetitors = () => {
     setPendingAction(null);
-  };
-
-  // Handler for "Run new analysis" - performs fresh web searches
-  const handleRunNewAnalysis = () => {
-    // Enable competitor analysis AND force refresh to run fresh web searches
-    if (pendingAction === 'generate') {
-      generateRoadmap(projectId, true, true); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=true
-    } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, true, true); // enableCompetitorAnalysis=true, refreshCompetitorAnalysis=true
-    }
-    setPendingAction(null);
-  };
-
-  // Handler for "Skip analysis"
-  const handleSkipAnalysis = () => {
-    if (pendingAction === 'generate') {
-      generateRoadmap(projectId, false);
-    } else if (pendingAction === 'refresh') {
-      refreshRoadmap(projectId, false);
-    }
-    setPendingAction(null);
+    onGoToCompetitors?.();
   };
 
   const handleStop = async () => {
@@ -207,21 +214,17 @@ export function useRoadmapGeneration(projectId: string) {
 
   return {
     pendingAction,
-    hasExistingAnalysis,
-    competitorAnalysisDate: competitorAnalysis?.createdAt,
-    // New dialog for existing analysis
-    showExistingAnalysisDialog,
-    setShowExistingAnalysisDialog,
-    handleUseExistingAnalysis,
-    handleRunNewAnalysis,
-    handleSkipAnalysis,
-    // Original dialog for no existing analysis
     showCompetitorDialog,
     setShowCompetitorDialog,
     handleGenerate,
     handleRefresh,
+    showGuidanceDialog,
+    setShowGuidanceDialog,
+    guidance,
+    handleGuidanceConfirm,
     handleCompetitorDialogAccept,
     handleCompetitorDialogDecline,
+    handleGoToCompetitors,
     handleStop,
   };
 }

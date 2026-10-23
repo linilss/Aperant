@@ -13,10 +13,6 @@
       "title": "Display",
       "description": "Adjust the size of UI elements"
     },
-    "language": {
-      "title": "Language",
-      "description": "Choose your preferred language"
-    },
     "devtools": {
       "title": "Developer Tools",
       "description": "IDE and terminal preferences"
@@ -44,6 +40,10 @@
     "debug": {
       "title": "Debug & Logs",
       "description": "Troubleshooting tools"
+    },
+    "remote-access": {
+      "title": "Remote access",
+      "description": "Use Malvy from your phone on the local network"
     },
     "terminal-fonts": {
       "title": "Terminal Fonts",
@@ -104,11 +104,11 @@
       "haikuLabel": "Haiku Model (Optional)",
       "sonnetLabel": "Sonnet Model (Optional)",
       "opusLabel": "Opus Model (Optional)",
-      "defaultPlaceholder": "e.g., claude-sonnet-4-6",
+      "defaultPlaceholder": "e.g., claude-sonnet-5-5",
       "haikuPlaceholder": "e.g., claude-haiku-4-5-20251001",
-      "sonnetPlaceholder": "e.g., claude-sonnet-4-6",
-      "opusPlaceholder": "e.g., claude-opus-4-7",
-      "opus1mPlaceholder": "e.g., claude-opus-4-7 (1M context)"
+      "sonnetPlaceholder": "e.g., claude-sonnet-5-5",
+      "opusPlaceholder": "e.g., claude-opus-5-5",
+      "opus1mPlaceholder": "e.g., claude-opus-5-5 (1M context)"
     },
     "empty": {
       "title": "No API profiles configured",
@@ -168,18 +168,24 @@
   },
   "modelSelect": {
     "placeholder": "Select a model or type manually",
-    "placeholderManual": "Enter model name (e.g., claude-sonnet-4-6)",
+    "placeholderManual": "Enter model name (e.g., claude-sonnet-5-5)",
     "searchPlaceholder": "Search models...",
     "noResults": "No models match your search",
     "discoveryNotAvailable": "Model discovery not available. Enter model name manually.",
     "ollamaLoading": "Loading Ollama models...",
     "ollamaNoModels": "No Ollama models installed",
     "ollamaNoModelsHint": "Install models in Agent Settings → Ollama tab",
-    "apiKeyOnly": "API key"
-  },
-  "language": {
-    "label": "Interface Language",
-    "description": "Select the language for the application interface"
+    "apiKeyOnly": "API key",
+    "configureProvider": "Configure",
+    "contextWindow": "{{size}} context",
+    "capabilities": {
+      "thinking": "Thinking",
+      "tools": "Tools",
+      "vision": "Vision"
+    },
+    "customModel": "Custom model ID",
+    "customModelPlaceholder": "Enter model ID...",
+    "useCustomModel": "Use"
   },
   "scale": {
     "presets": "Scale Presets",
@@ -207,9 +213,6 @@
   "general": {
     "otherAgentSettings": "Other Agent Settings",
     "otherAgentSettingsDescription": "Additional agent configuration options",
-    "agentFramework": "Agent Framework",
-    "agentFrameworkDescription": "The coding framework used for autonomous tasks",
-    "agentFrameworkAutoClaude": "malvy",
     "aiTerminalNaming": "AI Terminal Naming",
     "aiTerminalNamingDescription": "Automatically name terminals based on commands (uses AI Naming model)",
     "featureModelSettings": "Feature Model Settings",
@@ -218,9 +221,6 @@
     "thinkingLevel": "Thinking Level",
     "paths": "Paths",
     "pathsDescription": "Configure executable and framework paths",
-    "pythonPath": "Python Path",
-    "pythonPathDescription": "Path to Python executable (leave empty for auto-detection)",
-    "pythonPathPlaceholder": "python3 (default)",
     "gitPath": "Git Path",
     "gitPathDescription": "Path to Git executable (leave empty for auto-detection)",
     "gitPathPlaceholder": "git (default)",
@@ -301,7 +301,8 @@
       "label": "YOLO Mode",
       "description": "Start Claude with --dangerously-skip-permissions flag, bypassing all safety prompts. Use with extreme caution.",
       "warning": "This mode bypasses Claude's permission system. Only enable if you fully trust the code being executed."
-    }
+    },
+    "customPath": "Custom path"
   },
   "updates": {
     "title": "Updates",
@@ -321,8 +322,6 @@
     "viewRelease": "View full release on GitHub",
     "unableToCheck": "Unable to check for updates",
     "checkForUpdates": "Check for Updates",
-    "autoUpdateProjects": "Auto-Update Projects",
-    "autoUpdateProjectsDescription": "Automatically update malvy in projects when a new version is available",
     "betaUpdates": "Beta Updates",
     "betaUpdatesDescription": "Receive pre-release beta versions with new features (may be less stable)",
     "stableDowngradeAvailable": "Stable Version Available",
@@ -355,7 +354,41 @@
       "title": "General",
       "description": "Auto-Build and agent config",
       "useClaudeMd": "Use CLAUDE.md",
-      "useClaudeMdDescription": "Include CLAUDE.md instructions in agent context"
+      "useClaudeMdDescription": "Include the team's CLAUDE.md/AGENTS.md in agent context. When off, agents also skip project-level Claude settings; Malvy's own docs and pointers are always included.",
+      "branchPrefix": "Task branch prefix",
+      "branchPrefixDescription": "Tasks run on branches named {{example}}. Branches created with the old malvy/ prefix keep working.",
+      "branchPrefixInvalid": "Invalid branch prefix. The default ({{fallback}}) will be used.",
+      "verifyCommand": "Verify command",
+      "verifyCommandPlaceholder": "npm run typecheck && npm test",
+      "verifyCommandDescription": "Build and tests that gate every QA review. Empty = detected from the project (shown above); type \"none\" to turn it off. Runs in the task worktree after each subtask and before QA. Stored in Malvy only, never in your repo.",
+      "claudeAccount": {
+        "title": "Claude account",
+        "description": "The Claude subscription this project's agents, runners and terminals use.",
+        "appDefault": "App default (currently: {{name}})",
+        "appDefaultNone": "App default",
+        "notAuthenticated": "not logged in",
+        "usage": "{{session}}% session · {{weekly}}% week",
+        "strict": "Stay on this account when it hits its limit",
+        "strictDescription": "Pause and wait for the limit to reset instead of switching to another account, which would bill a different subscription.",
+        "missing": "The selected account no longer exists — the app default is used.",
+        "unauthenticated": "{{name}} is not logged in — the app default is used until you log in again.",
+        "suggestion": "Use the {{name}} account for this project?",
+        "suggestionAction": "Use {{name}}",
+        "noProfiles": "No Claude accounts yet. Add one in Settings → Accounts."
+      },
+      "mainBranch": "Main branch",
+      "mainBranchDescription": "Tasks branch from here and merge back here. Deploy runs from it too. Type a name or pick an existing branch.",
+      "mainBranchPlaceholder": "Auto-detect ({{branch}})",
+      "mainBranchPick": "Pick an existing branch",
+      "mainBranchNoBranches": "No branches found",
+      "mainBranchMissing": "{{branch}} doesn't exist in this repository yet.",
+      "deployAction": "Kanban Deploy button",
+      "deployActionDescription": "Deploy merges the task and runs the deploy runbook (Ship → Deploy). Merge only merges into the main branch and stops.",
+      "deployActionDeploy": "Merge + deploy (runbook)",
+      "deployActionMerge": "Merge only",
+      "overviewOnly": "Overview project",
+      "overviewOnlyDescription": "For a folder holding many apps: planning and analysis only. Hides Board, Review and Ship; no tasks, planning or deploys; ideation generates Features only.",
+      "verifyCommandDetected": "Auto: {{command}}"
     },
     "claude": {
       "title": "Claude Auth",
@@ -403,10 +436,15 @@
     },
     "memory": {
       "title": "Memory",
-      "description": "Graphiti memory backend",
+      "description": "Built-in agent memory",
       "integrationTitle": "Memory",
       "integrationDescription": "Configure persistent cross-session memory for agents",
-      "syncDescription": "Configure persistent memory"
+      "syncDescription": "Configure persistent memory",
+      "enableLabel": "Enable Memory",
+      "enableDescription": "Agents get relevant notes from earlier tasks in this project and save what they learn for you to review in Context → Memories. Overrides the app-wide setting.",
+      "disabledNote": "Agents in this project start without project memory and don't save new memories. Pointers and memories already saved stay in Context → Memories.",
+      "enabledBadge": "Enabled",
+      "disabledBadge": "Disabled"
     }
   },
   "agentProfile": {
@@ -570,7 +608,7 @@
     "apiKeys": "API Keys",
     "apiKeysInfo": "Keys set here are used as defaults. Individual projects can override these in their settings.",
     "openaiKey": "OpenAI API Key",
-    "openaiKeyDescription": "Required for Graphiti memory backend (embeddings)",
+    "openaiKeyDescription": "Used for memory embeddings when OpenAI is the embedding provider",
     "toast": {
       "authSuccess": "Profile Authenticated",
       "authSuccessWithEmail": "Connected as {{email}}",
@@ -862,7 +900,8 @@
     "description": "Access logs and debug information for troubleshooting",
     "errorReporting": {
       "label": "Anonymous Error Reporting",
-      "description": "Send crash reports to help improve malvy. No personal data or code is collected."
+      "description": "Send crash reports to help improve malvy. No personal data or code is collected.",
+      "saveFailed": "Failed to save error reporting setting"
     },
     "openLogsFolder": "Open Logs Folder",
     "copyDebugInfo": "Copy Debug Info",
@@ -910,10 +949,10 @@
         "name": "Context7",
         "description": "Documentation lookup for libraries"
       },
-      "graphiti": {
-        "name": "Graphiti Memory",
-        "description": "Knowledge graph for cross-session context",
-        "notConfigured": "Requires memory configuration (see Memory settings)"
+      "memory": {
+        "name": "Memory (built-in)",
+        "description": "Relevant project memories are added to agent prompts. Not an MCP server; turn it on or off in Memory settings.",
+        "disabled": "Off for this project (see Memory settings)"
       },
       "linear": {
         "name": "Linear",
@@ -1191,5 +1230,30 @@
         "description": "An error occurred while saving your provider configuration."
       }
     }
+  },
+  "remoteAccess": {
+    "title": "Remote access (local network)",
+    "description": "Open Malvy in a browser on your phone or another device on the same network. It uses the same projects, tasks, agents and terminals as this window.",
+    "warningTitle": "Anyone with the QR code can control Malvy",
+    "warning": "A paired device can run agents and terminal commands on this computer. Only pair devices you trust, and rotate the token if a link or QR code leaks.",
+    "outsideHome": "For access outside your home network, use a VPN such as Tailscale instead of exposing this port to the internet.",
+    "enable": "Enable remote access",
+    "enableDescription": "Listen on all network interfaces while enabled. Off by default.",
+    "port": "Port",
+    "portDescription": "TCP port for the web UI (1024–65535).",
+    "portInvalid": "Enter a port between 1024 and 65535",
+    "applyPort": "Apply",
+    "status": "Status",
+    "running": "Running",
+    "stopped": "Stopped",
+    "startFailed": "Could not start: {{error}}",
+    "addresses": "Addresses on this network",
+    "noAddresses": "No local network address found. Connect to Wi-Fi or Ethernet.",
+    "scanToPair": "Scan with your phone's camera to pair",
+    "connectedClients": "Connected devices: {{count}}",
+    "rotateToken": "Rotate token (disconnect all devices)",
+    "rotateTokenDescription": "Creates a new pairing code. Every paired device must scan the new QR code.",
+    "loadFailed": "Failed to load remote access status",
+    "saveFailed": "Failed to update remote access: {{error}}"
   }
 }

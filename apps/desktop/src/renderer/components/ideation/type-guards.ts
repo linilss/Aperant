@@ -1,5 +1,6 @@
 import type {
   Idea,
+  FeatureIdea,
   CodeImprovementIdea,
   UIUXImprovementIdea,
   DocumentationGapIdea,
@@ -7,6 +8,10 @@ import type {
   PerformanceOptimizationIdea,
   CodeQualityIdea
 } from '../../../shared/types';
+
+export function isFeatureIdea(idea: Idea): idea is FeatureIdea {
+  return idea.type === 'features';
+}
 
 export function isCodeImprovementIdea(idea: Idea): idea is CodeImprovementIdea {
   return idea.type === 'code_improvements';

@@ -34,7 +34,7 @@ export function IssueDetail({ issue, onInvestigate, investigationResult, linkedT
   };
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 max-md:flex-none">
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="space-y-2">

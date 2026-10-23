@@ -6,9 +6,12 @@ import type {
   RendererMemory,
   ContextSearchResult,
   MemoryType,
+  DocPointer,
+  CreatePointerInput,
 } from '../../../shared/types';
 import { projectStore } from '../../project-store';
 import { getMemoryService } from './memory-service-factory';
+import { listPointers, POINTER_TAG, syncPointers, toDocPointer } from './pointer-sync';
 import type { Memory } from '../../ai/memory/types';
 
 // ============================================================
@@ -36,6 +39,16 @@ function toRendererMemory(m: Memory): RendererMemory {
     methodology: m.methodology,
     deprecated: m.deprecated,
   };
+}
+
+/**
+ * After a memory is deprecated/deleted, refresh the pointers mirror if it was
+ * a pointer (user_taught) so .malvy/pointers.md never goes stale.
+ */
+async function resyncIfPointer(memory: Memory | null): Promise<void> {
+  if (memory?.source === 'user_taught' && memory.projectId) {
+    await syncPointers(memory.projectId).catch(() => undefined);
+  }
 }
 
 // ============================================================
@@ -107,7 +120,9 @@ export function registerMemoryDataHandlers(
     async (_, memoryId: string): Promise<IPCResult<void>> => {
       try {
         const service = await getMemoryService();
+        const memory = await service.getMemory(memoryId);
         await service.deprecateMemory(memoryId);
+        await resyncIfPointer(memory);
         return { success: true };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Failed to deprecate memory' };
@@ -121,7 +136,9 @@ export function registerMemoryDataHandlers(
     async (_, memoryId: string): Promise<IPCResult<void>> => {
       try {
         const service = await getMemoryService();
+        const memory = await service.getMemory(memoryId);
         await service.deleteMemory(memoryId);
+        await resyncIfPointer(memory);
         return { success: true };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Failed to delete memory' };
@@ -157,6 +174,95 @@ export function registerMemoryDataHandlers(
       } catch {
         // Graceful degradation: return empty list if memory service is unavailable
         return { success: true, data: [] };
+      }
+    }
+  );
+  // ============================================================
+  // Developer pointers (user_taught memories)
+  // ============================================================
+
+  // List pointers for a project
+  ipcMain.handle(
+    IPC_CHANNELS.CONTEXT_POINTERS_LIST,
+    async (_, projectId: string): Promise<IPCResult<DocPointer[]>> => {
+      try {
+        return { success: true, data: await listPointers(projectId) };
+      } catch {
+        // Graceful degradation: memory service unavailable
+        return { success: true, data: [] };
+      }
+    }
+  );
+
+  // Create a pointer (optionally anchored to a doc file + heading)
+  ipcMain.handle(
+    IPC_CHANNELS.CONTEXT_MEMORY_CREATE,
+    async (_, projectId: string, input: CreatePointerInput): Promise<IPCResult<DocPointer>> => {
+      const project = projectStore.getProject(projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+      const content = input?.content?.trim();
+      if (!content) {
+        return { success: false, error: 'Pointer content is empty' };
+      }
+
+      try {
+        const service = await getMemoryService();
+        const id = await service.store({
+          type: 'preference',
+          content,
+          projectId,
+          source: 'user_taught',
+          confidence: 1.0,
+          scope: 'global',
+          pinned: true,
+          tags: [POINTER_TAG],
+          relatedFiles: input.docPath ? [input.docPath] : [],
+          citationText: input.heading || undefined,
+        });
+        await syncPointers(projectId);
+        const memory = await service.getMemory(id);
+        if (!memory) {
+          return { success: false, error: 'Pointer was not saved' };
+        }
+        return { success: true, data: toDocPointer(memory) };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to create pointer' };
+      }
+    }
+  );
+
+  // Update a pointer's text
+  ipcMain.handle(
+    IPC_CHANNELS.CONTEXT_MEMORY_UPDATE,
+    async (_, projectId: string, memoryId: string, content: string): Promise<IPCResult<void>> => {
+      const trimmed = content?.trim();
+      if (!trimmed) {
+        return { success: false, error: 'Pointer content is empty' };
+      }
+      try {
+        const service = await getMemoryService();
+        await service.updateMemory(memoryId, { content: trimmed });
+        await syncPointers(projectId);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to update pointer' };
+      }
+    }
+  );
+
+  // Delete a pointer permanently
+  ipcMain.handle(
+    IPC_CHANNELS.CONTEXT_POINTERS_DELETE,
+    async (_, projectId: string, memoryId: string): Promise<IPCResult<void>> => {
+      try {
+        const service = await getMemoryService();
+        await service.deleteMemory(memoryId);
+        await syncPointers(projectId);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to delete pointer' };
       }
     }
   );

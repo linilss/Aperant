@@ -38,6 +38,8 @@ import {
   JSON_ERROR_PREFIX
 } from '../../../shared/constants';
 import type { Task, TaskCategory } from '../../../shared/types';
+import { getTaskBranchName } from '../../../shared/utils/task-branch';
+import { useProjectStore } from '../../stores/project-store';
 
 // Category icon mapping
 const CategoryIcon: Record<TaskCategory, typeof Target> = {
@@ -61,6 +63,7 @@ const COLLAPSED_HEIGHT = 200;
 
 export function TaskMetadata({ task }: TaskMetadataProps) {
   const { t } = useTranslation(['tasks', 'errors']);
+  const projectSettings = useProjectStore(s => s.projects.find(p => p.id === task.projectId)?.settings);
   const [isExpanded, setIsExpanded] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -106,7 +109,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
         {hasClassification && (
           <div className="flex flex-wrap items-center gap-1.5">
             {/* Category */}
-            {task.metadata?.category && (
+            {task.metadata?.category && TASK_CATEGORY_LABELS[task.metadata.category] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_CATEGORY_COLORS[task.metadata.category])}
@@ -119,7 +122,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
               </Badge>
             )}
             {/* Priority */}
-            {task.metadata?.priority && (
+            {task.metadata?.priority && TASK_PRIORITY_LABELS[task.metadata.priority] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_PRIORITY_COLORS[task.metadata.priority])}
@@ -128,7 +131,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
               </Badge>
             )}
             {/* Complexity */}
-            {task.metadata?.complexity && (
+            {task.metadata?.complexity && TASK_COMPLEXITY_LABELS[task.metadata.complexity] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_COMPLEXITY_COLORS[task.metadata.complexity])}
@@ -137,7 +140,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
               </Badge>
             )}
             {/* Impact */}
-            {task.metadata?.impact && (
+            {task.metadata?.impact && TASK_IMPACT_LABELS[task.metadata.impact] && (
               <Badge
                 variant="outline"
                 className={cn('text-xs', TASK_IMPACT_COLORS[task.metadata.impact])}
@@ -311,7 +314,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
                 Worktree
               </h3>
               <span className="text-sm text-foreground/80 font-mono">
-                malvy/{task.specId}
+                {getTaskBranchName(task.specId, projectSettings)}
               </span>
             </div>
           )}

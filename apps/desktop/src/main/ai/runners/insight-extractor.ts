@@ -60,6 +60,8 @@ export interface InsightExtractionConfig {
   modelShorthand?: ModelShorthand;
   /** Thinking level (defaults to 'low') */
   thinkingLevel?: ThinkingLevel;
+  /** Project root (or worktree inside it); a pinned project's call runs on its Claude account */
+  projectDir?: string;
 }
 
 /** Record of a previous attempt */
@@ -245,6 +247,7 @@ export async function extractSessionInsights(
     changedFiles,
     modelShorthand = DEFAULT_MODEL,
     thinkingLevel = 'low',
+    projectDir,
   } = config;
 
   try {
@@ -254,6 +257,7 @@ export async function extractSessionInsights(
       systemPrompt: SYSTEM_PROMPT,
       modelShorthand,
       thinkingLevel,
+      projectPath: projectDir,
     });
 
     const result = await generateText({

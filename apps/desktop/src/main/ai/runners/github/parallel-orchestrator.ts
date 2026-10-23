@@ -548,6 +548,7 @@ export class ParallelOrchestratorReviewer {
       systemPrompt,
       modelShorthand,
       thinkingLevel,
+      cwd: this.config.projectDir,
     });
 
     const genOptions = buildGenerateTextOptions(client);
@@ -748,6 +749,7 @@ Validate each finding by reading the actual code at the specified file and line.
       systemPrompt,
       modelShorthand,
       thinkingLevel,
+      cwd: this.config.projectDir,
     });
 
     const genOptions = buildGenerateTextOptions(client);
@@ -901,6 +903,7 @@ Validate each finding by reading the actual code at the specified file and line.
       systemPrompt: 'You are a senior code review orchestrator.',
       modelShorthand,
       thinkingLevel,
+      projectPath: this.config.projectDir,
     });
 
     const genOptions = buildGenerateTextOptions(client);

@@ -15,6 +15,8 @@ import { usePtyProcess } from './terminal/usePtyProcess';
 import { useTerminalEvents } from './terminal/useTerminalEvents';
 import { useAutoNaming } from './terminal/useAutoNaming';
 import { useTerminalFileDrop } from './terminal/useTerminalFileDrop';
+import { MobileKeyBar } from './terminal/MobileKeyBar';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { debugLog } from '../../shared/utils/debug-logger';
 import { isWindows as checkIsWindows } from '../lib/os-detection';
 
@@ -96,6 +98,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const resizeSequenceRef = useRef<number>(0);
   // Track post-creation dimension check timeout for cleanup
   const postCreationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isMobile = useIsMobile();
 
   // Worktree dialog state
   const [showWorktreeDialog, setShowWorktreeDialog] = useState(false);
@@ -814,7 +818,8 @@ Please confirm you're ready by saying: I'm ready to work on ${selectedTask.title
         projectPath={projectPath}
         onCreateWorktree={handleCreateWorktree}
         onSelectWorktree={handleSelectWorktree}
-        onOpenInIDE={handleOpenInIDE}
+        // Opening an IDE launches it on the host machine, so hide it in the LAN web UI
+        onOpenInIDE={window.isRemote ? undefined : handleOpenInIDE}
         dragHandleListeners={dragHandleListeners}
         isExpanded={isExpanded}
         onToggleExpand={onToggleExpand}
@@ -826,6 +831,8 @@ Please confirm you're ready by saying: I'm ready to work on ${selectedTask.title
         className="flex-1 p-1"
         style={{ minHeight: 0 }}
       />
+
+      {isMobile && isActive && <MobileKeyBar terminalId={id} xtermRef={xtermRef} />}
 
       {/* Worktree creation dialog */}
       {projectPath && (

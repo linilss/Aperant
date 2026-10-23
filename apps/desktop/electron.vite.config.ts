@@ -26,9 +26,20 @@ const embeddedKeys = {
   '__SERPER_API_KEY__': JSON.stringify(process.env.SERPER_API_KEY || ''),
 };
 
+/**
+ * `ws` optionally requires the native addons bufferutil / utf-8-validate inside
+ * try/catch. When bundled, Vite replaces them with empty stubs, so the try
+ * succeeds and ws later calls undefined functions on frames >= 32 bytes.
+ * Tell ws to use its pure-JS paths instead.
+ */
+const wsDefines = {
+  'process.env.WS_NO_BUFFER_UTIL': JSON.stringify('1'),
+  'process.env.WS_NO_UTF_8_VALIDATE': JSON.stringify('1'),
+};
+
 export default defineConfig({
   main: {
-    define: { ...sentryDefines, ...embeddedKeys },
+    define: { ...sentryDefines, ...embeddedKeys, ...wsDefines },
     plugins: [externalizeDepsPlugin({
       // Bundle these packages into the main process (they won't be in node_modules in packaged app)
       exclude: [
@@ -74,6 +85,9 @@ export default defineConfig({
         '@modelcontextprotocol/sdk',
         '@openrouter/ai-sdk-provider',
         '@tavily/core',
+        // LAN web access server (WebSocket + pairing QR code)
+        'ws',
+        'qrcode',
       ]
     })],
     build: {

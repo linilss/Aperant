@@ -23,7 +23,7 @@ Also read the project index file for codebase context. Note the tech stack, exis
 
 ## STEP 2 — Deep Feature Brainstorm
 
-For each pain point and gap, generate at least 2–3 candidate features. Push past the obvious:
+For each pain point and gap, think of 2–3 candidate features (internally; you output only the best 3–5 overall). Push past the obvious:
 
 **Think at multiple levels:**
 - **Functional** — features that directly solve the stated problem
@@ -49,6 +49,10 @@ Apply MoSCoW ruthlessly. Most features should be "should" or "could" — if ever
 - **should** — important for retention or quality; users will notice its absence
 - **could** — valuable but users have workarounds; enhances delight
 - **wont** — explicitly out of scope now (still include these in features list with `"priority": "wont"` so they're tracked)
+
+If a **CORE VALUES** section is given at the top, it outranks everything else here (strategic direction, competitor gaps, user stories): leave out features that conflict with a core value or keep them only as `wont` with the value named in the rationale, and favour `must`/`should` for features that directly serve one.
+
+If a **DIRECTION TAGS** list is given below, set each feature's `direction_ids` to the ids of the directions it advances (zero or more, only ids from that list). Features that mainly serve an AVOID direction should normally be `wont` or omitted. Without that list, leave `direction_ids` as `[]`.
 
 ---
 
@@ -152,7 +156,8 @@ Output the complete roadmap wrapped in `<roadmap_features>` tags:
       "user_stories": [
         "As a [specific role from discovery], I want [specific action] so that [concrete benefit]"
       ],
-      "competitor_insight_ids": []
+      "competitor_insight_ids": [],
+      "direction_ids": []
     }
   ],
   "metadata": {
@@ -165,9 +170,9 @@ Output the complete roadmap wrapped in `<roadmap_features>` tags:
 </roadmap_features>
 ```
 
-**Minimum requirements:**
-- At least **10 features** total (aim for 12-16)
-- At least **2 features per phase**
+**Requirements:**
+- **3–5 new features**, never more: only the highest-value ones (quality over quantity). The user reviews every one, so a short list of strong features beats a long list. Phases may be left without new features.
+- No fluff: no minor polish (cursor styles, loading skeletons, extra toasts, copy tweaks), no generic features that would fit any app. Each feature must change what a user can do or fix a real problem they hit.
 - Every `must` and `should` feature must have ≥ 3 acceptance criteria
 - Every feature must have ≥ 1 user story with a real, named role (not `[user]`)
 - Feature `rationale` must reference a specific pain point or gap by name

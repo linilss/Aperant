@@ -230,6 +230,10 @@ export function SDKRateLimitModal() {
     ? profiles.find(p => p.id === sdkRateLimitInfo.suggestedProfile?.id)
     : null;
 
+  // Strictly pinned project: Malvy waits for the reset instead of switching accounts
+  const isPinnedToProject = !!sdkRateLimitInfo.pinnedToProject;
+  const pinnedAccountName = sdkRateLimitInfo.profileName || currentProfile?.name || sdkRateLimitInfo.profileId;
+
   const SourceIcon = getSourceIcon(sdkRateLimitInfo.source);
   const sourceName = getSourceName(sdkRateLimitInfo.source);
 
@@ -271,12 +275,16 @@ export function SDKRateLimitModal() {
             ) : (
               <>
                 <p className="font-medium mb-1">{t('rateLimit.sdk.rateLimitReached')}</p>
-                <p>
-                  {t('rateLimit.sdk.operationStopped', { account: currentProfile?.name || 'your account' })}
-                  {hasMultipleProfiles
-                    ? ' ' + t('rateLimit.sdk.switchBelow')
-                    : ' ' + t('rateLimit.sdk.addAccountToContinue')}
-                </p>
+                {isPinnedToProject ? (
+                  <p>{t('rateLimit.sdk.pinnedToProject', { account: pinnedAccountName })}</p>
+                ) : (
+                  <p>
+                    {t('rateLimit.sdk.operationStopped', { account: currentProfile?.name || 'your account' })}
+                    {hasMultipleProfiles
+                      ? ' ' + t('rateLimit.sdk.switchBelow')
+                      : ' ' + t('rateLimit.sdk.addAccountToContinue')}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -309,7 +317,8 @@ export function SDKRateLimitModal() {
             </div>
           )}
 
-          {/* Profile switching / Add account section */}
+          {/* Profile switching / Add account section — not offered when the project is pinned */}
+          {!isPinnedToProject && (
           <div className="rounded-lg border border-accent/50 bg-accent/10 p-4">
             <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
               <User className="h-4 w-4" />
@@ -457,6 +466,7 @@ export function SDKRateLimitModal() {
               </p>
             </div>
           </div>
+          )}
 
           {/* Upgrade prompt */}
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
@@ -482,9 +492,11 @@ export function SDKRateLimitModal() {
             <p className="font-medium mb-1">{t('rateLimit.sdk.whatHappened')}</p>
             <p>
               {t('rateLimit.sdk.whatHappenedDesc', { source: sourceName.toLowerCase(), account: currentProfile?.name || 'Default' })}
-              {hasMultipleProfiles
-                ? ' ' + t('rateLimit.sdk.switchRetryOrAdd')
-                : ' ' + t('rateLimit.sdk.addOrWait')}
+              {isPinnedToProject
+                ? ''
+                : hasMultipleProfiles
+                  ? ' ' + t('rateLimit.sdk.switchRetryOrAdd')
+                  : ' ' + t('rateLimit.sdk.addOrWait')}
             </p>
           </div>
         </div>

@@ -29,8 +29,18 @@ import { compareVersions } from './updater/version-manager';
 import { isMacOS } from './platform';
 
 // GitHub repo info for API calls
-const GITHUB_OWNER = 'AndyMik90';
-const GITHUB_REPO = 'malvy';
+const GITHUB_OWNER = 'linilss';
+const GITHUB_REPO = 'Aperant';
+
+/**
+ * True when the update check failed only because the repo has no published
+ * releases yet (404 / missing latest.yml). This is an expected state, not an
+ * error the user should see — log it and move on.
+ */
+function isNoReleasesError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /\b404\b|No published versions|Unable to find latest version|Cannot find latest|latest[\w-]*\.yml/i.test(message);
+}
 
 // Debug mode - DEBUG_UPDATER=true or development mode
 const DEBUG_UPDATER = process.env.DEBUG_UPDATER === 'true' || process.env.NODE_ENV === 'development';
@@ -286,6 +296,10 @@ export function initializeAppUpdater(window: BrowserWindow, betaUpdates = false)
 
   // Error handling
   autoUpdater.on('error', (error) => {
+    if (isNoReleasesError(error)) {
+      console.warn('[app-updater] No published releases found - skipping update');
+      return;
+    }
     console.error('[app-updater] Update error:', error);
     if (mainWindow) {
       mainWindow.webContents.send(IPC_CHANNELS.APP_UPDATE_ERROR, {
@@ -375,6 +389,10 @@ export async function checkForUpdates(): Promise<AppUpdateInfo | null> {
       releaseDate: result.updateInfo.releaseDate
     };
   } catch (error) {
+    if (isNoReleasesError(error)) {
+      console.warn('[app-updater] No published releases found - no update available');
+      return null;
+    }
     console.error('[app-updater] Manual update check failed:', error);
     throw error;
   }

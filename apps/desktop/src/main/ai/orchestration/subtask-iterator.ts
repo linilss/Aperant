@@ -16,6 +16,8 @@ import { extractSessionInsights } from '../runners/insight-extractor';
 import type { SessionResult } from '../session/types';
 import type { SubtaskInfo } from './build-orchestrator';
 import {
+  consumeSafeStop,
+  parseLimitReset,
   writeAuthPauseFile,
   writeRateLimitPauseFile,
   waitForAuthResume,
@@ -51,6 +53,12 @@ export interface SubtaskIteratorConfig {
   onSubtaskComplete?: (subtask: SubtaskInfo, result: SessionResult) => void;
   /** Called when a subtask is marked stuck */
   onSubtaskStuck?: (subtask: SubtaskInfo, reason: string) => void;
+  /**
+   * Optional quality gate run after a subtask is marked completed (project verify
+   * command). Returning false puts the subtask back to "pending" so it is retried
+   * (counting towards maxRetries).
+   */
+  verifySubtask?: (subtask: SubtaskInfo) => Promise<boolean>;
   /** Called when insight extraction completes for a subtask (optional). */
   onInsightsExtracted?: (subtaskId: string, insights: ExtractedInsights) => void;
   /**
@@ -134,6 +142,10 @@ export async function iterateSubtasks(
     if (config.abortSignal?.aborted) {
       return { totalSubtasks, completedSubtasks, stuckSubtasks, cancelled: true };
     }
+    // Safe stop: the user asked to stop between subtasks, never in the middle of one
+    if (consumeSafeStop(config.specDir, config.sourceSpecDir)) {
+      return { totalSubtasks, completedSubtasks, stuckSubtasks, cancelled: true };
+    }
 
     // Load the plan and find next pending subtask
     const plan = await loadImplementationPlan(config.specDir);
@@ -191,14 +203,20 @@ export async function iterateSubtasks(
     }
 
     if (result.outcome === 'rate_limited') {
-      // Write pause file so the frontend can show a countdown
+      // Waiting out a usage limit is not a failed attempt: the subtask never ran
+      attemptCounts.set(subtask.id, Math.max(0, (attemptCounts.get(subtask.id) ?? 1) - 1));
+
+      // Wait until the limit resets when the message says when (a minute's margin), else in 2 h steps
       const errorMessage = result.error?.message ?? 'Rate limit reached';
-      writeRateLimitPauseFile(config.specDir, errorMessage, null);
+      const resetAt = parseLimitReset(errorMessage);
+      const waitMs = resetAt ? resetAt.getTime() - Date.now() + 60_000 : MAX_RATE_LIMIT_WAIT_MS_DEFAULT;
+      // Pause file so the frontend can show a countdown
+      writeRateLimitPauseFile(config.specDir, errorMessage, resetAt ? resetAt.toISOString() : null);
 
       // Wait for the rate limit to reset (or user to resume early)
       await waitForRateLimitResume(
         config.specDir,
-        MAX_RATE_LIMIT_WAIT_MS_DEFAULT,
+        waitMs,
         config.sourceSpecDir,
         config.abortSignal,
       );
@@ -234,6 +252,11 @@ export async function iterateSubtasks(
     // implementation_plan.json itself, but it doesn't always do so reliably.
     if (result.outcome === 'completed' || result.outcome === 'max_steps' || result.outcome === 'context_window') {
       await ensureSubtaskMarkedCompleted(config.specDir, subtask.id);
+
+      // Verify gate: a failing project verify command means the subtask is not done
+      if (config.verifySubtask && !(await config.verifySubtask(subtaskInfo))) {
+        await markSubtaskPending(config.specDir, subtask.id);
+      }
 
       // Re-stamp executionPhase on the worktree plan after the coder session.
       // The coder model's Edit/Write calls can overwrite executionPhase with a
@@ -316,6 +339,29 @@ async function ensureSubtaskMarkedCompleted(
     }
   } catch {
     // Non-fatal: if we can't update the plan the loop will retry or mark stuck
+  }
+}
+
+/**
+ * Put a subtask back to "pending" (verify gate failed) so the iterator retries it.
+ */
+async function markSubtaskPending(specDir: string, subtaskId: string): Promise<void> {
+  const planPath = join(specDir, 'implementation_plan.json');
+  try {
+    const raw = await readFile(planPath, 'utf-8');
+    const plan = safeParseJson<ImplementationPlan>(raw);
+    if (!plan) return;
+    for (const phase of plan.phases) {
+      for (const subtask of phase.subtasks) {
+        if (subtask.id === subtaskId) {
+          subtask.status = 'pending';
+          delete (subtask as PlanSubtask & { completed_at?: string }).completed_at;
+        }
+      }
+    }
+    await writeFile(planPath, JSON.stringify(plan, null, 2));
+  } catch {
+    // Non-fatal: worst case the subtask stays completed and QA's verify gate catches it
   }
 }
 
@@ -492,6 +538,7 @@ async function extractInsightsAfterSession(
       changedFiles: [],   // Populated by future git integration
       commitMessages: '',
       attemptHistory: [],
+      projectDir: config.projectDir,
     };
 
     return await extractSessionInsights(insightConfig);

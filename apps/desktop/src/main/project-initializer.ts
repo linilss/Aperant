@@ -1,7 +1,10 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, appendFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { getToolPath } from './cli-tool-manager';
+import { ensureGitExcludeEntries, MALVY_GIT_EXCLUDE_ENTRIES } from './git-exclude';
+
+export { ensureGitExcludeEntries } from './git-exclude';
 
 /**
  * Debug logging - only logs when DEBUG=true or in development mode
@@ -153,72 +156,6 @@ export function initializeGit(projectPath: string): InitializationResult {
 }
 
 /**
- * Entries to add to .gitignore when initializing a project
- */
-const GITIGNORE_ENTRIES = ['.malvy/'];
-
-/**
- * Ensure entries exist in the project's .gitignore file.
- * Creates .gitignore if it doesn't exist.
- */
-function ensureGitignoreEntries(projectPath: string, entries: string[]): void {
-  const gitignorePath = path.join(projectPath, '.gitignore');
-
-  // Read existing content atomically (no TOCTOU)
-  let content = '';
-  let fileExists = false;
-  try {
-    content = readFileSync(gitignorePath, 'utf-8');
-    fileExists = true;
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-    // File doesn't exist - content stays empty
-  }
-
-  const existingLines = content ? content.split('\n').map(line => line.trim()) : [];
-
-  // Find entries that need to be added
-  const entriesToAdd: string[] = [];
-  for (const entry of entries) {
-    const entryNormalized = entry.replace(/\/$/, ''); // Remove trailing slash for comparison
-    const alreadyExists = existingLines.some(line => {
-      const lineNormalized = line.replace(/\/$/, '');
-      return lineNormalized === entry || lineNormalized === entryNormalized;
-    });
-
-    if (!alreadyExists) {
-      entriesToAdd.push(entry);
-    }
-  }
-
-  if (entriesToAdd.length === 0) {
-    debug('All gitignore entries already exist');
-    return;
-  }
-
-  if (fileExists) {
-    // Build the content to append
-    let appendContent = '';
-
-    // Ensure file ends with newline before adding our entries
-    if (content && !content.endsWith('\n')) {
-      appendContent += '\n';
-    }
-
-    appendContent += '\n# malvy data directory\n';
-    for (const entry of entriesToAdd) {
-      appendContent += entry + '\n';
-    }
-
-    appendFileSync(gitignorePath, appendContent);
-  } else {
-    writeFileSync(gitignorePath, '# malvy data directory\n' + entriesToAdd.join('\n') + '\n', 'utf-8');
-  }
-
-  debug('Added entries to .gitignore', { entries: entriesToAdd });
-}
-
-/**
  * Data directories created in .malvy for each project
  */
 const DATA_DIRECTORIES = [
@@ -323,8 +260,12 @@ export function initializeProject(projectPath: string): InitializationResult {
       writeFileSync(path.join(dirPath, '.gitkeep'), '', 'utf-8');
     }
 
-    // Update .gitignore to exclude .malvy/
-    ensureGitignoreEntries(projectPath, GITIGNORE_ENTRIES);
+    // Exclude Malvy files via the untracked <git-dir>/info/exclude so no
+    // tracked file (e.g. .gitignore) is ever modified.
+    const added = ensureGitExcludeEntries(projectPath, MALVY_GIT_EXCLUDE_ENTRIES);
+    if (added.length > 0) {
+      debug('Added entries to git info/exclude', { entries: added });
+    }
 
     debug('Initialization complete');
     return { success: true };

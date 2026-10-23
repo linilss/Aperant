@@ -3,7 +3,6 @@
  * ====================
  *
  * Defines MCP server configurations for all supported integrations.
- * See apps/desktop/src/main/ai/mcp/registry.ts for the TypeScript implementation.
  *
  * Each server config defines how to connect (stdio or StreamableHTTP),
  * and whether it's enabled by default.
@@ -52,24 +51,6 @@ const LINEAR_SERVER: McpServerConfig = {
 };
 
 /**
- * Memory MCP server - knowledge graph memory.
- * Conditionally enabled when GRAPHITI_MCP_URL is set.
- * Connects via StreamableHTTP to the running memory sidecar.
- */
-function createMemoryServer(url: string): McpServerConfig {
-  return {
-    id: 'memory',
-    name: 'Memory',
-    description: 'Knowledge graph memory for cross-session insights',
-    enabledByDefault: false,
-    transport: {
-      type: 'streamable-http',
-      url,
-    },
-  };
-}
-
-/**
  * Electron MCP server - desktop app automation.
  * Only available to QA agents. Requires ELECTRON_MCP_ENABLED=true.
  * Uses Chrome DevTools Protocol to connect to Electron apps.
@@ -103,14 +84,14 @@ const PUPPETEER_SERVER: McpServerConfig = {
 };
 
 /**
- * Auto-Claude MCP server - custom build management tools.
+ * Malvy MCP server - custom build management tools.
  * Used by planner, coder, and QA agents for build progress tracking.
  *
  * Returns null when the server script doesn't exist (dev mode, or not yet built).
  * In that case the equivalent TypeScript tools registered directly in buildToolRegistry()
- * are used instead — the agent still has full access to all auto-claude tools.
+ * are used instead — the agent still has full access to all malvy build tools.
  */
-function createAutoClaudeServer(specDir: string): McpServerConfig | null {
+function createMalvyServer(specDir: string): McpServerConfig | null {
   // In dev mode this file isn't built yet; tools are provided via build-registry.ts instead.
   const serverScript = join(__dirname, 'malvy-mcp-server.js');
   if (!existsSync(serverScript)) {
@@ -136,10 +117,8 @@ function createAutoClaudeServer(specDir: string): McpServerConfig | null {
 
 /** Options for resolving MCP server configurations */
 export interface McpRegistryOptions {
-  /** Spec directory for auto-claude MCP server */
+  /** Spec directory for the malvy MCP server */
   specDir?: string;
-  /** Memory MCP server URL (if enabled) */
-  memoryMcpUrl?: string;
   /** Linear API key (if available) */
   linearApiKey?: string;
   /** Environment variables for server processes */
@@ -175,12 +154,6 @@ export function getMcpServerConfig(
       return server;
     }
 
-    case 'memory': {
-      const url = options.memoryMcpUrl ?? options.env?.GRAPHITI_MCP_URL;
-      if (!url) return null;
-      return createMemoryServer(url);
-    }
-
     case 'electron':
       return ELECTRON_SERVER;
 
@@ -189,7 +162,7 @@ export function getMcpServerConfig(
 
     case 'malvy': {
       const specDir = options.specDir ?? '';
-      return createAutoClaudeServer(specDir);
+      return createMalvyServer(specDir);
     }
 
     default:

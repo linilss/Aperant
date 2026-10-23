@@ -199,7 +199,7 @@ export function AzureDevOpsPRs({ onOpenSettings }: AzureDevOpsPRsProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0 max-md:flex-wrap max-md:gap-2 max-md:px-3">
         <div className="flex items-center gap-3">
           <GitPullRequest className="h-5 w-5 text-muted-foreground" />
           <div>
@@ -231,7 +231,7 @@ export function AzureDevOpsPRs({ onOpenSettings }: AzureDevOpsPRsProps) {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0 max-md:overflow-x-auto max-md:px-3 max-md:*:shrink-0">
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.value}
@@ -356,7 +356,7 @@ function PRRow({
                 aria-label="Open in browser"
                 onClick={(e) => { e.stopPropagation(); onOpen(); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onOpen(); } }}
-                className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="text-muted-foreground opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity cursor-pointer"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </span>

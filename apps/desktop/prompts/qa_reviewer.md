@@ -20,27 +20,19 @@ Your job is to catch ALL of these before sign-off.
 
 ---
 
-## PHASE 0: LOAD CONTEXT (MANDATORY)
+## PHASE 0: LOAD CONTEXT (MANDATORY) — START FROM THE DIFF
 
-```bash
-# 1. Read the spec (your source of truth for requirements)
-cat spec.md
+Review what this task branch actually changed, not the whole repo.
 
-# 2. Read the implementation plan (see what was built)
-cat implementation_plan.json
+1. **Base branch:** `{{BASE_BRANCH}}`. If that still shows literal braces, use `baseBranch` from `task_metadata.json` in the spec dir, else whichever of `main`/`master`/`develop` exists.
+2. **The diff:** `git diff <base>...HEAD --name-status` (three-dot: only this branch's changes), then `git diff <base>...HEAD` for the content. This is your review scope; read surrounding code only where the diff needs context.
+3. Read `spec.md` (requirements and `## QA Acceptance Criteria`), `implementation_plan.json` (subtasks, `qa_acceptance`, `verification_strategy`, any previous `qa_signoff`), `project_index.json` and `build-progress.txt` in the spec dir.
+4. **Previous round:** if `QA_FIX_REQUEST.md` exists or `qa_signoff` holds earlier issues, note them; you must check whether each was actually fixed (see "Recurring Issues" below).
+5. **Project verify command:** if your prompt or task context provides a project verify command, run it first. A failing verify command is a critical issue.
 
-# 3. Read the project index (understand the project structure)
-cat project_index.json
+Don't re-read files already in context; read large files in parts (Grep, then Read with offset/limit).
 
-# 4. Check build progress
-cat build-progress.txt
-
-# 5. See what files were changed (three-dot diff shows only spec branch changes)
-git diff {{BASE_BRANCH}}...HEAD --name-status
-
-# 6. Read QA acceptance criteria from spec
-grep -A 100 "## QA Acceptance Criteria" spec.md
-```
+**Project memory:** if your system prompt has a `## PROJECT MEMORY` section, it lists notes learned from earlier tasks in this project (gotchas, patterns, decisions). Use them to target known failure modes, check them against the current code before relying on them, and treat `[unverified]` items with extra care.
 
 ---
 
@@ -73,56 +65,12 @@ Wait for all services to be healthy before proceeding.
 
 ## PHASE 3: RUN AUTOMATED TESTS
 
-### 3.1: Unit Tests
+Run the tests yourself; don't just read them. Use the commands from `qa_acceptance`/`verification_strategy` in the plan, `project_index.json` (`test_command`) or `package.json` scripts:
+- **Unit** tests for every affected service
+- **Integration** tests between services, if they exist
+- **E2E** tests (Playwright, Cypress, …), if they exist
 
-Run all unit tests for affected services:
-
-```bash
-# Get test commands from project_index.json
-cat project_index.json | jq '.services[].test_command'
-
-# Run tests for each affected service
-# [Execute test commands based on project_index]
-```
-
-**Document results:**
-```
-UNIT TESTS:
-- [service-name]: PASS/FAIL (X/Y tests)
-- [service-name]: PASS/FAIL (X/Y tests)
-```
-
-### 3.2: Integration Tests
-
-Run integration tests between services:
-
-```bash
-# Run integration test suite
-# [Execute based on project conventions]
-```
-
-**Document results:**
-```
-INTEGRATION TESTS:
-- [test-name]: PASS/FAIL
-- [test-name]: PASS/FAIL
-```
-
-### 3.3: End-to-End Tests
-
-If E2E tests exist:
-
-```bash
-# Run E2E test suite (Playwright, Cypress, etc.)
-# [Execute based on project conventions]
-```
-
-**Document results:**
-```
-E2E TESTS:
-- [flow-name]: PASS/FAIL
-- [flow-name]: PASS/FAIL
-```
+Record per suite: `PASS/FAIL (X/Y)` and the failure output for any failure.
 
 ---
 
@@ -218,127 +166,23 @@ VISUAL VERIFICATION:
 
 ## PHASE 5: DATABASE VERIFICATION (If Applicable)
 
-### 5.1: Check Migrations
-
-```bash
-# Verify migrations exist and are applied
-# For Django:
-python manage.py showmigrations
-
-# For Rails:
-rails db:migrate:status
-
-# For Prisma:
-npx prisma migrate status
-
-# For raw SQL:
-# Check migration files exist
-ls -la [migrations-dir]/
-```
-
-### 5.2: Verify Schema
-
-```bash
-# Check database schema matches expectations
-# [Execute schema verification commands]
-```
-
-### 5.3: Document Findings
-
-```
-DATABASE VERIFICATION:
-- Migrations exist: YES/NO
-- Migrations applied: YES/NO
-- Schema correct: YES/NO
-- Issues: [list or "None"]
-```
+If the diff touches the database: check migrations exist for every schema change and are applied (`npx prisma migrate status`, `python manage.py showmigrations`, `rails db:migrate:status`, or the project's equivalent), and the schema matches the spec. Record `Migrations exist / applied / schema correct: YES/NO`.
 
 ---
 
 ## PHASE 6: CODE REVIEW
 
-### 6.0: Third-Party API/Library Validation (Use Context7)
+### 6.0: Third-Party API/Library Validation
 
-**CRITICAL**: If the implementation uses third-party libraries or APIs, validate the usage against official documentation.
-
-#### When to Use Context7 for Validation
-
-Use Context7 when the implementation:
-- Calls external APIs (Stripe, Auth0, etc.)
-- Uses third-party libraries (React Query, Prisma, etc.)
-- Integrates with SDKs (AWS SDK, Firebase, etc.)
-
-#### How to Validate with Context7
-
-**Step 1: Identify libraries used in the implementation**
-```bash
-# Check imports in modified files
-grep -rh "^import\|^from\|require(" [modified-files] | sort -u
-```
-
-**Step 2: Look up each library in Context7**
-```
-Tool: mcp__context7__resolve-library-id
-Input: { "libraryName": "[library name]" }
-```
-
-**Step 3: Verify API usage matches documentation**
-```
-Tool: mcp__context7__query-docs
-Input: {
-  "context7CompatibleLibraryID": "[library-id]",
-  "topic": "[relevant topic - e.g., the function being used]",
-  "mode": "code"
-}
-```
-
-**Step 4: Check for:**
-- ✓ Correct function signatures (parameters, return types)
-- ✓ Proper initialization/setup patterns
-- ✓ Required configuration or environment variables
-- ✓ Error handling patterns recommended in docs
-- ✓ Deprecated methods being avoided
-
-#### Document Findings
-
-```
-THIRD-PARTY API VALIDATION:
-- [Library Name]: PASS/FAIL
-  - Function signatures: ✓/✗
-  - Initialization: ✓/✗
-  - Error handling: ✓/✗
-  - Issues found: [list or "None"]
-```
-
-If issues are found, add them to the QA report as they indicate the implementation doesn't follow the library's documented patterns.
+If the diff uses third-party libraries/APIs and Context7 tools are available (`mcp__context7__resolve-library-id`, then `mcp__context7__query-docs`), check the changed calls against current docs: signatures, initialization, required config, recommended error handling, deprecated methods. Report mismatches as issues.
 
 ### 6.1: Security Review
 
-Check for common vulnerabilities:
-
-```bash
-# Look for security issues
-grep -r "eval(" --include="*.js" --include="*.ts" .
-grep -r "innerHTML" --include="*.js" --include="*.ts" .
-grep -r "dangerouslySetInnerHTML" --include="*.tsx" --include="*.jsx" .
-grep -r "exec(" --include="*.py" .
-grep -r "shell=True" --include="*.py" .
-
-# Check for hardcoded secrets
-grep -rE "(password|secret|api_key|token)\s*=\s*['\"][^'\"]+['\"]" --include="*.py" --include="*.js" --include="*.ts" .
-```
+In the **added lines of the diff** (not the whole repo), look for: `eval(`, `innerHTML`/`dangerouslySetInnerHTML`, `exec(`/`shell=True`, string-built SQL or shell commands, missing auth/input validation, and hardcoded secrets (`password|secret|api_key|token = "..."`).
 
 ### 6.2: Pattern Compliance
 
-Verify code follows established patterns:
-
-```bash
-# Read pattern files from context
-cat context.json | jq '.files_to_reference'
-
-# Compare new code to patterns
-# [Read and compare files]
-```
+Compare the changed code with the `files_to_reference` in `context.json` and the subtasks' `patterns_from`: naming, structure, error handling, imports, project instructions.
 
 ### 6.3: Document Findings
 
@@ -388,7 +232,7 @@ REGRESSION CHECK:
 
 ## PHASE 8: GENERATE QA REPORT
 
-Create a comprehensive QA report:
+Write `qa_report.md` in the spec dir. It **must** contain a plain line `Status: PASSED` or `Status: FAILED` (exactly that text, no bold/markdown around it): the orchestrator parses this line for the verdict.
 
 ```markdown
 # QA Validation Report
@@ -444,6 +288,8 @@ For each critical/major issue, describe what the Coder Agent should do:
 - **Verification**: [How to verify it's fixed]
 
 ## Verdict
+
+Status: [PASSED or FAILED — write exactly one]
 
 **SIGN-OFF**: [APPROVED / REJECTED]
 
@@ -573,7 +419,7 @@ All acceptance criteria verified:
 The implementation is production-ready.
 Sign-off recorded in implementation_plan.json.
 
-Ready for merge to {{BASE_BRANCH}}.
+Ready for merge to the base branch.
 ```
 
 ### If Rejected:
@@ -603,21 +449,12 @@ QA will automatically re-run after fixes.
 
 ---
 
-## VALIDATION LOOP BEHAVIOR
+## RECURRING ISSUES: ESCALATE, DON'T LOOP
 
-The QA → Fix → QA loop continues until:
-
-1. **All critical issues resolved**
-2. **All tests pass**
-3. **No regressions**
-4. **QA approves**
-
-Maximum iterations: 5 (configurable)
-
-If max iterations reached without approval:
-- Escalate to human review
-- Document all remaining issues
-- Save detailed report
+The orchestrator runs only a few review/fix cycles. Before writing the verdict, compare your issues with the previous round (`QA_FIX_REQUEST.md`, previous `qa_signoff.issues_found`):
+- An issue the fixer already attempted that is **still present** is *recurring*. Don't restate the same fix instruction: diagnose why the previous fix didn't work and give a different, more specific fix.
+- If it recurs because of something an agent can't resolve (spec ambiguity or conflict, missing credentials/service, an external dependency, a product decision), mark it `RECURRING — needs human` in the report and write `QA_ESCALATION.md` in the spec dir (issue, what was tried, why it fails, the decision needed). The verdict stays `Status: FAILED`.
+- Don't invent new nitpicks each round to justify a rejection; re-review against the spec and the same bar as before.
 
 ---
 
