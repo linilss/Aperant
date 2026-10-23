@@ -12,6 +12,7 @@ import { projectStore } from '../../project-store';
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
 import { pickMergeTarget, pushMergedTarget, refExists, runQuickMergeGit } from './quick-merge';
+import { resolveVerifyCommand } from '../../verify-detect';
 import { describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
 import { createAzureDevOpsPR } from '../../ai/runners/azure-devops/pr-creator';
@@ -2223,7 +2224,9 @@ export function registerWorktreeHandlers(
               targetBranch: effectiveBaseBranch,
               commitMessage: task.title || `merge ${featureBranch}`,
               specId: task.specId,
-              emitProgress: (stage, percent, message) => emitProgress(stage, percent, message)
+              emitProgress: (stage, percent, message) => emitProgress(stage, percent, message),
+              verifyCommand: resolveVerifyCommand(project.settings?.verifyCommand, project.path),
+              specPath: path.join(specDir, AUTO_BUILD_PATHS.SPEC_FILE)
             });
             if (!gitResult.ok) {
               logFailure(gitResult.stage, gitResult.message);
