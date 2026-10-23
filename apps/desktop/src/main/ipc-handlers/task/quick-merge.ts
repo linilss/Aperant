@@ -100,6 +100,8 @@ function makeGit(cwd: string, extraEnv: Record<string, string> = {}) {
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      // Diffs of big merges overflow the 1 MB default (ENOBUFS)
+      maxBuffer: 256 * 1024 * 1024,
       env: { ...getIsolatedGitEnv(), ...extraEnv }
     });
 }
@@ -326,10 +328,10 @@ async function syncWithTarget({ cwd, input, logTag }: SyncContext): Promise<stri
     const verify = input.verify ?? ((cmd, dir, signal) => runVerifyCommand(cmd, dir, { abortSignal: signal }));
     let res = await verify(verifyCommand, cwd, input.abortSignal);
     if (input.abortSignal?.aborted) return fail('Merge cancelled.');
-    if (!res.passed && !hadRealConflicts) {
-      // Clean merge that doesn't build: give the agent one go at the fallout
+    if (!res.passed) {
+      // A merge (clean or resolved) that doesn't pass: give the agent one go at the fallout
       const tail = tailOutput(res.output, 40, 4_000);
-      appLog.warn(`${logTag} stage=verify-clean-merge command=${verifyCommand} output=${tailOutput(res.output, 15, 1_500)}`);
+      appLog.warn(`${logTag} stage=verify-after-merge conflicts=${hadRealConflicts} command=${verifyCommand} output=${tailOutput(res.output, 15, 1_500)}`);
       const agentError = await agentPass(tail);
       if (agentError) return fail(`The merge doesn't pass verify and the agent couldn't fix it: ${agentError}`);
       res = await verify(verifyCommand, cwd, input.abortSignal);

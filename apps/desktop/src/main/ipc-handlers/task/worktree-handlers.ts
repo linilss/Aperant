@@ -1536,7 +1536,7 @@ async function restoreStashedWork(
   onProgress?: (msg: string) => void
 ): Promise<string | null> {
   const git = (args: string[]) => execFileSync(getToolPath('git'), args, {
-    cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+    cwd: projectPath, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), maxBuffer: 256 * 1024 * 1024
   });
   const keptNote = `Uncommitted changes could not be put back automatically; they are kept in git stash ("${label}").`;
   // Find our entry by label — another stash (e.g. .malvy/) may sit on top if its pop failed
@@ -2179,7 +2179,7 @@ export function registerWorktreeHandlers(
         // TASK_POST_MERGE_CLEANUP, so the user is prompted before deletion.
         if (options?.quickMerge) {
           const git = (args: string[]) => execFileSync(getToolPath('git'), args, {
-            cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv()
+            cwd: project.path, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], env: getIsolatedGitEnv(), maxBuffer: 256 * 1024 * 1024
           });
 
           // Someone may be working directly in the project checkout. Set their uncommitted

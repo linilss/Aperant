@@ -264,12 +264,15 @@ describe('stale task branch: agent fallback and verify gate', () => {
     for (const f of files) expect(readFileSync(path.join(project, f), 'utf-8')).toBe('task and main\n');
   });
 
-  it('runs verify after a per-file resolution and aborts the worktree merge when it fails', async () => {
+  it('after a per-file resolution that fails verify, the agent gets one go; if it fails the merge is aborted', async () => {
     commitFile(project, 'app.txt', 'line 1 from main\n', 'main change');
     commitFile(worktree, 'app.txt', 'line 1 from task\n', 'feature work');
     const before = snapshot();
     const resolve = vi.fn<typeof resolveMergeConflict>().mockResolvedValue({ success: true, text: 'merged' });
-    const mergeAgent = vi.fn();
+    const mergeAgent = vi.fn(async ({ verifyFailure }: MergeAgentInput) => {
+      expect(verifyFailure).toContain('Cannot find module ./gone');
+      return agentSays('failed', 'cannot fix');
+    });
     const verify = vi.fn().mockResolvedValue(failed);
 
     const result = await runQuickMergeGit(input({ resolve, mergeAgent, verify, verifyCommand: 'npm run typecheck' }));
@@ -277,10 +280,25 @@ describe('stale task branch: agent fallback and verify gate', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.stage).toBe('sync-worktree');
-    expect(result.message).toContain('verify failed after merging main');
-    expect(result.message).toContain('Cannot find module ./gone');
-    expect(mergeAgent).not.toHaveBeenCalled();
+    expect(result.message).toContain("agent couldn't fix it");
+    expect(mergeAgent).toHaveBeenCalledTimes(1);
     expectUntouched(before);
+  });
+
+  it('after a per-file resolution that fails verify, an agent fix that passes lets the merge through', async () => {
+    commitFile(project, 'app.txt', 'line 1 from main\n', 'main change');
+    commitFile(worktree, 'app.txt', 'line 1 from task\n', 'feature work');
+    const resolve = vi.fn<typeof resolveMergeConflict>().mockResolvedValue({ success: true, text: 'merged' });
+    const mergeAgent = vi.fn(async ({ cwd }: MergeAgentInput) => {
+      writeFileSync(path.join(cwd, 'app.txt'), 'merged and fixed\n');
+      return agentSays('resolved');
+    });
+    const verify = vi.fn().mockResolvedValueOnce(failed).mockResolvedValueOnce({ passed: true, output: '' });
+
+    const result = await runQuickMergeGit(input({ resolve, mergeAgent, verify, verifyCommand: 'npm run typecheck' }));
+
+    expect(result).toEqual({ ok: true });
+    expect(readFileSync(path.join(project, 'app.txt'), 'utf-8')).toBe('merged and fixed\n');
   });
 
   it('runs verify for a clean merge that brings in commits from main', async () => {

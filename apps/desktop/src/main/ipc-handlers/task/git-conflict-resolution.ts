@@ -75,6 +75,7 @@ function git(cwd: string, args: string[]): string {
     cwd,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
+    maxBuffer: 256 * 1024 * 1024,
     env: getIsolatedGitEnv()
   });
 }
