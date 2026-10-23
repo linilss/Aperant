@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { FunnelProgress, IPCResult, ProjectActivity } from '../../shared/types';
 import { getActiveDeploy } from '../deploy-manager';
+import { activeMergeCount } from '../project-busy';
 import { computeProjectActivity } from '../../shared/utils/project-activity';
 import { scanTaskStatuses } from '../task-status-scan';
 import { getFunnelProgress } from '../funnel-progress';
@@ -49,7 +50,10 @@ export function registerFunnelHandlers(getMainWindow: () => BrowserWindow | null
         // Async status scan, not getTasks(): this polls every few seconds for every open project
         const statuses = await scanTaskStatuses(project);
         const tasks = statuses.map((s) => ({ status: s.status, metadata: s.archived ? { archivedAt: 'archived' } : {} }));
-        data[id] = computeProjectActivity(tasks as Parameters<typeof computeProjectActivity>[0], !!getActiveDeploy(id));
+        data[id] = computeProjectActivity(tasks as Parameters<typeof computeProjectActivity>[0], {
+          deploying: !!getActiveDeploy(id),
+          merging: activeMergeCount(id)
+        });
       }
       return { success: true, data };
     }

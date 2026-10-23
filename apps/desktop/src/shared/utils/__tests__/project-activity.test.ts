@@ -18,10 +18,10 @@ describe('computeProjectActivity', () => {
       task('done'),
       task('human_review', true),
     ];
-    expect(computeProjectActivity(tasks, false)).toEqual({ running: 2, needsYou: 3 });
+    expect(computeProjectActivity(tasks)).toEqual({ running: 2, needsYou: 3, merging: 0, deploying: false });
   });
 
-  it('counts a running deploy as running', () => {
-    expect(computeProjectActivity([], true)).toEqual({ running: 1, needsYou: 0 });
+  it('reports running merges and deploys', () => {
+    expect(computeProjectActivity([], { deploying: true, merging: 2 })).toEqual({ running: 0, needsYou: 0, merging: 2, deploying: true });
   });
 });

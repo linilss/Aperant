@@ -64,6 +64,7 @@ import { initializeUsageMonitorForwarding } from './ipc-handlers/terminal-handle
 import { initializeAppUpdater, stopPeriodicUpdates } from './app-updater';
 import { DEFAULT_APP_SETTINGS, IPC_CHANNELS, SPELL_CHECK_LANGUAGE_MAP, DEFAULT_SPELL_CHECK_LANGUAGE, ADD_TO_DICTIONARY_LABELS, getSpecsDir } from '../shared/constants';
 import { clearRestartPending, collectResumeCandidates } from './safe-restart';
+import { clearMergeMarker } from './project-busy';
 import { processTaskQueues, readQueueOrder, startTaskQueue, writeQueueOrder } from './task-queue';
 import { getAppLanguage, initAppLanguage } from './app-language';
 import { readSettingsFile } from './settings-utils';
@@ -560,6 +561,7 @@ app.whenReady().then(() => {
   createWindow();
 
   clearRestartPending();
+  clearMergeMarker();
   // Safe restart: start again the tasks a safe stop paused just before this restart
   setTimeout(() => {
     try {

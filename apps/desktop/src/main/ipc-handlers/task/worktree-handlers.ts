@@ -12,6 +12,8 @@ import { projectStore } from '../../project-store';
 import { MergeOrchestrator } from '../../ai/merge/orchestrator';
 import { createMergeResolverFn } from '../../ai/runners/merge-resolver';
 import { pickMergeTarget, pushMergedTarget, refExists, runQuickMergeGit } from './quick-merge';
+import { beginMerge } from '../../project-busy';
+import { isRestartPending } from '../../safe-restart';
 import { resolveVerifyCommand } from '../../verify-detect';
 import { describeUnresolved, listUnmergedFiles, resolveAllConflictsOrThrow, resolveGitConflictsWithAI } from './git-conflict-resolution';
 import { createPR } from '../../ai/runners/github/pr-creator';
@@ -2185,6 +2187,10 @@ export function registerWorktreeHandlers(
           const logFailure = (stage: string, message: string) =>
             appLog.warn(`[QUICK_MERGE] ${task.specId} stage=${stage} error=${message}`);
           const workStashLabel = `malvy: uncommitted work set aside while merging ${task.specId}`;
+          if (isRestartPending()) {
+            return { success: true, data: { success: false, message: 'Malvy is restarting. Merge again in a minute.' } };
+          }
+          const endMerge = beginMerge(project.id);
           let workStashed = false;
           try {
             if (git(['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).malvy']).trim()) {
@@ -2195,6 +2201,7 @@ export function registerWorktreeHandlers(
           } catch (stashErr) {
             const msg = stashErr instanceof Error ? stashErr.message : String(stashErr);
             logFailure('stash-work', msg);
+            endMerge();
             return { success: true, data: { success: false, message: `Could not set uncommitted changes aside: ${msg}` } };
           }
 
@@ -2293,6 +2300,7 @@ export function registerWorktreeHandlers(
               quickResult.data = { ...quickResult.data, message: `${quickResult.data.message} ${restoreError}` };
             }
           }
+          endMerge();
           return quickResult;
         }
         // ── End quick merge path ─────────────────────────────────────────────────

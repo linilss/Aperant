@@ -1416,6 +1416,8 @@
   },
   "projectActivity": {
     "running": "{{count}} running",
+    "merging": "{{count}} merging",
+    "deploying": "deploying",
     "needsYou": "{{count}} waiting for you"
   }
 }
