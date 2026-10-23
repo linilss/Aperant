@@ -90,6 +90,7 @@ export function useFunnelProgressSync(projectIds: string[], activeProjectId?: st
   }, [key]);
 
   // Activity: poll while visible and refresh a project as soon as one of its tasks moves
+  // (not on focus: switching back to the app already refreshes the funnel)
   useEffect(() => {
     const ids = key ? key.split('\n') : [];
     if (ids.length === 0) return;
@@ -98,13 +99,11 @@ export function useFunnelProgressSync(projectIds: string[], activeProjectId?: st
     };
     refresh();
     const timer = window.setInterval(refresh, ACTIVITY_POLL_MS);
-    window.addEventListener('focus', refresh);
     const unsubscribe = window.electronAPI.onTaskStatusChange?.((_taskId, _status, projectId) => {
       if (projectId && ids.includes(projectId)) void loadProjectActivity([projectId]);
     });
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener('focus', refresh);
       unsubscribe?.();
     };
   }, [key]);

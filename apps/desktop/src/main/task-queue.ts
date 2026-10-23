@@ -16,6 +16,7 @@ import { RATE_LIMIT_PAUSE_FILE } from './ai/orchestration/pause-handler';
 import { taskStatusUpdater } from './ipc-handlers/task/execution-handlers';
 import { projectStore } from './project-store';
 import { isRestartPending } from './safe-restart';
+import { scanTaskStatuses } from './task-status-scan';
 
 export const DEFAULT_MAX_PARALLEL_TASKS = 2;
 const TICK_MS = 20_000;
@@ -78,10 +79,15 @@ export async function processTaskQueues(projectId?: string): Promise<void> {
     for (const project of projectStore.getProjects()) {
       if (projectId && project.id !== projectId) continue;
       if (project.settings?.overviewOnly) continue;
+      // Cheap async look first: the full task load blocks the main process, so only
+      // do it when something is queued and a slot is free
+      const max = project.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
+      const statuses = (await scanTaskStatuses(project)).filter((s) => !s.archived);
+      if (!statuses.some((s) => s.status === 'queue')) continue;
+      if (statuses.filter((s) => s.status === 'in_progress').length >= max) continue;
       projectStore.invalidateTasksCache(project.id);
       const specsDir = path.join(project.path, getSpecsDir(project.autoBuildPath));
       const isPaused = (t: Task) => t.status === 'in_progress' && existsSync(path.join(specsDir, t.specId, RATE_LIMIT_PAUSE_FILE));
-      const max = project.settings?.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS;
       for (const task of pickTasksToPromote(projectStore.getTasks(project.id), max, isPaused, readQueueOrder(project.id))) {
         const result = await taskStatusUpdater(task.id, 'in_progress');
         if (!result.success) console.warn(`[TaskQueue] Could not start ${task.id}: ${result.error ?? 'unknown error'}`);

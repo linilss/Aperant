@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import type { FunnelProgress, IPCResult, ProjectActivity } from '../../shared/types';
 import { getActiveDeploy } from '../deploy-manager';
 import { computeProjectActivity } from '../../shared/utils/project-activity';
+import { scanTaskStatuses } from '../task-status-scan';
 import { getFunnelProgress } from '../funnel-progress';
 import { projectStore } from '../project-store';
 import { safeSendToRenderer } from './utils';
@@ -43,8 +44,12 @@ export function registerFunnelHandlers(getMainWindow: () => BrowserWindow | null
       if (!Array.isArray(projectIds)) return { success: false, error: 'Invalid project ids' };
       const data: Record<string, ProjectActivity> = {};
       for (const id of projectIds) {
-        if (typeof id !== 'string' || !projectStore.getProject(id)) continue;
-        data[id] = computeProjectActivity(projectStore.getTasks(id), !!getActiveDeploy(id));
+        const project = typeof id === 'string' ? projectStore.getProject(id) : undefined;
+        if (!project) continue;
+        // Async status scan, not getTasks(): this polls every few seconds for every open project
+        const statuses = await scanTaskStatuses(project);
+        const tasks = statuses.map((s) => ({ status: s.status, metadata: s.archived ? { archivedAt: 'archived' } : {} }));
+        data[id] = computeProjectActivity(tasks as Parameters<typeof computeProjectActivity>[0], !!getActiveDeploy(id));
       }
       return { success: true, data };
     }
